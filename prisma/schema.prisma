@@ -1,0 +1,230 @@
+// ============================================================
+//  صلة تون — مخطط قاعدة البيانات (Prisma)
+//  يقابل ملفي SQL: schema-selah-tone.sql + selah-tone-inventory-tax.sql
+//  التصميم: مستودع لكل فرع · حركات مخزون لا تُعدّل · محرك ضريبة متعدد المكوّنات
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ----------------------------- التنظيم والوصول -----------------------------
+enum RoleCode {
+  MANAGER
+  ACCOUNTANT
+  CS_AGENT
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+model Branch {
+  id            BigInt     @id @default(autoincrement())
+  code          String     @unique @db.VarChar(8) // ARH / SHM / BID
+  nameAr        String     @map("name_ar") @db.VarChar(120)
+  city          String?    @db.VarChar(80)
+  phone         String?    @db.VarChar(30)
+  invoicePrefix String     @map("invoice_prefix") @db.VarChar(6)
+  openingDate   DateTime?  @map("opening_date") @db.Date
+  isActive      Boolean    @default(true) @map("is_active")
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  users         User[]
+  warehouses    Warehouse[]
+
+  @@map("branches")
+}
+
+model User {
+  id           BigInt      @id @default(autoincrement())
+  branchId     BigInt?     @map("branch_id")
+  roleCode     RoleCode    @map("role_code")
+  fullName     String      @map("full_name") @db.VarChar(120)
+  email        String      @unique @db.VarChar(160)
+  phone        String?     @db.VarChar(30)
+  passwordHash String      @map("password_hash")
+  status       UserStatus  @default(ACTIVE)
+  lastLoginAt  DateTime?   @map("last_login_at") @db.Timestamptz
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  branch       Branch?     @relation(fields: [branchId], references: [id])
+
+  @@index([branchId])
+  @@map("users")
+}
+
+// ----------------------------- الكتالوج الضريبي -----------------------------
+enum TaxKind {
+  VAT
+  SCHEDULE
+  WITHHOLDING
+  COMPOSITE
+  EXEMPT
+}
+
+model TaxRate {
+  id            Int       @id @default(autoincrement())
+  code          String    @unique @db.VarChar(20) // VAT14 / VAT5 / EXEMPT / COMP22
+  nameAr        String    @map("name_ar") @db.VarChar(140)
+  rate          Decimal   @db.Decimal(6, 3)
+  kind          TaxKind   @default(VAT)
+  effectiveFrom DateTime  @default(now()) @map("effective_from") @db.Date
+  effectiveTo   DateTime? @map("effective_to") @db.Date
+  isDefault     Boolean   @default(false) @map("is_default")
+  isActive      Boolean   @default(true) @map("is_active")
+  products      Product[]
+  invoiceTaxes  InvoiceTax[]
+
+  @@map("tax_rates")
+}
+
+// ----------------------------- الفروع والمخزون -----------------------------
+model Warehouse {
+  id         BigInt     @id @default(autoincrement())
+  branchId   BigInt     @map("branch_id")
+  code       String     @unique @db.VarChar(12)
+  nameAr     String     @map("name_ar") @db.VarChar(100)
+  isDefault  Boolean    @default(false) @map("is_default")
+  holdsStock Boolean    @default(true) @map("holds_stock")
+  isActive   Boolean    @default(true) @map("is_active")
+  branch     Branch     @relation(fields: [branchId], references: [id])
+  stock      StockLevel[]
+
+  @@unique([branchId, nameAr])
+  @@map("warehouses")
+}
+
+model StockLevel {
+  id          BigInt   @id @default(autoincrement())
+  warehouseId BigInt   @map("warehouse_id")
+  productId   BigInt   @map("product_id")
+  qtyOnHand   Decimal  @default(0) @map("qty_on_hand") @db.Decimal(12, 2)
+  avgCost     Decimal  @default(0) @map("avg_cost") @db.Decimal(14, 4)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+
+  @@unique([warehouseId, productId])
+  @@map("stock_levels")
+}
+
+enum ProductCategory {
+  HEARING_AID
+  ACCESSORY
+  SPARE_PART
+  SERVICE
+}
+
+model Product {
+  id           BigInt          @id @default(autoincrement())
+  sku          String          @unique @db.VarChar(40)
+  nameAr       String          @map("name_ar") @db.VarChar(180)
+  category     ProductCategory
+  brand        String?         @db.VarChar(80)
+  model        String?         @db.VarChar(80)
+  purchaseCost Decimal         @default(0) @map("purchase_cost") @db.Decimal(14, 2)
+  salePrice    Decimal         @default(0) @map("sale_price") @db.Decimal(14, 2)
+  taxRateId    Int?            @map("tax_rate_id")
+  isSerialized Boolean         @default(false) @map("is_serialized")
+  isActive     Boolean         @default(true) @map("is_active")
+  taxRate      TaxRate?        @relation(fields: [taxRateId], references: [id])
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([category])
+  @@map("products")
+}
+
+// ----------------------------- المصروفات (الخطوة 4) -----------------------------
+model ExpenseCategory {
+  id        Int       @id @default(autoincrement())
+  code      String    @unique @db.VarChar(30)
+  nameAr    String    @map("name_ar") @db.VarChar(120)
+  isActive  Boolean   @default(true) @map("is_active")
+  expenses  Expense[]
+
+  @@map("expense_categories")
+}
+
+model Expense {
+  id             BigInt   @id @default(autoincrement())
+  branchId       BigInt   @map("branch_id")
+  categoryId     Int      @map("category_id")
+  amount         Decimal  @db.Decimal(14, 2)
+  expenseDate    DateTime @map("expense_date") @db.Date
+  status         String   @default("DRAFT") @db.VarChar(12)
+  requestedById  BigInt   @map("requested_by")
+  approvedById   BigInt?  @map("approved_by")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  category       ExpenseCategory @relation(fields: [categoryId], references: [id])
+
+  @@index([branchId, expenseDate])
+  @@map("expenses")
+}
+
+// ----------------------------- قيود اليومية -----------------------------
+model JournalEntry {
+  id         BigInt    @id @default(autoincrement())
+  entryNo    String    @unique @map("entry_no") @db.VarChar(24)
+  entryDate  DateTime  @map("entry_date") @db.Date
+  sourceType String    @map("source_type") @db.VarChar(20)
+  sourceId   BigInt    @map("source_id")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@unique([sourceType, sourceId])
+  @@map("journal_entries")
+}
+
+// ----------------------------- الفواتير والضريبة -----------------------------
+model Invoice {
+  id          BigInt   @id @default(autoincrement())
+  invoiceNo   String   @unique @map("invoice_no") @db.VarChar(24)
+  branchId    BigInt   @map("branch_id")
+  warehouseId BigInt   @map("warehouse_id")
+  customerId  BigInt?  @map("customer_id")
+  subtotal    Decimal  @default(0) @db.Decimal(14, 2)
+  discount    Decimal  @default(0) @db.Decimal(14, 2)
+  taxableBase Decimal  @default(0) @map("taxable_base") @db.Decimal(14, 2)
+  taxTotal    Decimal  @default(0) @map("tax_total") @db.Decimal(14, 2)
+  total       Decimal  @default(0) @db.Decimal(14, 2)
+  status      String   @default("DRAFT") @db.VarChar(12)
+  createdById BigInt   @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  items       InvoiceItem[]
+  taxes       InvoiceTax[]
+
+  @@index([branchId, createdAt])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          BigInt  @id @default(autoincrement())
+  invoiceId   BigInt  @map("invoice_id")
+  productId   BigInt? @map("product_id")
+  description String  @db.VarChar(220)
+  qty         Decimal @db.Decimal(10, 2)
+  unitPrice   Decimal @map("unit_price") @db.Decimal(14, 2)
+  taxRateId   Int?    @map("tax_rate_id")
+  taxAmount   Decimal @default(0) @map("tax_amount") @db.Decimal(14, 2)
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("invoice_items")
+}
+
+model InvoiceTax {
+  id         BigInt  @id @default(autoincrement())
+  invoiceId  BigInt  @map("invoice_id")
+  taxRateId  Int     @map("tax_rate_id")
+  baseAmount Decimal @map("base_amount") @db.Decimal(14, 2)
+  taxAmount  Decimal @map("tax_amount") @db.Decimal(14, 2)
+  sequence   Int     @default(1)
+  invoice    Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  taxRate    TaxRate @relation(fields: [taxRateId], references: [id])
+
+  @@index([invoiceId])
+  @@map("invoice_taxes")
+}

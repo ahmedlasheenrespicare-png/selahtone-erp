@@ -1,0 +1,58 @@
+# نسخ احتياطي ليلي مجاني — GitHub Actions (بلا سيرفر، بلا تكلفة)
+# يعمل يوميًا 01:00 UTC (03:00 بتوقيت القاهرة) + يمكن تشغيله يدويًا للاختبار.
+name: nightly-db-backup
+
+on:
+  schedule:
+    - cron: "0 1 * * *"
+  workflow_dispatch: {}          # تشغيل يدوي من واجهة GitHub
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client + AWS CLI
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client awscli
+
+      - name: Run encrypted backup to Cloudflare R2
+        env:
+          DATABASE_URL:         ${{ secrets.DATABASE_URL }}
+          R2_ENDPOINT:          ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET:            ${{ secrets.R2_BUCKET }}
+          R2_ACCESS_KEY_ID:     ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          BACKUP_PASSPHRASE:    ${{ secrets.BACKUP_PASSPHRASE }}
+          RETENTION_DAYS:       "30"
+        run: bash scripts/backup-to-r2.sh
+
+      # تنبيه فوري على البريد لو فشل النسخ (لا تكتشف الفشل بعد شهر)
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::فشل النسخ الاحتياطي — راجع السجلات فورًا"
+          # يمكن إضافة خطوة بريد عبر Resend أو webhook Slack هنا
+
+  # اختبار استرجاع شهري آلي: يستعيد النسخة على قاعدة مؤقتة ويتحقق من عدد الجداول
+  restore-drill:
+    if: github.event.schedule == '0 1 1 * *'   # أول كل شهر
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: backup
+    steps:
+      - name: Restore drill placeholder
+        run: |
+          echo "▶ أول كل شهر: استرجاع آخر نسخة إلى قاعدة اختبار والتحقق من:"
+          echo "  - عدد الجداول المتوقع"
+          echo "  - مجموع أرصدة الخزائن"
+          echo "  - توازن القيود (SUM debit = SUM credit)"
+          echo "  ثم تسجيل النتيجة في تقرير شهري للمدير."
