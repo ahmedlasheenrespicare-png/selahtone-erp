@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireSession, canSeeAllBranches } from "@/lib/auth";
+import { formatInventoryDecimal, scaledInteger, stockValueScaled } from "@/lib/inventory-math";
 
 export const dynamic = "force-dynamic";
 
@@ -27,18 +29,33 @@ export default async function InventoryPage() {
     include: { warehouse: { include: { branch: true } } },
   });
 
-  const stockByProduct = new Map<string, { qty: number; value: number; where: string[] }>();
-  for (const l of levels) {
-    const key = l.productId.toString();
-    const current = stockByProduct.get(key) ?? { qty: 0, value: 0, where: [] };
-    current.qty += Number(l.qtyOnHand);
-    current.value += Number(l.qtyOnHand) * Number(l.avgCost);
-    current.where.push(`${l.warehouse.branch.code}: ${nf.format(Number(l.qtyOnHand))}`);
+  const stockByProduct = new Map<string, { qty: bigint; value: bigint; where: string[] }>();
+  for (const level of levels) {
+    const key = level.productId.toString();
+    const current = stockByProduct.get(key) ?? { qty: 0n, value: 0n, where: [] };
+    const quantity = level.qtyOnHand.toFixed(2);
+    current.qty += scaledInteger(quantity, 2);
+    current.value += stockValueScaled(quantity, level.avgCost.toFixed(4));
+    current.where.push(`${level.warehouse.branch.code}: ${formatInventoryDecimal(scaledInteger(quantity, 2), 2)}`);
     stockByProduct.set(key, current);
   }
 
   return (
-    <>
+    <div className="inv-page">
+      <div className="inv-heading">
+        <div>
+          <p className="inv-heading__eyebrow">إدارة الأصناف</p>
+          <h1>المخزون والمستودعات</h1>
+          <p>عرض الأصناف وأرصدة الفروع المتاحة لحسابك.</p>
+        </div>
+        <div className="inv-actions">
+          <Link className="inv-button inv-button--secondary" href="/inventory/serials">سجل السيريالات</Link>
+          {canSeeAllBranches(session) && <>
+            <Link className="inv-button inv-button--secondary" href="/inventory/opening">تسجيل رصيد افتتاحي</Link>
+            <Link className="inv-button" href="/inventory/new"><span className="inv-button__plus" aria-hidden="true">+</span> إضافة صنف</Link>
+          </>}
+        </div>
+      </div>
       <div className="kpis">
         <div className="kpi">
           <small>أصناف نشطة</small>
@@ -47,12 +64,12 @@ export default async function InventoryPage() {
         </div>
         <div className="kpi">
           <small>أصناف بمخزون</small>
-          <b>{nf.format([...stockByProduct.values()].filter((s) => s.qty > 0).length)}</b>
+          <b>{nf.format([...stockByProduct.values()].filter((s) => s.qty > 0n).length)}</b>
           <span>لها رصيد فعلي في مستودع واحد على الأقل</span>
         </div>
         <div className="kpi">
           <small>إجمالي القيمة</small>
-          <b>{nf.format([...stockByProduct.values()].reduce((a, s) => a + s.value, 0))}</b>
+          <b>{formatInventoryDecimal([...stockByProduct.values()].reduce((a, s) => a + s.value, 0n), 6)}</b>
           <span>ج.م بمتوسط التكلفة</span>
         </div>
         <div className="kpi">
@@ -64,7 +81,7 @@ export default async function InventoryPage() {
 
       <div className="card">
         <h2>الأصناف ومعدل الضريبة <span className="pill">{products.length} صنف</span></h2>
-        <div className="table-wrap">
+        <div className="table-wrap" role="region" aria-label="جدول الأصناف وأرصدة المستودعات" tabIndex={0}>
           <table>
             <thead>
               <tr>
@@ -89,9 +106,9 @@ export default async function InventoryPage() {
                     <td>
                       <span className="badge b-teal">{p.taxRate?.code ?? "—"}</span>
                     </td>
-                    <td className="num">{nf.format(Number(p.purchaseCost))}</td>
-                    <td className="num">{nf.format(Number(p.salePrice))}</td>
-                    <td>{p.isSerialized ? <span className="badge b-warn">مطلوب</span> : <span className="muted">—</span>}</td>
+                    <td className="num">{formatInventoryDecimal(scaledInteger(p.purchaseCost.toFixed(2), 2), 2)}</td>
+                    <td className="num">{formatInventoryDecimal(scaledInteger(p.salePrice.toFixed(2), 2), 2)}</td>
+                    <td>{p.isSerialized || p.category === "HEARING_AID" ? <span className="badge b-warn">مطلوب</span> : <span className="muted">—</span>}</td>
                     <td className="small">
                       {stock && stock.where.length > 0
                         ? stock.where.join(" · ")
@@ -111,6 +128,6 @@ export default async function InventoryPage() {
           <p className="small muted" style={{ margin: 0 }}>لا توجد أرصدة مخزون مسجّلة في النطاق الحالي.</p>
         </div>
       )}
-    </>
+    </div>
   );
 }

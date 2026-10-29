@@ -15,6 +15,8 @@
     "check:auth": "tsx --test tests/auth.test.ts",
     "check:auth:http": "tsx --test tests/auth-http.test.ts",
     "check:navigation": "tsx --test tests/navigation.test.ts",
+    "check:inventory": "tsx --test tests/inventory-validation.test.ts tests/inventory-math.test.ts",
+    "check:inventory:integration": "tsx --test tests/inventory-integration.test.ts",
     "check:tax": "tsx scripts/check-tax.ts",
     "typecheck": "tsc --noEmit"
   },
@@ -31,11 +33,13 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.3.14",
     "@netlify/plugin-nextjs": "^5.9.4",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.17.10",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
+    "pglite-prisma-adapter": "0.6.1",
     "prisma": "^6.1.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
