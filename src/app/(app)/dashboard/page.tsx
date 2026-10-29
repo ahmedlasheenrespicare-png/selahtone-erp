@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AppIcon, type AppIconName } from "@/components/app-icon";
 import { prisma } from "@/lib/prisma";
 import { requireSession, branchScope, canSeeAllBranches } from "@/lib/auth";
+import { formatInventoryDecimal, stockValueScaled } from "@/lib/inventory-math";
 
 export const dynamic = "force-dynamic";
 
@@ -51,8 +52,8 @@ export default async function DashboardPage() {
     select: { qtyOnHand: true, avgCost: true },
   });
   const stockValue = stockLevels.reduce(
-    (sum, stock) => sum + Number(stock.qtyOnHand) * Number(stock.avgCost),
-    0,
+    (sum, stock) => sum + stockValueScaled(stock.qtyOnHand.toFixed(2), stock.avgCost.toFixed(4)),
+    0n,
   );
   const warehouseCount = branches.reduce((count, branch) => count + branch.warehouses.length, 0);
   const now = new Date();
@@ -80,7 +81,7 @@ export default async function DashboardPage() {
     },
     {
       label: "قيمة المخزون",
-      value: nf.format(stockValue),
+      value: formatInventoryDecimal(stockValue, 6),
       unit: "ج.م",
       detail: "محسوبة بمتوسط التكلفة",
       icon: "stockValue",
