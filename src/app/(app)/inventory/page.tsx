@@ -50,6 +50,8 @@ export default async function InventoryPage() {
         </div>
         <div className="inv-actions">
           <Link className="inv-button inv-button--secondary" href="/inventory/serials">سجل السيريالات</Link>
+          <Link className="inv-button inv-button--secondary" href="/inventory/receipts">سجل التوريدات</Link>
+          {(session.role === "MANAGER" || session.role === "CS_AGENT") && <Link className="inv-button inv-button--secondary" href="/inventory/receipts/new">تسجيل توريد</Link>}
           {canSeeAllBranches(session) && <>
             <Link className="inv-button inv-button--secondary" href="/inventory/opening">تسجيل رصيد افتتاحي</Link>
             <Link className="inv-button" href="/inventory/new"><span className="inv-button__plus" aria-hidden="true">+</span> إضافة صنف</Link>

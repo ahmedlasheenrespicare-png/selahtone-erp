@@ -4,14 +4,14 @@ import { isCurrentPath, navigationGroups } from "../src/app/(app)/navigation-ite
 
 test("manager and accountant navigation retains the existing available pages", () => {
   const items = navigationGroups(true).flatMap((group) => group.items);
-  assert.deepEqual(items.filter((item) => item.href).map((item) => item.href), ["/dashboard", "/inventory", "/setup"]);
+  assert.deepEqual(items.filter((item) => item.href).map((item) => item.href), ["/dashboard", "/inventory", "/sales", "/setup"]);
   assert.deepEqual(items.filter((item) => !item.href).map((item) => item.label), ["المصروفات", "العهد النقدية", "التقارير الضريبية"]);
 });
 
 test("counter navigation does not expose the management setup link", () => {
   const items = navigationGroups(false).flatMap((group) => group.items);
-  assert.deepEqual(items.filter((item) => item.href).map((item) => item.href), ["/dashboard", "/inventory"]);
-  assert.deepEqual(items.filter((item) => !item.href).map((item) => item.label), ["كاونتر البيع", "عهدتي", "إيرادي اليومي"]);
+  assert.deepEqual(items.filter((item) => item.href).map((item) => item.href), ["/dashboard", "/inventory", "/sales"]);
+  assert.deepEqual(items.filter((item) => !item.href).map((item) => item.label), ["عهدتي", "إيرادي اليومي"]);
 });
 
 test("the current navigation entry matches only its route and nested routes", () => {
