@@ -3,8 +3,9 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getSession, SESSION_COOKIE } from "@/lib/auth";
 import { safeNextPath } from "@/lib/auth-validation";
-import { AuthFrame } from "./auth-frame";
+import { LoginFrame } from "./login-frame";
 import { LoginForm } from "./login-form";
+import "./login.css";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "تسجيل الدخول | صلة تون" };
@@ -22,8 +23,8 @@ export default async function LoginPage({
   if ((await cookies()).has(SESSION_COOKIE)) redirect(`/api/session/clear?next=${encodeURIComponent(next)}`);
 
   return (
-    <AuthFrame eyebrow="تسجيل الدخول" title="أهلًا بك من جديد" description="سجّل دخولك للوصول إلى مساحة عمل صلة تون.">
+    <LoginFrame>
       <LoginForm next={next} logoutUnconfirmed={params.notice === "logout_unconfirmed"} />
-    </AuthFrame>
+    </LoginFrame>
   );
 }

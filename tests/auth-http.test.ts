@@ -60,6 +60,14 @@ test("login and icons load without exposing the old seed password", async () => 
   const result = await request("/login");
   assert.equal(result.status, 200);
   assert.match(result.body, /تسجيل الدخول \| صلة تون/);
+  assert.match(result.body, /class="signin-card"/);
+  assert.match(result.body, /viewBox="0 0 46 46"/);
+  assert.match(result.body, /fill="#3156A3"/);
+  assert.match(result.body, /Selatone Hearing/);
+  assert.match(result.body, /for="email"/);
+  assert.match(result.body, /for="password"/);
+  assert.match(result.body, /name="remember"/);
+  assert.match(result.body, /إظهار كلمة المرور/);
   assert.doesNotMatch(result.body, /حسابات البداية/);
   assert.equal((await request("/favicon.ico")).status, 200);
   assert.equal((await request("/icon.svg")).status, 200);
