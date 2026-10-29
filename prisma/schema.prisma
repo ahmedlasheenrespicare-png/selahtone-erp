@@ -49,14 +49,65 @@ model User {
   fullName     String      @map("full_name") @db.VarChar(120)
   email        String      @unique @db.VarChar(160)
   phone        String?     @db.VarChar(30)
-  passwordHash String      @map("password_hash")
-  status       UserStatus  @default(ACTIVE)
-  lastLoginAt  DateTime?   @map("last_login_at") @db.Timestamptz
-  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz
-  branch       Branch?     @relation(fields: [branchId], references: [id])
+  passwordHash       String      @map("password_hash")
+  status             UserStatus  @default(ACTIVE)
+  mustChangePassword Boolean     @default(true) @map("must_change_password")
+  lastLoginAt        DateTime?   @map("last_login_at") @db.Timestamptz
+  createdAt          DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  branch             Branch?     @relation(fields: [branchId], references: [id])
+  sessions           AuthSession[]
+  loginAttempts      LoginAttempt[]
 
   @@index([branchId])
   @@map("users")
+}
+
+// جلسات منفصلة لكل جهاز؛ يمكن إلغاء جلسة واحدة دون الاعتماد على صلاحية JWT فقط.
+model AuthSession {
+  id        String   @id @db.VarChar(64)
+  userId    BigInt   @map("user_id")
+  expiresAt DateTime @map("expires_at") @db.Timestamptz
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("auth_sessions")
+}
+
+enum AuthAttemptResult {
+  SUCCESS
+  FAILED
+  THROTTLED
+  PASSWORD_CHANGE_SUCCESS
+  PASSWORD_CHANGE_FAILED
+  PASSWORD_RESET
+}
+
+// لا تُخزّن كلمات المرور أو البريد الصريح في سجل المحاولات.
+model LoginAttempt {
+  id             BigInt            @id @default(autoincrement())
+  identifierHash String            @map("identifier_hash") @db.Char(64)
+  userId         BigInt?           @map("user_id")
+  result         AuthAttemptResult
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  user           User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([identifierHash, createdAt])
+  @@index([createdAt])
+  @@map("login_attempts")
+}
+
+// عدّاد مشترك في قاعدة البيانات، وليس في ذاكرة وظيفة serverless واحدة.
+model LoginThrottle {
+  key             String    @id @db.Char(64)
+  attempts        Int       @default(0)
+  windowStartedAt DateTime  @map("window_started_at") @db.Timestamptz
+  lockedUntil     DateTime? @map("locked_until") @db.Timestamptz
+  updatedAt       DateTime  @map("updated_at") @db.Timestamptz
+
+  @@index([updatedAt])
+  @@map("login_throttles")
 }
 
 // ----------------------------- الكتالوج الضريبي -----------------------------

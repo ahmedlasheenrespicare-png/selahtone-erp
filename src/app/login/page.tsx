@@ -1,69 +1,30 @@
+import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { login, getSession } from "@/lib/auth";
+import { getSession, SESSION_COOKIE } from "@/lib/auth";
+import { safeNextPath } from "@/lib/auth-validation";
+import { LoginFrame } from "./login-frame";
+import { LoginForm } from "./login-form";
+import "./login.css";
 
 export const dynamic = "force-dynamic";
-
-async function loginAction(formData: FormData) {
-  "use server";
-  const email = String(formData.get("email") ?? "");
-  const password = String(formData.get("password") ?? "");
-
-  // لا نستخدم throw هنا حتى لا يظهر خطأ تقني للمستخدم
-  const result = await login(email, password);
-  if (!result.ok) {
-    redirect(`/login?error=${encodeURIComponent(result.error)}`);
-  }
-  redirect("/dashboard");
-}
+export const metadata: Metadata = { title: "تسجيل الدخول | صلة تون" };
 
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ next?: string; notice?: string }>;
 }) {
+  const params = await searchParams;
+  const next = safeNextPath(params.next);
   const session = await getSession();
-  if (session) redirect("/dashboard");
-
-  const { error } = await searchParams;
+  if (session) redirect(session.mustChangePassword ? `/change-password?next=${encodeURIComponent(next)}` : next);
+  // المكوّن الخادمي لا يستطيع حذف الكوكي؛ المسار يحذفه بعد التأكد أنه غير صالح.
+  if ((await cookies()).has(SESSION_COOKIE)) redirect(`/api/session/clear?next=${encodeURIComponent(next)}`);
 
   return (
-    <div className="login-wrap">
-      <div className="login-card">
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-          <div style={{
-            width: 42, height: 42, borderRadius: 12, background: "#0f2f4d", color: "#7fd3c2",
-            display: "grid", placeItems: "center", fontWeight: 800, fontSize: 18,
-          }}>ص</div>
-          <div>
-            <h1>صلة تون</h1>
-            <p className="sub" style={{ margin: 0 }}>نظام الإيرادات والمصروفات</p>
-          </div>
-        </div>
-
-        {error && <div className="alert alert-err">{error}</div>}
-
-        <form action={loginAction}>
-          <div className="field">
-            <label htmlFor="email">البريد الإلكتروني</label>
-            <input id="email" name="email" type="email" required autoComplete="username"
-                   placeholder="manager@selahtone.local" dir="ltr" />
-          </div>
-          <div className="field">
-            <label htmlFor="password">كلمة المرور</label>
-            <input id="password" name="password" type="password" required autoComplete="current-password"
-                   placeholder="••••••••" dir="ltr" />
-          </div>
-          <button className="btn" type="submit">دخول</button>
-        </form>
-
-        <div className="login-help">
-          <b>حسابات البداية</b> (بعد تشغيل <code>npm run db:seed</code>):<br />
-          مدير: <span dir="ltr">manager@selahtone.local</span><br />
-          محاسب: <span dir="ltr">accountant@selahtone.local</span><br />
-          كاونتر العريش: <span dir="ltr">arh@selahtone.local</span><br />
-          كلمة المرور: <code>Sel@2026!</code> — غيّرها بعد أول دخول.
-        </div>
-      </div>
-    </div>
+    <LoginFrame>
+      <LoginForm next={next} logoutUnconfirmed={params.notice === "logout_unconfirmed"} />
+    </LoginFrame>
   );
 }
