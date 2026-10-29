@@ -12,6 +12,7 @@ const ROLE_LABEL: Record<string, string> = {
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
   if (!session) redirect("/login");
+  if (session.mustChangePassword) redirect("/change-password");
 
   return (
     <div className="shell">
@@ -61,6 +62,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               <span className="role"> · {ROLE_LABEL[session.role] ?? session.role}</span>
             </span>
           </div>
+          <Link href="/change-password" className="account-link">تغيير كلمة المرور</Link>
           <LogoutButton />
         </div>
 

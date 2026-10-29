@@ -9,10 +9,16 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
+    "user:reset-password": "tsx scripts/reset-password.ts",
+    "user:status": "tsx scripts/set-user-status.ts",
+    "auth:cleanup": "tsx scripts/cleanup-auth.ts",
+    "check:auth": "tsx --test tests/auth.test.ts",
+    "check:auth:http": "tsx --test tests/auth-http.test.ts",
     "check:tax": "tsx scripts/check-tax.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@fontsource/ibm-plex-sans-arabic": "^5.3.0",
     "@prisma/client": "^6.1.0",
     "bcryptjs": "^2.4.3",
     "dotenv": "^18.0.9",

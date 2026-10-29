@@ -9,6 +9,7 @@
 import "dotenv/config";
 import { PrismaClient, RoleCode, ProductCategory, TaxKind } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { newPasswordSchema } from "../src/lib/auth-validation";
 
 const prisma = new PrismaClient();
 
@@ -56,6 +57,10 @@ const EXPENSE_CATEGORIES = [
 ];
 
 async function main() {
+  const seedPassword = process.env.SEED_PASSWORD;
+  if (!seedPassword || !newPasswordSchema.safeParse(seedPassword).success) {
+    throw new Error("اضبط SEED_PASSWORD بكلمة مرور مؤقتة من 12 حرفًا على الأقل ولا تزيد على 72 بايت قبل التهيئة.");
+  }
   console.log("▶ بدء تهيئة البيانات…");
 
   // 1) معدلات الضريبة
@@ -123,7 +128,6 @@ async function main() {
 
   // 5) المستخدمون التجريبيون
   const arh = await prisma.branch.findUnique({ where: { code: "ARH" } });
-  const seedPassword = process.env.SEED_PASSWORD ?? "Sel@2026!";
 
   const users: { email: string; fullName: string; role: RoleCode; branchId: bigint | null }[] = [
     { email: "manager@selahtone.local", fullName: "مدير الشركة", role: RoleCode.MANAGER, branchId: null },
@@ -142,11 +146,12 @@ async function main() {
         roleCode: u.role,
         branchId: u.branchId,
         passwordHash: hash,
+        mustChangePassword: true,
         status: "ACTIVE",
       },
     });
   }
-  console.log(`  ✓ المستخدمون: ${users.length} (كلمة المرور الأولية: ${seedPassword})`);
+  console.log(`  ✓ المستخدمون: ${users.length} (المستخدمون الجدد سيغيرون كلمات المرور عند أول دخول؛ الحسابات الموجودة لم تتغير)`);
 
   console.log("\n✅ اكتملت التهيئة. سجّل الدخول ثم غيّر كلمات المرور فورًا.\n");
 }
