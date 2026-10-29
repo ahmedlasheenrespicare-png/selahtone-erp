@@ -38,6 +38,7 @@ model Branch {
   createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz
   users         User[]
   warehouses    Warehouse[]
+  commerceSales CommerceSale[]
 
   @@map("branches")
 }
@@ -58,7 +59,14 @@ model User {
   sessions           AuthSession[]
   loginAttempts      LoginAttempt[]
   inventoryOpenings  InventoryOpening[]
+  inventoryReceipts  InventoryReceipt[]
   productCreations   InventoryProductCreation[]
+  commerceSales      CommerceSale[]
+  commerceCollections CommerceCollection[]
+  commerceReturns    CommerceReturn[]
+  commerceRefunds    CommerceRefund[]
+  commerceSettingChanges CommerceSettingsChange[]
+  commerceSettingsUpdates CommerceSettings[]
 
   @@index([branchId])
   @@map("users")
@@ -133,6 +141,7 @@ model TaxRate {
   isActive      Boolean   @default(true) @map("is_active")
   products      Product[]
   invoiceTaxes  InvoiceTax[]
+  commerceSaleLines CommerceSaleLine[]
 
   @@map("tax_rates")
 }
@@ -149,6 +158,8 @@ model Warehouse {
   branch     Branch     @relation(fields: [branchId], references: [id])
   stock      StockLevel[]
   openings   InventoryOpening[]
+  receipts   InventoryReceipt[]
+  commerceSales CommerceSale[]
 
   @@unique([branchId, nameAr])
   @@map("warehouses")
@@ -189,7 +200,9 @@ model Product {
   taxRate      TaxRate?        @relation(fields: [taxRateId], references: [id])
   createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz
   openings     InventoryOpening[]
+  receipts     InventoryReceipt[]
   creation     InventoryProductCreation?
+  commerceSaleLines CommerceSaleLine[]
 
   @@index([category])
   @@map("products")
@@ -217,15 +230,45 @@ model InventoryOpening {
   @@map("inventory_openings")
 }
 
+// توريد جديد يزيد رصيد الصنف ويحفظ تكلفته ومرجعه؛ لا ينشئ فاتورة مورد.
+model InventoryReceipt {
+  id              BigInt   @id @default(autoincrement())
+  requestId       String   @unique @map("request_id") @db.Uuid
+  requestHash     String   @map("request_hash") @db.Char(64)
+  warehouseId     BigInt   @map("warehouse_id")
+  productId       BigInt   @map("product_id")
+  quantity        Decimal  @db.Decimal(12,2)
+  unitCost        Decimal  @map("unit_cost") @db.Decimal(14,4)
+  sourceReference String?  @map("source_reference") @db.VarChar(180)
+  createdById     BigInt   @map("created_by_id")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  warehouse       Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  product         Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  createdBy       User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  serials         InventorySerial[]
+
+  @@index([warehouseId, productId, createdAt])
+  @@index([createdById, createdAt])
+  @@map("inventory_receipts")
+}
+
 model InventorySerial {
   id           BigInt   @id @default(autoincrement())
-  openingId    BigInt   @map("opening_id")
+  openingId    BigInt?  @map("opening_id")
+  receiptId    BigInt?  @map("receipt_id")
+  currentSaleLineId BigInt? @map("current_sale_line_id")
   serialNumber String   @map("serial_number") @db.VarChar(80)
   serialKey    String   @unique @map("serial_key") @db.VarChar(80)
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
-  opening      InventoryOpening @relation(fields: [openingId], references: [id], onDelete: Restrict)
+  opening      InventoryOpening? @relation(fields: [openingId], references: [id], onDelete: Restrict)
+  receipt      InventoryReceipt? @relation(fields: [receiptId], references: [id], onDelete: Restrict)
+  currentSaleLine CommerceSaleLine? @relation("CurrentSerialSale", fields: [currentSaleLineId], references: [id], onDelete: Restrict)
+  saleLinks CommerceSaleLineSerial[]
 
+  // A SQL CHECK requires exactly one source (opening or receipt).
   @@index([openingId])
+  @@index([receiptId])
+  @@index([currentSaleLineId])
   @@map("inventory_serials")
 }
 
@@ -332,4 +375,170 @@ model InvoiceTax {
 
   @@index([invoiceId])
   @@map("invoice_taxes")
+}
+
+// --------------------- المبيعات المقترحة — للاختبار المعزول فقط ---------------------
+// هذه الجداول منفصلة عن Invoice القديم؛ لا تُمثل إقرارًا ضريبيًا أو تحويلاً ماليًا.
+model CommerceSettings {
+  id               Int      @id @default(1) @db.SmallInt
+  staffDiscountBps Int      @default(500) @map("staff_discount_bps")
+  updatedById      BigInt?  @map("updated_by_id")
+  updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  updatedBy        User?    @relation(fields: [updatedById], references: [id], onDelete: Restrict)
+  @@map("commerce_settings")
+}
+
+model CommerceSettingsChange {
+  id               BigInt   @id @default(autoincrement())
+  requestId        String   @unique @map("request_id") @db.Uuid
+  requestHash      String   @map("request_hash") @db.Char(64)
+  staffDiscountBps Int      @map("staff_discount_bps")
+  createdById      BigInt   @map("created_by_id")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  createdBy        User     @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  @@index([createdAt])
+  @@map("commerce_settings_changes")
+}
+
+model CommerceSale {
+  id            BigInt   @id @default(autoincrement())
+  requestId     String   @unique @map("request_id") @db.Uuid
+  requestHash   String   @map("request_hash") @db.Char(64)
+  branchId      BigInt   @map("branch_id")
+  warehouseId   BigInt   @map("warehouse_id")
+  customerName  String   @map("customer_name") @db.VarChar(180)
+  customerPhone String   @map("customer_phone") @db.VarChar(30)
+  subtotal      Decimal  @db.Decimal(14, 2)
+  discount      Decimal  @db.Decimal(14, 2)
+  taxableBase   Decimal  @map("taxable_base") @db.Decimal(14, 2)
+  taxTotal      Decimal  @map("tax_total") @db.Decimal(14, 2)
+  total         Decimal  @db.Decimal(14, 2)
+  revision      Int      @default(0)
+  cancelledAt   DateTime? @map("cancelled_at") @db.Timestamptz
+  createdById   BigInt   @map("created_by_id")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  branch        Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  warehouse     Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  createdBy     User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  lines         CommerceSaleLine[]
+  collections   CommerceCollection[]
+  returns       CommerceReturn[]
+  refunds       CommerceRefund[]
+  @@index([branchId, createdAt])
+  @@index([createdById, createdAt])
+  @@map("commerce_sales")
+}
+
+model CommerceSaleLine {
+  id                BigInt   @id @default(autoincrement())
+  saleId            BigInt   @map("sale_id")
+  productId         BigInt   @map("product_id")
+  skuSnapshot       String   @map("sku_snapshot") @db.VarChar(40)
+  nameSnapshot      String   @map("name_snapshot") @db.VarChar(180)
+  quantity          Decimal  @db.Decimal(12, 2)
+  unitPrice         Decimal  @map("unit_price") @db.Decimal(14, 2)
+  taxRateId         Int      @map("tax_rate_id")
+  taxCodeSnapshot   String   @map("tax_code_snapshot") @db.VarChar(20)
+  taxKindSnapshot   String   @map("tax_kind_snapshot") @db.VarChar(12)
+  taxRateSnapshot   Decimal  @map("tax_rate_snapshot") @db.Decimal(6, 3)
+  gross             Decimal  @db.Decimal(14, 2)
+  discount          Decimal  @db.Decimal(14, 2)
+  taxableBase       Decimal  @map("taxable_base") @db.Decimal(14, 2)
+  taxAmount         Decimal  @map("tax_amount") @db.Decimal(14, 2)
+  total             Decimal  @db.Decimal(14, 2)
+  unitCost          Decimal? @map("unit_cost") @db.Decimal(14, 4)
+  isStock           Boolean  @map("is_stock")
+  isSerialized      Boolean  @map("is_serialized")
+  sale              CommerceSale @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  product           Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  taxRate           TaxRate @relation(fields: [taxRateId], references: [id], onDelete: Restrict)
+  serialLinks       CommerceSaleLineSerial[]
+  currentSerials    InventorySerial[] @relation("CurrentSerialSale")
+  returnLines       CommerceReturnLine[]
+  @@unique([saleId, productId])
+  @@map("commerce_sale_lines")
+}
+
+model CommerceSaleLineSerial {
+  id         BigInt @id @default(autoincrement())
+  saleLineId BigInt @map("sale_line_id")
+  serialId   BigInt @map("serial_id")
+  saleLine   CommerceSaleLine @relation(fields: [saleLineId], references: [id], onDelete: Restrict)
+  serial     InventorySerial @relation(fields: [serialId], references: [id], onDelete: Restrict)
+  returnSerial CommerceReturnSerial?
+  @@unique([saleLineId, serialId])
+  @@index([serialId])
+  @@map("commerce_sale_line_serials")
+}
+
+model CommerceCollection {
+  id          BigInt   @id @default(autoincrement())
+  requestId   String   @unique @map("request_id") @db.Uuid
+  requestHash String   @map("request_hash") @db.Char(64)
+  saleId      BigInt   @map("sale_id")
+  amount      Decimal  @db.Decimal(14, 2)
+  method      String   @db.VarChar(16)
+  isInitial   Boolean  @default(false) @map("is_initial")
+  createdById BigInt   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  sale        CommerceSale @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  createdBy   User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  @@index([saleId, createdAt])
+  @@map("commerce_collections")
+}
+
+model CommerceReturn {
+  id             BigInt   @id @default(autoincrement())
+  requestId      String   @unique @map("request_id") @db.Uuid
+  requestHash    String   @map("request_hash") @db.Char(64)
+  saleId         BigInt   @map("sale_id")
+  isCancellation Boolean  @default(false) @map("is_cancellation")
+  createdById    BigInt   @map("created_by_id")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  sale           CommerceSale @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  createdBy      User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  lines          CommerceReturnLine[]
+  @@index([saleId, createdAt])
+  @@map("commerce_returns")
+}
+
+model CommerceReturnLine {
+  id         BigInt  @id @default(autoincrement())
+  returnId   BigInt  @map("return_id")
+  saleLineId BigInt  @map("sale_line_id")
+  quantity   Decimal @db.Decimal(12, 2)
+  total      Decimal @db.Decimal(14, 2)
+  taxAmount  Decimal @map("tax_amount") @db.Decimal(14, 2)
+  returned   CommerceReturn @relation(fields: [returnId], references: [id], onDelete: Restrict)
+  saleLine   CommerceSaleLine @relation(fields: [saleLineId], references: [id], onDelete: Restrict)
+  serials    CommerceReturnSerial[]
+  @@unique([returnId, saleLineId])
+  @@index([saleLineId])
+  @@map("commerce_return_lines")
+}
+
+model CommerceReturnSerial {
+  id               BigInt @id @default(autoincrement())
+  returnLineId     BigInt @map("return_line_id")
+  saleLineSerialId BigInt @unique @map("sale_line_serial_id")
+  returnLine       CommerceReturnLine @relation(fields: [returnLineId], references: [id], onDelete: Restrict)
+  saleLineSerial   CommerceSaleLineSerial @relation(fields: [saleLineSerialId], references: [id], onDelete: Restrict)
+  @@index([returnLineId])
+  @@map("commerce_return_serials")
+}
+
+// يسجل ردًا تم فعليًا خارج النظام؛ لا ينشئ تحويلًا أو دفعة تلقائية.
+model CommerceRefund {
+  id          BigInt   @id @default(autoincrement())
+  requestId   String   @unique @map("request_id") @db.Uuid
+  requestHash String   @map("request_hash") @db.Char(64)
+  saleId      BigInt   @map("sale_id")
+  amount      Decimal  @db.Decimal(14, 2)
+  method      String   @db.VarChar(16)
+  createdById BigInt   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  sale        CommerceSale @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  createdBy   User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  @@index([saleId, createdAt])
+  @@map("commerce_refunds")
 }

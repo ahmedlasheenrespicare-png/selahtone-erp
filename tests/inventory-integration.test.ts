@@ -17,6 +17,8 @@ const baseline = readFileSync(path.join(root, "tests/fixtures/inventory-baseline
 const preflight = readFileSync(path.join(root, "prisma/manual-inventory-preflight.sql"), "utf8");
 const permissions = readFileSync(path.join(root, "prisma/manual-inventory-permissions.sql"), "utf8");
 const upgrade = readFileSync(path.join(root, "prisma/manual-inventory-upgrade.sql"), "utf8");
+const receiptUpgrade = readFileSync(path.join(root, "prisma/manual-receiving-upgrade.sql"), "utf8");
+const commerceUpgrade = readFileSync(path.join(root, "prisma/manual-commerce-upgrade.sql"), "utf8");
 const verification = readFileSync(path.join(root, "prisma/verify-manual-inventory.sql"), "utf8");
 const inspection = readFileSync(path.join(root, "prisma/inspect-manual-inventory.sql"), "utf8");
 
@@ -130,6 +132,10 @@ test("isolated inventory transactions, authorization, serials and upgrade", { ti
     assert.ok(inspected.constraints.length >= 15);
     assert.equal(inspected.indexes.length, 11);
     assert.ok(inspected.indexes.every((index: string) => index.includes("|valid:t|ready:t|")));
+    // This client uses the newer schema. Verify the original migration first,
+    // then add the receipt extension only on this isolated PGlite database.
+    await pg.exec(receiptUpgrade);
+    await pg.exec(commerceUpgrade);
     db = new TestClient({ adapter: new PrismaPGlite(pg) as never });
     const client = db;
     let createdProductId = "";

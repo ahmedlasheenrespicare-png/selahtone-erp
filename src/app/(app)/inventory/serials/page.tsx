@@ -18,13 +18,19 @@ export default async function SerialsPage({ searchParams }: Props) {
   const before = typeof params.before === "string" ? positiveDatabaseId(params.before) : null;
   const serials = invalidSearch ? [] : await prisma.inventorySerial.findMany({
     where: {
-      ...(scope.branchId ? { opening: { warehouse: { branchId: BigInt(scope.branchId) } } } : {}),
+      ...(scope.branchId ? { OR: [
+        { opening: { warehouse: { branchId: BigInt(scope.branchId) } } },
+        { receipt: { warehouse: { branchId: BigInt(scope.branchId) } } },
+      ] } : {}),
       ...(search ? { serialKey: { contains: escapeLikeLiteral(search) } } : {}),
       ...(before ? { id: { lt: BigInt(before) } } : {}),
     },
     orderBy: { id: "desc" },
     take: 51,
-    include: { opening: { include: { product: { select: { nameAr: true, sku: true } }, warehouse: { select: { nameAr: true, branch: { select: { nameAr: true } } } } } } },
+    include: {
+      opening: { include: { product: { select: { nameAr: true, sku: true } }, warehouse: { select: { nameAr: true, branch: { select: { nameAr: true } } } } } },
+      receipt: { include: { product: { select: { nameAr: true, sku: true } }, warehouse: { select: { nameAr: true, branch: { select: { nameAr: true } } } } } },
+    },
   });
   const hasMore = serials.length > 50;
   const visible = serials.slice(0, 50);
@@ -34,8 +40,8 @@ export default async function SerialsPage({ searchParams }: Props) {
 
   return <div className="inv-page">
     <Link href="/inventory" className="inv-back"><AppIcon name="arrow" /> العودة إلى المخزون</Link>
-    <div className="inv-heading"><div><p className="inv-heading__eyebrow">تتبع الأجهزة</p><h1>سجل السيريالات</h1><p>الأرقام المسجلة ضمن الأرصدة الافتتاحية في نطاق حسابك.</p></div></div>
-    <div className="inv-alert">يعرض السجل مدخلات البداية فقط؛ حركات البيع والنقل لم تُفعّل بعد.</div>
+    <div className="inv-heading"><div><p className="inv-heading__eyebrow">تتبع الأجهزة</p><h1>سجل السيريالات</h1><p>الأرقام المسجلة ضمن الأرصدة الافتتاحية والتوريدات في نطاق حسابك.</p></div></div>
+    <div className="inv-alert">تُعرض حالة البيع الحالية لكل جهاز. نقل الأجهزة بين المستودعات غير مدعوم في هذه النسخة.</div>
     <section className="inv-panel" aria-labelledby="serials-list-title">
       <div className="inv-panel__heading"><h2 id="serials-list-title">الأرقام المسجّلة</h2><p>يمكنك البحث عن رقم كامل أو جزء منه.</p></div>
       <div className="inv-panel__body">
@@ -46,13 +52,17 @@ export default async function SerialsPage({ searchParams }: Props) {
           {rawSearch && <Link href="/inventory/serials" className="inv-button inv-button--secondary">مسح البحث</Link>}
         </form>
         {invalidSearch ? <div className="inv-alert inv-alert--error" role="alert">أدخل بحثًا لا يزيد على 80 حرفًا ودون رموز تحكم.</div> : visible.length ? <div className="inv-table-wrap" role="region" aria-label="جدول الأرقام التسلسلية" tabIndex={0}>
-          <table className="inv-table"><thead><tr><th scope="col">الرقم التسلسلي</th><th scope="col">الصنف</th><th scope="col">الفرع</th><th scope="col">المستودع</th><th scope="col">تاريخ التسجيل</th></tr></thead>
-            <tbody>{visible.map((serial) => <tr key={serial.id.toString()}>
-              <td><bdi dir="ltr">{serial.serialNumber}</bdi></td>
-              <td>{serial.opening.product.nameAr} <span className="muted">({serial.opening.product.sku})</span></td>
-              <td>{serial.opening.warehouse.branch.nameAr}</td><td>{serial.opening.warehouse.nameAr}</td>
-              <td>{dateFormatter.format(serial.createdAt)}</td>
-            </tr>)}</tbody>
+          <table className="inv-table"><thead><tr><th scope="col">الرقم التسلسلي</th><th scope="col">الصنف</th><th scope="col">الفرع</th><th scope="col">المستودع</th><th scope="col">الحالة</th><th scope="col">تاريخ التسجيل</th></tr></thead>
+            <tbody>{visible.map((serial) => {
+              const source = serial.opening ?? serial.receipt;
+              return <tr key={serial.id.toString()}>
+                <td><bdi dir="ltr">{serial.serialNumber}</bdi></td>
+                <td>{source ? <>{source.product.nameAr} <span className="muted">({source.product.sku})</span></> : "مصدر غير معروف"}</td>
+                <td>{source?.warehouse.branch.nameAr ?? "—"}</td><td>{source?.warehouse.nameAr ?? "—"}</td>
+                <td>{serial.currentSaleLineId ? "مباع" : "متاح"}</td>
+                <td>{dateFormatter.format(serial.createdAt)}</td>
+              </tr>;
+            })}</tbody>
           </table>
         </div> : <div className="inv-empty">لا توجد أرقام مسجّلة مطابقة في نطاق حسابك.</div>}
         {hasMore && <div className="inv-actions" style={{ marginTop: 16 }}><Link className="inv-button inv-button--secondary" href={`/inventory/serials?${nextParams.toString()}`}>عرض الأرقام التالية</Link></div>}

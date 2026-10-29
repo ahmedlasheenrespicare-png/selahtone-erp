@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { canSeeAllBranches, requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createInventoryOpening, createInventoryProduct, InventoryProblem } from "@/lib/inventory-operations";
+import { receiveInventoryStock } from "@/lib/receiving-operations";
+import type { ReceiptInputRaw } from "@/lib/receiving-validation";
 import { parseProductInput, type OpeningInputRaw, type ProductInputRaw } from "@/lib/inventory-validation";
 import type { InventoryActionState } from "./inventory-state";
 
@@ -82,4 +84,30 @@ export async function createOpeningAction(_previous: InventoryActionState, formD
     revalidatePath("/dashboard");
   } catch { console.error("Inventory cache revalidation failed"); }
   return { status: "success", id: result.id, message: result.replayed ? "سبق حفظ هذا الطلب؛ لم يُضف الرصيد مرة أخرى." : "تم حفظ الرصيد الافتتاحي والأرقام المسجّلة معه." };
+}
+
+export async function createReceiptAction(_previous: InventoryActionState, formData: FormData): Promise<InventoryActionState> {
+  const session = await requireSession();
+  if (session.role !== "MANAGER" && session.role !== "CS_AGENT") return { status: "error", message: "تسجيل التوريد متاح للمدير وموظف الفرع فقط." };
+  if (text(formData, "reviewed") !== "yes") return { status: "error", message: "راجع تفاصيل التوريد والأرقام قبل تأكيد الحفظ." };
+  const raw: ReceiptInputRaw = {
+    requestId: text(formData, "requestId"), productId: text(formData, "productId"),
+    warehouseId: text(formData, "warehouseId"), quantity: text(formData, "quantity"),
+    unitCost: text(formData, "unitCost"), serialNumbers: text(formData, "serialNumbers"),
+    sourceReference: text(formData, "sourceReference"),
+  };
+  let result;
+  try {
+    result = await receiveInventoryStock(prisma, BigInt(session.id), raw);
+  } catch (error) {
+    if (error instanceof InventoryProblem) return { status: "error", message: error.message, fieldErrors: error.fieldErrors };
+    return unexpected(error);
+  }
+  try {
+    revalidatePath("/inventory");
+    revalidatePath("/inventory/receipts");
+    revalidatePath("/inventory/serials");
+    revalidatePath("/dashboard");
+  } catch { console.error("Inventory cache revalidation failed"); }
+  return { status: "success", id: result.id, message: result.replayed ? "سبق حفظ هذا التوريد؛ لم تُضف الكمية مرة أخرى." : "تم تسجيل التوريد وإضافة الكمية للمخزون." };
 }

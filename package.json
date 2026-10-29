@@ -18,7 +18,13 @@
     "check:inventory": "tsx --test tests/inventory-validation.test.ts tests/inventory-math.test.ts",
     "check:inventory:integration": "tsx --test tests/inventory-integration.test.ts",
     "check:tax": "tsx scripts/check-tax.ts",
-    "typecheck": "tsc --noEmit"
+    "check:setup:safety": "tsx --test tests/setup-safety.test.ts",
+    "typecheck": "tsc --noEmit",
+    "check:receiving": "tsx --test tests/receiving-validation.test.ts",
+    "check:receiving:integration": "tsx --test tests/receiving-integration.test.ts",
+    "check:commerce": "tsx --test tests/commerce-validation.test.ts tests/commerce-math.test.ts tests/commerce-policy.test.ts",
+    "check:commerce:integration": "tsx --test tests/commerce-integration.test.ts",
+    "check:commerce:preflight": "tsx --test tests/commerce-preflight.test.ts tests/current-db-audit.test.ts"
   },
   "dependencies": {
     "@fontsource/ibm-plex-sans-arabic": "^5.3.0",

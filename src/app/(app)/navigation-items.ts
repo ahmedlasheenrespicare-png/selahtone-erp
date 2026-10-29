@@ -19,6 +19,7 @@ export function navigationGroups(canViewAllBranches: boolean): NavigationGroup[]
       items: [
         { label: "لوحة القيادة", icon: "dashboard", href: "/dashboard" },
         { label: "المخزون والمستودعات", icon: "inventory", href: "/inventory" },
+        { label: "المبيعات والفواتير", icon: "sales", href: "/sales" },
       ],
     },
     canViewAllBranches
@@ -34,7 +35,6 @@ export function navigationGroups(canViewAllBranches: boolean): NavigationGroup[]
       : {
           label: "أعمال الفرع",
           items: [
-            { label: "كاونتر البيع", icon: "sales" },
             { label: "عهدتي", icon: "cash" },
             { label: "إيرادي اليومي", icon: "receipt" },
           ],

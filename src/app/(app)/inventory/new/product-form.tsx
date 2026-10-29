@@ -139,7 +139,7 @@ export default function ProductForm({ requestId, taxRates }: Props) {
           </dl>
         </section>}
         <div className="inv-form-actions">
-          {!review ? <button type="button" className="inv-button" onClick={reviewValues} disabled={pending}>مراجعة البيانات</button> : <><button type="submit" className="inv-button" disabled={pending}>{pending ? "جارٍ الحفظ…" : "تأكيد وحفظ الصنف"}</button><button type="button" className="inv-button inv-button--secondary" onClick={() => setReview(null)} disabled={pending}>تعديل البيانات</button></>}
+          {!review ? <button type="button" className="inv-button" onClick={(event) => { event.preventDefault(); reviewValues(); }} disabled={pending}>مراجعة البيانات</button> : <><button type="submit" className="inv-button" disabled={pending}>{pending ? "جارٍ الحفظ…" : "تأكيد وحفظ الصنف"}</button><button type="button" className="inv-button inv-button--secondary" onClick={() => setReview(null)} disabled={pending}>تعديل البيانات</button></>}
           {pending ? <span className="inv-button inv-button--text" aria-disabled="true">انتظر انتهاء الحفظ</span> : <Link className="inv-button inv-button--text" href="/inventory">إلغاء</Link>}
         </div>
       </div>

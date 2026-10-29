@@ -1,0 +1,48 @@
+.sale-grid { display: grid; grid-template-columns: minmax(0, 1fr) 310px; align-items: start; gap: 18px; }
+.sale-stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-width: 0; }
+.sale-stack > *, .sale-grid > * { min-width: 0; }
+.sale-totals { margin: 0; display: grid; gap: 10px; }
+.sale-totals div { display: flex; justify-content: space-between; gap: 16px; color: #405572; font-size: 12px; }
+.sale-totals dt, .sale-totals dd { margin: 0; }
+.sale-totals .sale-totals__strong { padding-top: 10px; border-top: 1px solid #dfe7f3; color: #1b3f79; font-weight: 700; font-size: 15px; }
+.sale-product { padding: 16px; border: 1px solid #e2e9f3; border-radius: 12px; background: #fbfcff; }
+.sale-product + .sale-product { margin-top: 12px; }
+.sale-product__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.sale-product__heading h3 { margin: 0; color: #253b5d; font-size: 14px; }
+.sale-product__heading p { margin: 3px 0 0; color: #60708a; font-size: 11.5px; }
+.sale-product__remove { border: 0; background: transparent; color: #9f3636; font: inherit; font-size: 12px; cursor: pointer; }
+.sale-serials { margin: 12px 0 0; padding: 12px; border: 1px solid #dfe7f3; border-radius: 9px; min-width: 0; }
+.sale-serials legend { padding: 0 4px; color: #354b6b; font-size: 12px; font-weight: 700; }
+.sale-serials__list { max-height: 180px; overflow: auto; display: grid; grid-template-columns: repeat(auto-fit,minmax(165px,1fr)); gap: 7px; }
+.sale-serials label { display: flex; gap: 7px; align-items: center; color: #405572; font-size: 12px; overflow-wrap: anywhere; }
+.sale-serials input { width: 16px; height: 16px; accent-color: #3156a3; }
+.sale-inline { display: flex; align-items: flex-end; gap: 10px; }
+.sale-inline .inv-field { flex: 1; }
+.sale-chip { display: inline-flex; padding: 3px 8px; border-radius: 99px; background: #eaf3ee; color: #226747; font-size: 11px; font-weight: 700; }
+.sale-chip--warning { background: #fff3d8; color: #795106; }
+.sale-chip--neutral { background: #eef2f8; color: #4d6282; }
+.sale-detail-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 15px; align-items: flex-start; }
+.sale-detail-head h2 { margin: 0; color: #1d365f; }
+.sale-detail-head p { margin: 5px 0 0; color: #60708a; font-size: 12px; }
+.sale-meta { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; margin: 18px 0; }
+.sale-meta div { padding: 11px; border-radius: 9px; background: #f7f9fd; min-width: 0; }
+.sale-meta dt { color: #60708a; font-size: 11px; }
+.sale-meta dd { margin: 3px 0 0; color: #253d61; font-size: 12px; font-weight: 700; overflow-wrap: anywhere; }
+.sale-ledger { padding: 0; margin: 10px 0 0; list-style: none; }
+.sale-ledger li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding: 9px 0; border-bottom: 1px solid #edf1f7; color: #536b8d; font-size: 12px; }
+.sale-ledger li:last-child { border-bottom: 0; }
+.sale-ledger li span { min-width: 0; overflow-wrap: anywhere; }
+.sale-note { margin: 10px 0 0; color: #60708a; font-size: 11.5px; line-height: 1.7; }
+.sale-print-watermark { margin: 0 0 14px; padding: 10px; border: 1px solid #e4cf9f; border-radius: 8px; background: #fffaf0; color: #75520e; font-size: 12px; font-weight: 700; }
+@media (max-width: 980px) { .sale-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 620px) { .sale-meta { grid-template-columns: 1fr 1fr; } .sale-inline { flex-wrap: wrap; } .sale-inline .inv-button { width: 100%; } }
+@media print {
+  body * { visibility: hidden !important; }
+  .sale-print, .sale-print * { visibility: visible !important; }
+  .sale-print { position: absolute; inset: 0; width: 100%; padding: 0; border: 0; box-shadow: none; color: #000; background: #fff; }
+  .sale-print .inv-table-wrap, .sale-print .table-wrap { overflow: visible; border-color: #bbb; }
+  .sale-print .inv-table { min-width: 0; width: 100%; font-size: 10pt; }
+  .sale-print-watermark { border-color: #888; color: #000; background: #fff; }
+  .sale-meta div { border: 1px solid #ddd; background: #fff; }
+  .sale-print a { color: #000; text-decoration: none; }
+}
