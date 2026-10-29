@@ -14,6 +14,7 @@
     "auth:cleanup": "tsx scripts/cleanup-auth.ts",
     "check:auth": "tsx --test tests/auth.test.ts",
     "check:auth:http": "tsx --test tests/auth-http.test.ts",
+    "check:navigation": "tsx --test tests/navigation.test.ts",
     "check:tax": "tsx scripts/check-tax.ts",
     "typecheck": "tsc --noEmit"
   },
