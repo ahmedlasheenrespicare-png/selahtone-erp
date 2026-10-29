@@ -105,16 +105,12 @@ export default async function InventoryPage() {
         </div>
       </div>
 
-      <div className="card">
-        <h2>الخطوة التالية</h2>
-        <p className="small muted" style={{ marginTop: -4 }}>
-          الأرصدة أعلاه فارغة لأن المخزون لم يُستورد بعد. عندنا خياران بالترتيب:
-        </p>
-        <ol className="small" style={{ color: "var(--ink-2)", paddingInlineStart: 20, margin: "6px 0 0" }}>
-          <li><b>إدخال أرصدة افتتاحية</b> من نموذج بسيط (أسرع للثلاثة فروع لو الأصناف قليلة).</li>
-          <li><b>استيراد ملف Excel</b> بالقالب الجاهز <code>inventory_import_template.xlsx</code> (الأفضل لو الأصناف كثيرة).</li>
-        </ol>
-      </div>
+      {levels.length === 0 && (
+        <div className="card">
+          <h2>الأرصدة</h2>
+          <p className="small muted" style={{ margin: 0 }}>لا توجد أرصدة مخزون مسجّلة في النطاق الحالي.</p>
+        </div>
+      )}
     </>
   );
 }

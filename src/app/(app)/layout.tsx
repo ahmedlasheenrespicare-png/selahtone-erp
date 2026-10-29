@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AppIcon } from "@/components/app-icon";
 import { getSession, canSeeAllBranches } from "@/lib/auth";
+import { AppNavigation } from "./app-navigation";
 import LogoutButton from "./logout-button";
+import "./workspace.css";
 
 const ROLE_LABEL: Record<string, string> = {
   MANAGER: "مدير الشركة",
@@ -15,59 +18,35 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (session.mustChangePassword) redirect("/change-password");
 
   return (
-    <div className="shell">
-      <aside className="sidebar">
-        <div className="logo">
-          <div className="mark">ص</div>
-          <div>
-            صلة تون
-            <small>نظام الإيرادات والمصروفات</small>
+    <div className="workspace-shell">
+      <a className="workspace-skip" href="#workspace-content">تخطي إلى المحتوى</a>
+      <AppNavigation canViewAllBranches={canSeeAllBranches(session)} />
+
+      <div className="workspace-main">
+        <header className="workspace-topbar">
+          <div className="workspace-topbar__title">
+            <span className="workspace-topbar__title-icon"><AppIcon name="dashboard" /></span>
+            <span><small>نظام إدارة صلة تون</small><strong>مساحة العمل</strong></span>
           </div>
-        </div>
-
-        <ul className="nav">
-          <li><Link href="/dashboard">لوحة القيادة</Link></li>
-          <li><Link href="/inventory">المخزون والمستودعات</Link></li>
-          {canSeeAllBranches(session) && (
-            <>
-              <li><Link href="/setup">التحقق من الإعداد</Link></li>
-              <li><span className="soon">المصروفات</span></li>
-              <li><span className="soon">العهد النقدية</span></li>
-              <li><span className="soon">التقارير الضريبية</span></li>
-            </>
-          )}
-          {!canSeeAllBranches(session) && (
-            <>
-              <li><span className="soon">كاونتر البيع</span></li>
-              <li><span className="soon">عهدتي</span></li>
-              <li><span className="soon">إيرادي اليومي</span></li>
-            </>
-          )}
-        </ul>
-      </aside>
-
-      <main className="main">
-        <div className="topbar">
-          <div>
-            <h1>صلة تون</h1>
-            <div className="sub">
-              {session.branchName ? `الفرع: ${session.branchName}` : "كل الفروع"}
+          <div className="workspace-topbar__actions">
+            <div className="workspace-user">
+              <span className="workspace-user__avatar" aria-hidden="true">{Array.from(session.name)[0] ?? "ص"}</span>
+              <span className="workspace-user__details">
+                <strong>{session.name}</strong>
+                <small>{ROLE_LABEL[session.role] ?? session.role} <span aria-hidden="true">·</span> {session.branchName ?? "كل الفروع"}</small>
+              </span>
             </div>
+            <Link href="/change-password" className="workspace-account-link" title="تغيير كلمة المرور" aria-label="تغيير كلمة المرور">
+              <AppIcon name="lock" /><span>كلمة المرور</span>
+            </Link>
+            <LogoutButton />
           </div>
-          <div className="spacer" />
-          <div className="user-chip">
-            <span className="avatar">{session.name.charAt(0)}</span>
-            <span>
-              {session.name}
-              <span className="role"> · {ROLE_LABEL[session.role] ?? session.role}</span>
-            </span>
-          </div>
-          <Link href="/change-password" className="account-link">تغيير كلمة المرور</Link>
-          <LogoutButton />
-        </div>
+        </header>
 
-        {children}
-      </main>
+        <main id="workspace-content" className="workspace-content" tabIndex={-1}>
+          {children}
+        </main>
+      </div>
     </div>
   );
 }
