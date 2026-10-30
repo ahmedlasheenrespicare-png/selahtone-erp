@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import type { FinanceDatabase, FinanceTransaction } from "../src/lib/finance/types";
-import { approveExpense, confirmCashCount, createExpense, listAccounts, openAccount, payExpense, requestCashCount, transferCash } from "../src/lib/finance/engine";
+import { approveExpense, confirmCashCount, createExpense, listAccounts, listExpenses, openAccount, payExpense, requestCashCount, transferCash } from "../src/lib/finance/engine";
 
 const root = process.cwd(), read = (f: string) => readFileSync(path.join(root, f), "utf8");
 const candidate = read("prototypes/finance-release/release-candidate.test-only.sql");
@@ -67,5 +67,38 @@ test("ported engine works on the candidate schema with the real public tables", 
     assert.deepEqual((await pg.query<{ n: number }>("SELECT count(*)::int AS n FROM public.expense_categories")).rows[0], { n: 7 });
     // The staged app code must not create a lab stand-in schema by accident.
     assert.equal((await pg.query<{ value: string | null }>("SELECT to_regnamespace('finance_lab')::text AS value")).rows[0].value, null);
+  } finally { await pg.close(); }
+});
+
+test("branch staff records an expense for their own branch only", { timeout: 120_000 }, async () => {
+  const pg = new PGlite();
+  try {
+    for (const f of ["tests/fixtures/inventory-baseline.sql", "tests/fixtures/finance-legacy-categories.sql"]) await pg.exec(read(f));
+    await pg.exec("SET selahtone.finance_release_candidate_test_only='yes'");
+    await pg.exec(candidate);
+    const db = adapter(pg);
+    // خزنة الفرع 1 (المستخدم 3 موظف في الفرع نفسه، والمستخدم 1 مدير، و2 محاسب).
+    await openAccount(db, "1", opening("VAULT", null, "1000"), today);
+
+    const draft = { branchId: "1", categoryId: "1", amount: "40", expenseDate: "2026-10-21", description: "مصروف موظف", beneficiary: "", documentNumber: "", taxAmount: "" };
+    const created = await createExpense(db, "3", { requestId: req(), ...draft });
+    assert.ok(created.id);
+
+    // لا يسجّل الموظف مصروفًا لفرع آخر، ولا يعتمد مصروفًا.
+    await assert.rejects(() => createExpense(db, "3", { requestId: req(), ...draft, branchId: "2" }));
+    await assert.rejects(() => approveExpense(db, "3", { requestId: req(), expenseId: created.id, expectedRevision: "1" }));
+
+    // يرى مصروفاته هو فقط، وتبقى حالته بانتظار الاعتماد.
+    const own = await listExpenses(db, "3");
+    assert.equal(own.length, 1);
+    assert.equal(own[0].id, created.id);
+    assert.equal(own[0].requestedBy, "3");
+    assert.equal(own[0].status, "PENDING");
+    assert.equal(own[0].approvedBy, null);
+
+    // الإدارة ترى نفس المصروف، وتظل رؤية الموظف محدودة بعد مصروف إداري جديد.
+    await createExpense(db, "1", { requestId: req(), ...draft, amount: "10", description: "مصروف إدارة" });
+    assert.equal((await listExpenses(db, "3")).length, 1);
+    assert.equal((await listExpenses(db, "1")).length, 2);
   } finally { await pg.close(); }
 });

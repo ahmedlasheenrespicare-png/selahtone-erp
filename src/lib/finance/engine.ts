@@ -70,6 +70,16 @@ async function loadActor(tx: FinanceTransaction, actorId: string): Promise<Actor
 function manage(actor: Actor): void {
   if (!canManageFinance(actor)) throw new FinanceProblem("forbidden", "هذه العملية للمدير والمحاسب فقط.");
 }
+/** Recording an expense is open to management for every branch, and to branch
+ * staff for their own branch only. Approval and payment stay management-only,
+ * so a staff entry always lands in PENDING with its author recorded. */
+function expenseCreator(branchId: string): (actor: Actor) => void {
+  return (actor: Actor): void => {
+    if (canManageFinance(actor)) return;
+    if (actor.role === "CS_AGENT" && actor.branchId && actor.branchId === branchId) return;
+    throw new FinanceProblem("forbidden", "تسجيل المصروف للمدير والمحاسب، أو لموظف الفرع في فرعه فقط.");
+  };
+}
 async function activeBranch(tx: FinanceTransaction, branchId: string): Promise<void> {
   const rows = await tx.query<BranchRow>(`SELECT id::text AS id, is_active AS active FROM public.branches WHERE id=$1::bigint FOR SHARE`, [branchId]);
   if (!rows.rows[0]?.active) throw new FinanceProblem("branch_unavailable", "الفرع غير موجود أو غير نشط.");
@@ -419,7 +429,7 @@ export async function editCategory(db: FinanceDatabase, actorId: string, raw: un
 
 export async function createExpense(db: FinanceDatabase, actorId: string, raw: unknown): Promise<WriteResult> {
   const value = inputObject(raw), input = { requestId: requestId(value.requestId), ...parseExpenseFields(value) };
-  return command(db, actorId, "EXPENSE_CREATE", input.requestId, input, manage, async (tx, actor) => {
+  return command(db, actorId, "EXPENSE_CREATE", input.requestId, input, expenseCreator(input.branchId), async (tx, actor) => {
     await activeBranch(tx, input.branchId); const category = await lockCategory(tx, input.categoryId);
     if (!category.active) throw new FinanceProblem("category_inactive", "بند المصروف متوقف؛ اختر بندًا آخر.");
     const result = await tx.query<IdRow>(`INSERT INTO finance.expenses(branch_id,category_id,category_snapshot,amount,expense_date,description,beneficiary,document_number,tax_amount,status,requested_by)
@@ -764,7 +774,10 @@ export async function listCategories(db: FinanceDatabase, actorIdRaw: string): P
 export async function listExpenses(db: FinanceDatabase, actorIdRaw: string): Promise<ExpenseListRow[]> {
   const actorId = identifier(actorIdRaw, "المستخدم");
   return db.serializable(async (tx) => {
-    const actor = await loadActor(tx, actorId); manage(actor);
+    const actor = await loadActor(tx, actorId);
+    // الموظف يرى مصروفاته هو فقط، بلا سجل الفرع أو تفاصيل الاعتماد والصرف.
+    const ownOnly = !canManageFinance(actor);
+    if (ownOnly && !(actor.role === "CS_AGENT" && actor.branchId)) throw new FinanceProblem("forbidden", "عرض سجل المصروفات للمدير والمحاسب فقط.");
     const result = await tx.query<ExpenseListRow>(`SELECT e.id::text AS id,e.branch_id::text AS "branchId",e.category_id::text AS "categoryId",e.category_snapshot AS "categorySnapshot",
       COALESCE((SELECT c.after_amount FROM finance.expense_corrections c WHERE c.expense_id=e.id ORDER BY c.id DESC LIMIT 1),e.amount)::text AS amount,
       e.amount::text AS "originalAmount",e.expense_date::text AS "expenseDate",e.description,e.beneficiary,e.document_number AS "documentNumber",e.tax_amount::text AS "taxAmount",
@@ -772,7 +785,8 @@ export async function listExpenses(db: FinanceDatabase, actorIdRaw: string): Pro
       p.id::text AS "paymentId",p.amount::text AS "paymentAmount",p.method AS "paymentMethod",p.account_id::text AS "paymentAccountId",p.payment_date::text AS "paymentDate",
       p.recorded_at::text AS "paymentRecordedAt",p.recorded_by::text AS "paymentRecordedBy",p.historical AS "paymentHistorical",p.opening_order AS "paymentOpeningOrder",p.after_cash_count_id::text AS "paymentAfterCountId",
       EXISTS(SELECT 1 FROM finance.expense_reviews r WHERE r.expense_id=e.id AND r.status='OPEN') AS "hasOpenReview"
-      FROM finance.expenses e LEFT JOIN finance.payments p ON p.expense_id=e.id ORDER BY e.id DESC`);
+      FROM finance.expenses e LEFT JOIN finance.payments p ON p.expense_id=e.id
+      ${ownOnly ? "WHERE e.requested_by=$1::bigint" : ""} ORDER BY e.id DESC`, ownOnly ? [actorId] : []);
     return result.rows;
   });
 }

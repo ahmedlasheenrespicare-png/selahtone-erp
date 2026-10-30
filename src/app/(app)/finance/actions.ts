@@ -37,6 +37,13 @@ async function requireFinanceManager(): Promise<Guard> {
   }
   return { session };
 }
+/** Recording an expense is open to management and to branch staff; the engine
+ * re-reads the actor and refuses any branch that is not the staff member's own. */
+async function requireFinanceWriter(): Promise<Guard> {
+  const session = await requireSession();
+  if (!financeEnabled()) return { state: { status: "error", message: "وحدة المالية غير مفعّلة في هذا النشر." } };
+  return { session };
+}
 function translate(error: unknown): FinanceActionState {
   if (error instanceof FinanceProblem) return { status: "error", code: error.code, message: error.message, details: error.details };
   return unexpected(error);
@@ -99,7 +106,7 @@ export async function transferCashAction(_previous: FinanceActionState, formData
 }
 
 export async function createExpenseAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
-  const guard = await requireFinanceManager();
+  const guard = await requireFinanceWriter();
   if ("state" in guard) return guard.state;
   const raw = {
     requestId: text(formData, "requestId"),
