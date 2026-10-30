@@ -171,3 +171,15 @@ ALTER TABLE finance.payments
 3. **الواجهات:** قسم التسوية للموظف + قسم الطلبات في «التسليم».
 4. **الاختبارات:** صلاحيات، ذرية، تكرار، تزامن، سالب، عدم ازدواج المصروف، فرع موقوف، عدم تأكيد.
 5. **طلب دمج + نشر** بموافقة نشر منفصلة، ثم التجربة على فرع واحد (العريش) قبل التعميم.
+
+## ١١. حالة التنفيذ
+
+| الجزء | الحالة |
+|---|---|
+| ترقية قاعدة البيانات | ✅ جاهزة في `prisma/manual-settlement-upgrade.sql` — **تُشغَّل يدويًا قبل النشر** |
+| المحرك | ✅ `requestSettlement` · `confirmSettlement` · `rejectSettlement` · `cancelSettlement` · `listSettlements` · `settlementOverview`، وتعديل `payExpense` لدعم `HOLDER_CASH` |
+| واجهة الموظف | ✅ `/finance/settlements` (الإجمالي المتوقع + الطلبات) و`/finance/settlements/new` (نموذج الطلب)، وقائمة الموظف: المبيعات، العهدة، المصروفات، طلب تسوية |
+| واجهة الإدارة | ✅ قسم «طلبات التسوية المعلقة» داخل **التسليم والتحويل** `/finance/transfers` |
+| الاختبارات | ✅ `check:settlement:upgrade` 1/1 · `check:settlement:engine` 3/3 (زيادة، عجز، وقواعد بلا أثر مالي) · `check:finance:app-engine` 3/3 · `check:navigation` 6/6 · `check:menu-scope` 5/5 · `check:admin` 6/6 · `check:finance:release` كامل |
+
+**ترتيب النشر الإلزامي:** ترقية القاعدة أولًا (بيدك)، ثم دمج الكود ونشره؛ لأن الكود يقرأ الجدول والأعمدة الجديدة، ولأن الترقية إضافة-only بلا أي توقف.

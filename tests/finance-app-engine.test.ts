@@ -14,6 +14,7 @@ import { approveExpense, confirmCashCount, createExpense, listAccounts, listCate
 
 const root = process.cwd(), read = (f: string) => readFileSync(path.join(root, f), "utf8");
 const candidate = read("prototypes/finance-release/release-candidate.test-only.sql");
+const settlementUpgrade = read("prisma/manual-settlement-upgrade.sql");
 const req = () => randomUUID();
 const today = "2026-10-29";
 function adapter(pg: PGlite): FinanceDatabase {
@@ -34,6 +35,7 @@ test("ported engine works on the candidate schema with the real public tables", 
     for (const f of ["tests/fixtures/inventory-baseline.sql", "tests/fixtures/finance-legacy-categories.sql"]) await pg.exec(read(f));
     await pg.exec("SET selahtone.finance_release_candidate_test_only='yes'");
     await pg.exec(candidate);
+    await pg.exec(settlementUpgrade);
     const db = adapter(pg);
     const balance = async (id: string) => (await listAccounts(db, "1")).find(a => a.id === id)!.balance;
     const count = async () => Number((await pg.query<{ n: number }>("SELECT count(*)::int AS n FROM finance.movements")).rows[0].n);
@@ -76,6 +78,7 @@ test("branch staff records an expense for their own branch only", { timeout: 120
     for (const f of ["tests/fixtures/inventory-baseline.sql", "tests/fixtures/finance-legacy-categories.sql"]) await pg.exec(read(f));
     await pg.exec("SET selahtone.finance_release_candidate_test_only='yes'");
     await pg.exec(candidate);
+    await pg.exec(settlementUpgrade);
     const db = adapter(pg);
     // خزنة الفرع 1 (المستخدم 3 موظف في الفرع نفسه، والمستخدم 1 مدير، و2 محاسب).
     await openAccount(db, "1", opening("VAULT", null, "1000"), today);
@@ -109,6 +112,7 @@ test("branch staff reads the active categories needed to record an expense", { t
     for (const f of ["tests/fixtures/inventory-baseline.sql", "tests/fixtures/finance-legacy-categories.sql"]) await pg.exec(read(f));
     await pg.exec("SET selahtone.finance_release_candidate_test_only='yes'");
     await pg.exec(candidate);
+    await pg.exec(settlementUpgrade);
     const db = adapter(pg);
 
     // إدارة البنود للمدير والمحاسب فقط: قائمة البنود الكاملة مرفوضة للموظف.

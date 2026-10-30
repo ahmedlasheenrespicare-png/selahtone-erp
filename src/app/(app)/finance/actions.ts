@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireSession, type SessionUser } from "@/lib/auth";
 import { createAppCategory, editAppCategory } from "@/lib/finance/app-categories";
 import { financeDb, financeEnabled } from "@/lib/finance/db";
-import { approveExpense, cancelCashCount, confirmCashCount, createExpense, openAccount, payExpense, requestCashCount, requestPaidExpenseReview, transferCash } from "@/lib/finance/engine";
+import { approveExpense, cancelCashCount, cancelSettlement, confirmCashCount, confirmSettlement, createExpense, openAccount, payExpense, rejectSettlement, requestCashCount, requestPaidExpenseReview, requestSettlement, transferCash } from "@/lib/finance/engine";
 import { FinanceProblem } from "@/lib/finance/types";
 import type { FinanceActionState } from "./finance-state";
 
@@ -49,7 +49,7 @@ function translate(error: unknown): FinanceActionState {
   return unexpected(error);
 }
 function revalidateFinance(): void {
-  for (const path of ["/finance", "/finance/accounts", "/finance/transfers", "/finance/expenses", "/finance/counts", "/finance/categories", "/dashboard"]) {
+  for (const path of ["/finance", "/finance/accounts", "/finance/transfers", "/finance/expenses", "/finance/counts", "/finance/categories", "/finance/settlements", "/finance/mine", "/dashboard"]) {
     try { revalidatePath(path); } catch { console.error("Finance cache revalidation failed"); }
   }
 }
@@ -314,6 +314,85 @@ export async function editCategoryAction(_previous: FinanceActionState, formData
       id: result.id,
       message: result.replayed ? "سبق حفظ هذا الطلب؛ لم يتكرر التعديل." : "حُفظ تعديل البند مع سببه في السجل.",
     };
+  } catch (error) {
+    return translate(error);
+  }
+}
+
+/** طلب تسوية من الموظف: لا يغيّر النقد ولا العهدة، ويبقى بانتظار اعتماد الإدارة. */
+export async function requestSettlementAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
+  const guard = await requireFinanceWriter();
+  if ("state" in guard) return guard.state;
+  const raw = {
+    requestId: text(formData, "requestId"),
+    accountId: text(formData, "accountId"),
+    countedAmount: text(formData, "countedAmount"),
+    expectedBalance: text(formData, "expectedBalance"),
+    reason: text(formData, "reason"),
+    actuallyCounted: confirmed(formData, "actuallyCounted"),
+  };
+  try {
+    const result = await requestSettlement(financeDb, guard.session.id, raw);
+    revalidateFinance();
+    return {
+      status: "success",
+      id: result.id,
+      message: result.replayed ? "سبق تسجيل هذا الطلب؛ لم يُسجَّل طلب مكرر." : "سُجّل طلب التسوية وهو بانتظار اعتماد المدير.",
+    };
+  } catch (error) {
+    return translate(error);
+  }
+}
+
+/** اعتماد التسوية: حركة تسوية + تحويل الفرق كاملًا، بخطوة واحدة ذرّية. */
+export async function confirmSettlementAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
+  const guard = await requireFinanceManager();
+  if ("state" in guard) return guard.state;
+  const raw = {
+    requestId: text(formData, "requestId"),
+    settlementId: text(formData, "settlementId"),
+    expectedBalance: text(formData, "expectedBalance"),
+    transferAmount: text(formData, "transferAmount"),
+    transferDirection: text(formData, "transferDirection"),
+    reason: text(formData, "reason"),
+    actuallyTransferred: confirmed(formData, "actuallyTransferred"),
+    negativeAcknowledged: confirmed(formData, "negativeAcknowledged"),
+  };
+  try {
+    const result = await confirmSettlement(financeDb, guard.session.id, raw);
+    revalidateFinance();
+    return {
+      status: "success",
+      id: result.id,
+      message: result.replayed ? "سبق حفظ هذا الطلب؛ لم تُسجَّل حركة مكررة." : "اُعتُمدت التسوية وسُجّل تحويل الفرق فعليًا.",
+    };
+  } catch (error) {
+    return translate(error);
+  }
+}
+
+export async function rejectSettlementAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
+  const guard = await requireFinanceManager();
+  if ("state" in guard) return guard.state;
+  const raw = { requestId: text(formData, "requestId"), settlementId: text(formData, "settlementId"), reason: text(formData, "reason") };
+  try {
+    const result = await rejectSettlement(financeDb, guard.session.id, raw);
+    revalidateFinance();
+    return { status: "success", id: result.id, message: result.replayed ? "سبق حفظ هذا القرار." : "رُفض طلب التسوية بسبب مدوّن، بلا أي أثر على النقد." };
+  } catch (error) {
+    return translate(error);
+  }
+}
+
+/** إلغاء الطلب من صاحبه (أو الإدارة) قبل الاعتماد: بلا أي أثر مالي. */
+export async function cancelSettlementAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
+  const guard = await requireFinanceWriter();
+  if ("state" in guard) return guard.state;
+  const raw = { requestId: text(formData, "requestId"), settlementId: text(formData, "settlementId"), reason: text(formData, "reason") };
+  try {
+    const result = await cancelSettlement(financeDb, guard.session.id, raw);
+    revalidateFinance();
+    return { status: "success", id: result.id, message: result.replayed ? "سبق حفظ هذا القرار." : "أُلغي طلب التسوية، بلا أي أثر على النقد." };
   } catch (error) {
     return translate(error);
   }

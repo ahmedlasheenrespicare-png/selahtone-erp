@@ -74,6 +74,7 @@ export default async function MyCustodyPage() {
       )}
 
       <div className="fin-form-actions">
+        <Link className="fin-button" href="/finance/settlements">طلبات التسوية</Link>
         <Link className="fin-button fin-button--text" href="/dashboard">العودة إلى لوحة القيادة</Link>
       </div>
     </div>

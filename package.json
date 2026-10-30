@@ -32,6 +32,8 @@
     "check:navigation": "tsx --test tests/navigation.test.ts",
     "check:receiving": "tsx --test tests/receiving-validation.test.ts",
     "check:receiving:integration": "tsx --test tests/receiving-integration.test.ts",
+    "check:settlement:engine": "tsx --test tests/settlement-engine.test.ts",
+    "check:settlement:upgrade": "tsx --test tests/settlement-upgrade.test.ts",
     "check:setup:safety": "tsx --test tests/setup-safety.test.ts",
     "check:tax": "tsx scripts/check-tax.ts",
     "db:push": "prisma db push",

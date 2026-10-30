@@ -46,6 +46,7 @@ test("staff navigation shows branch work only, without management screens", () =
     "/finance/mine",
     "/finance/expenses",
     "/finance/expenses/new",
+    "/finance/settlements",
   ]);
 
   // لا يظهر للموظف أي شاشة إدارة: لا بنود ولا جرد ولا خزائن ولا تحويلات ولا إعداد.

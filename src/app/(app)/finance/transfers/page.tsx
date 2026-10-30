@@ -4,9 +4,11 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
 import { assertFinanceActor, financeDb, financeEnabled } from "@/lib/finance/db";
-import { listAccounts } from "@/lib/finance/engine";
+import { financeRead } from "../page-context";
+import { listAccounts, listSettlements } from "@/lib/finance/engine";
 import { prisma } from "@/lib/prisma";
 import TransferForm, { type AccountOption } from "./transfer-form";
+import { SettlementDecisionCard, type SettlementDecisionItem } from "./settlement-decisions";
 
 export const dynamic = "force-dynamic";
 
@@ -26,8 +28,32 @@ export default async function FinanceTransfersPage() {
       return listAccounts({ serializable: (work) => work(tx) }, session.id);
     }),
   ]);
+  // طلبات التسوية للإدارة فقط، وتُقرأ في معاملة منفصلة بعد التحقق من الجلسة.
+  const settlements = canManage
+    ? await financeRead(session, (tx) => listSettlements({ serializable: (work) => work(tx) }, session.id))
+    : [];
   const branchNames = new Map(branches.map((branch) => [branch.id.toString(), branch.nameAr]));
   const userNames = new Map(users.map((user) => [user.id.toString(), user.fullName]));
+  const balanceByAccount = new Map(accounts.map((account) => [account.id, account.balance]));
+  const holderByAccount = new Map(accounts.map((account) => [account.id, account.holderId ? userNames.get(account.holderId) ?? null : null]));
+  const pendingSettlements: SettlementDecisionItem[] = settlements
+    .filter((settlement) => String(settlement.status) === "OPEN")
+    .map((settlement) => ({
+      id: String(settlement.id),
+      branchName: branchNames.get(String(settlement.branchId)) ?? "فرع",
+      holderName: holderByAccount.get(String(settlement.accountId)) ?? null,
+      systemBalance: String(settlement.systemBalance),
+      countedAmount: String(settlement.countedAmount),
+      salesTotal: String(settlement.salesTotal),
+      expensesTotal: String(settlement.expensesTotal),
+      expectedAmount: String(settlement.expectedAmount),
+      deviation: String(settlement.deviation),
+      adjustment: String(settlement.adjustment),
+      reason: String(settlement.reason),
+      createdAt: String(settlement.createdAt),
+      // الرصيد الفعلي الآن لا وقت الطلب: أي تغيّر يُرفض في الخادم لإعادة المراجعة.
+      expectedBalance: balanceByAccount.get(String(settlement.accountId)) ?? String(settlement.systemBalance),
+    }));
 
   if (!canManage) {
     return (
@@ -69,6 +95,21 @@ export default async function FinanceTransfersPage() {
       ) : (
         <TransferForm requestId={randomUUID()} accounts={options} />
       )}
+
+      {pendingSettlements.length > 0 ? (
+        <div className="fin-page__section">
+          <div className="fin-heading">
+            <div>
+              <p className="fin-heading__eyebrow">عهدة الموظف</p>
+              <h2>طلبات التسوية المعلقة</h2>
+              <p>اعتماد التسوية يسجّل حركتين في خطوة واحدة: مطابقة الدفتر مع الواقع، ثم تحويل الفرق كاملًا.</p>
+            </div>
+          </div>
+          {pendingSettlements.map((item) => (
+            <SettlementDecisionCard key={item.id} item={item} />
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

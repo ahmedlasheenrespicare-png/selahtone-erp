@@ -82,6 +82,7 @@ export function navigationGroups(canViewAllBranches: boolean, financeEnabled = f
               { label: "عهدتي", icon: "cash" as const, href: "/finance/mine" },
               { label: "مصروفاتي", icon: "expenses" as const, href: "/finance/expenses" },
               { label: "تسجيل مصروف", icon: "expenses" as const, href: "/finance/expenses/new" },
+              { label: "طلب تسوية", icon: "cash" as const, href: "/finance/settlements" },
             ]
           : []),
       ],
