@@ -11,39 +11,64 @@ export type NavigationGroup = {
   items: NavigationItem[];
 };
 
-/** Keep the existing role-specific navigation and label unfinished pages clearly.
- * The finance entry appears only when the staged finance module is switched on,
- * which requires an applied, reviewed migration; otherwise nothing changes. */
+/**
+ * Role-specific navigation. Unfinished pages are no longer listed as dead
+ * labels: every rendered item has a real destination, so the menu never shows
+ * something that cannot be opened. The finance group appears only when the
+ * staged module is switched on, which requires an applied, reviewed migration.
+ */
+const DASHBOARD: NavigationItem = { label: "لوحة القيادة", icon: "dashboard", href: "/dashboard" };
+const SALES: NavigationItem = { label: "المبيعات والفواتير", icon: "sales", href: "/sales" };
+const INVENTORY: NavigationItem = { label: "المخزون والمستودعات", icon: "inventory", href: "/inventory" };
+
 export function navigationGroups(canViewAllBranches: boolean, financeEnabled = false): NavigationGroup[] {
-  return [
-    {
-      label: "الرئيسية",
-      items: [
-        { label: "لوحة القيادة", icon: "dashboard", href: "/dashboard" },
-        { label: "المخزون والمستودعات", icon: "inventory", href: "/inventory" },
-        { label: "المبيعات والفواتير", icon: "sales", href: "/sales" },
-      ],
-    },
-    canViewAllBranches
-      ? {
-          label: "الإدارة والمتابعة",
+  const financeGroups: NavigationGroup[] = financeEnabled
+    ? [
+        {
+          label: "المالية",
           items: [
-            { label: "التحقق من الإعداد", icon: "settings", href: "/setup" },
-            { label: "الفروع والمستخدمون", icon: "branch", href: "/admin" },
-            ...(financeEnabled ? [{ label: "المالية", icon: "cash" as const, href: "/finance" }] : []),
-            { label: "المصروفات", icon: "expenses" },
-            { label: "العهد النقدية", icon: "cash" },
-            { label: "التقارير الضريبية", icon: "reports" },
-          ],
-        }
-      : {
-          label: "أعمال الفرع",
-          items: [
-            ...(financeEnabled ? [{ label: "عهدتي", icon: "cash" as const, href: "/finance/mine" }] : [{ label: "عهدتي", icon: "cash" as const }]),
-            ...(financeEnabled ? [{ label: "مصروفاتي", icon: "expenses" as const, href: "/finance/expenses" }] : []),
-            { label: "إيرادي اليومي", icon: "receipt" },
+            { label: "الحسابات", icon: "cash", href: "/finance" },
+            { label: "الخزائن والعهد", icon: "cash", href: "/finance/accounts" },
+            { label: "التحويلات والتسليم", icon: "arrow", href: "/finance/transfers" },
+            { label: "المصروفات", icon: "expenses", href: "/finance/expenses" },
+            { label: "الجرد", icon: "check", href: "/finance/counts" },
+            { label: "البنود", icon: "products", href: "/finance/categories" },
           ],
         },
+      ]
+    : [];
+
+  if (canViewAllBranches) {
+    return [
+      { label: "الرئيسية", items: [DASHBOARD] },
+      { label: "المبيعات والمخزون", items: [SALES, INVENTORY] },
+      ...financeGroups,
+      {
+        label: "الإدارة",
+        items: [
+          { label: "الفروع والمستخدمون", icon: "branch", href: "/admin" },
+          { label: "التحقق من الإعداد", icon: "settings", href: "/setup" },
+        ],
+      },
+    ];
+  }
+
+  return [
+    { label: "الرئيسية", items: [DASHBOARD] },
+    {
+      label: "أعمال الفرع",
+      items: [
+        SALES,
+        INVENTORY,
+        ...(financeEnabled
+          ? [
+              { label: "عهدتي", icon: "cash" as const, href: "/finance/mine" },
+              { label: "مصروفاتي", icon: "expenses" as const, href: "/finance/expenses" },
+              { label: "تسجيل مصروف", icon: "expenses" as const, href: "/finance/expenses/new" },
+            ]
+          : []),
+      ],
+    },
   ];
 }
 

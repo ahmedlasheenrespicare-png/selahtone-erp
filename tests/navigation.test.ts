@@ -1,22 +1,64 @@
-import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isCurrentPath, navigationGroups } from "../src/app/(app)/navigation-items";
+import test from "node:test";
 
-test("manager and accountant navigation retains the existing available pages", () => {
-  const items = navigationGroups(true).flatMap((group) => group.items);
-  assert.deepEqual(items.filter((item) => item.href).map((item) => item.href), ["/dashboard", "/inventory", "/sales", "/setup"]);
-  assert.deepEqual(items.filter((item) => !item.href).map((item) => item.label), ["المصروفات", "العهد النقدية", "التقارير الضريبية"]);
+import { navigationGroups } from "../src/app/(app)/navigation-items";
+
+const labels = (groups: ReturnType<typeof navigationGroups>) => groups.map((group) => group.label);
+const itemsOf = (groups: ReturnType<typeof navigationGroups>, label: string) =>
+  groups.find((group) => group.label === label)?.items ?? [];
+const hrefs = (groups: ReturnType<typeof navigationGroups>) =>
+  groups.flatMap((group) => group.items.map((item) => item.href ?? ""));
+
+test("management navigation is grouped, and every item has a real destination", () => {
+  const groups = navigationGroups(true, true);
+  assert.deepEqual(labels(groups), ["الرئيسية", "المبيعات والمخزون", "المالية", "الإدارة"]);
+
+  // لا توجد عناصر نائبة بلا رابط في أي مجموعة.
+  for (const group of groups) {
+    for (const item of group.items) assert.ok(item.href, `العنصر «${item.label}» بلا رابط`);
+  }
+
+  assert.deepEqual(itemsOf(groups, "الرئيسية").map((item) => item.href), ["/dashboard"]);
+  assert.deepEqual(itemsOf(groups, "المبيعات والمخزون").map((item) => item.href), ["/sales", "/inventory"]);
+  assert.deepEqual(itemsOf(groups, "المالية").map((item) => item.href), [
+    "/finance",
+    "/finance/accounts",
+    "/finance/transfers",
+    "/finance/expenses",
+    "/finance/counts",
+    "/finance/categories",
+  ]);
+  assert.deepEqual(itemsOf(groups, "الإدارة").map((item) => item.href), ["/admin", "/setup"]);
 });
 
-test("counter navigation does not expose the management setup link", () => {
-  const items = navigationGroups(false).flatMap((group) => group.items);
-  assert.deepEqual(items.filter((item) => item.href).map((item) => item.href), ["/dashboard", "/inventory", "/sales"]);
-  assert.deepEqual(items.filter((item) => !item.href).map((item) => item.label), ["عهدتي", "إيرادي اليومي"]);
+test("management navigation hides the finance group while the module is off", () => {
+  const groups = navigationGroups(true, false);
+  assert.deepEqual(labels(groups), ["الرئيسية", "المبيعات والمخزون", "الإدارة"]);
+  assert.equal(hrefs(groups).some((href) => href.startsWith("/finance")), false);
 });
 
-test("the current navigation entry matches only its route and nested routes", () => {
-  assert.equal(isCurrentPath("/inventory", "/inventory"), true);
-  assert.equal(isCurrentPath("/inventory/123", "/inventory"), true);
-  assert.equal(isCurrentPath("/inventory-extra", "/inventory"), false);
-  assert.equal(isCurrentPath("/dashboard", "/inventory"), false);
+test("staff navigation shows branch work only, without management screens", () => {
+  const groups = navigationGroups(false, true);
+  assert.deepEqual(labels(groups), ["الرئيسية", "أعمال الفرع"]);
+  assert.deepEqual(itemsOf(groups, "أعمال الفرع").map((item) => item.href), [
+    "/sales",
+    "/inventory",
+    "/finance/mine",
+    "/finance/expenses",
+    "/finance/expenses/new",
+  ]);
+
+  // لا يظهر للموظف أي شاشة إدارة: لا بنود ولا جرد ولا خزائن ولا تحويلات ولا إعداد.
+  const all = hrefs(groups);
+  for (const management of ["/finance/accounts", "/finance/counts", "/finance/categories", "/finance/transfers", "/admin", "/setup"]) {
+    assert.equal(all.includes(management), false, `ظهور ${management} للموظف`);
+  }
+  for (const group of groups) for (const item of group.items) assert.ok(item.href, `العنصر «${item.label}» بلا رابط`);
+});
+
+test("staff navigation keeps sales and inventory while the module is off", () => {
+  const groups = navigationGroups(false, false);
+  assert.deepEqual(labels(groups), ["الرئيسية", "أعمال الفرع"]);
+  assert.deepEqual(itemsOf(groups, "أعمال الفرع").map((item) => item.href), ["/sales", "/inventory"]);
+  assert.equal(hrefs(groups).some((href) => href.startsWith("/finance")), false);
 });
