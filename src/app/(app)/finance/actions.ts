@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireSession, type SessionUser } from "@/lib/auth";
+import { createAppCategory, editAppCategory } from "@/lib/finance/app-categories";
 import { financeDb, financeEnabled } from "@/lib/finance/db";
 import { approveExpense, cancelCashCount, confirmCashCount, createExpense, openAccount, payExpense, requestCashCount, requestPaidExpenseReview, transferCash } from "@/lib/finance/engine";
 import { FinanceProblem } from "@/lib/finance/types";
@@ -41,7 +42,7 @@ function translate(error: unknown): FinanceActionState {
   return unexpected(error);
 }
 function revalidateFinance(): void {
-  for (const path of ["/finance", "/finance/accounts", "/finance/transfers", "/finance/expenses", "/finance/counts", "/dashboard"]) {
+  for (const path of ["/finance", "/finance/accounts", "/finance/transfers", "/finance/expenses", "/finance/counts", "/finance/categories", "/dashboard"]) {
     try { revalidatePath(path); } catch { console.error("Finance cache revalidation failed"); }
   }
 }
@@ -264,6 +265,47 @@ export async function cancelCountAction(_previous: FinanceActionState, formData:
       status: "success",
       id: result.id,
       message: result.replayed ? "سبق حفظ هذا الطلب؛ لم يتكرر الإلغاء." : "أُلغي طلب الجرد بسبب موثق، بلا أي حركة نقد.",
+    };
+  } catch (error) {
+    return translate(error);
+  }
+}
+
+export async function createCategoryAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
+  const guard = await requireFinanceManager();
+  if ("state" in guard) return guard.state;
+  const raw = { requestId: text(formData, "requestId"), name: text(formData, "name") };
+  try {
+    const result = await createAppCategory(financeDb, guard.session.id, raw);
+    revalidateFinance();
+    return {
+      status: "success",
+      id: result.id,
+      message: result.replayed ? "سبق حفظ هذا الطلب؛ لم يُضف بند مكرر." : "أُضيف البند وهو نشط الآن.",
+    };
+  } catch (error) {
+    return translate(error);
+  }
+}
+
+export async function editCategoryAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
+  const guard = await requireFinanceManager();
+  if ("state" in guard) return guard.state;
+  const raw = {
+    requestId: text(formData, "requestId"),
+    categoryId: text(formData, "categoryId"),
+    expectedSnapshot: text(formData, "expectedSnapshot"),
+    name: text(formData, "name"),
+    active: text(formData, "active") === "yes",
+    reason: text(formData, "reason"),
+  };
+  try {
+    const result = await editAppCategory(financeDb, guard.session.id, raw);
+    revalidateFinance();
+    return {
+      status: "success",
+      id: result.id,
+      message: result.replayed ? "سبق حفظ هذا الطلب؛ لم يتكرر التعديل." : "حُفظ تعديل البند مع سببه في السجل.",
     };
   } catch (error) {
     return translate(error);

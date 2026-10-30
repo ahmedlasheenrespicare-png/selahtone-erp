@@ -50,6 +50,7 @@ export default async function FinancePage() {
             <Link className="fin-button fin-button--secondary" href="/finance/transfers">تسليم نقد</Link>
             <Link className="fin-button fin-button--secondary" href="/finance/expenses">المصروفات</Link>
             <Link className="fin-button fin-button--secondary" href="/finance/counts">الجرد</Link>
+            <Link className="fin-button fin-button--secondary" href="/finance/categories">البنود</Link>
           </div>
         ) : null}
       </div>

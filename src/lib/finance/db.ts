@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { appCategoryPort } from "./app-categories";
 import { FinanceProblem, type FinanceDatabase, type FinanceTransaction } from "./types";
 
 /**
@@ -38,7 +39,7 @@ export function sqlError(error: unknown): never {
 
 function port(tx: unknown): FinanceTransaction {
   const client = tx as { $queryRawUnsafe: <T>(sql: string, ...params: unknown[]) => Promise<T> };
-  return {
+  const adapter: FinanceTransaction = {
     query: async <T extends Record<string, unknown>>(sql: string, params: unknown[] = []) => {
       try { return { rows: (await client.$queryRawUnsafe<T[]>(sql, ...params)) ?? [] }; } catch (error) { return sqlError(error); }
     },
@@ -55,6 +56,10 @@ function port(tx: unknown): FinanceTransaction {
       if (!rows[0] || rows[0].branchId !== branchId) throw new FinanceProblem("sale_branch", "الفاتورة غير موجودة أو لا تتبع هذا الفرع؛ لم تُحفظ العملية.");
     },
   };
+  // Category management rides the same transaction: the engine reaches the
+  // existing public.expense_categories table only through this reviewed bridge.
+  adapter.categoryPort = appCategoryPort(adapter);
+  return adapter;
 }
 
 /** A single SERIALIZABLE transaction; every error rolls the whole unit back. */
