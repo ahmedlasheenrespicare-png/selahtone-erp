@@ -24,7 +24,19 @@
     "check:receiving:integration": "tsx --test tests/receiving-integration.test.ts",
     "check:commerce": "tsx --test tests/commerce-validation.test.ts tests/commerce-math.test.ts tests/commerce-policy.test.ts",
     "check:commerce:integration": "tsx --test tests/commerce-integration.test.ts",
-    "check:commerce:preflight": "tsx --test tests/commerce-preflight.test.ts tests/current-db-audit.test.ts"
+    "check:commerce:preflight": "tsx --test tests/commerce-preflight.test.ts tests/current-db-audit.test.ts",
+    "check:finance:schema-audit": "tsx --test tests/finance-schema-audit.test.ts",
+    "check:finance:preview": "node --test prototypes/finance-preview/model.test.mjs",
+    "check:finance:engine": "tsx --test tests/finance-engine.test.ts tests/finance-engine-review.test.ts tests/finance-engine-opening.test.ts tests/finance-engine-cases.test.ts",
+    "check:finance:native": "tsx --test tests/finance-engine-native.test.ts",
+    "check:finance:commerce-prototype": "tsx --test tests/finance-commerce-prototype.test.ts",
+    "dev:finance:lab": "node prototypes/finance-app/run.mjs",
+    "check:finance:app": "node prototypes/finance-app/run.mjs --test",
+    "check:finance:release-audit": "tsx --test tests/finance-release-audit.test.ts",
+    "check:finance:storage": "tsx --test tests/finance-storage.test.ts",
+    "check:finance:categories-candidate": "tsx --test tests/finance-category-candidate.test.ts",
+    "check:finance:cutover": "tsx --test tests/finance-cutover.test.ts",
+    "check:finance:cutover-core": "node prototypes/finance-app/run.mjs --test-cutover"
   },
   "dependencies": {
     "@fontsource/ibm-plex-sans-arabic": "^5.3.0",
@@ -36,18 +48,29 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "server-only": "^0.0.1",
-    "zod": "^3.24.1"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.3.14",
     "@netlify/plugin-nextjs": "^5.9.4",
+    "@prisma/adapter-pg": "^6.19.3",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.17.10",
+    "@types/pg": "^8.16.0",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
+    "pg": "^8.23.1",
     "pglite-prisma-adapter": "0.6.1",
     "prisma": "^6.1.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "8.5.32"
+    },
+    "@prisma/config": {
+      "deepmerge-ts": "8.0.0"
+    }
   }
 }

@@ -34,6 +34,25 @@ test("changing passwords requires matching confirmation and a new value", () => 
   assert.equal(changePasswordSchema.safeParse({ currentPassword: "old", newPassword: "a-very-long-password", confirmPassword: "a-very-long-password" }).success, true);
 });
 
+test("auth schema keeps accepted email forms and Arabic field errors after validation-library updates", () => {
+  for (const value of ["a+b@example.com", "a_b@example.com", "o'neil@example.com", "dot.name@sub.example.com", "USER@EXAMPLE.COM"]) {
+    assert.equal(emailSchema.safeParse(value).success, true, value);
+  }
+  for (const value of [".start@example.com", "two..dots@example.com", "end.@example.com", "name@localhost", "name@bad.c0"]) {
+    assert.equal(emailSchema.safeParse(value).success, false, value);
+  }
+  const login = loginSchema.safeParse({ email: "invalid", password: "", remember: false });
+  assert.equal(login.success, false);
+  if (!login.success) {
+    const errors = login.error.flatten().fieldErrors;
+    assert.equal(errors.email?.[0], "أدخل بريدًا إلكترونيًا صحيحًا.");
+    assert.equal(errors.password?.[0], "أدخل كلمة المرور.");
+  }
+  const change = changePasswordSchema.safeParse({ currentPassword: "old", newPassword: "a-very-long-password", confirmPassword: "different" });
+  assert.equal(change.success, false);
+  if (!change.success) assert.equal(change.error.flatten().fieldErrors.confirmPassword?.[0], "كلمتا المرور غير متطابقتين.");
+});
+
 test("next preserves local paths and queries", () => {
   assert.equal(safeNextPath("/inventory?category=hearing"), "/inventory?category=hearing");
   assert.equal(safeNextPath("/"), "/");
