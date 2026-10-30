@@ -8,6 +8,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
 import { authIdentifierHash } from "./auth-identifiers";
 import { isValidAuthSecret } from "./auth-secret";
+import { isMenuScope, type MenuScope } from "./menu-scope";
 
 export const SESSION_COOKIE = "selahtone_session";
 const STANDARD_SESSION_SECONDS = 8 * 60 * 60;
@@ -26,6 +27,7 @@ export type SessionUser = {
   branchId: string | null;
   branchName: string | null;
   mustChangePassword: boolean;
+  menuScope: MenuScope;
 };
 
 type AuthResult =
@@ -103,6 +105,8 @@ export const getSession = cache(async (): Promise<SessionUser | null> => {
     branchId: session.user.branchId?.toString() ?? null,
     branchName: session.user.branch?.nameAr ?? null,
     mustChangePassword: session.user.mustChangePassword,
+    // عمود مضاف بترقية مراجَعة؛ أي قيمة غير معروفة تُعامل كنطاق كامل دون فتح الشاشات.
+    menuScope: isMenuScope(session.user.menuScope) ? session.user.menuScope : "FULL",
   };
 });
 

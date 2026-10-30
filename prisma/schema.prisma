@@ -53,6 +53,8 @@ model User {
   passwordHash       String      @map("password_hash")
   status             UserStatus  @default(ACTIVE)
   mustChangePassword Boolean     @default(true) @map("must_change_password")
+  /// نطاق القائمة: FULL أو LIMITED. LIMITED يقيّد الحساب بلوحة القيادة والمبيعات والمصروفات.
+  menuScope               String         @default("FULL") @map("menu_scope") @db.VarChar(16)
   lastLoginAt        DateTime?   @map("last_login_at") @db.Timestamptz
   createdAt          DateTime    @default(now()) @map("created_at") @db.Timestamptz
   branch             Branch?     @relation(fields: [branchId], references: [id])

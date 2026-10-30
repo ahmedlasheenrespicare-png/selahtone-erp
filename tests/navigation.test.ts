@@ -62,3 +62,23 @@ test("staff navigation keeps sales and inventory while the module is off", () =>
   assert.deepEqual(itemsOf(groups, "أعمال الفرع").map((item) => item.href), ["/sales", "/inventory"]);
   assert.equal(hrefs(groups).some((href) => href.startsWith("/finance")), false);
 });
+
+test("a limited manager sees the dashboard, sales and expenses only", () => {
+  const groups = navigationGroups(true, true, "LIMITED");
+  assert.deepEqual(labels(groups), ["الرئيسية", "المبيعات", "المالية"]);
+  assert.deepEqual(itemsOf(groups, "الرئيسية").map((item) => item.href), ["/dashboard"]);
+  assert.deepEqual(itemsOf(groups, "المبيعات").map((item) => item.href), ["/sales"]);
+  assert.deepEqual(itemsOf(groups, "المالية").map((item) => item.href), ["/finance/expenses", "/finance/expenses/new"]);
+
+  const all = hrefs(groups);
+  for (const blocked of ["/admin", "/setup", "/inventory", "/finance/accounts", "/finance/counts", "/finance/categories", "/finance/transfers"]) {
+    assert.equal(all.includes(blocked), false, `ظهور ${blocked} لحساب مختصر`);
+  }
+  for (const group of groups) for (const item of group.items) assert.ok(item.href, `العنصر «${item.label}» بلا رابط`);
+});
+
+test("a limited accountant hides the finance group while the module is off", () => {
+  const groups = navigationGroups(true, false, "LIMITED");
+  assert.deepEqual(labels(groups), ["الرئيسية", "المبيعات"]);
+  assert.equal(hrefs(groups).some((href) => href.startsWith("/finance")), false);
+});

@@ -28,6 +28,7 @@
     "check:finance:schema-audit": "tsx --test tests/finance-schema-audit.test.ts",
     "check:inventory": "tsx --test tests/inventory-validation.test.ts tests/inventory-math.test.ts",
     "check:inventory:integration": "tsx --test tests/inventory-integration.test.ts",
+    "check:menu-scope": "tsx --test tests/menu-scope.test.ts",
     "check:navigation": "tsx --test tests/navigation.test.ts",
     "check:receiving": "tsx --test tests/receiving-validation.test.ts",
     "check:receiving:integration": "tsx --test tests/receiving-integration.test.ts",

@@ -5,6 +5,7 @@ import { Prisma, type RoleCode, type UserStatus } from "@prisma/client";
 
 import { canSeeAllBranches, hashPassword, requireSession, type SessionUser } from "@/lib/auth";
 import { emailSchema, newPasswordSchema } from "@/lib/auth-validation";
+import { isMenuScope, type MenuScope } from "@/lib/menu-scope";
 import { prisma } from "@/lib/prisma";
 import {
   branchInputError,
@@ -167,6 +168,9 @@ export async function createUserAction(_previous: AdminActionState, formData: Fo
   }
   const email = emailSchema.parse(input.email);
   const passwordHash = await hashPassword(input.password);
+  // النطاق المختصر لحسابات الإدارة فقط؛ موظف الفرع يبقى بنطاقه الكامل.
+  const scopeRaw = text(formData, "menuScope");
+  const menuScope: MenuScope = role !== "CS_AGENT" && isMenuScope(scopeRaw) ? scopeRaw : "FULL";
   try {
     await prisma.user.create({
       data: {
@@ -177,6 +181,7 @@ export async function createUserAction(_previous: AdminActionState, formData: Fo
         branchId,
         status: "ACTIVE" as UserStatus,
         mustChangePassword: flag(formData, "mustChange"),
+        menuScope,
       },
     });
   } catch (error) {
@@ -209,8 +214,10 @@ export async function updateUserAction(_previous: AdminActionState, formData: Fo
     if (!branch) return fail("الفرع المختار غير موجود أو غير نشط.");
   }
   const status: UserStatus = flag(formData, "active") ? "ACTIVE" : "SUSPENDED";
+  const scopeRaw = text(formData, "menuScope");
+  const menuScope: MenuScope = role !== "CS_AGENT" && isMenuScope(scopeRaw) ? scopeRaw : "FULL";
   try {
-    await prisma.user.update({ where: { id: userId }, data: { roleCode: role as RoleCode, branchId, status } });
+    await prisma.user.update({ where: { id: userId }, data: { roleCode: role as RoleCode, branchId, status, menuScope } });
   } catch (error) {
     return unexpected(error);
   }

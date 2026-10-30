@@ -5,14 +5,16 @@ import { usePathname } from "next/navigation";
 import { useRef, useState } from "react";
 import { AppIcon } from "@/components/app-icon";
 import { BrandMark } from "@/components/brand-mark";
+import type { MenuScope } from "@/lib/menu-scope";
 import { isCurrentPath, navigationGroups } from "./navigation-items";
 
 type AppNavigationProps = {
   canViewAllBranches: boolean;
   financeEnabled?: boolean;
+  menuScope?: MenuScope;
 };
 
-export function AppNavigation({ canViewAllBranches, financeEnabled = false }: AppNavigationProps) {
+export function AppNavigation({ canViewAllBranches, financeEnabled = false, menuScope = "FULL" }: AppNavigationProps) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
@@ -49,7 +51,7 @@ export function AppNavigation({ canViewAllBranches, financeEnabled = false }: Ap
       </div>
 
       <nav id="workspace-navigation" className={`workspace-navigation${menuOpen ? " is-open" : ""}`} aria-label="التنقل الرئيسي">
-        {navigationGroups(canViewAllBranches, financeEnabled).map((group) => (
+        {navigationGroups(canViewAllBranches, financeEnabled, menuScope).map((group) => (
           <div className="workspace-nav-group" key={group.label}>
             <p className="workspace-nav-group__label">{group.label}</p>
             <ul>

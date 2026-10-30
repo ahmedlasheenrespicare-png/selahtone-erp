@@ -1,4 +1,5 @@
 import type { AppIconName } from "@/components/app-icon";
+import { type MenuScope } from "@/lib/menu-scope";
 
 export type NavigationItem = {
   label: string;
@@ -21,7 +22,23 @@ const DASHBOARD: NavigationItem = { label: "لوحة القيادة", icon: "das
 const SALES: NavigationItem = { label: "المبيعات والفواتير", icon: "sales", href: "/sales" };
 const INVENTORY: NavigationItem = { label: "المخزون والمستودعات", icon: "inventory", href: "/inventory" };
 
-export function navigationGroups(canViewAllBranches: boolean, financeEnabled = false): NavigationGroup[] {
+export function navigationGroups(canViewAllBranches: boolean, financeEnabled = false, menuScope: MenuScope = "FULL"): NavigationGroup[] {
+  if (menuScope === "LIMITED") {
+    return [
+      { label: "الرئيسية", items: [DASHBOARD] },
+      { label: "المبيعات", items: [SALES] },
+      ...(financeEnabled
+        ? [{
+            label: "المالية",
+            items: [
+              { label: "المصروفات", icon: "expenses" as const, href: "/finance/expenses" },
+              { label: "تسجيل مصروف", icon: "expenses" as const, href: "/finance/expenses/new" },
+            ],
+          }]
+        : []),
+    ];
+  }
+
   const financeGroups: NavigationGroup[] = financeEnabled
     ? [
         {

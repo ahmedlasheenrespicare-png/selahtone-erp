@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { AppIcon } from "@/components/app-icon";
 import { ROLE_LABELS, type AdminRole } from "@/lib/admin-directory";
+import { MENU_SCOPE_LABELS, isMenuScope, type MenuScope } from "@/lib/menu-scope";
 import { canSeeAllBranches, getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { BranchActiveForm, BranchCreateForm, BranchRenameForm, PasswordResetForm, UserCreateForm, UserEditForm } from "./admin-forms";
@@ -70,6 +71,7 @@ export default async function AdminPage() {
                   <th scope="col">المستودعات</th>
                   <th scope="col">المستخدمون</th>
                   <th scope="col">الحالة</th>
+                  <th scope="col">نطاق القائمة</th>
                   <th scope="col">إجراء</th>
                 </tr>
               </thead>
@@ -167,6 +169,7 @@ export default async function AdminPage() {
                     <td>{ROLE_LABELS[user.roleCode as AdminRole] ?? user.roleCode}</td>
                     <td>{user.branch?.nameAr ?? "بدون فرع"}</td>
                     <td>{user.status === "ACTIVE" ? "نشط" : "موقوف"}{user.mustChangePassword ? " • بانتظار تغيير كلمة المرور" : ""}</td>
+                    <td>{user.roleCode === "CS_AGENT" ? "—" : MENU_SCOPE_LABELS[(isMenuScope(user.menuScope) ? user.menuScope : "FULL") as MenuScope]}</td>
                     <td>
                       <details>
                         <summary className="dashboard-text-link">تعديل</summary>
@@ -182,6 +185,7 @@ export default async function AdminPage() {
                               isActive: user.status === "ACTIVE",
                               mustChangePassword: user.mustChangePassword,
                               isSelf: user.id.toString() === session.id,
+                              menuScope: isMenuScope(user.menuScope) ? user.menuScope : "FULL",
                             }}
                             branches={activeBranches.map((branch) => ({ id: branch.id.toString(), nameAr: branch.nameAr, code: branch.code }))}
                           />
@@ -196,6 +200,7 @@ export default async function AdminPage() {
                               isActive: user.status === "ACTIVE",
                               mustChangePassword: user.mustChangePassword,
                               isSelf: user.id.toString() === session.id,
+                              menuScope: isMenuScope(user.menuScope) ? user.menuScope : "FULL",
                             }}
                           />
                         </div>
