@@ -54,6 +54,23 @@ const alterBlock = /-- A same-day payment may be posted[\s\S]*?CHECK \(after_cas
 if (!alterBlock.test(src)) throw new Error("payment alter block not found");
 src = src.replace(alterBlock, alterGuard);
 
+// The tested category bridge keeps the existing public categories as they are
+// and stores only optional metadata. It is part of the SAME reviewed candidate.
+let categoryBridge = readFileSync("prototypes/finance-release/category-schema.test-only.sql", "utf8");
+{
+  const strip = (re, label) => { const next = categoryBridge.replace(re, ""); if (next === categoryBridge) throw new Error(`category bridge shape changed: ${label}`); categoryBridge = next; };
+  strip(/^-- TEST-ONLY CATEGORY BRIDGE[^\n]*\n(?:--[^\n]*\n)*/m, "category bridge header");
+  strip(/DO \$\$[\s\S]*?END \$\$;\n\n/, "category bridge guard");
+  strip(/CREATE SCHEMA finance_candidate;\n\n/, "category bridge schema");
+  categoryBridge = categoryBridge.replaceAll("finance_candidate.", "finance.");
+  if (categoryBridge.includes("finance_candidate")) throw new Error("category bridge still references its old schema");
+  categoryBridge = categoryBridge
+    .replaceAll("CREATE TABLE ", "CREATE TABLE IF NOT EXISTS ")
+    .replace(/^-- These are experimental standalone tables[^\n]*\n(?:--[^\n]*\n)*/m, "");
+  if (categoryBridge.includes("CREATE SCHEMA")) throw new Error("category bridge still creates a schema");
+}
+src = src.trimEnd() + "\n\n-- Category metadata for the EXISTING public.expense_categories table.\n-- Categories themselves are not copied, renamed or rewritten.\n" + categoryBridge.trim() + "\n";
+
 const zeros = "0".repeat(64);
 const header = `-- TEST-ONLY FINANCE RELEASE CANDIDATE — NOT AN APPROVED PRODUCTION MIGRATION.
 -- Never run this on Neon or a database containing business data. It is a review

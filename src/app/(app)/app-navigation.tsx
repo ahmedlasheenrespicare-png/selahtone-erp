@@ -9,9 +9,10 @@ import { isCurrentPath, navigationGroups } from "./navigation-items";
 
 type AppNavigationProps = {
   canViewAllBranches: boolean;
+  financeEnabled?: boolean;
 };
 
-export function AppNavigation({ canViewAllBranches }: AppNavigationProps) {
+export function AppNavigation({ canViewAllBranches, financeEnabled = false }: AppNavigationProps) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
@@ -48,7 +49,7 @@ export function AppNavigation({ canViewAllBranches }: AppNavigationProps) {
       </div>
 
       <nav id="workspace-navigation" className={`workspace-navigation${menuOpen ? " is-open" : ""}`} aria-label="التنقل الرئيسي">
-        {navigationGroups(canViewAllBranches).map((group) => (
+        {navigationGroups(canViewAllBranches, financeEnabled).map((group) => (
           <div className="workspace-nav-group" key={group.label}>
             <p className="workspace-nav-group__label">{group.label}</p>
             <ul>

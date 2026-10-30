@@ -3,7 +3,7 @@
 -- draft: it references the real public tables, keeps legacy rows untouched, and
 -- deliberately omits attachments, deferred COMMIT checks, GRANTs and RLS.
 --
--- sha256: 8b6c56a33a39c20246c3ce30933568b85828e7ac4a163152c548d9db1a1d8d20
+-- sha256: 1e39b741e3511dea2ad17ebc8017c67615ff588d3b96ff7f4702f5e9492ff2cc
 --
 -- Excluded on purpose, each needing its own approved design and test:
 --   * expense attachments: the storage choice (Neon Object Storage) is not
@@ -334,6 +334,43 @@ CREATE TABLE IF NOT EXISTS finance.audit_events (
 );
 CREATE INDEX IF NOT EXISTS finance_audit_entity ON finance.audit_events(entity_type, entity_id, id);
 
+-- Category metadata for the EXISTING public.expense_categories table.
+-- Categories themselves are not copied, renamed or rewritten.
+-- Existing categories have unknown origin, so an absent row means revision 1;
+-- do not invent a creator or timestamp. This table is filled only on an actual
+-- test operation, not by the candidate migration.
+CREATE TABLE IF NOT EXISTS finance.category_revisions (
+  category_id INTEGER PRIMARY KEY REFERENCES public.expense_categories(id) ON DELETE RESTRICT,
+  revision INTEGER NOT NULL CHECK (revision > 0),
+  created_by BIGINT REFERENCES public.users(id) ON DELETE RESTRICT,
+  created_at TIMESTAMPTZ,
+  updated_by BIGINT REFERENCES public.users(id) ON DELETE RESTRICT,
+  updated_at TIMESTAMPTZ,
+  CHECK ((created_by IS NULL) = (created_at IS NULL)),
+  CHECK ((updated_by IS NULL) = (updated_at IS NULL))
+);
+
+CREATE TABLE IF NOT EXISTS finance.category_audit (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  category_id INTEGER NOT NULL REFERENCES public.expense_categories(id) ON DELETE RESTRICT,
+  actor_id BIGINT NOT NULL REFERENCES public.users(id) ON DELETE RESTRICT,
+  action VARCHAR(8) NOT NULL CHECK (action IN ('CREATE','EDIT')),
+  reason VARCHAR(300),
+  before_data JSONB,
+  after_data JSONB NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CHECK ((action='CREATE' AND before_data IS NULL AND reason IS NULL) OR
+         (action='EDIT' AND before_data IS NOT NULL AND reason IS NOT NULL AND length(trim(reason))>0))
+);
+CREATE TABLE IF NOT EXISTS finance.category_requests (
+  request_id UUID PRIMARY KEY,
+  request_hash CHAR(64) NOT NULL,
+  actor_id BIGINT NOT NULL REFERENCES public.users(id) ON DELETE RESTRICT,
+  action VARCHAR(8) NOT NULL CHECK (action IN ('CREATE','EDIT')),
+  category_id INTEGER NOT NULL REFERENCES public.expense_categories(id) ON DELETE RESTRICT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Record the applied script. A replay with the same checksum is a no-op; the
 -- same script name with a different checksum is refused instead of diverging.
 -- The checksum covers this file with the literal below replaced by zeros, so it
@@ -342,9 +379,9 @@ DO $$
 DECLARE previous CHAR(64);
 BEGIN
   SELECT checksum INTO previous FROM finance_release.migrations WHERE name='finance_release_candidate';
-  IF previous IS NOT NULL AND previous <> '8b6c56a33a39c20246c3ce30933568b85828e7ac4a163152c548d9db1a1d8d20' THEN
+  IF previous IS NOT NULL AND previous <> '1e39b741e3511dea2ad17ebc8017c67615ff588d3b96ff7f4702f5e9492ff2cc' THEN
     RAISE EXCEPTION 'finance release candidate checksum changed since it was applied';
   END IF;
-  INSERT INTO finance_release.migrations(name,checksum) VALUES ('finance_release_candidate','8b6c56a33a39c20246c3ce30933568b85828e7ac4a163152c548d9db1a1d8d20')
+  INSERT INTO finance_release.migrations(name,checksum) VALUES ('finance_release_candidate','1e39b741e3511dea2ad17ebc8017c67615ff588d3b96ff7f4702f5e9492ff2cc')
     ON CONFLICT (name) DO NOTHING;
 END $$;
