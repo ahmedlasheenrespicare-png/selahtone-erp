@@ -12,7 +12,7 @@
 BEGIN TRANSACTION READ ONLY;
 
 WITH finance_tables AS (
-  SELECT c.oid, c.relname::text AS name
+  SELECT c.oid, c.relname::text AS name, c.relowner, c.relrowsecurity
   FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
   WHERE n.nspname = 'finance' AND c.relkind = 'r'
 ), missing AS (
