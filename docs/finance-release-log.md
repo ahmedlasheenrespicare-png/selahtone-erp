@@ -159,3 +159,37 @@
 - `check:finance:release`: مرشح الترقية 9/9، سكربتات الإصدار 10/10، نواة التطبيق 1/1،
   بنود التطبيق 3/3.
 - `check:finance:cutover` 25/25.
+
+## ١٠. نتيجة فحص هوية وصلاحيات دور التطبيق (2026-10-30T15:13:18Z)
+
+شغّل المستخدم `prisma/manual-finance-role-check.sql` على `production/neondb`، وهذه النتيجة كما وردت:
+
+| الحقل | القيمة |
+|---|---|
+| `database` / `server_version` | `neondb` / `18.6 (4e5fd08)` |
+| `inspection_role` = `session_role` | `neondb_owner` |
+| `finance_table_count` | 16 |
+| `finance_object_owners` | `["neondb_owner"]` (المالك الوحيد) |
+| `tables_missing_select/insert/update` | `[]` (الكامل متاح) |
+| `tables_with_delete` | كل الجداول الـ16 (الحذف متاح للتطبيق) |
+| `rls_enabled_tables` | `[]` (لا RLS) |
+| `database_roles` | `cloud_admin`, `neon_service`, `neon_superuser`, `neondb_owner`, `token_roles` |
+| `recent_connections` | جلسة واحدة فقط: `neondb_owner` من `neon-internal-sql-editor` — أي أن الموقع كان نائمًا ولم يظهر دور اتصال التطبيق بعد |
+
+### ما يثبته الفحص وما لا يثبته
+- **يثبت:** مخطط `finance` مثبت ومكتمل (16 جدولًا)، وملكيته وصلاحياته الكاملة لدور
+  `neondb_owner`، ولا يوجد RLS أو قيود مؤجلة، ولا جداول مرفقات.
+- **لا يثبت بعد:** أن التطبيق يتصل فعلًا بدور `neondb_owner`؛ لأن الاتصال الوحيد الظاهر
+  كان جلسة SQL Editor نفسها. الاحتمال العملي كبير (سلسلة اتصال Neon تستخدم دور المالك)،
+  لكن التأكيد يحتاج جلسة تطبيق ظاهرة في `pg_stat_activity`.
+
+### التوصية التحضيرية (تحتاج موافقة منفصلة)
+`prisma/manual-finance-restrict.sql`: يسحب `DELETE` و`TRUNCATE` فقط من دور التطبيق على
+مخطط `finance` (بجملة تراجع موثّقة)، ويبقي `SELECT/INSERT/UPDATE` كما هي، ولا يسحب
+`CREATE` (ملفات الترقية اليدوية تحتاجه)، ولا يفعّل RLS ولا يغيّر الملكية.
+- **مبرره:** تصحيحات المالية تُسجَّل بالإضافة فقط، ولا يوجد أي مسار حذف في كود التطبيق.
+- **حده:** المالك يستطيع إعادة المنح لنفسه، فهذا حاجز ضد أخطاء الكود لا حد أمني أمام
+  من يملك دور المالك.
+- **التحقق:** جُرّب الملف على PostgreSQL 18.6 محلي مؤقت بدور مالك غير مُشرِف: بعده
+  `tables_with_delete=[]` و`SELECT/INSERT/UPDATE` كاملة، و`DELETE` و`TRUNCATE` مرفوضان
+  فعليًا، والإضافة تعمل.
