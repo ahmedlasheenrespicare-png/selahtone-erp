@@ -38,7 +38,9 @@
     "check:finance:cutover": "tsx --test tests/finance-cutover.test.ts",
     "check:finance:cutover-core": "node prototypes/finance-app/run.mjs --test-cutover",
     "check:finance:release-candidate": "tsx --test tests/finance-release-candidate.test.ts",
-    "check:finance:app-engine": "tsx --test tests/finance-app-engine.test.ts"
+    "check:finance:app-engine": "tsx --test tests/finance-app-engine.test.ts",
+    "check:finance:release-scripts": "tsx --test tests/finance-release-scripts.test.ts",
+    "check:finance:release": "npm run check:finance:release-candidate && npm run check:finance:release-scripts && npm run check:finance:app-engine"
   },
   "dependencies": {
     "@fontsource/ibm-plex-sans-arabic": "^5.3.0",
