@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import type { FinanceDatabase, FinanceTransaction } from "../src/lib/finance/types";
-import { approveExpense, confirmCashCount, createExpense, listAccounts, listExpenses, openAccount, payExpense, requestCashCount, transferCash } from "../src/lib/finance/engine";
+import { approveExpense, confirmCashCount, createExpense, listAccounts, listCategories, listExpenses, listSelectableCategories, openAccount, payExpense, requestCashCount, transferCash } from "../src/lib/finance/engine";
 
 const root = process.cwd(), read = (f: string) => readFileSync(path.join(root, f), "utf8");
 const candidate = read("prototypes/finance-release/release-candidate.test-only.sql");
@@ -100,5 +100,28 @@ test("branch staff records an expense for their own branch only", { timeout: 120
     await createExpense(db, "1", { requestId: req(), ...draft, amount: "10", description: "مصروف إدارة" });
     assert.equal((await listExpenses(db, "3")).length, 1);
     assert.equal((await listExpenses(db, "1")).length, 2);
+  } finally { await pg.close(); }
+});
+
+test("branch staff reads the active categories needed to record an expense", { timeout: 120_000 }, async () => {
+  const pg = new PGlite();
+  try {
+    for (const f of ["tests/fixtures/inventory-baseline.sql", "tests/fixtures/finance-legacy-categories.sql"]) await pg.exec(read(f));
+    await pg.exec("SET selahtone.finance_release_candidate_test_only='yes'");
+    await pg.exec(candidate);
+    const db = adapter(pg);
+
+    // إدارة البنود للمدير والمحاسب فقط: قائمة البنود الكاملة مرفوضة للموظف.
+    await assert.rejects(() => listCategories(db, "3"));
+    assert.equal((await listCategories(db, "1")).length, 7);
+
+    // الموظف يقرأ البنود النشطة فقط ليسجّل مصروفه؛ البند الموقوف (٦) لا يظهر له.
+    const selectable = await listSelectableCategories(db, "3");
+    assert.equal(selectable.length, 6);
+    assert.equal(selectable.every((category) => category.active), true);
+    assert.equal(selectable.some((category) => category.id === "6"), false);
+
+    const created = await createExpense(db, "3", { requestId: req(), branchId: "1", categoryId: selectable[0].id, amount: "12", expenseDate: "2026-10-21", description: "مصروف موظف", beneficiary: "", documentNumber: "", taxAmount: "" });
+    assert.ok(created.id);
   } finally { await pg.close(); }
 });

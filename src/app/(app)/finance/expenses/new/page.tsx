@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
-import { listCategories } from "@/lib/finance/engine";
+import { listSelectableCategories } from "@/lib/finance/engine";
 import { cairoDate } from "@/lib/finance/validation";
 import { prisma } from "@/lib/prisma";
 import { financePage, financeRead } from "../../page-context";
@@ -33,7 +33,7 @@ export default async function NewExpensePage() {
       orderBy: { code: "asc" },
       select: { id: true, nameAr: true },
     }),
-    financeRead(session, (tx) => listCategories({ serializable: (work) => work(tx) }, session.id)),
+    financeRead(session, (tx) => listSelectableCategories({ serializable: (work) => work(tx) }, session.id)),
   ]);
 
   const branchOptions: BranchOption[] = branches.map((branch) => ({ id: branch.id.toString(), name: branch.nameAr }));

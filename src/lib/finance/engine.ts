@@ -762,6 +762,23 @@ export async function listCashCounts(db: FinanceDatabase, actorIdRaw: string): P
       resolved_by::text AS "resolvedBy",resolved_at::text AS "resolvedAt",resolution_reason AS "resolutionReason" FROM finance.cash_counts c ORDER BY c.id DESC`)).rows;
   });
 }
+/**
+ * Categories an ACTIVE finance actor may pick while recording an expense:
+ * the active ones only. This is a read for any active account, so a branch
+ * employee can record an expense; managing categories (adding, editing,
+ * stopping, and seeing the stopped ones) stays with management through
+ * listCategories, and deactivating a category never deletes it.
+ */
+export async function listSelectableCategories(db: FinanceDatabase, actorIdRaw: string): Promise<CategoryRow[]> {
+  const actorId = identifier(actorIdRaw, "المستخدم");
+  return db.serializable(async (tx) => {
+    await loadActor(tx, actorId);
+    if (tx.categoryPort) return (await tx.categoryPort.list()).filter((category) => category.active);
+    return (await tx.query<CategoryRow>(`SELECT c.id::text AS id,c.name_ar AS name,c.is_active AS active,COALESCE(r.revision,1) AS revision
+      FROM public.expense_categories c LEFT JOIN finance.category_revisions r ON r.category_id=c.id WHERE c.is_active ORDER BY c.id`)).rows;
+  });
+}
+
 export async function listCategories(db: FinanceDatabase, actorIdRaw: string): Promise<CategoryRow[]> {
   const actorId = identifier(actorIdRaw, "المستخدم");
   return db.serializable(async (tx) => {
