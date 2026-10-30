@@ -31,6 +31,7 @@ set -euo pipefail
 FILE=""
 TARGET=""
 ALLOW_NEON=0
+UNSAFE_DB=0
 
 usage() { sed -n '3,30p' "$0"; exit 1; }
 while [[ $# -gt 0 ]]; do
@@ -38,6 +39,7 @@ while [[ $# -gt 0 ]]; do
     --file|-f) FILE="${2:-}"; shift 2 ;;
     --target|-t) TARGET="${2:-}"; shift 2 ;;
     --allow-neon-target) ALLOW_NEON=1; shift ;;
+    --unsafe-target-db) UNSAFE_DB=1; shift ;;
     -h|--help) usage ;;
     *) echo "❌ وسيط غير معروف: $1"; usage ;;
   esac
@@ -95,13 +97,21 @@ if [[ -z "$TARGET" ]]; then
 fi
 
 # ── ٢) حماية الهدف ─────────────────────────────────────────────────────────
-if [[ "$TARGET" == *neon.tech* || "$TARGET" == */neondb* || "$TARGET" == */production* || "$TARGET" == */postgres?* ]]; then
-  if [[ "$ALLOW_NEON" -ne 1 ]]; then
-    echo "❌ الهدف يبدو قاعدة إنتاج أو نطاق Neon. استخدم قاعدة مؤقتة، أو أكد بـ--allow-neon-target."
+# الحظر على مستويين: نطاق Neon يتطلب تأكيدًا، واسم قاعدة الإنتاج ممنوع تمامًا
+# إلا بتأكيد أقوى. قاعدة التدريب يجب أن تُسمى مثل selahtone_drill لا neondb.
+if [[ "$TARGET" == *neon.tech* && "$ALLOW_NEON" -ne 1 ]]; then
+  echo "❌ الهدف على نطاق Neon. إن كان فرعًا أو قاعدة تدريب مؤقتة أكد بـ--allow-neon-target."
+  exit 1
+fi
+if [[ "$TARGET" == */neondb* || "$TARGET" == */production* || "$TARGET" == */postgres?* || "$TARGET" == */postgres ]]; then
+  if [[ "$UNSAFE_DB" -ne 1 ]]; then
+    echo "❌ يبدو أن الهدف قاعدة الإنتاج نفسها (neondb/production/postgres)."
+    echo "   أنشئ قاعدة مؤقتة باسم آخر مثل selahtone_drill، أو أكد صراحة بـ--unsafe-target-db."
     exit 1
   fi
-  echo "⚠️  تجاهل حظر نطاق Neon بناءً على تأكيدك."
+  echo "⚠️⚠️  استعادة على قاعدة تحمل اسم الإنتاج بناءً على تأكيدك الصريح."
 fi
+if [[ "$ALLOW_NEON" -eq 1 ]]; then echo "⚠️  هدف على نطاق Neon بناءً على تأكيدك — تأكد أنه فرع أو قاعدة تدريب لا الإنتاج."; fi
 
 # ── ٣) الاستعادة ───────────────────────────────────────────────────────────
 command -v psql >/dev/null 2>&1 || { echo "❌ psql غير مثبت (apt-get install postgresql-client)"; exit 1; }

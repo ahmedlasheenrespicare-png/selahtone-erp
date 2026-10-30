@@ -47,6 +47,8 @@ BACKUP_PASSPHRASE=... bash scripts/restore-drill.sh --file selahtone-20261030-01
 BACKUP_PASSPHRASE=... bash scripts/restore-drill.sh --file selahtone-20261030-010000.sql.gz.enc --target "postgres://…/drill"
 ```
 
+- الأوامر الجاهزة للنسخ والفحص خطوة بخطوة (مع ما ترسله لي بعد كل خطوة) في
+  `docs/finance-release-commands.md`.
 - الوضع الأول يفك التشفير والضغط ويتحقق أن الملف مقروء ويحصي `CREATE TABLE` (بلا قاعدة بيانات).
 - الوضع الثاني يستعيد فعليًا في قاعدة **مؤقتة تسميها أنت**، ثم يطبع أعداد الفروع
   والمستخدمين والبنود وحالة مخطط `finance`. يرفض العمل إن كان الهدف نطاق Neon أو
