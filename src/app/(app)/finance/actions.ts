@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireSession, type SessionUser } from "@/lib/auth";
 import { financeDb, financeEnabled } from "@/lib/finance/db";
-import { openAccount, transferCash } from "@/lib/finance/engine";
+import { approveExpense, createExpense, openAccount, payExpense, requestPaidExpenseReview, transferCash } from "@/lib/finance/engine";
 import { FinanceProblem } from "@/lib/finance/types";
 import type { FinanceActionState } from "./finance-state";
 
@@ -41,7 +41,7 @@ function translate(error: unknown): FinanceActionState {
   return unexpected(error);
 }
 function revalidateFinance(): void {
-  for (const path of ["/finance", "/finance/accounts", "/finance/transfers", "/dashboard"]) {
+  for (const path of ["/finance", "/finance/accounts", "/finance/transfers", "/finance/expenses", "/dashboard"]) {
     try { revalidatePath(path); } catch { console.error("Finance cache revalidation failed"); }
   }
 }
@@ -91,6 +91,110 @@ export async function transferCashAction(_previous: FinanceActionState, formData
       status: "success",
       id: result.id,
       message: result.replayed ? "سبق حفظ هذا الطلب؛ لم تُسجَّل حركة مكررة." : "سُجّل التسليم الفعلي بين الحسابين.",
+    };
+  } catch (error) {
+    return translate(error);
+  }
+}
+
+export async function createExpenseAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
+  const guard = await requireFinanceManager();
+  if ("state" in guard) return guard.state;
+  const raw = {
+    requestId: text(formData, "requestId"),
+    branchId: text(formData, "branchId"),
+    categoryId: text(formData, "categoryId"),
+    amount: text(formData, "amount"),
+    expenseDate: text(formData, "expenseDate"),
+    description: text(formData, "description"),
+    beneficiary: text(formData, "beneficiary") || null,
+    documentNumber: text(formData, "documentNumber") || null,
+    taxAmount: text(formData, "taxAmount") || null,
+  };
+  try {
+    const result = await createExpense(financeDb, guard.session.id, raw);
+    revalidateFinance();
+    return {
+      status: "success",
+      id: result.id,
+      message: result.replayed ? "سبق حفظ هذا الطلب؛ لم يُسجَّل مصروف مكرر." : "سُجّل المصروف بانتظار الاعتماد.",
+    };
+  } catch (error) {
+    return translate(error);
+  }
+}
+
+export async function approveExpenseAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
+  const guard = await requireFinanceManager();
+  if ("state" in guard) return guard.state;
+  const raw = {
+    requestId: text(formData, "requestId"),
+    expenseId: text(formData, "expenseId"),
+    expectedRevision: text(formData, "expectedRevision"),
+    selfApproved: confirmed(formData, "selfApproved"),
+  };
+  try {
+    const result = await approveExpense(financeDb, guard.session.id, raw);
+    revalidateFinance();
+    return {
+      status: "success",
+      id: result.id,
+      message: result.replayed ? "سبق حفظ هذا الطلب؛ لم يتكرر الاعتماد." : "اعتُمد المصروف. الصرف الفعلي خطوة منفصلة.",
+    };
+  } catch (error) {
+    return translate(error);
+  }
+}
+
+export async function payExpenseAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
+  const guard = await requireFinanceManager();
+  if ("state" in guard) return guard.state;
+  const method = text(formData, "method");
+  const raw = {
+    requestId: text(formData, "requestId"),
+    expenseId: text(formData, "expenseId"),
+    expectedRevision: text(formData, "expectedRevision"),
+    method,
+    accountId: method === "CASH" ? text(formData, "accountId") : null,
+    paymentDate: text(formData, "paymentDate"),
+    actuallyPaid: confirmed(formData, "actuallyPaid"),
+    openingOrder: text(formData, "openingOrder") || null,
+    includedInOpening: confirmed(formData, "includedInOpening"),
+    afterCountId: text(formData, "afterCountId") || null,
+    afterCount: confirmed(formData, "afterCount"),
+    expectedBalance: method === "CASH" ? text(formData, "expectedBalance") : null,
+    negativeAcknowledged: confirmed(formData, "negativeAcknowledged"),
+  };
+  try {
+    const result = await payExpense(financeDb, guard.session.id, raw);
+    revalidateFinance();
+    return {
+      status: "success",
+      id: result.id,
+      message: result.replayed ? "سبق حفظ هذا الطلب؛ لم تُسجَّل حركة مكررة." : "سُجّل الصرف الفعلي للمصروف.",
+    };
+  } catch (error) {
+    return translate(error);
+  }
+}
+
+export async function requestExpenseReviewAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
+  const guard = await requireFinanceManager();
+  if ("state" in guard) return guard.state;
+  const raw = {
+    requestId: text(formData, "requestId"),
+    expenseId: text(formData, "expenseId"),
+    expectedRevision: text(formData, "expectedRevision"),
+    reason: text(formData, "reason"),
+    proposedAmount: text(formData, "proposedAmount") || null,
+  };
+  try {
+    const result = await requestPaidExpenseReview(financeDb, guard.session.id, raw);
+    revalidateFinance();
+    return {
+      status: "success",
+      id: result.id,
+      message: result.replayed ? "سبق حفظ هذا الطلب؛ لم يُنشأ طلب مكرر." : "سُجّل طلب المراجعة. لا يتغير الرصيد ولا المبلغ قبل تأكيد الإدارة.",
     };
   } catch (error) {
     return translate(error);

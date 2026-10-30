@@ -48,6 +48,7 @@ export default async function FinancePage() {
           <div className="fin-actions">
             <Link className="fin-button" href="/finance/accounts">فتح حساب بجرد فعلي</Link>
             <Link className="fin-button fin-button--secondary" href="/finance/transfers">تسليم نقد</Link>
+            <Link className="fin-button fin-button--secondary" href="/finance/expenses">المصروفات</Link>
           </div>
         ) : null}
       </div>
