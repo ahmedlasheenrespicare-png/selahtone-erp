@@ -204,3 +204,41 @@
 الوحيد هو `manual-finance-restrict.sql`. ولا يوجد أي مسار `DELETE`/`TRUNCATE` على مخطط
 `finance` في كود التطبيق، والنشر يُشغّل `prisma generate` فقط بلا `prisma migrate`،
 فالتقييد لا يكسر البناء أو التشغيل.
+
+## ١١. خلاصة بند صلاحيات دور التطبيق — مُغلق (2026-10-30)
+
+**النتيجة:** لا يمكن تقييد صلاحيات دور التطبيق الحالي على Neon، وأُعيدت القاعدة إلى حالتها
+الأصلية بعد محاولات موثّقة. البند مغلق بهذا الاستنتاج، ولا يمنع نشر الواجهات؛ لأنه لا
+يوجد مسار حذف في كود المالية أصلًا.
+
+| المحاولة | النتيجة | الدليل |
+|---|---|---|
+| منح مقيد (قراءة/كتابة بلا حذف) | غير ضروري: الدور هو مالك المخطط | `finance_object_owners = ["neondb_owner"]` |
+| سحب `DELETE/TRUNCATE` على مخطط `finance` | طُبِّق على ACL ثم تبيّن أنه **بلا أثر** | ACL صار `neondb_owner=arwxtm/...` بلا `d`/`D`، ومع ذلك ظهرت الجداول الـ16 في `tables_with_delete` |
+| سحب عضوية `neon_superuser` | مرفوض | `permission denied to revoke role "neon_superuser"` (42501) — لا ADMIN OPTION، والمنح من `cloud_admin` |
+| `SET ROLE neon_superuser` ثم السحب من داخله | مرفوض من Neon | `It is not allowed to change role to neon_superuser` (XX000) |
+| إعادة الحالة الأصلية | ناجحة | `default_privileges_finance = {neondb_owner=arwdDxtm/neondb_owner}`، و`finance_missing_select/write = []` |
+
+**السبب الجذري:** `neondb_owner` عضو في `neon_superuser` (دور تديره Neon)، وهذا الأخير
+عضو في `pg_write_all_data` الذي يمنح INSERT/UPDATE/**DELETE على كل جدول في كل مخطط**.
+صلاحيات Postgres اتحاد لكل المصادر، فلا يكفي سحب الحذف من ACL الجداول. ولا سبيل لتعديل
+تلك العضوية من هذا الدور.
+
+**الضمانات الفعلية القائمة اليوم:**
+1. لا يوجد أي مسار `DELETE` أو `TRUNCATE` على مخطط `finance` في كود التطبيق (فحص شامل لـ`src/`).
+2. التصحيحات والمراجعات تُسجَّل بالإضافة فقط في جداول مخصصة، ولا يُعدَّل سجل قائم.
+3. النشر يُشغّل `prisma generate` فقط، فلا ترحيل تلقائي يغيّر المخطط.
+4. مخطط `finance` مكتمل (16 جدولًا) ومثبت بترقية موثّقة ومسجّلة في `finance_release.migrations`.
+
+**المسار الفعّال الوحيد (مؤجل — يحتاج موافقة ونشرًا منفصلين):** دور تطبيق منفصل.
+1. `CREATE ROLE selahtone_app LOGIN PASSWORD '…' NOCREATEDB NOCREATEROLE;` (كلمة المرور
+   تُدار في Neon ولا تُشارك في أي سجل).
+2. منح `USAGE` على مخططات `public` و`finance` و`finance_release`، و`SELECT/INSERT/UPDATE`
+   على جداول `public` و`finance`، و`USAGE/SELECT/UPDATE` على تسلسلاتها، و`SELECT` فقط على
+   `finance_release`، مع `ALTER DEFAULT PRIVILEGES FOR ROLE neondb_owner` لما يُنشأ لاحقًا.
+3. تغيير `DATABASE_URL` في Netlify إلى سلسلة الاتصال المجمَّعة بالدور الجديد، وإعادة النشر.
+4. التحقق: صحة الموقع و`/api/health`، وصفحات المالية، ثم تراجع فوري بإعادة السلسلة السابقة
+   عند أي خلل.
+
+**ملاحظة على RLS:** تفعيل RLS بلا `FORCE ROW LEVEL SECURITY` لا يقيّد مالك الجدول، فلا
+فائدة منه قبل الانتقال إلى دور تطبيق منفصل.
