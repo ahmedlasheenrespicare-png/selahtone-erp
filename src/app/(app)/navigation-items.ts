@@ -38,7 +38,7 @@ export function navigationGroups(canViewAllBranches: boolean, financeEnabled = f
       : {
           label: "أعمال الفرع",
           items: [
-            ...(financeEnabled ? [{ label: "عهدتي", icon: "cash" as const, href: "/finance" }] : [{ label: "عهدتي", icon: "cash" as const }]),
+            ...(financeEnabled ? [{ label: "عهدتي", icon: "cash" as const, href: "/finance/mine" }] : [{ label: "عهدتي", icon: "cash" as const }]),
             { label: "إيرادي اليومي", icon: "receipt" },
           ],
         },
