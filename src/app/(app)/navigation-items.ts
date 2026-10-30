@@ -11,8 +11,10 @@ export type NavigationGroup = {
   items: NavigationItem[];
 };
 
-/** Keep the existing role-specific navigation and label unfinished pages clearly. */
-export function navigationGroups(canViewAllBranches: boolean): NavigationGroup[] {
+/** Keep the existing role-specific navigation and label unfinished pages clearly.
+ * The finance entry appears only when the staged finance module is switched on,
+ * which requires an applied, reviewed migration; otherwise nothing changes. */
+export function navigationGroups(canViewAllBranches: boolean, financeEnabled = false): NavigationGroup[] {
   return [
     {
       label: "الرئيسية",
@@ -27,6 +29,7 @@ export function navigationGroups(canViewAllBranches: boolean): NavigationGroup[]
           label: "الإدارة والمتابعة",
           items: [
             { label: "التحقق من الإعداد", icon: "settings", href: "/setup" },
+            ...(financeEnabled ? [{ label: "المالية", icon: "cash" as const, href: "/finance" }] : []),
             { label: "المصروفات", icon: "expenses" },
             { label: "العهد النقدية", icon: "cash" },
             { label: "التقارير الضريبية", icon: "reports" },
@@ -35,7 +38,7 @@ export function navigationGroups(canViewAllBranches: boolean): NavigationGroup[]
       : {
           label: "أعمال الفرع",
           items: [
-            { label: "عهدتي", icon: "cash" },
+            ...(financeEnabled ? [{ label: "عهدتي", icon: "cash" as const, href: "/finance/mine" }] : [{ label: "عهدتي", icon: "cash" as const }]),
             { label: "إيرادي اليومي", icon: "receipt" },
           ],
         },
