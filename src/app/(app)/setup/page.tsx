@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { requireSession, canSeeAllBranches } from "@/lib/auth";
+import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
 import { lineTax, money } from "@/lib/tax";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +13,7 @@ const nf = new Intl.NumberFormat("ar-EG-u-nu-latn", { maximumFractionDigits: 2 }
  */
 export default async function SetupPage() {
   const session = await requireSession();
+  await requireMenuScopeAccess("/setup");
 
   if (!canSeeAllBranches(session)) {
     return <div className="alert alert-err">هذه الصفحة للمدير والمحاسب فقط.</div>;

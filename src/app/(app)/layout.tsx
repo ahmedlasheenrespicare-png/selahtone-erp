@@ -1,9 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppIcon } from "@/components/app-icon";
-import { headers } from "next/headers";
 import { getSession, canSeeAllBranches } from "@/lib/auth";
-import { isPathAllowedForScope } from "@/lib/menu-scope";
 import { financeEnabled } from "@/lib/finance/db";
 import { AppNavigation } from "./app-navigation";
 import LogoutButton from "./logout-button";
@@ -19,11 +17,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const session = await getSession();
   if (!session) redirect("/login");
   if (session.mustChangePassword) redirect("/change-password");
-
-  // الحارس الفعلي للحسابات ذات النطاق المختصر: إخفاء القائمة لا يكفي، فأي مسار
-  // خارج نطاقها يُحوَّل إلى لوحة القيادة حتى لو كُتب الرابط مباشرة.
-  const pathname = (await headers()).get("x-pathname") ?? "";
-  if (!isPathAllowedForScope(session.menuScope, pathname)) redirect("/dashboard");
 
   return (
     <div className="workspace-shell">

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { listAccountActivity, listAccounts } from "@/lib/finance/engine";
 import { formatMoney } from "../format";
 import { financePage, financeRead } from "../page-context";
+import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ const KIND_LABELS: Record<string, string> = {
  * payment detail can reach this screen, and the branch filter is applied in SQL. */
 export default async function MyCustodyPage() {
   const { session, canManage } = await financePage();
+  await requireMenuScopeAccess("/finance/mine");
   if (canManage) redirect("/finance");
 
   const accounts = await financeRead(session, (tx) => listAccounts({ serializable: (work) => work(tx) }, session.id));

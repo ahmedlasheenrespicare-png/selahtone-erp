@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { listAppCategories } from "@/lib/finance/app-categories";
 import { financePage, financeRead } from "../page-context";
+import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
 import { CreateCategoryForm, EditCategoryForm, type CategoryOption } from "./category-forms";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +11,7 @@ export const dynamic = "force-dynamic";
  * Nothing is copied or deleted, and every edit keeps a reason and an audit row. */
 export default async function CategoriesPage() {
   const { session, canManage } = await financePage();
+  await requireMenuScopeAccess("/finance/categories");
   if (!canManage) {
     return (
       <div className="fin-page">

@@ -4,6 +4,7 @@ import { AppIcon } from "@/components/app-icon";
 import { ROLE_LABELS, type AdminRole } from "@/lib/admin-directory";
 import { MENU_SCOPE_LABELS, isMenuScope, type MenuScope } from "@/lib/menu-scope";
 import { canSeeAllBranches, getSession } from "@/lib/auth";
+import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
 import { prisma } from "@/lib/prisma";
 import { BranchActiveForm, BranchCreateForm, BranchRenameForm, PasswordResetForm, UserCreateForm, UserEditForm } from "./admin-forms";
 
@@ -16,6 +17,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function AdminPage() {
   const session = await getSession();
+  await requireMenuScopeAccess("/admin");
   if (!session) redirect("/login");
   if (session.mustChangePassword) redirect("/change-password");
   if (!canSeeAllBranches(session)) {

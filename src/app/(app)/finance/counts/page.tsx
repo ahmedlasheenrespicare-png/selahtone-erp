@@ -4,6 +4,7 @@ import { listAccounts, listCashCounts } from "@/lib/finance/engine";
 import { prisma } from "@/lib/prisma";
 import { accountLabel, formatMoney } from "../format";
 import { financePage, financeRead } from "../page-context";
+import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
 import { CountRequestForm, CountResolveForm, type CountAccountOption } from "./count-forms";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +12,7 @@ const STATUS_LABEL: Record<string, string> = { OPEN: "معلق", CONFIRMED: "م�
 
 export default async function CountsPage() {
   const { session, canManage } = await financePage();
+  await requireMenuScopeAccess("/finance/counts");
   if (!canManage) {
     return (
       <div className="fin-page">
