@@ -101,6 +101,7 @@ test("the upgrade script is the reviewed candidate minus the disposable guard", 
 });
 
 test("the rollback script refuses to run against any script other than the upgrade", () => {
+  assert.equal(stampedChecksum(rollback, "rollback script").length, 64);
   assert.match(rollback, /DROP SCHEMA finance CASCADE;/);
   assert.match(rollback, /DROP SCHEMA finance_release CASCADE;/);
   assert.ok(!rollback.includes("DROP TABLE public."), "the rollback must never touch public objects");
