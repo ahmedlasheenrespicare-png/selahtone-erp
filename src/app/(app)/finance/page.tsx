@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
+import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
 import { assertFinanceActor, financeDb, financeEnabled } from "@/lib/finance/db";
 import { listAccounts } from "@/lib/finance/engine";
 import { prisma } from "@/lib/prisma";
@@ -16,6 +17,7 @@ export const dynamic = "force-dynamic";
 
 export default async function FinancePage() {
   const session = await getSession();
+  await requireMenuScopeAccess("/finance");
   if (!session) redirect("/login");
   if (session.mustChangePassword) redirect("/change-password");
   if (!financeEnabled()) redirect("/dashboard");

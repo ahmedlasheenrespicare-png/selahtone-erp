@@ -24,12 +24,7 @@ export async function middleware(request: NextRequest) {
       valid = false;
     }
   }
-  if (valid) {
-    // يُمرَّر المسار إلى مكوّنات الخادم حتى يطبّق حارس نطاق القائمة على الصفحة نفسها.
-    const requestHeaders = new Headers(request.headers);
-    requestHeaders.set("x-pathname", pathname);
-    return NextResponse.next({ request: { headers: requestHeaders } });
-  }
+  if (valid) return NextResponse.next();
 
   const query = new URLSearchParams({ next: `${pathname}${search}` });
   // Middleware في Next.js يتطلب URL مطلقًا. نستخدم نطاق الطلب العام خلف الوكيل،
