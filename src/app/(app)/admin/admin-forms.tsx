@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 
 import { ADMIN_ROLES, ROLE_LABELS, userInputError, type AdminRole } from "@/lib/admin-directory";
+import { MENU_SCOPES, MENU_SCOPE_LABELS, type MenuScope } from "@/lib/menu-scope";
 import {
   createBranchAction,
   createUserAction,
@@ -34,6 +35,7 @@ export type UserRow = {
   isActive: boolean;
   mustChangePassword: boolean;
   isSelf: boolean;
+  menuScope: MenuScope;
 };
 
 export type BranchOption = { id: string; nameAr: string; code: string };
@@ -177,6 +179,15 @@ export function UserCreateForm({ branches }: { branches: BranchOption[] }) {
         <input type="checkbox" name="mustChange" value="yes" checked={mustChange} onChange={(event) => setMustChange(event.target.checked)} />
         <span>إلزام المستخدم بتغيير كلمة المرور عند أول دخول</span>
       </label>
+      {role !== "CS_AGENT" && (
+        <div className="field">
+          <label htmlFor="user-scope">نطاق القائمة</label>
+          <select id="user-scope" name="menuScope" defaultValue="FULL">
+            {MENU_SCOPES.map((value) => (<option key={value} value={value}>{MENU_SCOPE_LABELS[value]}</option>))}
+          </select>
+          <p className="field-hint">النطاق المختصر يمنع فتح بقية الشاشات من الخادم، لا من القائمة فقط.</p>
+        </div>
+      )}
       <button className="btn" type="submit" disabled={pending || error !== null}>{pending ? "جارٍ الإنشاء…" : "إنشاء المستخدم"}</button>
       {error !== null && <p className="field-hint">{error}</p>}
     </form>
@@ -213,6 +224,14 @@ export function UserEditForm({ user, branches }: { user: UserRow; branches: Bran
         <input type="checkbox" name="active" value="yes" checked={active} onChange={(event) => setActive(event.target.checked)} />
         <span>الحساب نشط</span>
       </label>
+      {role !== "CS_AGENT" && (
+        <div className="field">
+          <label htmlFor={`scope-${user.id}`}>نطاق القائمة</label>
+          <select id={`scope-${user.id}`} name="menuScope" defaultValue={user.menuScope}>
+            {MENU_SCOPES.map((value) => (<option key={value} value={value}>{MENU_SCOPE_LABELS[value]}</option>))}
+          </select>
+        </div>
+      )}
       <button className="btn" type="submit" disabled={pending || (role === "CS_AGENT" && !branchId)}>
         {pending ? "جارٍ الحفظ…" : "حفظ"}
       </button>
