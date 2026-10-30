@@ -193,3 +193,14 @@
 - **التحقق:** جُرّب الملف على PostgreSQL 18.6 محلي مؤقت بدور مالك غير مُشرِف: بعده
   `tables_with_delete=[]` و`SELECT/INSERT/UPDATE` كاملة، و`DELETE` و`TRUNCATE` مرفوضان
   فعليًا، والإضافة تعمل.
+
+### تأكيد دور التطبيق (نفس اليوم)
+فحص `pg_stat_activity` بعد فتح الموقع أظهر اتصالين فقط، كلاهما بالدور `neondb_owner`:
+1. من `neon-internal-sql-editor` (جلسة الفحص نفسها)،
+2. من `127.0.0.1` عبر `pgbouncer` (اتصال التطبيق المجمَّع).
+
+النتيجة: **التطبيق يتصل بدور `neondb_owner` نفسه** — مالك مخطط `finance`. فلا حاجة لأي
+منح (`manual-finance-grants.sql` يبقى مرجعًا إن تغيّر الدور لاحقًا)، والإجراء المفيد
+الوحيد هو `manual-finance-restrict.sql`. ولا يوجد أي مسار `DELETE`/`TRUNCATE` على مخطط
+`finance` في كود التطبيق، والنشر يُشغّل `prisma generate` فقط بلا `prisma migrate`،
+فالتقييد لا يكسر البناء أو التشغيل.

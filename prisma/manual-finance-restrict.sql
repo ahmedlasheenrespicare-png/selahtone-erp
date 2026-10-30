@@ -17,11 +17,16 @@
 --   * لا يسحب CREATE على المخطط: ملفات الترقية اليدوية تحتاجه لإنشاء الجداول.
 --   * لا يفعّل RLS، ولا يغيّر الملكية، ولا يمس جداول البيع والمخزون في public.
 --
--- التشغيل: استبدل اسم الدور إن لزم، ثم شغّل الملف كله دفعة واحدة في Neon SQL Editor
--- على الفرع production والقاعدة neondb. التراجع: أعِد المنح بـ
---   GRANT DELETE ON ALL TABLES IN SCHEMA finance TO neondb_owner;
+-- تأكيد دور التطبيق (2026-10-30، فحص pg_stat_activity بعد فتح الموقع):
+--   * neondb_owner من neon-internal-sql-editor (جلسة الفحص نفسها)
+--   * neondb_owner من 127.0.0.1 عبر pgbouncer (اتصال التطبيق المجمَّع)
+--   أي أن التطبيق يتصل بدور neondb_owner نفسه، فلا حاجة لأي تبديل اسم.
+--
+-- التشغيل: شغّل الملف كله دفعة واحدة في Neon SQL Editor على الفرع production
+-- والقاعدة neondb. التراجع عند الحاجة:
+--   GRANT DELETE, TRUNCATE ON ALL TABLES IN SCHEMA finance TO neondb_owner;
 DO $$
-DECLARE app_role NAME := 'neondb_owner';  -- ⬅︎ اسم دور التطبيق بعد تأكيد الاتصال
+DECLARE app_role NAME := 'neondb_owner';  -- مؤكَّد بفحص pg_stat_activity
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = app_role) THEN
     RAISE EXCEPTION 'الدور % غير موجود في هذه القاعدة.', app_role;
@@ -60,5 +65,5 @@ SELECT jsonb_build_object(
     FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
     WHERE n.nspname = 'finance' AND c.relkind = 'r' AND has_table_privilege('neondb_owner', c.oid, 'DELETE')
   ),
-  'note', 'استبدل neondb_owner في كتل التحقق باسم دور التطبيق نفسه قبل التشغيل.'
+  'note', 'المطلوب: tables_with_delete=[] مع بقاء القراءة والكتابة كاملتين.'
 )::text AS finance_restrict_check;
