@@ -9,15 +9,8 @@ export const dynamic = "force-dynamic";
 const STATUS_LABEL: Record<string, string> = { PENDING: "بانتظار الاعتماد", APPROVED: "معتمد", PAID: "مدفوع" };
 
 export default async function ExpensesPage() {
+  // الموظف يرى مصروفاته هو فقط؛ الحجب في الخادم داخل listExpenses.
   const { session, canManage } = await financePage();
-  if (!canManage) {
-    return (
-      <div className="fin-page">
-        <Link href="/finance" className="fin-back">العودة إلى المالية</Link>
-        <div className="fin-alert fin-alert--error">عرض المصروفات وتسجيلها متاح للمدير والمحاسب فقط.</div>
-      </div>
-    );
-  }
 
   const [expenses, branches] = await Promise.all([
     financeRead(session, (tx) => listExpenses({ serializable: (work) => work(tx) }, session.id)),
@@ -31,8 +24,10 @@ export default async function ExpensesPage() {
       <div className="fin-heading">
         <div>
           <p className="fin-heading__eyebrow">المصروفات</p>
-          <h1>سجل المصروفات</h1>
-          <p>التسجيل والاعتماد والصرف الفعلي ثلاث خطوات منفصلة. الاعتماد الذاتي جائز مع حفظ المُدخل والمعتمد.</p>
+          <h1>{canManage ? "سجل المصروفات" : "مصروفاتي"}</h1>
+          <p>{canManage
+            ? "التسجيل والاعتماد والصرف الفعلي ثلاث خطوات منفصلة. الاعتماد الذاتي جائز مع حفظ المُدخل والمعتمد."
+            : "هذه المصروفات التي سجلتها أنت فقط مع حالتها أمام الإدارة. الاعتماد والصرف للمدير والمحاسب."}</p>
         </div>
         <div className="fin-actions">
           <Link className="fin-button" href="/finance/expenses/new">تسجيل مصروف</Link>

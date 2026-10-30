@@ -10,17 +10,29 @@ export const dynamic = "force-dynamic";
 
 export default async function NewExpensePage() {
   const { session, canManage } = await financePage();
-  if (!canManage) {
+  if (!canManage && session.role !== "CS_AGENT") {
     return (
       <div className="fin-page">
         <Link href="/finance" className="fin-back">العودة إلى المالية</Link>
-        <div className="fin-alert fin-alert--error">تسجيل المصروفات متاح للمدير والمحاسب فقط.</div>
+        <div className="fin-alert fin-alert--error">تسجيل المصروفات متاح للمدير والمحاسب، ولموظف الفرع في فرعه فقط.</div>
+      </div>
+    );
+  }
+  if (!canManage && !session.branchId) {
+    return (
+      <div className="fin-page">
+        <Link href="/finance" className="fin-back">العودة إلى المالية</Link>
+        <div className="fin-alert fin-alert--error">حسابك غير منسوب إلى فرع؛ أسند فرعك من شاشة «الفروع والمستخدمون» قبل تسجيل مصروف.</div>
       </div>
     );
   }
 
   const [branches, categories] = await Promise.all([
-    prisma.branch.findMany({ where: { isActive: true }, orderBy: { code: "asc" }, select: { id: true, nameAr: true } }),
+    prisma.branch.findMany({
+      where: { isActive: true, ...(canManage ? {} : { id: BigInt(session.branchId as string) }) },
+      orderBy: { code: "asc" },
+      select: { id: true, nameAr: true },
+    }),
     financeRead(session, (tx) => listCategories({ serializable: (work) => work(tx) }, session.id)),
   ]);
 
@@ -37,6 +49,10 @@ export default async function NewExpensePage() {
           <p>التسجيل الآن لا يعتمد ولا يصرف. المبلغ الإجمالي يشمل الضريبة إن أُدخلت.</p>
         </div>
       </div>
+
+      {!canManage && (
+        <div className="fin-alert fin-alert--warning">يُسجَّل المصروف بانتظار الاعتماد، ولا يُصرف إلا بعد اعتماد المدير أو المحاسب.</div>
+      )}
 
       {!branchOptions.length ? (
         <div className="fin-panel fin-empty">لا يوجد فرع نشط؛ أضف فرعًا نشطًا قبل تسجيل مصروف.</div>

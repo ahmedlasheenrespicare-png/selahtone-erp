@@ -29,6 +29,7 @@ export function navigationGroups(canViewAllBranches: boolean, financeEnabled = f
           label: "الإدارة والمتابعة",
           items: [
             { label: "التحقق من الإعداد", icon: "settings", href: "/setup" },
+            { label: "الفروع والمستخدمون", icon: "branch", href: "/admin" },
             ...(financeEnabled ? [{ label: "المالية", icon: "cash" as const, href: "/finance" }] : []),
             { label: "المصروفات", icon: "expenses" },
             { label: "العهد النقدية", icon: "cash" },
@@ -39,6 +40,7 @@ export function navigationGroups(canViewAllBranches: boolean, financeEnabled = f
           label: "أعمال الفرع",
           items: [
             ...(financeEnabled ? [{ label: "عهدتي", icon: "cash" as const, href: "/finance/mine" }] : [{ label: "عهدتي", icon: "cash" as const }]),
+            ...(financeEnabled ? [{ label: "مصروفاتي", icon: "expenses" as const, href: "/finance/expenses" }] : []),
             { label: "إيرادي اليومي", icon: "receipt" },
           ],
         },
