@@ -33,7 +33,6 @@
     "dev:finance:lab": "node prototypes/finance-app/run.mjs",
     "check:finance:app": "node prototypes/finance-app/run.mjs --test",
     "check:finance:release-audit": "tsx --test tests/finance-release-audit.test.ts",
-    "check:finance:storage": "tsx --test tests/finance-storage.test.ts",
     "check:finance:categories-candidate": "tsx --test tests/finance-category-candidate.test.ts",
     "check:finance:cutover": "tsx --test tests/finance-cutover.test.ts",
     "check:finance:cutover-core": "node prototypes/finance-app/run.mjs --test-cutover",

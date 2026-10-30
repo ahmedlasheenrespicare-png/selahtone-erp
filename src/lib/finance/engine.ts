@@ -9,7 +9,6 @@
  */
 import { createHash } from "node:crypto";
 import { canCollectTo, canManageFinance, canViewAccount, activeActor } from "./policy";
-import { inspectAttachment, type AttachmentType } from "./attachment-validation";
 import { FinanceProblem, type AccountKind, type AccountScope, type Actor, type FinanceCategoryRow, type FinanceDatabase, type FinanceTransaction, type Method, type WriteResult } from "./types";
 import { cairoDate, caseSnapshot, confirmation, date, exactCents, flag, formatCents, identifier, inputObject, kind, method, money, openingOrder, optionalIdentifier, optionalMoney, requestId, revision, signedMoney, text, type Input } from "./validation";
 
@@ -129,7 +128,6 @@ async function command(
         if (action === "RECON_CASE_CREATE" && dbConstraint(error) === "finance_one_open_opening_case") throw new FinanceProblem("case_exists", "توجد حالة افتتاح معلقة لهذا الحساب؛ أضف إليها ملاحظة أو راجعها أولًا.");
         if (action === "EXPENSE_REVIEW_CREATE" && dbConstraint(error) === "finance_one_open_review_per_expense") throw new FinanceProblem("review_exists", "يوجد طلب مراجعة مفتوح لهذا المصروف؛ راجعه قبل إنشاء طلب آخر.");
         if (action === "CASH_COUNT_CREATE" && dbConstraint(error) === "finance_one_open_count_per_account") throw new FinanceProblem("count_exists", "يوجد جرد مفتوح لهذا الحساب؛ راجعه أو ألغِه بسبب قبل تسجيل جرد آخر.");
-        if (action === "EXPENSE_ATTACHMENT_ADD" && dbConstraint(error) === "finance_one_attachment_per_expense") throw new FinanceProblem("attachment_exists", "يوجد مرفق لهذا المصروف؛ المختبر لا يدعم الاستبدال أو الحذف.");
         throw new FinanceProblem("duplicate", "الحساب أو البند أو الحركة مسجّل بالفعل؛ لم يُحفظ طلب مكرر.");
       }
       throw error;
@@ -722,63 +720,6 @@ export async function closePaidExpenseReview(db: FinanceDatabase, actorId: strin
     await audit(tx,"EXPENSE",expense.id,"CLOSE_REVIEW_NO_CHANGE",actor.id,input.reason,old,outcome);
     await audit(tx,"EXPENSE_REVIEW",review.id,"CLOSE_NO_CHANGE",actor.id,input.reason,old,outcome);
     return review.id;
-  });
-}
-
-/** A single experimental attachment in the disposable lab only. It is stored
- * in the SAME transaction as its request fingerprint, quota and audit event.
- * The signature check is NOT malware scanning or production-safe storage. */
-export async function addExpenseAttachment(
-  db: FinanceDatabase, actorId: string, raw: unknown, file: { name: unknown; mediaType: unknown; bytes: unknown },
-): Promise<WriteResult> {
-  const value = inputObject(raw);
-  const info = inspectAttachment(file.name, file.mediaType, file.bytes);
-  // Copy untrusted mutable input before hashing and before asynchronous work.
-  const bytes = Buffer.from(file.bytes as Uint8Array);
-  const sha256 = createHash("sha256").update(bytes).digest("hex");
-  const input = { requestId: requestId(value.requestId), expenseId: identifier(value.expenseId, "المصروف"), filename: info.filename, mediaType: info.mediaType, size: info.size, sha256 };
-  return command(db, actorId, "EXPENSE_ATTACHMENT_ADD", input.requestId, input, manage, async (tx, actor) => {
-    await lockExpense(tx, input.expenseId);
-    const old = await tx.query<IdRow>(`SELECT id::text AS id FROM finance.expense_attachments WHERE expense_id=$1::bigint`, [input.expenseId]);
-    if (old.rows[0]) throw new FinanceProblem("attachment_exists", "يوجد مرفق لهذا المصروف؛ المختبر لا يدعم الاستبدال أو الحذف.");
-    const quota = await tx.query<IdRow>(`UPDATE finance.attachment_quota SET used_bytes=used_bytes+$1::int,used_count=used_count+1
-      WHERE singleton=1 AND used_bytes+$1::int<=20000000 AND used_count<20 RETURNING singleton::text AS id`, [input.size]);
-    if (!quota.rows[0]) throw new FinanceProblem("attachment_quota", "امتلأت سعة المرفقات الوهمية في المختبر؛ أعد تشغيله لمسح البيانات التجريبية.");
-    const saved = await tx.query<IdRow>(`INSERT INTO finance.expense_attachments(expense_id,filename,media_type,bytes,sha256,created_by)
-      VALUES($1::bigint,$2,$3,decode($4::text,'base64'),$5,$6::bigint) RETURNING id::text AS id`,
-      [input.expenseId, input.filename, input.mediaType, bytes.toString("base64"), input.sha256, actor.id]);
-    await audit(tx, "EXPENSE", input.expenseId, "ATTACH", actor.id, null, null, { attachmentId: saved.rows[0].id, filename: input.filename, mediaType: input.mediaType, size: input.size, sha256 });
-    return saved.rows[0].id;
-  });
-}
-
-type AttachmentRow = Row & { id: string; expenseId: string; filename: string; mediaType: AttachmentType; size: number; sha256: string; createdBy: string; createdAt: string };
-/** Metadata only; the client never gets file bytes in a list response. */
-export async function listExpenseAttachments(db: FinanceDatabase, actorIdRaw: string): Promise<AttachmentRow[]> {
-  const actorId = identifier(actorIdRaw, "المستخدم");
-  return db.serializable(async tx => {
-    const actor = await loadActor(tx, actorId); manage(actor);
-    return (await tx.query<AttachmentRow>(`SELECT id::text AS id,expense_id::text AS "expenseId",filename,media_type AS "mediaType",
-      octet_length(bytes)::int AS size,sha256,created_by::text AS "createdBy",created_at::text AS "createdAt"
-      FROM finance.expense_attachments a ORDER BY a.id`)).rows;
-  });
-}
-/** Read is independently authorized; verify bytes against the stored hash. */
-export async function getExpenseAttachment(db: FinanceDatabase, actorIdRaw: string, expenseIdRaw: string): Promise<(AttachmentRow & { bytes: Uint8Array }) | null> {
-  const actorId = identifier(actorIdRaw, "المستخدم"), expenseId = identifier(expenseIdRaw, "المصروف");
-  return db.serializable(async tx => {
-    const actor = await loadActor(tx, actorId); manage(actor);
-    const rows = await tx.query<AttachmentRow & { bytes: unknown }>(`SELECT id::text AS id,expense_id::text AS "expenseId",filename,media_type AS "mediaType",
-      octet_length(bytes)::int AS size,sha256,created_by::text AS "createdBy",created_at::text AS "createdAt",bytes
-      FROM finance.expense_attachments WHERE expense_id=$1::bigint`, [expenseId]);
-    const row = rows.rows[0];
-    if (!row) return null;
-    if (!(row.bytes instanceof Uint8Array) || row.bytes.byteLength !== row.size || createHash("sha256").update(row.bytes).digest("hex") !== row.sha256.trim()) {
-      throw new FinanceProblem("attachment_corrupt", "تعذر التحقق من سلامة المرفق التجريبي.");
-    }
-    // Also re-check the allowed extension/type/signature before a download.
-    try { inspectAttachment(row.filename, row.mediaType, row.bytes); } catch { throw new FinanceProblem("attachment_corrupt", "تعذر التحقق من سلامة المرفق التجريبي."); }
-    return { ...row, bytes: Uint8Array.from(row.bytes) };
   });
 }
 
