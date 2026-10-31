@@ -36,6 +36,7 @@ export type UserRow = {
   mustChangePassword: boolean;
   isSelf: boolean;
   menuScope: MenuScope;
+  canCancelSales: boolean;
 };
 
 export type BranchOption = { id: string; nameAr: string; code: string };
@@ -224,6 +225,14 @@ export function UserEditForm({ user, branches }: { user: UserRow; branches: Bran
         <input type="checkbox" name="active" value="yes" checked={active} onChange={(event) => setActive(event.target.checked)} />
         <span>الحساب نشط</span>
       </label>
+      {/* صلاحية إلغاء البيع للمحاسب خاصة: المدير يملكها دائمًا، وموظف الكاونتر
+          لا يملكها أصلًا. فإظهار المفتاح لغير المحاسب يوحي بصلاحية لا يملكها. */}
+      {role === "ACCOUNTANT" && (
+        <label className="field-keyboard">
+          <input type="checkbox" name="canCancelSales" value="yes" defaultChecked={user.canCancelSales} />
+          <span>يستطيع إلغاء البيع</span>
+        </label>
+      )}
       {role !== "CS_AGENT" && (
         <div className="field">
           <label htmlFor={`scope-${user.id}`}>نطاق القائمة</label>

@@ -18,7 +18,7 @@ export default async function SalesPage() {
   const canSell = session.role === "MANAGER" || session.role === "CS_AGENT";
   return <div className="inv-page">
     <div className="inv-heading"><div><p className="inv-heading__eyebrow">المبيعات والتحصيل</p><h1>الفواتير</h1><p>مبيعات الفروع المتاحة لحسابك، والتحصيلات والمبالغ المستحقة.</p></div>
-      <div className="inv-actions">{session.role === "MANAGER" && <Link className="inv-button inv-button--secondary" href="/sales/catalog">أصناف البيع</Link>}{session.role === "MANAGER" && <Link className="inv-button inv-button--secondary" href="/sales/settings">حد خصم الموظف</Link>}{canSell && <Link className="inv-button" href="/sales/new">بيع جديد</Link>}</div>
+      <div className="inv-actions">{session.role === "MANAGER" && <Link className="inv-button inv-button--secondary" href="/sales/stats">إحصائيات المبيعات</Link>}{session.role === "MANAGER" && <Link className="inv-button inv-button--secondary" href="/sales/catalog">أصناف البيع</Link>}{session.role === "MANAGER" && <Link className="inv-button inv-button--secondary" href="/sales/settings">حد خصم الموظف</Link>}{canSell && <Link className="inv-button" href="/sales/new">بيع جديد</Link>}</div>
     </div>
     <div className="inv-alert">الإيصالات داخلية وليست فواتير ضريبية إلكترونية. راجع المعالجة الضريبية للأصناف مع المحاسب قبل التشغيل الفعلي.</div>
     {!sales.length ? <div className="inv-panel inv-empty">لا توجد فواتير مسجلة في نطاق حسابك.</div> : <>

@@ -6,6 +6,7 @@ import {
   CommerceMathError,
 } from "./commerce-math";
 import { canPerformCommerce, type CommerceAction } from "./commerce-policy";
+import { duplicatesCatalogLine } from "./commerce-validation";
 import { scaledInteger } from "./inventory-math";
 import { InventoryProblem } from "./inventory-operations";
 import {
@@ -51,8 +52,8 @@ async function withSerializableRetry<T>(db: Db, work: (tx: Transaction) => Promi
   }
 }
 async function authorize(tx: Transaction, actorId: bigint, action: CommerceAction, branchId: bigint | null, branchActive: boolean): Promise<void> {
-  const actor = await tx.user.findUnique({ where: { id: actorId }, select: { status: true, roleCode: true, branchId: true, mustChangePassword: true } });
-  if (!actor || !canPerformCommerce({ role: actor.roleCode, status: actor.status, mustChangePassword: actor.mustChangePassword, branchId: actor.branchId }, action, branchId, branchActive)) {
+  const actor = await tx.user.findUnique({ where: { id: actorId }, select: { status: true, roleCode: true, branchId: true, mustChangePassword: true, canCancelSales: true } });
+  if (!actor || !canPerformCommerce({ role: actor.roleCode, status: actor.status, mustChangePassword: actor.mustChangePassword, branchId: actor.branchId, canCancelSales: actor.canCancelSales }, action, branchId, branchActive)) {
     throw new InventoryProblem("ليس لديك صلاحية لتنفيذ العملية في هذا الفرع.");
   }
 }
@@ -110,9 +111,10 @@ export async function createCatalogSale(db: Db, actorId: bigint, raw: unknown): 
       const actor = await tx.user.findUniqueOrThrow({ where: { id: actorId }, select: { roleCode: true } });
       await tx.$queryRaw`SELECT "id" FROM "commerce_settings" WHERE "id" = 1 FOR SHARE`;
       const settings = await tx.commerceSettings.findUnique({ where: { id: 1 } });
-      if (!settings || settings.staffDiscountBps < 0 || settings.staffDiscountBps > 10000) throw new InventoryProblem("إعداد حد الخصم غير صالح؛ راجع المدير.");
+      if (!settings || settings.staffDiscountBps < 0 || settings.staffDiscountBps > 10000
+        || settings.managerDiscountBps < 0 || settings.managerDiscountBps > 10000) throw new InventoryProblem("إعداد حد الخصم غير صالح؛ راجع المدير.");
 
-      if (new Set(input.lines.map((line) => line.typeId)).size !== input.lines.length) throw new InventoryProblem("لا تكرر الصنف في الفاتورة؛ اجمع الكمية في بند واحد.");
+      if (duplicatesCatalogLine(input.lines)) throw new InventoryProblem("لا تكرر الصنف في الفاتورة بالقيم نفسها؛ اجمع الكمية في بند واحد، أو اكتب قيمًا مختلفة إن اختلفت من وحدة لأخرى.");
       const types = await tx.salesItemType.findMany({
         where: { id: { in: input.lines.map((line) => BigInt(line.typeId)) }, isActive: true, category: { isActive: true } },
         include: { category: true, fields: { where: { isActive: true }, orderBy: [{ sortOrder: "asc" }, { id: "asc" }] } },
@@ -143,7 +145,14 @@ export async function createCatalogSale(db: Db, actorId: bigint, raw: unknown): 
       const discountCents = scaledInteger(input.discount, 2);
       const allocations = distributeInvoiceDiscount(gross, discountCents);
       const totalCents = subtotalCents - discountCents;
-      if (actor.roleCode === "CS_AGENT" && !staffDiscountAllowed(subtotalCents, discountCents, BigInt(settings.staffDiscountBps))) throw new InventoryProblem("الخصم يتجاوز الحد المسموح لموظف الفرع.");
+      // السقف يسري على كل دور، لا على موظف الكاونتر وحده: كان المحاسب والمدير
+      // قبل هذا يمنحان أي خصم بلا حدّ. والمدير وحده له سقف أعلى يُضبط من الإعدادات.
+      const ceilingBps = actor.roleCode === "MANAGER" ? settings.managerDiscountBps : settings.staffDiscountBps;
+      if (!staffDiscountAllowed(subtotalCents, discountCents, BigInt(ceilingBps))) {
+        throw new InventoryProblem(actor.roleCode === "MANAGER"
+          ? "الخصم يتجاوز سقف المدير المسموح."
+          : "الخصم يتجاوز الحد المسموح لدورك.");
+      }
       const firstPayment = scaledInteger(input.initialPayment, 2);
       validateCollectionAmount(totalCents, firstPayment);
 

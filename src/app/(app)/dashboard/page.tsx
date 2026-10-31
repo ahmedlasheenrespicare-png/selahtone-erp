@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireSession, branchScope, canSeeAllBranches } from "@/lib/auth";
 import { formatInventoryDecimal, stockValueScaled } from "@/lib/inventory-math";
 import { loadCashSummary, loadEmployeeCash } from "@/lib/finance/dashboard";
+import { loadSalesStats } from "@/lib/sales-stats";
 
 export const dynamic = "force-dynamic";
 
@@ -59,10 +60,26 @@ export default async function DashboardPage() {
   const warehouseCount = branches.reduce((count, branch) => count + branch.warehouses.length, 0);
   const now = new Date();
 
-  // النقد أولًا لمن يحمل عهدة: ما بيده وما يُطلب منه، لا ملخّص الشركة.
-  // الوحدة تُرجع null إن كانت المالية معطّلة أو لم تُفتح له عهدة، فلا يظهر شيء.
-  const cash = await loadEmployeeCash(session);
-  const summary = cash ? null : await loadCashSummary(session);
+  // الأدوار لا تتحدد بوجود العهدة: فموظفٌ بلا عهدة مسجلة كان يرى ملخّص الشركة
+  // كله — أرقام الفروع ومجموع العهد — لأن الملخّص كان يُعرض لكل من لا عهدة له.
+  // فصار التفريق بالدور، وهو الثابت، لا بالعهدة، وهي حالة طارئة.
+  const isEmployee = session.role === "CS_AGENT";
+  const isAccountant = session.role === "ACCOUNTANT";
+  const cash = isEmployee ? await loadEmployeeCash(session) : null;
+  const summary = isEmployee ? null : await loadCashSummary(session);
+  // ملخّص مبيعات الشهر للمدير: الأرقام المفصّلة في /sales/stats، وهنا ما يكفي
+  // ليعرف هل يفتحها. فالعناوين بلا أعداد تجعل المدير ينتقل ليسأل.
+  //
+  // والاستدعاء محمي: فاللوحة تعرض النقد والمهام والفروع، ولا يجوز أن تعطّلها
+  // كلها إحصائية مبيعات تعذّر حسابها. والخطأ يُسجَّل ليُرى، لا يُخفى بالصمت.
+  let sales: Awaited<ReturnType<typeof loadSalesStats>> | null = null;
+  if (session.role === "MANAGER") {
+    try {
+      sales = await loadSalesStats(prisma, scope.branchId ?? null, "month");
+    } catch (error) {
+      console.error("dashboard: sales stats failed", error);
+    }
+  }
   const cashActions = cash
     ? [
         cash.settlementStale
@@ -82,37 +99,45 @@ export default async function DashboardPage() {
           : null,
       ].filter((item): item is { key: string; tone: string; text: string; href: string } => item !== null)
     : [];
-  const metrics: Metric[] = [
-    {
-      label: "الفروع النشطة",
-      value: nf.format(branches.length),
-      detail: canViewAllBranches ? "في نطاق حسابك" : "فرعك الحالي",
-      icon: "branch",
-      tone: "blue",
-    },
-    {
-      label: "المستودعات",
-      value: nf.format(warehouseCount),
-      detail: "في الفروع المتاحة لك",
-      icon: "warehouse",
-      tone: "cyan",
-    },
-    {
-      label: "المنتجات النشطة",
-      value: nf.format(productCount),
-      detail: "في دليل المنتجات",
-      icon: "products",
-      tone: "violet",
-    },
-    {
-      label: "قيمة المخزون",
-      value: formatInventoryDecimal(stockValue, 6),
-      unit: "ج.م",
-      detail: "محسوبة بمتوسط التكلفة",
-      icon: "stockValue",
-      tone: "amber",
-    },
-  ];
+  // كل دور يُسأل عن غير ما يُسأل عنه الآخر: الموظف عن نقده ومبيعاته، والمحاسب
+  // عما يتحرّك تحت يده، والمدير عن الصورة العامة. فالأرقام نفسها للثلاثة تعني
+  // أن اثنين منهم يقرآن ما لا يعنيهما — و«قيمة المخزون» على مستوى الشركة كانت
+  // تُعرض لموظف الكاونتر، وهو ما لا يحتاجه لعمله.
+  const metrics: Metric[] = isEmployee
+    ? [
+        { label: "مبيعات اليوم", value: nf.format(cash?.todaySalesCount ?? 0), detail: "فاتورة أتممتها اليوم", icon: "receipt", tone: "blue" },
+        { label: "باقٍ على العملاء", value: nf.format(cash?.outstandingCount ?? 0), detail: "فاتورة لم تُسدَّد بالكامل", icon: "cash", tone: "amber" },
+        { label: "الأصناف المتاحة", value: nf.format(productCount), detail: "في نطاق فرعك", icon: "products", tone: "violet" },
+        { label: "مستودعات فرعك", value: nf.format(warehouseCount), detail: "تخدم مبيعاتك", icon: "warehouse", tone: "cyan" },
+      ]
+    : isAccountant
+    ? [
+        { label: "تسويات بانتظار التأكيد", value: nf.format(summary?.pendingSettlements ?? 0), detail: "طلبات سلّمها الموظفون", icon: "cash", tone: "amber" },
+        { label: "بانتظار الصرف", value: nf.format(summary?.approvedUnpaid ?? 0), detail: "مصروفات اعتمدت ولم تُصرف", icon: "expenses", tone: "violet" },
+        { label: "المتوقَّع في العهد", value: summary ? nf.format(Number(summary.totalExpected)) : "0", unit: "ج.م", detail: "ما سيُسلَّم للخزنة", icon: "stockValue", tone: "cyan" },
+        { label: "العهد القائمة", value: nf.format(summary?.custodyCount ?? 0), detail: "عهدة نشطة", icon: "branch", tone: "blue" },
+      ]
+    : [
+        { label: "الفروع النشطة", value: nf.format(branches.length), detail: canViewAllBranches ? "في نطاق حسابك" : "فرعك الحالي", icon: "branch", tone: "blue" },
+        { label: "المستودعات", value: nf.format(warehouseCount), detail: "في الفروع المتاحة لك", icon: "warehouse", tone: "cyan" },
+        { label: "المنتجات النشطة", value: nf.format(productCount), detail: "في دليل المنتجات", icon: "products", tone: "violet" },
+        { label: "قيمة المخزون", value: formatInventoryDecimal(stockValue, 6), unit: "ج.م", detail: "محسوبة بمتوسط التكلفة", icon: "stockValue", tone: "amber" },
+      ];
+
+  // ما ينتظر المدير غير ما ينتظر المحاسب، وإن كانا يقرآن الملخّص نفسه:
+  // المدير يعتمد، والمحاسب يصرف ويؤكد. فبطاقة واحدة لهما تُخفي على كلٍّ منهما
+  // ما يخصه في زحام ما يخص الآخر.
+  const roleActions = isEmployee || !summary ? [] : (isAccountant
+    ? [
+        summary.pendingSettlements > 0 && { key: "settle", tone: "warning", text: `${summary.pendingSettlements} طلب تسوية بانتظار تأكيدك.`, href: "/finance/settlements" },
+        summary.approvedUnpaid > 0 && { key: "pay", tone: "warning", text: `${summary.approvedUnpaid} مصروفًا معتمدًا بانتظار تسجيل صرفه.`, href: "/finance/expenses" },
+        summary.pendingExpenses > 0 && { key: "pending", tone: "info", text: `${summary.pendingExpenses} مصروفًا لم يعتمده المدير بعد.`, href: "/finance/expenses" },
+      ]
+    : [
+        summary.pendingExpenses > 0 && { key: "approve", tone: "warning", text: `${summary.pendingExpenses} مصروفًا بانتظار اعتمادك.`, href: "/finance/expenses" },
+        summary.pendingSettlements > 0 && { key: "settle", tone: "info", text: `${summary.pendingSettlements} طلب تسوية بانتظار اعتمادك.`, href: "/finance/settlements" },
+        summary.approvedUnpaid > 0 && { key: "pay", tone: "info", text: `${summary.approvedUnpaid} مصروفًا معتمدًا بانتظار أن يصرفه المحاسب.`, href: "/finance/expenses" },
+      ]).filter((item): item is { key: string; tone: string; text: string; href: string } => typeof item !== "boolean");
 
   return (
     <div className="dashboard">
@@ -231,9 +256,60 @@ export default async function DashboardPage() {
         </section>
       ) : null}
 
+      {roleActions.length > 0 ? (
+        <section className="dashboard-panel" aria-labelledby="role-todo-title" style={{ marginBottom: 18 }}>
+          <div className="dashboard-panel__heading">
+            <div>
+              <p className="dashboard-panel__eyebrow">{isAccountant ? "يحتاج إجراءك" : "يحتاج اعتمادك"}</p>
+              <h2 id="role-todo-title">{isAccountant ? "ما ينتظرك اليوم" : "ما ينتظر قرارك"}</h2>
+            </div>
+            <span className="dashboard-count">{nf.format(roleActions.length)} عنصر</span>
+          </div>
+          <div className="dashboard-setup__items">
+            {roleActions.map((item) => (
+              <Link className="dashboard-shortcut" key={item.key} href={item.href}>
+                <span className={`dashboard-shortcut__icon ${item.tone === "warning" ? "is-cyan" : "is-blue"}`}><AppIcon name={item.href.includes("settlements") ? "cash" : "expenses"} /></span>
+                <span><strong>{item.text}</strong></span>
+                <AppIcon className="dashboard-shortcut__arrow" name="arrow" />
+              </Link>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {sales ? (
+        <section className="dashboard-panel" aria-labelledby="sales-title" style={{ marginBottom: 18 }}>
+          <div className="dashboard-panel__heading">
+            <div>
+              <p className="dashboard-panel__eyebrow">هذا الشهر</p>
+              <h2 id="sales-title">المبيعات</h2>
+              <p>الفواتير غير الملغاة، وما بقي على العملاء.</p>
+            </div>
+            <Link className="dashboard-text-link" href="/sales/stats">التفاصيل <AppIcon name="arrow" /></Link>
+          </div>
+          <div className="dashboard-metrics">
+            <article className="dashboard-metric">
+              <p className="dashboard-metric__label">عدد الفواتير</p>
+              <div className="dashboard-metric__value"><strong>{nf.format(sales.invoiceCount)}</strong></div>
+              <p className="dashboard-metric__detail">منها {nf.format(sales.cancelledCount)} ملغاة</p>
+            </article>
+            <article className="dashboard-metric">
+              <p className="dashboard-metric__label">صافي المبيعات</p>
+              <div className="dashboard-metric__value"><strong>{nf.format(Number(sales.total))}</strong><span>ج.م</span></div>
+              <p className="dashboard-metric__detail">بعد الخصم، والضريبة متضمنة في السعر</p>
+            </article>
+            <article className="dashboard-metric">
+              <p className="dashboard-metric__label">باقٍ على العملاء</p>
+              <div className="dashboard-metric__value"><strong>{nf.format(Number(sales.outstandingTotal))}</strong><span>ج.م</span></div>
+              <p className="dashboard-metric__detail">{nf.format(sales.outstandingCount)} فاتورة لم تُسدَّد بالكامل</p>
+            </article>
+          </div>
+        </section>
+      ) : null}
+
       <section className="dashboard-overview" aria-labelledby="overview-title">
         <div className="dashboard-section-heading">
-          <div><h2 id="overview-title">نظرة عامة</h2><p>ملخص البيانات المتاحة لحسابك</p></div>
+          <div><h2 id="overview-title">نظرة عامة</h2><p>{isEmployee ? "مبيعاتك ونطاق فرعك" : isAccountant ? "ما يتحرّك تحت يدك" : "صورة الشركة"}</p></div>
           <span className="dashboard-scope"><span /> {canViewAllBranches ? "كل الفروع" : (session.branchName ?? "فرعك")}</span>
         </div>
         <div className="dashboard-metrics">
@@ -305,6 +381,7 @@ export default async function DashboardPage() {
         </section>
 
         <div className="dashboard-side">
+          {!isEmployee && !isAccountant ? (
           <section className="dashboard-panel dashboard-setup" aria-labelledby="setup-title">
             <div className="dashboard-panel__heading">
               <div><p className="dashboard-panel__eyebrow">معلومات أساسية</p><h2 id="setup-title">ملخص الإعداد</h2><p>بيانات النظام المسجّلة</p></div>
@@ -324,21 +401,39 @@ export default async function DashboardPage() {
             </div>
             {canViewAllBranches && <Link className="dashboard-text-link" href="/setup">عرض تفاصيل الإعداد <AppIcon name="arrow" /></Link>}
           </section>
+          ) : null}
 
           <section className="dashboard-panel dashboard-shortcuts" aria-labelledby="shortcuts-title">
             <div className="dashboard-panel__heading">
               <div><p className="dashboard-panel__eyebrow">ابدأ من هنا</p><h2 id="shortcuts-title">وصول سريع</h2></div>
             </div>
-            <Link className="dashboard-shortcut" href="/inventory">
-              <span className="dashboard-shortcut__icon"><AppIcon name="inventory" /></span>
-              <span><strong>المخزون والمستودعات</strong><small>عرض أرصدة المنتجات</small></span>
-              <AppIcon className="dashboard-shortcut__arrow" name="arrow" />
-            </Link>
-            {canViewAllBranches && <Link className="dashboard-shortcut" href="/setup">
-              <span className="dashboard-shortcut__icon is-cyan"><AppIcon name="settings" /></span>
-              <span><strong>التحقق من الإعداد</strong><small>عرض إعدادات النظام</small></span>
-              <AppIcon className="dashboard-shortcut__arrow" name="arrow" />
-            </Link>}
+            {isEmployee ? (
+              <>
+                <Link className="dashboard-shortcut" href="/sales/new">
+                  <span className="dashboard-shortcut__icon"><AppIcon name="sales" /></span>
+                  <span><strong>فاتورة جديدة</strong><small>ابدأ بيعًا الآن</small></span>
+                  <AppIcon className="dashboard-shortcut__arrow" name="arrow" />
+                </Link>
+                <Link className="dashboard-shortcut" href="/finance/mine">
+                  <span className="dashboard-shortcut__icon is-cyan"><AppIcon name="cash" /></span>
+                  <span><strong>عهدة نقدي</strong><small>جرد العهدة وطلب التسوية</small></span>
+                  <AppIcon className="dashboard-shortcut__arrow" name="arrow" />
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link className="dashboard-shortcut" href="/finance/settlements">
+                  <span className="dashboard-shortcut__icon"><AppIcon name="cash" /></span>
+                  <span><strong>التسويات</strong><small>طلبات العهد بانتظار الإجراء</small></span>
+                  <AppIcon className="dashboard-shortcut__arrow" name="arrow" />
+                </Link>
+                <Link className="dashboard-shortcut" href="/finance/expenses">
+                  <span className="dashboard-shortcut__icon is-cyan"><AppIcon name="expenses" /></span>
+                  <span><strong>المصروفات</strong><small>{isAccountant ? "صرف ما اعتمد" : "اعتماد المصروفات"}</small></span>
+                  <AppIcon className="dashboard-shortcut__arrow" name="arrow" />
+                </Link>
+              </>
+            )}
           </section>
         </div>
       </div>

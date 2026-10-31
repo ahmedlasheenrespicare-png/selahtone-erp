@@ -51,7 +51,7 @@ export async function receiveInventoryStock(db: Db, actorId: bigint, raw: Receip
   try {
     return await withSerializableRetry(db, async (tx) => {
       // Re-read permissions inside the write transaction, not just from the UI.
-      const actor = await tx.user.findUnique({ where: { id: actorId }, select: { status: true, roleCode: true, branchId: true, mustChangePassword: true } });
+      const actor = await tx.user.findUnique({ where: { id: actorId }, select: { status: true, roleCode: true, branchId: true, mustChangePassword: true, canCancelSales: true } });
       if (!actor || actor.status !== "ACTIVE" || actor.mustChangePassword || !["MANAGER", "CS_AGENT"].includes(actor.roleCode)) {
         throw new InventoryProblem("تسجيل التوريد متاح للمدير وموظف الفرع فقط.");
       }
@@ -59,7 +59,7 @@ export async function receiveInventoryStock(db: Db, actorId: bigint, raw: Receip
       if (!warehouse || !warehouse.isActive || !warehouse.holdsStock || !warehouse.branch.isActive) {
         throw new InventoryProblem("المستودع أو الفرع غير نشط، أو لا يحتفظ بمخزون.");
       }
-      if (!canPerformCommerce({ role: actor.roleCode, status: actor.status, mustChangePassword: actor.mustChangePassword, branchId: actor.branchId }, "RECEIVE_STOCK", warehouse.branchId, warehouse.branch.isActive)) {
+      if (!canPerformCommerce({ role: actor.roleCode, status: actor.status, mustChangePassword: actor.mustChangePassword, branchId: actor.branchId, canCancelSales: actor.canCancelSales }, "RECEIVE_STOCK", warehouse.branchId, warehouse.branch.isActive)) {
         throw new InventoryProblem("موظف الفرع يسجّل التوريد لمستودعات فرعه فقط.");
       }
       const product = await tx.product.findUnique({ where: { id: BigInt(productId) }, select: { id: true, category: true, isSerialized: true, isActive: true } });

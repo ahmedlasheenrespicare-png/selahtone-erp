@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
 import { assertFinanceActor, financeDb, financeEnabled } from "@/lib/finance/db";
 import { listAccounts } from "@/lib/finance/engine";
+import { loadCashSummary } from "@/lib/finance/dashboard";
 import { prisma } from "@/lib/prisma";
 import { accountLabel, formatMoney } from "./format";
 
@@ -31,6 +32,9 @@ export default async function FinancePage() {
     prisma.user.findMany({ where: { roleCode: "CS_AGENT" }, select: { id: true, fullName: true } }),
   ]);
   const canManage = session.role === "MANAGER" || session.role === "ACCOUNTANT";
+  const isAccountant = session.role === "ACCOUNTANT";
+  // الأزرار بلا أعداد تجعل المدير يفتح كل شاشة ليسأل: هل فيها ما ينتظرني؟
+  const summary = canManage ? await loadCashSummary(session) : null;
   const branchNames = new Map(branches.map((branch) => [branch.id.toString(), branch.nameAr]));
   const holderNames = new Map(holders.map((holder) => [holder.id.toString(), holder.fullName]));
 
@@ -47,12 +51,34 @@ export default async function FinancePage() {
           </p>
         </div>
         {canManage ? (
+          // المدير يعتمد والمحاسب يصرف: فترتيب الأزرار يتبع ما يفعله كلٌّ منهما
+          // أولًا، والعدد يجنّبه فتح شاشة فارغة.
           <div className="fin-actions">
-            <Link className="fin-button" href="/finance/accounts">فتح حساب بجرد فعلي</Link>
-            <Link className="fin-button fin-button--secondary" href="/finance/transfers">تسليم نقد</Link>
-            <Link className="fin-button fin-button--secondary" href="/finance/expenses">المصروفات</Link>
-            <Link className="fin-button fin-button--secondary" href="/finance/counts">الجرد</Link>
-            <Link className="fin-button fin-button--secondary" href="/finance/categories">البنود</Link>
+            {isAccountant ? (
+              <>
+                <Link className="fin-button" href="/finance/settlements">
+                  التسويات{summary && summary.pendingSettlements > 0 ? ` (${summary.pendingSettlements})` : ""}
+                </Link>
+                <Link className="fin-button" href="/finance/expenses">
+                  المصروفات{summary && summary.approvedUnpaid > 0 ? ` (${summary.approvedUnpaid} بانتظار الصرف)` : ""}
+                </Link>
+                <Link className="fin-button fin-button--secondary" href="/finance/transfers">تسليم نقد</Link>
+                <Link className="fin-button fin-button--secondary" href="/finance/accounts">فتح حساب بجرد فعلي</Link>
+              </>
+            ) : (
+              <>
+                <Link className="fin-button" href="/finance/expenses">
+                  المصروفات{summary && summary.pendingExpenses > 0 ? ` (${summary.pendingExpenses} بانتظار الاعتماد)` : ""}
+                </Link>
+                <Link className="fin-button" href="/finance/settlements">
+                  التسويات{summary && summary.pendingSettlements > 0 ? ` (${summary.pendingSettlements})` : ""}
+                </Link>
+                <Link className="fin-button fin-button--secondary" href="/finance/accounts">فتح حساب بجرد فعلي</Link>
+                <Link className="fin-button fin-button--secondary" href="/finance/counts">الجرد</Link>
+                <Link className="fin-button fin-button--secondary" href="/finance/transfers">تسليم نقد</Link>
+                <Link className="fin-button fin-button--secondary" href="/finance/categories">البنود</Link>
+              </>
+            )}
           </div>
         ) : null}
       </div>
@@ -65,7 +91,10 @@ export default async function FinancePage() {
         <div className="fin-panel">
           <div className="fin-panel__heading">
             <h2>الأرصدة الحالية</h2>
-            <p>الرصيد = رصيد الجرد المسجَّل + الحركات اللاحقة. السالب مسموح مع تنبيه.</p>
+            <p>
+              الرصيد = رصيد الجرد المسجَّل + الحركات اللاحقة. السالب مسموح مع تنبيه. وهو <strong>غير</strong> «المتوقَّع بيد الموظف»
+              الذي تحسبه التسوية، لأن المتوقَّع يضيف مبيعات الفترة ويخصم مصروفاتها.
+            </p>
           </div>
           <div className="fin-table-wrap">
             <table className="fin-table">

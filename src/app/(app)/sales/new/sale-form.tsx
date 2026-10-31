@@ -63,7 +63,7 @@ export default function SaleForm({ requestId, warehouseId, warehouseName, staff,
         const tax: ReviewedTax = product.taxKind === "EXEMPT" ? { kind: "EXEMPT", rateThousandthPercent: scaledInteger(product.taxRate, 3) as 0n } : { kind: product.taxKind as "VAT" | "SCHEDULE", rateThousandthPercent: scaledInteger(product.taxRate, 3) };
         return { quantityHundredths: scaledInteger(item.quantity, 2), unitPriceCents: scaledInteger(product.unitPrice, 2), tax };
       }), scaledInteger(values.discount, 2));
-      if (staff && !staffDiscountAllowed(calculation.subtotalCents, calculation.discountCents, BigInt(discountBps))) throw new Error("الخصم يتجاوز الحد المسموح لموظف الفرع.");
+      if (!staffDiscountAllowed(calculation.subtotalCents, calculation.discountCents, BigInt(discountBps))) throw new Error("الخصم يتجاوز الحد المسموح لدورك.");
       const payment = scaledInteger(values.initialPayment, 2); validateCollectionAmount(calculation.finalCents, payment);
       setErrors({}); setReview({ input: values, calculation, payment });
     } catch (error) { setReview(null); setErrors({ form: error instanceof Error ? error.message : "راجع بيانات الفاتورة." }); }

@@ -90,6 +90,18 @@ export function parseSaleInput(raw: unknown): ValidationResult<SaleInput> {
  * of the record. Without it the amount is paid to the customer with no movement
  * anywhere, and the employee's custody silently keeps money he no longer holds.
  */
+// أصناف الكتالوج تُباع بلا productId، فلا قيدَ في قاعدة البيانات يمنع تكرار
+// الصنف في الفاتورة، وهذا الفحص بديله. وهو يمنع «التكرار بالقيم نفسها» لا
+// التكرار مطلقًا: لأن منع التكرار مطلقًا يمنع بيع وحدتين من صنفٍ تحمل كلّ واحدة
+// حقولًا تخصها — كرقم تسلسلي لسماعتين — إذ تحمل كل فاتورة «details» واحدًا لكل
+// بند، فالجمع في بند بكمية ٢ يضيع إحدى القيمتين. أما التكرار بالقيم نفسها فبلا
+// معنى ويُجمع في بند واحد.
+export function duplicatesCatalogLine(lines: ReadonlyArray<{ typeId: string; details: ReadonlyArray<{ key: string; value: string }> }>): boolean {
+  const fingerprints = lines.map((line) =>
+    `${line.typeId}|${JSON.stringify([...line.details].map((detail) => [detail.key, detail.value]).sort())}`);
+  return new Set(fingerprints).size !== fingerprints.length;
+}
+
 export type MoneyMovementInput = {
   requestId: string; saleId: string; amount: string; method: PaymentMethod; actuallyPaid: boolean;
   accountId: string | null; negativeAcknowledged: boolean;
@@ -147,7 +159,7 @@ export function parseReturnInput(raw: unknown): ValidationResult<ReturnInput> {
   return { ok: true, value: { requestId: request, saleId, cancel, accepted: true, lines: sortIds(lines, (line) => line.saleLineId) } };
 }
 
-export type DiscountSettingInput = { requestId: string; basisPoints: number };
+export type DiscountSettingInput = { requestId: string; basisPoints: number; managerBasisPoints: number };
 export function parseDiscountSetting(raw: unknown): ValidationResult<DiscountSettingInput> {
   const input = object(raw);
   const request = requestId(input?.requestId);
@@ -155,5 +167,11 @@ export function parseDiscountSetting(raw: unknown): ValidationResult<DiscountSet
   if (!request || percent === null) return { ok: false, errors: { percent: "أدخل نسبة من 0 إلى 100 حتى منزلتين عشريتين." } };
   const basisPoints = scaledInteger(percent, 2);
   if (basisPoints > 10000n) return { ok: false, errors: { percent: "أدخل نسبة من 0 إلى 100." } };
-  return { ok: true, value: { requestId: request, basisPoints: Number(basisPoints) } };
+  const managerPercent = decimalString(string(input?.managerPercent), 5, 2);
+  if (managerPercent === null) return { ok: false, errors: { managerPercent: "أدخل نسبة من 0 إلى 100 حتى منزلتين عشريتين." } };
+  const managerBasisPoints = scaledInteger(managerPercent, 2);
+  if (managerBasisPoints > 10000n) return { ok: false, errors: { managerPercent: "أدخل نسبة من 0 إلى 100." } };
+  // المدير استثناء أوسع لا أضيق: سقفه لا ينزل عن سقف الموظف.
+  if (managerBasisPoints < basisPoints) return { ok: false, errors: { managerPercent: "سقف المدير يجب ألا يقل عن سقف الموظف." } };
+  return { ok: true, value: { requestId: request, basisPoints: Number(basisPoints), managerBasisPoints: Number(managerBasisPoints) } };
 }

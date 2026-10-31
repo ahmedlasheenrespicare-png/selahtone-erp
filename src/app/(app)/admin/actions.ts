@@ -216,8 +216,11 @@ export async function updateUserAction(_previous: AdminActionState, formData: Fo
   const status: UserStatus = flag(formData, "active") ? "ACTIVE" : "SUSPENDED";
   const scopeRaw = text(formData, "menuScope");
   const menuScope: MenuScope = role !== "CS_AGENT" && isMenuScope(scopeRaw) ? scopeRaw : "FULL";
+  // صلاحية إلغاء البيع للمحاسب وحده: المدير يملكها دائمًا، وموظف الكاونتر لا
+  // يملكها. فتُقرأ للدور المحاسب فقط، وإلا أوحى الحقل بصلاحية لا تُمنح.
+  const canCancelSales = role === "ACCOUNTANT" ? flag(formData, "canCancelSales") : true;
   try {
-    await prisma.user.update({ where: { id: userId }, data: { roleCode: role as RoleCode, branchId, status, menuScope } });
+    await prisma.user.update({ where: { id: userId }, data: { roleCode: role as RoleCode, branchId, status, menuScope, canCancelSales } });
   } catch (error) {
     return unexpected(error);
   }

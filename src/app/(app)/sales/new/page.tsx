@@ -43,7 +43,7 @@ export default async function NewSalePage({ searchParams }: Props) {
       branches={branches.map((branch) => ({ id: branch.id.toString(), name: branch.nameAr }))}
       defaultBranchId={session.branchId ?? ""}
       staff={session.role === "CS_AGENT"}
-      discountBps={settings?.staffDiscountBps ?? 0}
+      discountBps={session.role === "MANAGER" ? settings?.managerDiscountBps ?? 0 : settings?.staffDiscountBps ?? 0}
     />
   </div>;
 }

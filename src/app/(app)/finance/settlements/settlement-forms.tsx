@@ -31,7 +31,13 @@ export function SettlementRequestForm({ requestId, accountId, systemBalance, sal
 
   const countedNumber = Number(counted);
   const valid = counted.trim() !== "" && Number.isFinite(countedNumber) && countedNumber >= 0;
-  const difference = valid ? countedNumber - Number(systemBalance) : null;
+  // رقمان مختلفان وكانا يُعرضان كرقم واحد:
+  // «handover» ما يُسلَّم للخزنة = المعدود − الرصيد النظامي، وهو حصيلة الفترة
+  //   وليس خطأً؛ سماه النموذج قديمًا «زيادة» فصار الموظف يظن حصيلته عجزًا.
+  // «deviation» الفرق عن المتوقَّع = المعدود − المتوقَّع، وهو العجز أو الزيادة
+  //   الحقيقي، وبه يقيس المحرك الانحراف (deviation) عند الاعتماد.
+  const handover = valid ? countedNumber - Number(systemBalance) : null;
+  const deviation = valid ? countedNumber - Number(expected) : null;
 
   if (state.status === "success") {
     return (
@@ -82,7 +88,7 @@ export function SettlementRequestForm({ requestId, accountId, systemBalance, sal
       <div className="fin-panel">
         <div className="fin-panel__heading">
           <h2>النقد المعدود فعليًا</h2>
-          <p>عدد ما بيدك الآن، وسيُقارَن بالرصيد النظامي عند اعتماد المدير.</p>
+          <p>عدد ما بيدك الآن. الفرق عن «الإجمالي المتوقع» هو العجز أو الزيادة الحقيقي.</p>
         </div>
         <div className="fin-panel__body">
           <div className="fin-fields">
@@ -92,10 +98,14 @@ export function SettlementRequestForm({ requestId, accountId, systemBalance, sal
               <input type="hidden" name="countedAmount" value={counted} />
             </label>
             <div className="field fin-field">
-              <span className="fin-field__label">الفرق عن الرصيد النظامي</span>
+              <span className="fin-field__label">الفرق عن المتوقَّع بيدك</span>
               <span className="fin-field__hint">
-                {difference === null ? "—" : `${formatMoney(difference.toFixed(2))} — ${difference > 0 ? "زيادة تُسلَّم للخزنة" : difference < 0 ? "عجز يُغطّى من الخزنة" : "مطابق تمامًا"}`}
+                {deviation === null ? "—" : `${formatMoney(deviation.toFixed(2))} — ${deviation > 0 ? "زيادة" : deviation < 0 ? "عجز" : "مطابق تمامًا"}`}
               </span>
+            </div>
+            <div className="field fin-field">
+              <span className="fin-field__label">ما سيُسلَّم للخزنة</span>
+              <span className="fin-field__hint">{handover === null ? "—" : `${formatMoney(handover.toFixed(2))} ج.م`}</span>
             </div>
             <label className="field fin-field fin-field--wide">
               <span className="fin-field__label">سبب التسوية</span>
@@ -118,8 +128,9 @@ export function SettlementRequestForm({ requestId, accountId, systemBalance, sal
           <h2>راجع قبل الإرسال</h2>
           <ul>
             <li>المعدود فعليًا: {formatMoney(counted || "0")}</li>
-            <li>الرصيد النظامي: {formatMoney(systemBalance)}</li>
-            <li>الفرق: {difference === null ? "—" : formatMoney(difference.toFixed(2))}</li>
+            <li>المتوقَّع بيدك: {formatMoney(expected)}</li>
+            <li>الفرق عن المتوقَّع: {deviation === null ? "—" : formatMoney(deviation.toFixed(2))}</li>
+            <li>ما سيُسلَّم للخزنة: {handover === null ? "—" : formatMoney(handover.toFixed(2))}</li>
             <li>السبب: {reason || "—"}</li>
           </ul>
           <label className="fin-check">

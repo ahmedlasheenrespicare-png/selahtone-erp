@@ -80,3 +80,9 @@
   .fin-form-actions .fin-button { flex: 1; }
   .fin-search { flex-wrap: wrap; }
 }
+
+/* الرقم الذي يُسأل عنه الموظف: واحد كبير، وما عداه جملة واحدة تشرح حسابه. */
+.fin-expected { margin: 0; display: flex; align-items: baseline; gap: 7px; }
+.fin-expected strong { color: #1c3054; font-size: clamp(28px, 4vw, 38px); font-weight: 800; line-height: 1.1; direction: ltr; }
+.fin-expected span { color: #60708a; font-size: 13px; font-weight: 700; }
+.fin-expected__how { margin: 11px 0 0; color: #60708a; font-size: 12.5px; line-height: 1.9; }
