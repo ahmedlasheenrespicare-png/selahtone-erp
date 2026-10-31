@@ -332,6 +332,40 @@ export async function openAccount(db: FinanceDatabase, actorId: string, raw: unk
   });
 }
 
+/**
+ * إقفال عهدة موظف. الإقفال **تسجيل لحالة، لا حركة مال**: فالعهدة تُصفَّر
+ * بتسوية قبل إقفالها، ويُشترط رصيدها صفرًا — فلو أُقفل حسابٌ في ذمته نقد
+ * لضاع الأثر على أن العهدة خرجت إلى الخزنة.
+ *
+ * ووُجد هذا الأمر لأن العهدة كانت تبقى إلى الأبد: فمن أخذ إجازة أو ترك العمل
+ * بقيت عهدته تُحصى في «العهد القائمة» وتظهر له في «عهدتي» برصيد صفر، وإن
+ * فُتحت له عهدة جديدة صار له حسابان، ولا يُعرف أيهما يُقرأ عند الجرد.
+ *
+ * وخزنة الفرع لا تُقفل: فهي واحدة لكل فرع بقيد في الجدول، وإقفالها يترك
+ * الفرع بلا خزنة.
+ */
+export async function closeAccount(db: FinanceDatabase, actorId: string, raw: unknown): Promise<WriteResult> {
+  const value = inputObject(raw);
+  const input = {
+    requestId: requestId(value.requestId),
+    accountId: identifier(value.accountId, "الحساب"),
+    reason: text(value.reason, "سبب الإقفال", 300),
+  };
+  return command(db, actorId, "CLOSE_ACCOUNT", input.requestId, input, manage, async (tx, actor) => {
+    const found = await tx.query<Row & { id: string; kind: string; closedAt: string | null }>(`SELECT id::text AS id,
+      kind, closed_at::text AS "closedAt" FROM finance.accounts WHERE id=$1::bigint FOR SHARE`, [input.accountId]);
+    const account = found.rows[0];
+    if (!account) throw new FinanceProblem("not_found", "الحساب غير موجود.");
+    if (account.kind !== "CUSTODY") throw new FinanceProblem("invalid_input", "خزنة الفرع لا تُقفل؛ تُقفل عهد الموظفين فقط.");
+    if (account.closedAt) throw new FinanceProblem("already_closed", "هذه العهدة مقفلة بالفعل.");
+    const current = await balance(tx, input.accountId);
+    if (current !== 0n) throw new FinanceProblem("balance_not_zero", `لا تُقفل العهدة وفي ذمتها ${formatCents(current)}. صفِّها بتسوية تحوّل رصيدها إلى الخزنة أولًا.`);
+    await tx.query(`UPDATE finance.accounts SET closed_at=CURRENT_TIMESTAMP, closed_by=$2::bigint WHERE id=$1::bigint`, [input.accountId, actor.id]);
+    await audit(tx, "ACCOUNT", input.accountId, "CLOSE", actor.id, input.reason || null, { closedAt: null }, { closedAt: "now" });
+    return input.accountId;
+  });
+}
+
 /** Verified correction of the recorded opening, not a physical cash event.
  * A later confirmed count is a checkpoint: only a documented, explicitly
  * attested zero-cash resolution is supported. Unknown/uncovered overlap stays
@@ -756,15 +790,16 @@ export async function closePaidExpenseReview(db: FinanceDatabase, actorId: strin
 }
 
 /** Query functions are also server-policy guarded; staff receives neither expense data nor other accounts. */
-export async function listAccounts(db: FinanceDatabase, actorIdRaw: string): Promise<Array<AccountScope & { balance: string; openingDate: string; recordedOpening: string; currentOpening: string }>> {
+export async function listAccounts(db: FinanceDatabase, actorIdRaw: string): Promise<Array<AccountScope & { balance: string; openingDate: string; recordedOpening: string; currentOpening: string; closedAt: string | null }>> {
   const actorId = identifier(actorIdRaw, "المستخدم");
   return db.serializable(async (tx) => {
     const actor = await loadActor(tx, actorId);
-    const result = await tx.query<AccountRow & { currentOpening: string }>(`SELECT id::text AS id,branch_id::text AS "branchId",kind,holder_id::text AS "holderId",opening_amount::text AS "openingAmount",opening_date::text AS "openingDate",revision::text AS revision,
-      COALESCE((SELECT c.after_amount FROM finance.opening_corrections c WHERE c.account_id=a.id ORDER BY c.id DESC LIMIT 1),a.opening_amount)::text AS "currentOpening"
+    const result = await tx.query<AccountRow & { currentOpening: string; closedAt: string | null }>(`SELECT id::text AS id,branch_id::text AS "branchId",kind,holder_id::text AS "holderId",opening_amount::text AS "openingAmount",opening_date::text AS "openingDate",revision::text AS revision,
+      COALESCE((SELECT c.after_amount FROM finance.opening_corrections c WHERE c.account_id=a.id ORDER BY c.id DESC LIMIT 1),a.opening_amount)::text AS "currentOpening",
+      closed_at::text AS "closedAt"
       FROM finance.accounts a WHERE $1::boolean OR (kind='CUSTODY' AND holder_id=$2::bigint AND branch_id=$3::bigint) ORDER BY a.id`, [canManageFinance(actor),actor.id,actor.branchId]);
-    const visible: Array<AccountScope & { balance: string; openingDate: string; recordedOpening: string; currentOpening: string }> = [];
-    for (const account of result.rows) if (canViewAccount(actor,account)) visible.push({ id: account.id, branchId: account.branchId, kind: account.kind, holderId: account.holderId, balance: formatCents(await balance(tx,account.id)), openingDate: account.openingDate, recordedOpening: account.openingAmount, currentOpening: account.currentOpening });
+    const visible: Array<AccountScope & { balance: string; openingDate: string; recordedOpening: string; currentOpening: string; closedAt: string | null }> = [];
+    for (const account of result.rows) if (canViewAccount(actor,account)) visible.push({ id: account.id, branchId: account.branchId, kind: account.kind, holderId: account.holderId, balance: formatCents(await balance(tx,account.id)), openingDate: account.openingDate, recordedOpening: account.openingAmount, currentOpening: account.currentOpening, closedAt: account.closedAt ?? null });
     return visible;
   });
 }
