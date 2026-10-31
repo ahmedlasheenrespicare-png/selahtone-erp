@@ -61,10 +61,17 @@ export async function collectAction(_previous: SalesActionState, formData: FormD
 export async function refundAction(_previous: SalesActionState, formData: FormData): Promise<SalesActionState> {
   const session = await requireSession();
   if (text(formData, "reviewed") !== "yes") return { status: "error", message: "راجع الرد قبل التأكيد." };
-  const raw = { requestId: text(formData, "requestId"), saleId: text(formData, "saleId"), amount: text(formData, "amount"), method: text(formData, "method"), actuallyPaid: text(formData, "actuallyPaid") === "yes" };
+  const method = text(formData, "method");
+  const raw = {
+    requestId: text(formData, "requestId"), saleId: text(formData, "saleId"), amount: text(formData, "amount"), method,
+    actuallyPaid: text(formData, "actuallyPaid") === "yes",
+    // الرد النقدي يخرج من حساب الفرع في المعاملة نفسها؛ غير النقدي لا يحرك نقدًا.
+    accountId: method === "CASH" ? text(formData, "accountId") : null,
+    negativeAcknowledged: text(formData, "negativeAcknowledged") === "yes",
+  };
   try {
     const result = await recordCommerceRefund(prisma, BigInt(session.id), raw); refresh(raw.saleId);
-    return { status: "success", id: result.id, message: result.replayed ? "سبق تسجيل هذا الرد؛ لم يُكرر." : "تم تسجيل المبلغ الذي دُفع للعميل بالفعل. لم يُنفّذ النظام تحويلًا." };
+    return { status: "success", id: result.id, message: result.replayed ? "سبق تسجيل هذا الرد؛ لم يُكرر." : "تم تسجيل المبلغ الذي دُفع للعميل بالفعل، وخُصم من الحساب المختار." };
   } catch (error) { return failure(error); }
 }
 

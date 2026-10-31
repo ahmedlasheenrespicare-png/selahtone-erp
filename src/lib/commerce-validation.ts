@@ -85,7 +85,15 @@ export function parseSaleInput(raw: unknown): ValidationResult<SaleInput> {
   return { ok: true, value: { requestId: request, warehouseId, customerName, customerPhone, discount, initialPayment, method: paymentMethod, lines: sortIds(lines, (line) => line.productId) } };
 }
 
-export type MoneyMovementInput = { requestId: string; saleId: string; amount: string; method: PaymentMethod; actuallyPaid: boolean };
+/**
+ * A cash refund leaves the branch's cash, so the account it leaves from is part
+ * of the record. Without it the amount is paid to the customer with no movement
+ * anywhere, and the employee's custody silently keeps money he no longer holds.
+ */
+export type MoneyMovementInput = {
+  requestId: string; saleId: string; amount: string; method: PaymentMethod; actuallyPaid: boolean;
+  accountId: string | null; negativeAcknowledged: boolean;
+};
 export function parseMoneyMovement(raw: unknown, refund: boolean): ValidationResult<MoneyMovementInput> {
   const input = object(raw);
   if (!input) return { ok: false, errors: { form: "بيانات العملية غير صالحة." } };
@@ -95,12 +103,17 @@ export function parseMoneyMovement(raw: unknown, refund: boolean): ValidationRes
   const amount = positiveDecimal(input.amount, 14, 2);
   const paymentMethod = method(input.method);
   const actuallyPaid = input.actuallyPaid === true;
+  const accountId = id(input.accountId);
+  const negativeAcknowledged = input.negativeAcknowledged === true;
   if (!request || !saleId) errors.form = "الطلب أو الفاتورة غير صالحين.";
   if (!amount) errors.amount = "أدخل مبلغًا أكبر من صفر بحد أقصى منزلتين عشريتين.";
   if (!paymentMethod) errors.method = "اختر وسيلة الدفع.";
   if (refund && !actuallyPaid) errors.actuallyPaid = "أكّد دفع المبلغ للعميل فعليًا قبل تسجيل الرد.";
+  // الحساب مطلوب للرد النقدي فقط، وحين تكون المالية مفعّلة فحسب؛ بلا حساب
+  // يخرج النقد من الفرع ولا يُخصم من أي عهدة، فيبقى الرصيد يحمل مالًا دُفع.
+  if (refund && paymentMethod === "CASH" && !accountId && process.env.FINANCE_ENABLED === "true") errors.accountId = "اختر الحساب الذي يخرج منه الرد.";
   if (Object.keys(errors).length || !request || !saleId || !amount || !paymentMethod) return { ok: false, errors };
-  return { ok: true, value: { requestId: request, saleId, amount, method: paymentMethod, actuallyPaid } };
+  return { ok: true, value: { requestId: request, saleId, amount, method: paymentMethod, actuallyPaid, accountId, negativeAcknowledged } };
 }
 
 export type ReturnLineInput = { saleLineId: string; quantity: string; serialIds: string[] };

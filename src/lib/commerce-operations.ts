@@ -4,6 +4,9 @@ import { InventoryProblem } from "./inventory-operations";
 import { scaledInteger } from "./inventory-math";
 import { canPerformCommerce, type CommerceAction } from "./commerce-policy";
 import { CommerceMathError, allocatePartialReturn, calculateInclusiveSale, customerPosition, staffDiscountAllowed, validateCollectionAmount, validateRefundAmount, type ReviewedTax } from "./commerce-math";
+import { postCashRefundInTransaction } from "./finance/engine";
+import { financePort } from "./finance/port";
+import { FinanceProblem } from "./finance/types";
 import { parseDiscountSetting, parseMoneyMovement, parseReturnInput, parseSaleInput, type ReturnLineInput, type SaleInput } from "./commerce-validation";
 
 type Db = PrismaClient;
@@ -192,6 +195,37 @@ export async function recordCommerceCollection(db: Db, actorId: bigint, raw: unk
 }
 
 /** This records a refund already paid outside the system. It does not transfer money. */
+/**
+ * A cash refund is money leaving the branch right now, so it must leave the
+ * account that held it in the same transaction. Recording it only as a
+ * customer-position row leaves the employee's custody holding cash he already
+ * paid out, and the difference resurfaces later as an unexplained shortage.
+ */
+async function postRefundMovement(
+  tx: Transaction, actorId: bigint, branchId: bigint, accountId: string,
+  amount: string, refundId: string, negativeAcknowledged: boolean,
+): Promise<void> {
+  if (process.env.FINANCE_ENABLED !== "true") return;
+  const port = financePort(tx);
+  const rows = await port.query<{ branch: string; balance: string }>(
+    `SELECT a.branch_id::text AS branch,
+       (a.opening_amount + COALESCE((SELECT SUM(CASE WHEN m.destination_id=a.id THEN m.amount ELSE -m.amount END)
+         FROM finance.movements m WHERE m.source_id=a.id OR m.destination_id=a.id),0))::text AS balance
+     FROM finance.accounts a WHERE a.id=$1::bigint`, [accountId]);
+  const account = rows.rows[0];
+  if (!account) throw new InventoryProblem("الحساب الذي يخرج منه الرد غير موجود.");
+  if (account.branch !== branchId.toString()) throw new InventoryProblem("الحساب الذي يخرج منه الرد ليس في فرع الفاتورة.");
+  try {
+    await postCashRefundInTransaction(port, actorId.toString(), {
+      branchId: branchId.toString(), accountId, amount, refundId,
+      expectedBalance: account.balance, negativeAcknowledged,
+    });
+  } catch (error) {
+    if (error instanceof FinanceProblem) throw new InventoryProblem(error.message);
+    throw error;
+  }
+}
+
 export async function recordCommerceRefund(db: Db, actorId: bigint, raw: unknown): Promise<WriteResult> {
   const parsed = parseMoneyMovement(raw, true);
   if (!parsed.ok) throw new InventoryProblem("راجع رد المبلغ ثم حاول مجددًا.", parsed.errors);
@@ -205,6 +239,9 @@ export async function recordCommerceRefund(db: Db, actorId: bigint, raw: unknown
       const current = await position(tx, sale.id, sale.total);
       validateRefundAmount(current.dueToCustomerCents, scaledInteger(input.amount, 2));
       const refund = await tx.commerceRefund.create({ data: { requestId: input.requestId, requestHash, saleId: sale.id, amount: input.amount, method: input.method, createdById: actorId }, select: { id: true } });
+      if (input.method === "CASH" && input.accountId) {
+        await postRefundMovement(tx, actorId, sale.branchId, input.accountId, input.amount, refund.id.toString(), input.negativeAcknowledged);
+      }
       return { id: refund.id.toString(), replayed: false };
     });
   } catch (error) {

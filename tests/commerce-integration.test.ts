@@ -262,6 +262,55 @@ test("isolated sales, money and returns", { timeout: 120_000 }, async (t) => {
       assert.equal((await client.inventorySerial.findUniqueOrThrow({ where: { id: 3n } })).currentSaleLineId, madeLine.id);
       assert.equal((await client.stockLevel.findUniqueOrThrow({ where: { id: before.id } })).qtyOnHand.toFixed(2), before.qtyOnHand.toFixed(2));
     });
+    await t.test("a cash refund leaves the chosen account in the same transaction, and a failed one leaves nothing", async () => {
+      const legacyCategories = readFileSync(path.join(root, "tests/fixtures/finance-legacy-categories.sql"), "utf8");
+      const financeUpgrade = readFileSync(path.join(root, "prisma/manual-finance-release-upgrade.sql"), "utf8");
+      const settlementUpgrade = readFileSync(path.join(root, "prisma/manual-settlement-upgrade.sql"), "utf8");
+      await pg!.exec(legacyCategories); await pg!.exec(financeUpgrade); await pg!.exec(settlementUpgrade);
+      await pg!.query(`INSERT INTO finance.accounts(branch_id,kind,holder_id,opening_amount,opening_date,opened_by)
+        VALUES (1,'CUSTODY',3,1000,'2026-10-20',1)`);
+      const accountId = String((await pg!.query<{ id: number }>(`SELECT id FROM finance.accounts WHERE kind='CUSTODY'`)).rows[0].id);
+      const balanceOf = async () => (await pg!.query<{ balance: string }>(
+        `SELECT (a.opening_amount + COALESCE((SELECT SUM(CASE WHEN m.destination_id=a.id THEN m.amount ELSE -m.amount END)
+           FROM finance.movements m WHERE m.source_id=a.id OR m.destination_id=a.id),0))::text AS balance
+         FROM finance.accounts a WHERE a.id=$1::bigint`, [accountId])).rows[0].balance;
+
+      const previous = process.env.FINANCE_ENABLED; process.env.FINANCE_ENABLED = "true";
+      try {
+        // صنف غير مسلسل: السيريالات المستخدمة في الاختبارات السابقة لم تعد متاحة.
+        const made = await createCommerceSale(client, 3n, sale({ discount: "0", initialPayment: "20", lines: [line("2", "1", [])] }));
+        const saleLine = await client.commerceSaleLine.findFirstOrThrow({ where: { saleId: BigInt(made.id) } });
+        // مرتجع كامل: يولّد مبلغًا مستحقًا للعميل، ولا يحرك نقدًا بذاته.
+        await returnCommerceSale(client, 1n, { requestId: randomUUID(), saleId: made.id, cancel: false, accepted: true, lines: [{ saleLineId: saleLine.id.toString(), quantity: "1", serialIds: [] }] });
+        assert.equal(await balanceOf(), "1000.00");
+
+        // رد نقدي بلا حساب مرفوض قبل أي حركة: النقد يخرج ولا نعرف من أين.
+        await assert.rejects(
+          () => recordCommerceRefund(client, 1n, { requestId: randomUUID(), saleId: made.id, amount: "20", method: "CASH", actuallyPaid: true }),
+          (error: unknown) => error instanceof InventoryProblem && JSON.stringify(error).includes("الحساب"),
+        );
+
+        await recordCommerceRefund(client, 1n, { requestId: randomUUID(), saleId: made.id, amount: "20", method: "CASH", actuallyPaid: true, accountId, negativeAcknowledged: false });
+        const movements = await pg!.query<{ kind: string; amount: string; source: string | null; external: string | null }>(
+          `SELECT kind::text AS kind, amount::text AS amount, source_id::text AS source, external_ref AS external FROM finance.movements ORDER BY id`);
+        assert.equal(movements.rows.length, 1);
+        assert.equal(movements.rows[0].kind, "REFUND");
+        assert.equal(movements.rows[0].amount, "20.00");
+        assert.equal(movements.rows[0].source, accountId);
+        assert.match(movements.rows[0].external ?? "", /^refund:\d+$/);
+        assert.equal(await balanceOf(), "980.00");
+
+        // الرد غير النقدي لا يحرك نقد الفرع ولو أُرسل حساب.
+        const other = await createCommerceSale(client, 3n, sale({ discount: "0", initialPayment: "20", lines: [line("2", "1", [])] }));
+        const otherLine = await client.commerceSaleLine.findFirstOrThrow({ where: { saleId: BigInt(other.id) } });
+        await returnCommerceSale(client, 1n, { requestId: randomUUID(), saleId: other.id, cancel: false, accepted: true, lines: [{ saleLineId: otherLine.id.toString(), quantity: "1", serialIds: [] }] });
+        await recordCommerceRefund(client, 1n, { requestId: randomUUID(), saleId: other.id, amount: "20", method: "CARD", actuallyPaid: true, accountId: "9" });
+        assert.equal((await pg!.query<{ n: number }>(`SELECT count(*)::int AS n FROM finance.movements`)).rows[0].n, 1);
+        assert.equal(await balanceOf(), "980.00");
+      } finally {
+        if (previous === undefined) delete process.env.FINANCE_ENABLED; else process.env.FINANCE_ENABLED = previous;
+      }
+    });
   } finally {
     if (db) await db.$disconnect(); if (pg) await pg.close(); rmSync(tmp, { recursive: true, force: true });
   }

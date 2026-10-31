@@ -34,12 +34,15 @@ export default async function FinanceTransfersPage() {
     : [];
   const branchNames = new Map(branches.map((branch) => [branch.id.toString(), branch.nameAr]));
   const userNames = new Map(users.map((user) => [user.id.toString(), user.fullName]));
+  // الاعتماد يحتاج خزنة للفرع؛ التنبيه يسبق النموذج بدل أن يكتشفه المدير عند الفشل.
+  const branchesWithVault = new Set(accounts.filter((account) => String(account.kind) === "VAULT").map((account) => String(account.branchId)));
   const balanceByAccount = new Map(accounts.map((account) => [account.id, account.balance]));
   const holderByAccount = new Map(accounts.map((account) => [account.id, account.holderId ? userNames.get(account.holderId) ?? null : null]));
   const pendingSettlements: SettlementDecisionItem[] = settlements
     .filter((settlement) => String(settlement.status) === "OPEN")
     .map((settlement) => ({
       id: String(settlement.id),
+      branchId: String(settlement.branchId),
       branchName: branchNames.get(String(settlement.branchId)) ?? "فرع",
       holderName: holderByAccount.get(String(settlement.accountId)) ?? null,
       systemBalance: String(settlement.systemBalance),
@@ -106,7 +109,15 @@ export default async function FinanceTransfersPage() {
             </div>
           </div>
           {pendingSettlements.map((item) => (
-            <SettlementDecisionCard key={item.id} item={item} />
+            <div key={item.id} className="fin-page__section">
+              {!branchesWithVault.has(item.branchId) ? (
+                <div className="fin-alert fin-alert--warning" role="status">
+                  لا توجد خزنة مفتوحة لفرع {item.branchName}. الاعتماد يحتاج خزنة تُحوَّل إليها أو منها، فسيُرفض بدونها.
+                  افتح الخزنة بجرد فعلي من «الحسابات النقدية» أولًا.
+                </div>
+              ) : null}
+              <SettlementDecisionCard item={item} />
+            </div>
           ))}
         </div>
       ) : null}

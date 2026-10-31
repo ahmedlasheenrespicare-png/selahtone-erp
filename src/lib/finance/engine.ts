@@ -1168,6 +1168,18 @@ export async function confirmSettlement(db: FinanceDatabase, actorId: string, ra
 
     const current = await balance(tx, custody.id);
     if (current !== exactCents(input.expectedBalance)) throw new FinanceProblem("balance_changed", "تغيّر رصيد العهدة منذ المراجعة؛ أعد فتح الطلب وراجعه.", { currentBalance: formatCents(current) });
+    // الأرقام تُعاد حسابها لحظة الاعتماد لا لحظة الطلب: أي تحصيل أو صرف وقع بين
+    // اللحظتين يدخل هذه التسوية، فلا يضيع في الفراغ بين نهاية فترة وبداية أخرى.
+    const period = await settlementPeriod(tx, custody.id, custody.branchId);
+    const expectedNow = current + period.sales - period.expenses;
+    const recalculated = period.sales !== exactCents(settlement.salesTotal)
+      || period.expenses !== exactCents(settlement.expensesTotal)
+      || expectedNow !== exactCents(settlement.expectedAmount);
+    if (recalculated) await tx.query(`UPDATE finance.settlements
+      SET sales_total=$1::numeric,expenses_total=$2::numeric,expected_amount=$3::numeric,
+          deviation=$4::numeric,adjustment=$5::numeric WHERE id=$6::bigint`,
+      [formatCents(period.sales), formatCents(period.expenses), formatCents(expectedNow),
+       formatCents(exactCents(settlement.countedAmount) - expectedNow), formatCents(exactCents(settlement.countedAmount) - current), input.settlementId]);
     const counted = exactCents(settlement.countedAmount);
     const adjustment = counted - current;
     if (adjustment > 0n && input.transferDirection !== "TO_VAULT") throw new FinanceProblem("invalid_direction", "العهدة زائدة؛ التحويل يكون من العهدة إلى خزنة الفرع.");
@@ -1188,6 +1200,13 @@ export async function confirmSettlement(db: FinanceDatabase, actorId: string, ra
     if (transfer > 0n) {
       const projected = input.transferDirection === "TO_VAULT" ? counted - transfer : counted + transfer;
       if (projected < 0n && !input.negativeAcknowledged) throw new FinanceProblem("negative_warning", "سيصبح رصيد العهدة سالبًا؛ راجع الفرق وأكد التحذير.", { currentBalance: formatCents(counted), projectedBalance: formatCents(projected) });
+      // الخزنة تُفحص كذلك: تغطية عجز من خزنة لا تكفي كانت تصير سالبًا بلا تنبيه.
+      if (input.transferDirection === "TO_CUSTODY") {
+        const vaultBalance = await balance(tx, vault.id);
+        if (vaultBalance - transfer < 0n && !input.negativeAcknowledged)
+          throw new FinanceProblem("negative_warning", "سيصبح رصيد خزنة الفرع سالبًا؛ راجع الفرق وأكد التحذير.",
+            { currentBalance: formatCents(vaultBalance), projectedBalance: formatCents(vaultBalance - transfer) });
+      }
       const fromId = input.transferDirection === "TO_VAULT" ? custody.id : vault.id;
       const toId = input.transferDirection === "TO_VAULT" ? vault.id : custody.id;
       const saved = await tx.query<IdRow>(`INSERT INTO finance.movements(kind,branch_id,source_id,destination_id,amount,settlement_id,actor_id)
@@ -1202,10 +1221,12 @@ export async function confirmSettlement(db: FinanceDatabase, actorId: string, ra
       WHERE id=$7::bigint`,
       [actor.id, input.reason, input.transferAmount, input.transferDirection, adjustmentMovementId, handoverMovementId, input.settlementId]);
     await audit(tx, "SETTLEMENT", input.settlementId, "CONFIRM", actor.id, input.reason,
-      { status: "OPEN", systemBalance: settlement.systemBalance },
+      { status: "OPEN", systemBalance: settlement.systemBalance, salesTotal: settlement.salesTotal,
+        expensesTotal: settlement.expensesTotal, expectedAmount: settlement.expectedAmount },
       { status: "CONFIRMED", systemBalance: formatCents(current), countedAmount: settlement.countedAmount,
         adjustment: formatCents(adjustment), transferAmount: input.transferAmount, transferDirection: input.transferDirection,
-        adjustmentMovementId, handoverMovementId });
+        adjustmentMovementId, handoverMovementId,
+        recalculatedAtConfirm: recalculated ? { salesTotal: formatCents(period.sales), expensesTotal: formatCents(period.expenses), expectedAmount: formatCents(expectedNow) } : null });
     return input.settlementId;
   });
 }
