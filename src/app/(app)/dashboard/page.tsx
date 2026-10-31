@@ -69,7 +69,17 @@ export default async function DashboardPage() {
   const summary = isEmployee ? null : await loadCashSummary(session);
   // ملخّص مبيعات الشهر للمدير: الأرقام المفصّلة في /sales/stats، وهنا ما يكفي
   // ليعرف هل يفتحها. فالعناوين بلا أعداد تجعل المدير ينتقل ليسأل.
-  const sales = session.role === "MANAGER" ? await loadSalesStats(prisma, scope.branchId ?? null, "month") : null;
+  //
+  // والاستدعاء محمي: فاللوحة تعرض النقد والمهام والفروع، ولا يجوز أن تعطّلها
+  // كلها إحصائية مبيعات تعذّر حسابها. والخطأ يُسجَّل ليُرى، لا يُخفى بالصمت.
+  let sales: Awaited<ReturnType<typeof loadSalesStats>> | null = null;
+  if (session.role === "MANAGER") {
+    try {
+      sales = await loadSalesStats(prisma, scope.branchId ?? null, "month");
+    } catch (error) {
+      console.error("dashboard: sales stats failed", error);
+    }
+  }
   const cashActions = cash
     ? [
         cash.settlementStale
