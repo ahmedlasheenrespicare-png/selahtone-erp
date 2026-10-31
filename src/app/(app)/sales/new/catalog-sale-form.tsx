@@ -88,7 +88,7 @@ export default function CatalogSaleForm({ requestId, catalog, branches, defaultB
       const gross = value.lines.map((line) => grossLineCents(scaledInteger(line.quantity, 2), scaledInteger(line.unitPrice, 2)));
       const subtotal = gross.reduce((sum, item) => sum + item, 0n);
       const discountCents = scaledInteger(value.discount, 2);
-      if (staff && !staffDiscountAllowed(subtotal, discountCents, BigInt(discountBps))) throw new Error("الخصم يتجاوز الحد المسموح لموظف الفرع.");
+      if (!staffDiscountAllowed(subtotal, discountCents, BigInt(discountBps))) throw new Error("الخصم يتجاوز الحد المسموح لدورك.");
       const payment = scaledInteger(value.initialPayment, 2);
       validateCollectionAmount(subtotal - discountCents, payment);
       setErrors({});

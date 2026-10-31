@@ -390,7 +390,9 @@ model InvoiceTax {
 // هذه الجداول منفصلة عن Invoice القديم؛ لا تُمثل إقرارًا ضريبيًا أو تحويلاً ماليًا.
 model CommerceSettings {
   id               Int      @id @default(1) @db.SmallInt
+  // سقف الخصم يسري على كل دور؛ والمدير وحده له سقف أعلى يُضبط من الإعدادات.
   staffDiscountBps Int      @default(500) @map("staff_discount_bps")
+  managerDiscountBps Int    @default(2500) @map("manager_discount_bps")
   updatedById      BigInt?  @map("updated_by_id")
   updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz
   updatedBy        User?    @relation(fields: [updatedById], references: [id], onDelete: Restrict)
@@ -402,6 +404,7 @@ model CommerceSettingsChange {
   requestId        String   @unique @map("request_id") @db.Uuid
   requestHash      String   @map("request_hash") @db.Char(64)
   staffDiscountBps Int      @map("staff_discount_bps")
+  managerDiscountBps Int    @default(2500) @map("manager_discount_bps")
   createdById      BigInt   @map("created_by_id")
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
   createdBy        User     @relation(fields: [createdById], references: [id], onDelete: Restrict)

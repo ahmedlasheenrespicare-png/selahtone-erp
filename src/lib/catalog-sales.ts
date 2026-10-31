@@ -110,7 +110,8 @@ export async function createCatalogSale(db: Db, actorId: bigint, raw: unknown): 
       const actor = await tx.user.findUniqueOrThrow({ where: { id: actorId }, select: { roleCode: true } });
       await tx.$queryRaw`SELECT "id" FROM "commerce_settings" WHERE "id" = 1 FOR SHARE`;
       const settings = await tx.commerceSettings.findUnique({ where: { id: 1 } });
-      if (!settings || settings.staffDiscountBps < 0 || settings.staffDiscountBps > 10000) throw new InventoryProblem("إعداد حد الخصم غير صالح؛ راجع المدير.");
+      if (!settings || settings.staffDiscountBps < 0 || settings.staffDiscountBps > 10000
+        || settings.managerDiscountBps < 0 || settings.managerDiscountBps > 10000) throw new InventoryProblem("إعداد حد الخصم غير صالح؛ راجع المدير.");
 
       if (new Set(input.lines.map((line) => line.typeId)).size !== input.lines.length) throw new InventoryProblem("لا تكرر الصنف في الفاتورة؛ اجمع الكمية في بند واحد.");
       const types = await tx.salesItemType.findMany({
@@ -143,7 +144,14 @@ export async function createCatalogSale(db: Db, actorId: bigint, raw: unknown): 
       const discountCents = scaledInteger(input.discount, 2);
       const allocations = distributeInvoiceDiscount(gross, discountCents);
       const totalCents = subtotalCents - discountCents;
-      if (actor.roleCode === "CS_AGENT" && !staffDiscountAllowed(subtotalCents, discountCents, BigInt(settings.staffDiscountBps))) throw new InventoryProblem("الخصم يتجاوز الحد المسموح لموظف الفرع.");
+      // السقف يسري على كل دور، لا على موظف الكاونتر وحده: كان المحاسب والمدير
+      // قبل هذا يمنحان أي خصم بلا حدّ. والمدير وحده له سقف أعلى يُضبط من الإعدادات.
+      const ceilingBps = actor.roleCode === "MANAGER" ? settings.managerDiscountBps : settings.staffDiscountBps;
+      if (!staffDiscountAllowed(subtotalCents, discountCents, BigInt(ceilingBps))) {
+        throw new InventoryProblem(actor.roleCode === "MANAGER"
+          ? "الخصم يتجاوز سقف المدير المسموح."
+          : "الخصم يتجاوز الحد المسموح لدورك.");
+      }
       const firstPayment = scaledInteger(input.initialPayment, 2);
       validateCollectionAmount(totalCents, firstPayment);
 
