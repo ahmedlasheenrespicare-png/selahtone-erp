@@ -36,7 +36,11 @@ export function CountRequestForm({ requestId, accounts }: { requestId: string; a
       <input type="hidden" name="requestId" value={requestId} />
       <input type="hidden" name="accountId" value={accountId} />
       <input type="hidden" name="countedAmount" value={countedAmount} />
-      <input type="hidden" name="expectedBalance" value={account?.balance ?? ""} />
+      {/* يُرسَل «المتوقَّع بيده» لا الرصيد الدفتري: فالمحرك يقارن به
+          (current + مبيعات الفترة − مصروفاتها) ويرفض إن اختلف. وإرسال الدفتري
+          يجعل كل جرد يفشل متى كان للموظف مبيعات غير مسوّاة — أي حين يكون
+          الجرد مطلوبًا بالذات. */}
+      <input type="hidden" name="expectedBalance" value={account?.expected ?? ""} />
       <input type="hidden" name="reason" value={reason} />
       <input type="hidden" name="actuallyCounted" value={actuallyCounted ? "yes" : "no"} />
 
