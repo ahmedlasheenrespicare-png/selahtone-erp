@@ -64,6 +64,10 @@ const holderCashPayment = (expenseId: string, revision: string) => ({
   expenseId, expectedRevision: revision, method: "CASH", accountId: "", paymentDate: "2026-10-21", actuallyPaid: true,
   openingOrder: "", includedInOpening: false, afterCountId: "", afterCount: false, expectedBalance: "", negativeAcknowledged: false, source: "HOLDER_CASH",
 });
+/** نفس النموذج حين يختار «خصم فوري من حساب»: يُمرَّر الحساب ورصيده المراجَع. */
+const accountPayment = (expenseId: string, revision: string, accountId: string, expectedBalance: string) => ({
+  ...holderCashPayment(expenseId, revision), accountId, expectedBalance, source: "ACCOUNT",
+});
 
 test("surplus settlement: the difference moves from the custody to the vault", { timeout: 180_000 }, async () => {
   const pg = await fresh();
@@ -178,6 +182,41 @@ test("settlement rules: scope, rejection and cancellation never move money", { t
     assert.equal(await movementCount(pg), 0);
     assert.deepEqual(await statuses(pg), ["REJECTED", "CANCELLED"]);
     assert.deepEqual(await balances(pg), { "1": "10000.00", "2": "1000.00", "3": "500.00" });
+  } finally {
+    await pg.close();
+  }
+});
+
+test("the two pay sources are not interchangeable: only holder cash reaches the settlement", { timeout: 180_000 }, async () => {
+  const pg = await fresh();
+  try {
+    const db = adapter(pg);
+    await openAccount(db, "1", opening("VAULT", null, "10000"), today);
+    await openAccount(db, "1", opening("CUSTODY", "3", "1000"), today);
+    await addCashSale(pg, "1", "500");
+
+    // خصم فوري من العهدة: المبلغ يخرج منها الآن بحركة EXPENSE.
+    const debited = await createExpense(db, "3", { requestId: req(), ...expenseDraft, amount: "800" });
+    await approveExpense(db, "1", { requestId: req(), expenseId: debited.id, expectedRevision: "1" });
+    await payExpense(db, "1", { requestId: req(), ...accountPayment(debited.id, "2", "2", "1000.00") });
+    assert.equal(await movementCount(pg), 1);
+    assert.deepEqual(await balances(pg), { "1": "10000.00", "2": "200.00" });
+
+    // وهو لا يظهر في التسوية: النقد خرج من العهدة نفسها، فلا يُسترد مرتين.
+    const afterDebit = await settlementOverview(db, "3");
+    assert.equal(afterDebit.expenses, "0.00");
+    assert.equal(afterDebit.expected, "700.00"); // 200 + 500 − 0
+
+    // مصروف صُرف من نقد الموظف: بلا حركة، ويُسوّى في التسوية.
+    const fromHolder = await createExpense(db, "3", { requestId: req(), ...expenseDraft, amount: "300" });
+    await approveExpense(db, "1", { requestId: req(), expenseId: fromHolder.id, expectedRevision: "1" });
+    await payExpense(db, "3", { requestId: req(), ...holderCashPayment(fromHolder.id, "2") });
+    assert.equal(await movementCount(pg), 1); // لم تُضاف حركة
+    assert.deepEqual(await balances(pg), { "1": "10000.00", "2": "200.00" });
+
+    const afterHolder = await settlementOverview(db, "3");
+    assert.equal(afterHolder.expenses, "300.00");
+    assert.equal(afterHolder.expected, "400.00"); // 200 + 500 − 300
   } finally {
     await pg.close();
   }
