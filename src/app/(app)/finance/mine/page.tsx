@@ -71,30 +71,23 @@ export default async function MyCustodyPage() {
           <div className="fin-panel" style={{ marginBottom: 18 }}>
             <div className="fin-panel__heading">
               <h2>المتوقَّع بيدك الآن</h2>
-              <p>
-                هذا ما يُفترض أن يكون في يدك عند التسليم، وهو <strong>غير</strong> الرصيد الدفتري:
-                فالرصيد لا يحسب مبيعات الفترة ولا ما صرفته منها، والموظف يُسأل عن هذا الرقم لا عن الرصيد.
-              </p>
+              <p>هذا ما يُفترض أن يكون في يدك عند التسليم.</p>
             </div>
             <div className="fin-panel__body">
-              <div className="fin-fields">
-                <div className="field fin-field">
-                  <span className="fin-field__label">المتوقَّع بيدك</span>
-                  <span className="fin-field__hint">{formatMoney(cash.expected)}</span>
-                </div>
-                <div className="field fin-field">
-                  <span className="fin-field__label">الرصيد الدفتري</span>
-                  <span className="fin-field__hint">{formatMoney(cash.balance)}</span>
-                </div>
-                <div className="field fin-field">
-                  <span className="fin-field__label">+ مبيعات الفترة نقدًا</span>
-                  <span className="fin-field__hint">{formatMoney(cash.sales)}</span>
-                </div>
-                <div className="field fin-field">
-                  <span className="fin-field__label">− مصروفات الفترة من نقدك</span>
-                  <span className="fin-field__hint">{formatMoney(cash.expenses)}</span>
-                </div>
-              </div>
+              {/* رقم واحد كبير وجملة واحدة: فأربعة أرقام بوزن بصري متساوٍ تجعل
+                  الموظف يسأل أيها حقه، وحسابها ذهنيًا عبء لا فائدة منه. والجملة
+                  بلسانه لا بلسان المحاسبة: «ما قبضته» لا «مبيعات الفترة». */}
+              <p className="fin-expected">
+                <strong>{formatMoney(cash.expected)}</strong>
+                <span>ج.م</span>
+              </p>
+              <p className="fin-expected__how">
+                = رصيد عهدتك {formatMoney(cash.balance)}
+                <span aria-hidden="true"> + </span>
+                ما قبضته من العملاء {formatMoney(cash.sales)}
+                <span aria-hidden="true"> − </span>
+                ما صرفته منها {formatMoney(cash.expenses)}
+              </p>
             </div>
           </div>
           ) : null}
@@ -102,14 +95,10 @@ export default async function MyCustodyPage() {
           <div className="fin-panel" style={{ marginBottom: 18 }}>
             <div className="fin-panel__heading">
               <h2>رصيد الجرد</h2>
-              <p>الرصيد الدفتري = رصيد الجرد المسجَّل + الحركات اللاحقة.</p>
+              <p>ما سُجِّل آخر مرة عُدّ فيها النقد فعليًا.</p>
             </div>
             <div className="fin-panel__body">
               <div className="fin-fields">
-                <div className="field fin-field">
-                  <span className="fin-field__label">الرصيد الدفتري</span>
-                  <span className="fin-field__hint">{formatMoney(account.balance)}</span>
-                </div>
                 <div className="field fin-field">
                   <span className="fin-field__label">رصيد الجرد</span>
                   <span className="fin-field__hint">{formatMoney(account.recordedOpening)}</span>
