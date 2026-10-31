@@ -7,7 +7,7 @@ import type { CatalogCategoryView } from "@/lib/catalog-sales";
 import { MAX_CATALOG_LINES, parseCatalogSaleInput, type CatalogSaleLineInput } from "@/lib/catalog-validation";
 import { displayMoney } from "@/lib/commerce-display";
 import { distributeInvoiceDiscount, grossLineCents, staffDiscountAllowed, validateCollectionAmount } from "@/lib/commerce-math";
-import type { PaymentMethod } from "@/lib/commerce-validation";
+import { duplicatesCatalogLine, type PaymentMethod } from "@/lib/commerce-validation";
 import { scaledInteger } from "@/lib/inventory-math";
 import type { FieldErrors } from "@/lib/inventory-validation";
 import { createCatalogSaleAction } from "../actions";
@@ -60,7 +60,15 @@ export default function CatalogSaleForm({ requestId, catalog, branches, defaultB
     edited();
     if (!category || !activeType) { setErrors({ lines: "اختر التصنيف والنوع." }); return; }
     if (cart.length >= MAX_CATALOG_LINES) { setErrors({ lines: `الحد ${MAX_CATALOG_LINES} بندًا في الفاتورة.` }); return; }
-    if (cart.some((item) => item.typeId === activeType.id)) { setErrors({ lines: "الصنف مضاف بالفعل؛ عدّل الكمية في بنده." }); return; }
+    // القاعدة تُسأل في الدالة ذاتها التي يسألها المحرك، لا تُنسخ هنا. فالمنع كان
+    // في موضعين يختلفان: المحرك يقبل اختلاف القيم، والنموذج يمنع تكرار النوع
+    // مطلقًا، فصار حكم النموذج هو الحاجز الفعلي وأبطل حكم المحرك.
+    const asDetails = (item: { typeId: string; values: Record<string, string> }) =>
+      ({ typeId: item.typeId, details: Object.entries(item.values).map(([key, value]) => ({ key, value })) });
+    if (duplicatesCatalogLine([...cart.map(asDetails), asDetails({ typeId: activeType.id, values })])) {
+      setErrors({ lines: "هذا البند مضاف بالقيم نفسها؛ عدّل الكمية في بنده، أو غيّر أحد الحقول لإضافة وحدة أخرى." });
+      return;
+    }
     const missing = activeType.fields.filter((field) => field.required && !(values[field.key] ?? "").trim());
     if (missing.length) { setErrors({ lines: `اكتب: ${missing.map((field) => field.label).join("، ")}` }); return; }
     const parsed = parseCatalogSaleInput({
