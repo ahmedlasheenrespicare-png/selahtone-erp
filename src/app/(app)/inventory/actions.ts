@@ -2,12 +2,18 @@
 
 import { revalidatePath } from "next/cache";
 import { canSeeAllBranches, requireSession } from "@/lib/auth";
+import { inventoryEnabled } from "@/lib/feature-flags";
 import { prisma } from "@/lib/prisma";
 import { createInventoryOpening, createInventoryProduct, InventoryProblem } from "@/lib/inventory-operations";
 import { receiveInventoryStock } from "@/lib/receiving-operations";
 import type { ReceiptInputRaw } from "@/lib/receiving-validation";
 import { parseProductInput, type OpeningInputRaw, type ProductInputRaw } from "@/lib/inventory-validation";
 import type { InventoryActionState } from "./inventory-state";
+
+/** المخزون معطّل افتراضيًا: أي إجراء مخزون يُرفض قبل لمس قاعدة البيانات. */
+function inventoryDisabled(): InventoryActionState | null {
+  return inventoryEnabled() ? null : { status: "error", message: "المخزون والمستودعات معطّلة حاليًا في هذا النظام." };
+}
 
 function text(formData: FormData, key: string): string {
   const value = formData.get(key);
@@ -22,6 +28,8 @@ function unexpected(error: unknown): InventoryActionState {
 }
 
 export async function createProductAction(_previous: InventoryActionState, formData: FormData): Promise<InventoryActionState> {
+  const blocked = inventoryDisabled();
+  if (blocked) return blocked;
   const session = await requireSession();
   if (!canSeeAllBranches(session)) return { status: "error", message: "إضافة الأصناف متاحة للمدير والمحاسب فقط." };
   if (text(formData, "reviewed") !== "yes") return { status: "error", message: "راجع بيانات الصنف قبل تأكيد الحفظ." };
@@ -58,6 +66,8 @@ export async function createProductAction(_previous: InventoryActionState, formD
 }
 
 export async function createOpeningAction(_previous: InventoryActionState, formData: FormData): Promise<InventoryActionState> {
+  const blocked = inventoryDisabled();
+  if (blocked) return blocked;
   const session = await requireSession();
   if (!canSeeAllBranches(session)) return { status: "error", message: "تسجيل الأرصدة متاح للمدير والمحاسب فقط." };
   if (text(formData, "reviewed") !== "yes") return { status: "error", message: "راجع الرصيد والأرقام قبل تأكيد الحفظ." };
@@ -87,6 +97,8 @@ export async function createOpeningAction(_previous: InventoryActionState, formD
 }
 
 export async function createReceiptAction(_previous: InventoryActionState, formData: FormData): Promise<InventoryActionState> {
+  const blocked = inventoryDisabled();
+  if (blocked) return blocked;
   const session = await requireSession();
   if (session.role !== "MANAGER" && session.role !== "CS_AGENT") return { status: "error", message: "تسجيل التوريد متاح للمدير وموظف الفرع فقط." };
   if (text(formData, "reviewed") !== "yes") return { status: "error", message: "راجع تفاصيل التوريد والأرقام قبل تأكيد الحفظ." };

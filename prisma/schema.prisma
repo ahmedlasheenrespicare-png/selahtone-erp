@@ -69,6 +69,13 @@ model User {
   commerceRefunds    CommerceRefund[]
   commerceSettingChanges CommerceSettingsChange[]
   commerceSettingsUpdates CommerceSettings[]
+  salesCategoriesCreated  SalesItemCategory[] @relation("SalesCategoryCreatedBy")
+  salesCategoriesUpdated  SalesItemCategory[] @relation("SalesCategoryUpdatedBy")
+  salesTypesCreated       SalesItemType[]     @relation("SalesTypeCreatedBy")
+  salesTypesUpdated       SalesItemType[]     @relation("SalesTypeUpdatedBy")
+  salesFieldsCreated      SalesItemField[]    @relation("SalesFieldCreatedBy")
+  salesFieldsUpdated      SalesItemField[]    @relation("SalesFieldUpdatedBy")
+  salesCatalogAudits      SalesCatalogAudit[]
 
   @@index([branchId])
   @@map("users")
@@ -407,20 +414,22 @@ model CommerceSale {
   requestId     String   @unique @map("request_id") @db.Uuid
   requestHash   String   @map("request_hash") @db.Char(64)
   branchId      BigInt   @map("branch_id")
-  warehouseId   BigInt   @map("warehouse_id")
+  // المستودع اختياري: مسار البيع بالأصناف الفنية لا يستخدم مخزونًا ولا مستودعًا.
+  warehouseId   BigInt?  @map("warehouse_id")
   customerName  String   @map("customer_name") @db.VarChar(180)
   customerPhone String   @map("customer_phone") @db.VarChar(30)
   subtotal      Decimal  @db.Decimal(14, 2)
   discount      Decimal  @db.Decimal(14, 2)
-  taxableBase   Decimal  @map("taxable_base") @db.Decimal(14, 2)
-  taxTotal      Decimal  @map("tax_total") @db.Decimal(14, 2)
+  // الفراغ يعني «الضريبة غير محددة»؛ ليس صفرًا ولا إعفاءً.
+  taxableBase   Decimal? @map("taxable_base") @db.Decimal(14, 2)
+  taxTotal      Decimal? @map("tax_total") @db.Decimal(14, 2)
   total         Decimal  @db.Decimal(14, 2)
   revision      Int      @default(0)
   cancelledAt   DateTime? @map("cancelled_at") @db.Timestamptz
   createdById   BigInt   @map("created_by_id")
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
   branch        Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
-  warehouse     Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  warehouse     Warehouse? @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
   createdBy     User @relation(fields: [createdById], references: [id], onDelete: Restrict)
   lines         CommerceSaleLine[]
   collections   CommerceCollection[]
@@ -434,26 +443,32 @@ model CommerceSale {
 model CommerceSaleLine {
   id                BigInt   @id @default(autoincrement())
   saleId            BigInt   @map("sale_id")
-  productId         BigInt   @map("product_id")
-  skuSnapshot       String   @map("sku_snapshot") @db.VarChar(40)
+  // بند الأصناف الفنية: لا منتج ولا مستودع، والضريبة غير محددة (فراغ لا صفر).
+  productId         BigInt?  @map("product_id")
+  catalogTypeId     BigInt?  @map("catalog_type_id")
+  categorySnapshot  String?  @map("category_snapshot") @db.VarChar(120)
+  typeSnapshot      String?  @map("type_snapshot") @db.VarChar(120)
+  details           Json?    @default("{}")
+  skuSnapshot       String?  @map("sku_snapshot") @db.VarChar(40)
   nameSnapshot      String   @map("name_snapshot") @db.VarChar(180)
   quantity          Decimal  @db.Decimal(12, 2)
   unitPrice         Decimal  @map("unit_price") @db.Decimal(14, 2)
-  taxRateId         Int      @map("tax_rate_id")
-  taxCodeSnapshot   String   @map("tax_code_snapshot") @db.VarChar(20)
-  taxKindSnapshot   String   @map("tax_kind_snapshot") @db.VarChar(12)
-  taxRateSnapshot   Decimal  @map("tax_rate_snapshot") @db.Decimal(6, 3)
+  taxRateId         Int?     @map("tax_rate_id")
+  taxCodeSnapshot   String?  @map("tax_code_snapshot") @db.VarChar(20)
+  taxKindSnapshot   String?  @map("tax_kind_snapshot") @db.VarChar(12)
+  taxRateSnapshot   Decimal? @map("tax_rate_snapshot") @db.Decimal(6, 3)
   gross             Decimal  @db.Decimal(14, 2)
   discount          Decimal  @db.Decimal(14, 2)
-  taxableBase       Decimal  @map("taxable_base") @db.Decimal(14, 2)
-  taxAmount         Decimal  @map("tax_amount") @db.Decimal(14, 2)
+  taxableBase       Decimal? @map("taxable_base") @db.Decimal(14, 2)
+  taxAmount         Decimal? @map("tax_amount") @db.Decimal(14, 2)
   total             Decimal  @db.Decimal(14, 2)
   unitCost          Decimal? @map("unit_cost") @db.Decimal(14, 4)
   isStock           Boolean  @map("is_stock")
   isSerialized      Boolean  @map("is_serialized")
   sale              CommerceSale @relation(fields: [saleId], references: [id], onDelete: Restrict)
-  product           Product @relation(fields: [productId], references: [id], onDelete: Restrict)
-  taxRate           TaxRate @relation(fields: [taxRateId], references: [id], onDelete: Restrict)
+  product           Product? @relation(fields: [productId], references: [id], onDelete: Restrict)
+  catalogType       SalesItemType? @relation(fields: [catalogTypeId], references: [id], onDelete: Restrict)
+  taxRate           TaxRate? @relation(fields: [taxRateId], references: [id], onDelete: Restrict)
   serialLinks       CommerceSaleLineSerial[]
   currentSerials    InventorySerial[] @relation("CurrentSerialSale")
   returnLines       CommerceReturnLine[]
@@ -543,4 +558,80 @@ model CommerceRefund {
   createdBy   User @relation(fields: [createdById], references: [id], onDelete: Restrict)
   @@index([saleId, createdAt])
   @@map("commerce_refunds")
+}
+
+// --------------------------- أصناف البيع الفنية ---------------------------
+// شجرة ثابتة: تصنيف ← نوع ← حقول نصية يكتبها الموظف. لا حذف أبدًا: الإيقاف
+// فقط، وكل تغيير يُسجَّل بسببه وقبلَه وبعده في sales_catalog_audit.
+model SalesItemCategory {
+  id          BigInt   @id @default(autoincrement())
+  code        String   @unique @db.VarChar(40)
+  nameAr      String   @map("name_ar") @db.VarChar(120)
+  sortOrder   Int      @default(0) @map("sort_order")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdById BigInt?  @map("created_by_id")
+  updatedById BigInt?  @map("updated_by_id")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  createdBy   User?    @relation("SalesCategoryCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy   User?    @relation("SalesCategoryUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  types       SalesItemType[]
+  @@index([sortOrder, id])
+  @@map("sales_item_categories")
+}
+
+model SalesItemType {
+  id          BigInt   @id @default(autoincrement())
+  categoryId  BigInt   @map("category_id")
+  nameAr      String   @map("name_ar") @db.VarChar(120)
+  sortOrder   Int      @default(0) @map("sort_order")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdById BigInt?  @map("created_by_id")
+  updatedById BigInt?  @map("updated_by_id")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  category    SalesItemCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  createdBy   User?    @relation("SalesTypeCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy   User?    @relation("SalesTypeUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  fields      SalesItemField[]
+  saleLines   CommerceSaleLine[]
+  @@unique([categoryId, nameAr])
+  @@index([categoryId, sortOrder, id])
+  @@map("sales_item_types")
+}
+
+model SalesItemField {
+  id          BigInt   @id @default(autoincrement())
+  typeId      BigInt   @map("type_id")
+  fieldKey    String   @map("field_key") @db.VarChar(60)
+  labelAr     String   @map("label_ar") @db.VarChar(120)
+  isRequired  Boolean  @default(true) @map("is_required")
+  sortOrder   Int      @default(0) @map("sort_order")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdById BigInt?  @map("created_by_id")
+  updatedById BigInt?  @map("updated_by_id")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  type        SalesItemType @relation(fields: [typeId], references: [id], onDelete: Restrict)
+  createdBy   User?    @relation("SalesFieldCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy   User?    @relation("SalesFieldUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  @@unique([typeId, fieldKey])
+  @@index([typeId, sortOrder, id])
+  @@map("sales_item_fields")
+}
+
+model SalesCatalogAudit {
+  id         BigInt   @id @default(autoincrement())
+  requestId  String   @unique @map("request_id") @db.Uuid
+  entity     String   @db.VarChar(12)
+  entityId   BigInt   @map("entity_id")
+  action     String   @db.VarChar(12)
+  beforeData Json?    @map("before_data")
+  afterData  Json?    @map("after_data")
+  reason     String   @db.VarChar(300)
+  actorId    BigInt   @map("actor_id")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  actor      User     @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  @@index([createdAt(sort: Desc), id(sort: Desc)])
+  @@map("sales_catalog_audit")
 }

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AppIcon } from "@/components/app-icon";
 import { getSession, canSeeAllBranches } from "@/lib/auth";
 import { financeEnabled } from "@/lib/finance/db";
+import { inventoryEnabled } from "@/lib/feature-flags";
 import { AppNavigation } from "./app-navigation";
 import LogoutButton from "./logout-button";
 import "./workspace.css";
@@ -21,7 +22,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="workspace-shell">
       <a className="workspace-skip" href="#workspace-content">تخطي إلى المحتوى</a>
-      <AppNavigation canViewAllBranches={canSeeAllBranches(session)} financeEnabled={financeEnabled()} menuScope={session.menuScope} />
+      <AppNavigation canViewAllBranches={canSeeAllBranches(session)} financeEnabled={financeEnabled()} menuScope={session.menuScope} inventoryEnabled={inventoryEnabled()} />
 
       <div className="workspace-main">
         <header className="workspace-topbar">

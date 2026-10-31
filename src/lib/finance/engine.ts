@@ -491,17 +491,30 @@ export async function payExpense(db: FinanceDatabase, actorId: string, raw: unkn
     afterCountId: optionalIdentifier(value.afterCountId, "آخر جرد مؤكد"), afterCount: flag(value.afterCount),
     expectedBalance: value.expectedBalance === null || value.expectedBalance === undefined || value.expectedBalance === "" ? null : signedMoney(value.expectedBalance, "الرصيد الذي روجع"),
     negativeAcknowledged: flag(value.negativeAcknowledged),
+    // ACCOUNT = خصم فوري من حساب (السلوك السابق). HOLDER_CASH = صُرف من نقد الموظف ويُسوّى في التسوية.
+    source: paymentSource(value.source),
   };
   ensureNotFuture(input.paymentDate, today);
-  if ((input.method === "CASH" && !input.accountId) || (input.method !== "CASH" && input.accountId)) throw new FinanceProblem("invalid_input", "اختر مصدرًا للنقد فقط عند الدفع النقدي.");
+  if (input.source === "HOLDER_CASH") {
+    if (input.method !== "CASH") throw new FinanceProblem("invalid_input", "الصرف من نقد الموظف نقدي فقط.");
+    if (input.accountId) throw new FinanceProblem("invalid_input", "الصرف من نقد الموظف لا يستخدم حسابًا نقديًا.");
+    if (input.openingOrder !== null || input.includedInOpening || input.afterCountId !== null || input.expectedBalance !== null || input.negativeAcknowledged)
+      throw new FinanceProblem("invalid_input", "الصرف من نقد الموظف يُسوّى في التسوية، فلا يرتبط بجرد أو برصيد افتتاحي.");
+  } else if ((input.method === "CASH" && !input.accountId) || (input.method !== "CASH" && input.accountId)) {
+    throw new FinanceProblem("invalid_input", "اختر مصدرًا للنقد فقط عند الدفع النقدي.");
+  }
   if (Boolean(input.afterCountId) !== input.afterCount) throw new FinanceProblem("invalid_input", "أكد ترتيب الدفع بعد الجرد وحدد الجرد الذي راجعته معًا.");
   if (input.method !== "CASH" && (input.openingOrder !== null || input.includedInOpening || input.afterCountId !== null || input.expectedBalance !== null || input.negativeAcknowledged)) throw new FinanceProblem("invalid_input", "الدفع غير النقدي لا يستخدم حسابًا نقديًا أو جردًا نقديًا.");
-  return command(db, actorId, "EXPENSE_PAY", input.requestId, input, manage, async (tx, actor) => {
+  return command(db, actorId, "EXPENSE_PAY", input.requestId, input, expensePayer(input.source), async (tx, actor) => {
     const expense = await lockExpense(tx, input.expenseId); checkRevision(expense.revision, input.expectedRevision);
     if (expense.status !== "APPROVED") throw new FinanceProblem("wrong_status", "يمكن تسجيل صرف مصروف معتمد لم يُدفع سابقًا فقط.");
     await settlementBranch(tx,expense.branchId,actor);
+    if (input.source === "HOLDER_CASH" && !canManageFinance(actor) && !(actor.role === "CS_AGENT" && expense.requestedBy === actor.id))
+      throw new FinanceProblem("forbidden", "الصرف من نقد الموظف للإدارة، أو للموظف عن مصروف أنشأه هو وصرفه من نقده.");
     let source: AccountRow | null = null, historical = false, current: bigint | null = null, projected: bigint | null = null;
-    if (input.method === "CASH") {
+    if (input.source === "HOLDER_CASH") {
+      // النقد خرج من يد الموظف فعلًا: بلا حركة نقدية، ويُجمع ضمن مصروفات فترته في التسوية.
+    } else if (input.method === "CASH") {
       source = (await lockAccounts(tx, [input.accountId!]))[0];
       if (source.branchId !== expense.branchId) throw new FinanceProblem("account_branch", "مصدر النقد يجب أن يكون في فرع المصروف.");
       await activeBranch(tx, expense.branchId);
@@ -524,9 +537,9 @@ export async function payExpense(db: FinanceDatabase, actorId: string, raw: unkn
         current = await balance(tx, source.id); projected = checkBalance(current, input.expectedBalance, exactCents(expense.amount), input.negativeAcknowledged);
       }
     }
-    const payment = await tx.query<IdRow>(`INSERT INTO finance.payments(expense_id,amount,method,account_id,payment_date,recorded_by,actually_paid,historical,opening_order,included_in_opening,after_cash_count_id)
-      VALUES($1::bigint,$2::numeric,$3,$4::bigint,$5::date,$6::bigint,$7,$8,$9,$10,$11::bigint) RETURNING id::text AS id`,
-      [expense.id,expense.amount,input.method,source?.id ?? null,input.paymentDate,actor.id,input.actuallyPaid,historical,input.openingOrder,input.includedInOpening,input.afterCountId]);
+    const payment = await tx.query<IdRow>(`INSERT INTO finance.payments(expense_id,amount,method,account_id,payment_date,recorded_by,actually_paid,historical,opening_order,included_in_opening,after_cash_count_id,source)
+      VALUES($1::bigint,$2::numeric,$3,$4::bigint,$5::date,$6::bigint,$7,$8,$9,$10,$11::bigint,$12) RETURNING id::text AS id`,
+      [expense.id,expense.amount,input.method,source?.id ?? null,input.paymentDate,actor.id,input.actuallyPaid,historical,input.openingOrder,input.includedInOpening,input.afterCountId,input.source]);
     if (source && !historical) {
       await tx.query(`INSERT INTO finance.movements(kind,branch_id,source_id,amount,expense_payment_id,actor_id)
         VALUES('EXPENSE',$1::bigint,$2::bigint,$3::numeric,$4::bigint,$5::bigint)`, [expense.branchId,source.id,expense.amount,payment.rows[0].id,actor.id]);
@@ -534,7 +547,7 @@ export async function payExpense(db: FinanceDatabase, actorId: string, raw: unkn
     }
     await tx.query(`UPDATE finance.expenses SET status='PAID',revision=revision+1 WHERE id=$1::bigint`, [expense.id]);
     await audit(tx, "EXPENSE", expense.id, "PAY", actor.id, null, { status: expense.status, revision: expense.revision },
-      { paymentId: payment.rows[0].id, amount: expense.amount, method: input.method, accountId: source?.id ?? null, paymentDate: input.paymentDate, historical, openingOrder: input.openingOrder, includedInOpening: input.includedInOpening, afterCountId: input.afterCountId, currentBalance: current === null ? null : formatCents(current), projectedBalance: projected === null ? null : formatCents(projected), negativeAcknowledged: input.negativeAcknowledged });
+      { paymentId: payment.rows[0].id, amount: expense.amount, method: input.method, source: input.source, accountId: source?.id ?? null, paymentDate: input.paymentDate, historical, openingOrder: input.openingOrder, includedInOpening: input.includedInOpening, afterCountId: input.afterCountId, currentBalance: current === null ? null : formatCents(current), projectedBalance: projected === null ? null : formatCents(projected), negativeAcknowledged: input.negativeAcknowledged });
     return payment.rows[0].id;
   });
 }
@@ -974,4 +987,264 @@ export async function postCashRefundInTransaction(tx: FinanceTransaction, actorI
     VALUES('REFUND',$1::bigint,$2::bigint,$3::numeric,$4,$5::bigint,$6::bigint,$7) RETURNING id::text AS id`, [branchId,accountId,amount,`refund:${refundId}`,actor.id,inputRaw.checkpointRef && inputRaw.checkpointRef !== "OPENING" ? inputRaw.checkpointRef : null,inputRaw.checkpointRef === "OPENING"]);
   if (inputRaw.checkpointRef) await audit(tx,"MOVEMENT",saved.rows[0].id,"REFUND",actor.id,null,null,{accountId,amount,refundId,checkpointRef:inputRaw.checkpointRef,attestedAfterCheckpoint:true});
   await bumpAccounts(tx,[accountId]); return saved.rows[0].id;
+}
+
+/* ===========================================================================
+ * تسوية عهدة الموظف — الإجمالي = العهدة + المبيعات − المصروفات
+ *
+ * القواعد الحاكمة (موثّقة في docs/branch-custody-settlement.md):
+ *  - الطلب لا يغيّر النقد ولا العهدة؛ الاعتماد وحده يحرّكهما.
+ *  - الاعتماد بيد المدير أو المحاسب فقط، ولا اعتماد ذاتي.
+ *  - الفرق يُسدَّد كاملًا: زيادة ← من العهدة إلى الخزنة؛ عجز ← من الخزنة إلى العهدة.
+ *  - المصروف المصروف من نقد الموظف (`HOLDER_CASH`) لا يُخصم مرتين: بلا حركة هنا،
+ *    ويُجمع ضمن مصروفات الفترة في التسوية.
+ * ========================================================================= */
+
+export type SettlementListRow = Row & {
+  id: string; accountId: string; branchId: string; requestedBy: string;
+  systemBalance: string; countedAmount: string; salesTotal: string; expensesTotal: string;
+  expectedAmount: string; deviation: string; adjustment: string;
+  status: "OPEN" | "CONFIRMED" | "REJECTED" | "CANCELLED"; reason: string; createdAt: string;
+  resolvedBy: string | null; resolvedAt: string | null; resolutionReason: string | null;
+  transferAmount: string | null; transferDirection: "TO_VAULT" | "TO_CUSTODY" | null;
+};
+
+export type SettlementOverview = {
+  account: { id: string; branchId: string; balance: string } | null;
+  since: string | null; sales: string; expenses: string; expected: string; openRequestId: string | null;
+};
+
+const SETTLEMENT_SELECT = `s.id::text AS id,s.account_id::text AS "accountId",s.branch_id::text AS "branchId",
+  s.requested_by::text AS "requestedBy",s.system_balance::text AS "systemBalance",s.counted_amount::text AS "countedAmount",
+  s.sales_total::text AS "salesTotal",s.expenses_total::text AS "expensesTotal",s.expected_amount::text AS "expectedAmount",
+  s.deviation::text AS deviation,s.adjustment::text AS adjustment,s.status AS status,s.reason AS reason,
+  s.created_at::text AS "createdAt",s.resolved_by::text AS "resolvedBy",s.resolved_at::text AS "resolvedAt",
+  s.resolution_reason AS "resolutionReason",s.transfer_amount::text AS "transferAmount",s.transfer_direction AS "transferDirection"`;
+
+function anyFinanceActor(actor: Actor): void {
+  if (!activeActor(actor)) throw new FinanceProblem("forbidden", "الحساب غير نشط أو لا يملك صلاحية لهذه العملية.");
+}
+
+/** الإدارة تصرف دائمًا؛ والموظف فقط عند الصرف من نقده (مِلكية المصروف تُتحقق داخل المعاملة). */
+function expensePayer(source: "ACCOUNT" | "HOLDER_CASH"): (actor: Actor) => void {
+  return source === "HOLDER_CASH" ? anyFinanceActor : manage;
+}
+
+function paymentSource(value: unknown): "ACCOUNT" | "HOLDER_CASH" {
+  if (value === null || value === undefined || value === "" || value === "ACCOUNT") return "ACCOUNT";
+  if (value === "HOLDER_CASH") return "HOLDER_CASH";
+  throw new FinanceProblem("invalid_input", "مصدر الصرف غير صالح.");
+}
+
+function settlementDirection(value: unknown): "TO_VAULT" | "TO_CUSTODY" {
+  if (value === "TO_VAULT" || value === "TO_CUSTODY") return value;
+  throw new FinanceProblem("invalid_input", "اختر اتجاه التحويل: إلى خزنة الفرع أو إلى العهدة.");
+}
+
+/** مبيعات الفرع النقدية ومصروفاته من نقد الموظف منذ آخر تسوية مؤكدة (أو since فتح العهدة). */
+async function settlementPeriod(
+  tx: FinanceTransaction,
+  accountId: string,
+  branchId: string,
+): Promise<{ since: string; sales: bigint; expenses: bigint }> {
+  const since = await tx.query<Row & { since: string }>(`SELECT COALESCE(
+      (SELECT resolved_at::text FROM finance.settlements WHERE account_id=$1::bigint AND status='CONFIRMED' ORDER BY resolved_at DESC, id DESC LIMIT 1),
+      (SELECT opened_at::text FROM finance.accounts WHERE id=$1::bigint)) AS since`, [accountId]);
+  const from = since.rows[0].since;
+  const sales = await tx.query<Row & { total: string }>(`SELECT COALESCE(SUM(c.amount),0)::text AS total
+      FROM public.commerce_collections c
+      JOIN public.commerce_sales s ON s.id = c.sale_id
+      WHERE s.branch_id=$1::bigint AND c.method='CASH' AND c.created_at > $2::timestamptz`, [branchId, from]);
+  const expenses = await tx.query<Row & { total: string }>(`SELECT COALESCE(SUM(p.amount),0)::text AS total
+      FROM finance.payments p
+      JOIN finance.expenses e ON e.id = p.expense_id
+      WHERE e.branch_id=$1::bigint AND p.source='HOLDER_CASH' AND p.recorded_at > $2::timestamptz`, [branchId, from]);
+  return { since: from, sales: exactCents(sales.rows[0].total), expenses: exactCents(expenses.rows[0].total) };
+}
+
+/** ملخّص الشاشة: رصيد العهدة، ومبيعات الفترة، ومصروفاتها، والإجمالي المتوقع. */
+export async function settlementOverview(db: FinanceDatabase, actorIdRaw: string, accountIdRaw?: unknown): Promise<SettlementOverview> {
+  const actorId = identifier(actorIdRaw, "المستخدم");
+  const wanted = accountIdRaw === undefined || accountIdRaw === null || accountIdRaw === "" ? null : identifier(accountIdRaw, "العهدة");
+  return db.serializable(async (tx) => {
+    const actor = await loadActor(tx, actorId);
+    const rows = await tx.query<AccountRow>(`SELECT id::text AS id,branch_id::text AS "branchId",kind,holder_id::text AS "holderId",
+      opening_amount::text AS "openingAmount",opening_date::text AS "openingDate",revision::text AS revision
+      FROM finance.accounts
+      WHERE ($1::boolean AND ($2::bigint IS NULL OR id=$2::bigint)) OR (kind='CUSTODY' AND holder_id=$3::bigint)
+      ORDER BY id`, [canManageFinance(actor), wanted, actor.id]);
+    const account = rows.rows.find((row) => row.kind === "CUSTODY" && (wanted ? row.id === wanted : true)) ?? null;
+    if (!account) return { account: null, since: null, sales: "0.00", expenses: "0.00", expected: "0.00", openRequestId: null };
+    const current = await balance(tx, account.id);
+    const period = await settlementPeriod(tx, account.id, account.branchId);
+    const open = await tx.query<IdRow>(`SELECT id::text AS id FROM finance.settlements WHERE account_id=$1::bigint AND status='OPEN' ORDER BY id DESC LIMIT 1`, [account.id]);
+    return {
+      account: { id: account.id, branchId: account.branchId, balance: formatCents(current) },
+      since: period.since,
+      sales: formatCents(period.sales),
+      expenses: formatCents(period.expenses),
+      expected: formatCents(current + period.sales - period.expenses),
+      openRequestId: open.rows[0]?.id ?? null,
+    };
+  });
+}
+
+/** الموظف يرى طلباته؛ والإدارة ترى كل الطلبات (تُعرض في شاشة التسليم والتحويل). */
+export async function listSettlements(db: FinanceDatabase, actorIdRaw: string): Promise<SettlementListRow[]> {
+  const actorId = identifier(actorIdRaw, "المستخدم");
+  return db.serializable(async (tx) => {
+    const actor = await loadActor(tx, actorId);
+    const result = await tx.query<SettlementListRow>(`SELECT ${SETTLEMENT_SELECT} FROM finance.settlements s
+      WHERE $1::boolean OR s.requested_by=$2::bigint ORDER BY s.id DESC`, [canManageFinance(actor), actor.id]);
+    return result.rows;
+  });
+}
+
+/** طلب تسوية: لا يغيّر النقد ولا العهدة، ويمنع وجود أكثر من طلب مفتوح لنفس العهدة. */
+export async function requestSettlement(db: FinanceDatabase, actorId: string, raw: unknown): Promise<WriteResult> {
+  const value = inputObject(raw), input = {
+    requestId: requestId(value.requestId),
+    accountId: identifier(value.accountId, "العهدة"),
+    countedAmount: money(value.countedAmount, "النقد المعدود", true),
+    expectedBalance: signedMoney(value.expectedBalance, "الرصيد المعروض"),
+    reason: text(value.reason, "سبب التسوية", 300, true)!,
+    actuallyCounted: confirmation(value.actuallyCounted, "الجرد الفعلي"),
+  };
+  return command(db, actorId, "SETTLEMENT_CREATE", input.requestId, input, anyFinanceActor, async (tx, actor) => {
+    const account = (await lockAccounts(tx, [input.accountId]))[0];
+    if (account.kind !== "CUSTODY" || !canViewAccount(actor, account)) throw new FinanceProblem("forbidden", "طلب التسوية متاح لعهدة الموظف نفسه فقط.");
+    await activeBranch(tx, account.branchId);
+    const open = await tx.query<IdRow>(`SELECT id::text AS id FROM finance.settlements WHERE account_id=$1::bigint AND status='OPEN'`, [account.id]);
+    if (open.rows[0]) throw new FinanceProblem("settlement_exists", "يوجد طلب تسوية مفتوح لهذه العهدة؛ راجعه أو ألغِه بسبب قبل طلب آخر.");
+    const current = await balance(tx, account.id);
+    if (current !== exactCents(input.expectedBalance)) throw new FinanceProblem("balance_changed", "تغيّر رصيد العهدة منذ عرضه؛ أعد فتح النموذج وراجعه.", { currentBalance: formatCents(current) });
+    const period = await settlementPeriod(tx, account.id, account.branchId);
+    const counted = exactCents(input.countedAmount);
+    const expected = current + period.sales - period.expenses;
+    const saved = await tx.query<IdRow>(`INSERT INTO finance.settlements
+      (account_id,branch_id,requested_by,system_balance,counted_amount,sales_total,expenses_total,expected_amount,deviation,adjustment,reason)
+      VALUES($1::bigint,$2::bigint,$3::bigint,$4::numeric,$5::numeric,$6::numeric,$7::numeric,$8::numeric,$9::numeric,$10::numeric,$11)
+      RETURNING id::text AS id`,
+      [account.id, account.branchId, actor.id, formatCents(current), input.countedAmount, formatCents(period.sales),
+       formatCents(period.expenses), formatCents(expected), formatCents(counted - expected), formatCents(counted - current), input.reason]);
+    const id = saved.rows[0].id;
+    await audit(tx, "SETTLEMENT", id, "CREATE", actor.id, input.reason, null,
+      { accountId: account.id, branchId: account.branchId, systemBalance: formatCents(current), countedAmount: input.countedAmount,
+        salesTotal: formatCents(period.sales), expensesTotal: formatCents(period.expenses), expected: formatCents(expected),
+        deviation: formatCents(counted - expected), adjustment: formatCents(counted - current), moneyMoved: false });
+    return id;
+  });
+}
+
+/**
+ * اعتماد التسوية: حركة تسوية تُطابق الدفتر مع الواقع، ثم تحويل الفرق كاملًا في
+ * الاتجاه الصحيح (زيادة ← للخزنة، عجز ← من الخزنة)، بخطوة واحدة ذرّية.
+ */
+export async function confirmSettlement(db: FinanceDatabase, actorId: string, raw: unknown): Promise<WriteResult> {
+  const value = inputObject(raw), input = {
+    requestId: requestId(value.requestId),
+    settlementId: identifier(value.settlementId, "طلب التسوية"),
+    expectedBalance: signedMoney(value.expectedBalance, "الرصيد المعروض"),
+    transferAmount: money(value.transferAmount, "مبلغ التحويل", true),
+    transferDirection: settlementDirection(value.transferDirection),
+    reason: text(value.reason, "سبب الاعتماد", 300, true)!,
+    actuallyTransferred: confirmation(value.actuallyTransferred, "التسليم الفعلي"),
+    negativeAcknowledged: flag(value.negativeAcknowledged),
+  };
+  return command(db, actorId, "SETTLEMENT_CONFIRM", input.requestId, input, manage, async (tx, actor) => {
+    const rows = await tx.query<SettlementListRow>(`SELECT ${SETTLEMENT_SELECT} FROM finance.settlements s WHERE s.id=$1::bigint FOR UPDATE`, [input.settlementId]);
+    const settlement = rows.rows[0];
+    if (!settlement) throw new FinanceProblem("not_found", "طلب التسوية غير موجود.");
+    if (settlement.status !== "OPEN") throw new FinanceProblem("settlement_closed", "طلب التسوية ليس مفتوحًا؛ راجع سجله.");
+    if (settlement.requestedBy === actor.id) throw new FinanceProblem("forbidden", "لا اعتماد ذاتي: من أنشأ الطلب لا يعتمده.");
+    const custody = (await lockAccounts(tx, [settlement.accountId]))[0];
+    await activeBranch(tx, custody.branchId);
+    if (custody.kind !== "CUSTODY") throw new FinanceProblem("invalid_settlement", "التسوية للعهدة فقط.");
+    const vaultRows = await tx.query<AccountRow>(`SELECT id::text AS id,branch_id::text AS "branchId",kind,holder_id::text AS "holderId",
+      opening_amount::text AS "openingAmount",opening_date::text AS "openingDate",revision::text AS revision
+      FROM finance.accounts WHERE branch_id=$1::bigint AND kind='VAULT' FOR UPDATE`, [custody.branchId]);
+    const vault = vaultRows.rows[0];
+    if (!vault) throw new FinanceProblem("account_unopened", "لا توجد خزنة مفتوحة لهذا الفرع؛ افتحها بجرد فعلي قبل تأكيد التسوية.");
+
+    const current = await balance(tx, custody.id);
+    if (current !== exactCents(input.expectedBalance)) throw new FinanceProblem("balance_changed", "تغيّر رصيد العهدة منذ المراجعة؛ أعد فتح الطلب وراجعه.", { currentBalance: formatCents(current) });
+    const counted = exactCents(settlement.countedAmount);
+    const adjustment = counted - current;
+    if (adjustment > 0n && input.transferDirection !== "TO_VAULT") throw new FinanceProblem("invalid_direction", "العهدة زائدة؛ التحويل يكون من العهدة إلى خزنة الفرع.");
+    if (adjustment < 0n && input.transferDirection !== "TO_CUSTODY") throw new FinanceProblem("invalid_direction", "العهدة عاجزة؛ التحويل يكون من خزنة الفرع إلى العهدة.");
+
+    let adjustmentMovementId: string | null = null;
+    if (adjustment !== 0n) {
+      const amount = formatCents(adjustment < 0n ? -adjustment : adjustment);
+      const saved = await tx.query<IdRow>(`INSERT INTO finance.movements(kind,branch_id,source_id,destination_id,amount,settlement_id,actor_id)
+        VALUES('SETTLEMENT',$1::bigint,$2::bigint,$3::bigint,$4::numeric,$5::bigint,$6::bigint) RETURNING id::text AS id`,
+        [custody.branchId, adjustment > 0n ? null : custody.id, adjustment > 0n ? custody.id : null, amount, input.settlementId, actor.id]);
+      adjustmentMovementId = saved.rows[0].id;
+      await bumpAccounts(tx, [custody.id]);
+    }
+
+    let handoverMovementId: string | null = null;
+    const transfer = exactCents(input.transferAmount);
+    if (transfer > 0n) {
+      const projected = input.transferDirection === "TO_VAULT" ? counted - transfer : counted + transfer;
+      if (projected < 0n && !input.negativeAcknowledged) throw new FinanceProblem("negative_warning", "سيصبح رصيد العهدة سالبًا؛ راجع الفرق وأكد التحذير.", { currentBalance: formatCents(counted), projectedBalance: formatCents(projected) });
+      const fromId = input.transferDirection === "TO_VAULT" ? custody.id : vault.id;
+      const toId = input.transferDirection === "TO_VAULT" ? vault.id : custody.id;
+      const saved = await tx.query<IdRow>(`INSERT INTO finance.movements(kind,branch_id,source_id,destination_id,amount,settlement_id,actor_id)
+        VALUES('TRANSFER',$1::bigint,$2::bigint,$3::bigint,$4::numeric,$5::bigint,$6::bigint) RETURNING id::text AS id`,
+        [custody.branchId, fromId, toId, input.transferAmount, input.settlementId, actor.id]);
+      handoverMovementId = saved.rows[0].id;
+      await bumpAccounts(tx, [custody.id, vault.id]);
+    }
+
+    await tx.query(`UPDATE finance.settlements SET status='CONFIRMED',resolved_by=$1::bigint,resolved_at=CURRENT_TIMESTAMP,
+      resolution_reason=$2,transfer_amount=$3::numeric,transfer_direction=$4,adjustment_movement_id=$5::bigint,handover_movement_id=$6::bigint
+      WHERE id=$7::bigint`,
+      [actor.id, input.reason, input.transferAmount, input.transferDirection, adjustmentMovementId, handoverMovementId, input.settlementId]);
+    await audit(tx, "SETTLEMENT", input.settlementId, "CONFIRM", actor.id, input.reason,
+      { status: "OPEN", systemBalance: settlement.systemBalance },
+      { status: "CONFIRMED", systemBalance: formatCents(current), countedAmount: settlement.countedAmount,
+        adjustment: formatCents(adjustment), transferAmount: input.transferAmount, transferDirection: input.transferDirection,
+        adjustmentMovementId, handoverMovementId });
+    return input.settlementId;
+  });
+}
+
+/** رفض الطلب بسبب: بلا أي أثر مالي، ويبقى في السجل. */
+export async function rejectSettlement(db: FinanceDatabase, actorId: string, raw: unknown): Promise<WriteResult> {
+  const value = inputObject(raw), input = {
+    requestId: requestId(value.requestId),
+    settlementId: identifier(value.settlementId, "طلب التسوية"),
+    reason: text(value.reason, "سبب الرفض", 300, true)!,
+  };
+  return command(db, actorId, "SETTLEMENT_REJECT", input.requestId, input, manage, async (tx, actor) => {
+    const rows = await tx.query<SettlementListRow>(`SELECT ${SETTLEMENT_SELECT} FROM finance.settlements s WHERE s.id=$1::bigint FOR UPDATE`, [input.settlementId]);
+    const settlement = rows.rows[0];
+    if (!settlement) throw new FinanceProblem("not_found", "طلب التسوية غير موجود.");
+    if (settlement.status !== "OPEN") throw new FinanceProblem("settlement_closed", "طلب التسوية ليس مفتوحًا؛ راجع سجله.");
+    await tx.query(`UPDATE finance.settlements SET status='REJECTED',resolved_by=$1::bigint,resolved_at=CURRENT_TIMESTAMP,resolution_reason=$2 WHERE id=$3::bigint`,
+      [actor.id, input.reason, input.settlementId]);
+    await audit(tx, "SETTLEMENT", input.settlementId, "REJECT", actor.id, input.reason, { status: "OPEN" }, { status: "REJECTED", moneyMoved: false });
+    return input.settlementId;
+  });
+}
+
+/** إلغاء الطلب من صاحبه قبل الاعتماد: بلا أي أثر مالي. */
+export async function cancelSettlement(db: FinanceDatabase, actorId: string, raw: unknown): Promise<WriteResult> {
+  const value = inputObject(raw), input = {
+    requestId: requestId(value.requestId),
+    settlementId: identifier(value.settlementId, "طلب التسوية"),
+    reason: text(value.reason, "سبب الإلغاء", 300, true)!,
+  };
+  return command(db, actorId, "SETTLEMENT_CANCEL", input.requestId, input, anyFinanceActor, async (tx, actor) => {
+    const rows = await tx.query<SettlementListRow>(`SELECT ${SETTLEMENT_SELECT} FROM finance.settlements s WHERE s.id=$1::bigint FOR UPDATE`, [input.settlementId]);
+    const settlement = rows.rows[0];
+    if (!settlement) throw new FinanceProblem("not_found", "طلب التسوية غير موجود.");
+    if (settlement.status !== "OPEN") throw new FinanceProblem("settlement_closed", "طلب التسوية ليس مفتوحًا؛ راجع سجله.");
+    if (settlement.requestedBy !== actor.id && !canManageFinance(actor)) throw new FinanceProblem("forbidden", "إلغاء الطلب لصاحبه أو للإدارة فقط.");
+    await tx.query(`UPDATE finance.settlements SET status='CANCELLED',resolved_by=$1::bigint,resolved_at=CURRENT_TIMESTAMP,resolution_reason=$2 WHERE id=$3::bigint`,
+      [actor.id, input.reason, input.settlementId]);
+    await audit(tx, "SETTLEMENT", input.settlementId, "CANCEL", actor.id, input.reason, { status: "OPEN" }, { status: "CANCELLED", moneyMoved: false });
+    return input.settlementId;
+  });
 }
