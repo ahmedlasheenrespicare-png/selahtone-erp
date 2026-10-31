@@ -12,6 +12,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import type { FinanceDatabase, FinanceTransaction } from "../src/lib/finance/types";
+import { FinanceProblem } from "../src/lib/finance/types";
 import {
   approveExpense, cancelSettlement, confirmSettlement, createExpense, listSettlements,
   openAccount, payExpense, rejectSettlement, requestSettlement, settlementOverview,
@@ -222,7 +223,7 @@ test("the two pay sources are not interchangeable: only holder cash reaches the 
   }
 });
 
-test("confirmation recalculates the period, so a collection between request and confirmation is not lost", { timeout: 180_000 }, async () => {
+test("any cash movement after the request blocks confirmation, and re-requesting keeps the collection", { timeout: 180_000 }, async () => {
   const pg = await fresh();
   try {
     const db = adapter(pg);
@@ -230,33 +231,43 @@ test("confirmation recalculates the period, so a collection between request and 
     await openAccount(db, "1", opening("CUSTODY", "3", "1000"), today);
     await addCashSale(pg, "1", "500");
 
-    const request = await requestSettlement(db, "3", {
+    const first = await requestSettlement(db, "3", {
       requestId: req(), accountId: "2", countedAmount: "1500", expectedBalance: "1000", reason: "تسوية", actuallyCounted: true,
     });
-    // كما طُلبت: مبيعات ٥٠٠ والمتوقع ١٥٠٠.
-    const asRequested = (await pg.query<{ sales: string; expected: string; deviation: string }>(
-      `SELECT sales_total::text AS sales, expected_amount::text AS expected, deviation::text AS deviation FROM finance.settlements WHERE id=$1::bigint`, [request.id])).rows[0];
+    const asRequested = (await pg.query<{ sales: string; expected: string }>(
+      `SELECT sales_total::text AS sales, expected_amount::text AS expected FROM finance.settlements WHERE id=$1::bigint`, [first.id])).rows[0];
     assert.equal(asRequested.sales, "500.00");
     assert.equal(asRequested.expected, "1500.00");
-    assert.equal(asRequested.deviation, "0.00");
 
-    // بيع جديد بعد تقديم الطلب وقبل اعتماده: كان سيضيع بين الفترتين.
+    // بيع جديد بعد تقديم الطلب: النقد في اليد تغيّر منذ عُدّ، فالمعدود لم يعد صالحًا.
     await addCashSale(pg, "1", "200");
 
+    await assert.rejects(
+      () => confirmSettlement(db, "1", {
+        requestId: req(), settlementId: first.id, expectedBalance: "1000", transferAmount: "200",
+        transferDirection: "TO_VAULT", reason: "اعتماد", actuallyTransferred: true,
+      }),
+      (error: unknown) => error instanceof FinanceProblem && /حركة نقدية بعد تقديم الطلب/.test(error.message),
+    );
+    assert.equal(await movementCount(pg), 0);
+    assert.deepEqual(await statuses(pg), ["OPEN"]);
+
+    // يُلغى الطلب بسبب، ويُعاد الجرد بطلب جديد؛ الفترة تبدأ من آخر اعتماد فلا يضيع التحصيل.
+    await cancelSettlement(db, "3", { requestId: req(), settlementId: first.id, reason: "إعادة الجرد بعد بيع جديد" });
+    const second = await requestSettlement(db, "3", {
+      requestId: req(), accountId: "2", countedAmount: "1700", expectedBalance: "1000", reason: "تسوية بعد إعادة الجرد", actuallyCounted: true,
+    });
+    const recounted = (await pg.query<{ sales: string; expected: string; deviation: string }>(
+      `SELECT sales_total::text AS sales, expected_amount::text AS expected, deviation::text AS deviation FROM finance.settlements WHERE id=$1::bigint`, [second.id])).rows[0];
+    assert.equal(recounted.sales, "700.00"); // ٥٠٠ + ٢٠٠
+    assert.equal(recounted.expected, "1700.00");
+    assert.equal(recounted.deviation, "0.00");
+
     await confirmSettlement(db, "1", {
-      requestId: req(), settlementId: request.id, expectedBalance: "1000", transferAmount: "200",
+      requestId: req(), settlementId: second.id, expectedBalance: "1000", transferAmount: "700",
       transferDirection: "TO_VAULT", reason: "اعتماد", actuallyTransferred: true,
     });
-
-    const confirmed = (await pg.query<{ sales: string; expected: string; deviation: string; status: string }>(
-      `SELECT sales_total::text AS sales, expected_amount::text AS expected, deviation::text AS deviation, status FROM finance.settlements WHERE id=$1::bigint`, [request.id])).rows[0];
-    assert.equal(confirmed.status, "CONFIRMED");
-    // أُعيد حسابها لحظة الاعتماد فدخلت الـ٢٠٠.
-    assert.equal(confirmed.sales, "700.00");
-    assert.equal(confirmed.expected, "1700.00");
-    assert.equal(confirmed.deviation, "-200.00");
-    // والعهدة عادت إلى المعدود ناقص ما حُوّل للخزنة.
-    assert.deepEqual(await balances(pg), { "1": "10200.00", "2": "1300.00" });
+    assert.deepEqual(await balances(pg), { "1": "10700.00", "2": "1000.00" });
   } finally {
     await pg.close();
   }

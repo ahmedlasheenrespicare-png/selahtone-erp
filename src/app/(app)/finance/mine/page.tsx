@@ -29,6 +29,11 @@ export default async function MyCustodyPage() {
 
   const accounts = await financeRead(session, (tx) => listAccounts({ serializable: (work) => work(tx) }, session.id));
   const account = accounts.find((item) => item.kind === "CUSTODY" && item.holderId === session.id) ?? null;
+  // يُعرف الموظف أن طلبه معلق قبل أن يتسوّق، لا بعد أن يُبطل المعدود.
+  const openSettlement = account
+    ? await financeRead(session, (tx) => tx.query<{ id: string }>(
+        `SELECT id::text AS id FROM finance.settlements WHERE account_id=$1::bigint AND status='OPEN' ORDER BY id DESC LIMIT 1`, [account.id]))
+    : { rows: [] };
 
   return (
     <div className="fin-page">
@@ -46,6 +51,12 @@ export default async function MyCustodyPage() {
         </div>
       ) : (
         <>
+          {openSettlement.rows[0] ? (
+            <div className="fin-alert fin-alert--warning" role="status" style={{ marginBottom: 18 }}>
+              لديك طلب تسوية معلق بانتظار اعتماد المدير. أي حركة نقدية جديدة بعد تقديمه — بيع أو تحصيل أو مصروف أو رد —
+              تُبطل النقد المعدود، وسيحتاج الطلب إلى إلغاء بسبب وإعادة جرد بطلب جديد.
+            </div>
+          ) : null}
           <div className="fin-panel" style={{ marginBottom: 18 }}>
             <div className="fin-panel__heading">
               <h2>رصيد العهدة</h2>
