@@ -221,3 +221,72 @@ test("the two pay sources are not interchangeable: only holder cash reaches the 
     await pg.close();
   }
 });
+
+test("confirmation recalculates the period, so a collection between request and confirmation is not lost", { timeout: 180_000 }, async () => {
+  const pg = await fresh();
+  try {
+    const db = adapter(pg);
+    await openAccount(db, "1", opening("VAULT", null, "10000"), today);
+    await openAccount(db, "1", opening("CUSTODY", "3", "1000"), today);
+    await addCashSale(pg, "1", "500");
+
+    const request = await requestSettlement(db, "3", {
+      requestId: req(), accountId: "2", countedAmount: "1500", expectedBalance: "1000", reason: "تسوية", actuallyCounted: true,
+    });
+    // كما طُلبت: مبيعات ٥٠٠ والمتوقع ١٥٠٠.
+    const asRequested = (await pg.query<{ sales: string; expected: string; deviation: string }>(
+      `SELECT sales_total::text AS sales, expected_amount::text AS expected, deviation::text AS deviation FROM finance.settlements WHERE id=$1::bigint`, [request.id])).rows[0];
+    assert.equal(asRequested.sales, "500.00");
+    assert.equal(asRequested.expected, "1500.00");
+    assert.equal(asRequested.deviation, "0.00");
+
+    // بيع جديد بعد تقديم الطلب وقبل اعتماده: كان سيضيع بين الفترتين.
+    await addCashSale(pg, "1", "200");
+
+    await confirmSettlement(db, "1", {
+      requestId: req(), settlementId: request.id, expectedBalance: "1000", transferAmount: "200",
+      transferDirection: "TO_VAULT", reason: "اعتماد", actuallyTransferred: true,
+    });
+
+    const confirmed = (await pg.query<{ sales: string; expected: string; deviation: string; status: string }>(
+      `SELECT sales_total::text AS sales, expected_amount::text AS expected, deviation::text AS deviation, status FROM finance.settlements WHERE id=$1::bigint`, [request.id])).rows[0];
+    assert.equal(confirmed.status, "CONFIRMED");
+    // أُعيد حسابها لحظة الاعتماد فدخلت الـ٢٠٠.
+    assert.equal(confirmed.sales, "700.00");
+    assert.equal(confirmed.expected, "1700.00");
+    assert.equal(confirmed.deviation, "-200.00");
+    // والعهدة عادت إلى المعدود ناقص ما حُوّل للخزنة.
+    assert.deepEqual(await balances(pg), { "1": "10200.00", "2": "1300.00" });
+  } finally {
+    await pg.close();
+  }
+});
+
+test("a vault that would go negative is refused before any money moves", { timeout: 180_000 }, async () => {
+  const pg = await fresh();
+  try {
+    const db = adapter(pg);
+    await openAccount(db, "1", opening("VAULT", null, "100"), today);
+    await openAccount(db, "1", opening("CUSTODY", "3", "1000"), today);
+
+    const request = await requestSettlement(db, "3", {
+      requestId: req(), accountId: "2", countedAmount: "500", expectedBalance: "1000", reason: "عجز", actuallyCounted: true,
+    });
+    const confirm = (negativeAcknowledged: boolean) => confirmSettlement(db, "1", {
+      requestId: req(), settlementId: request.id, expectedBalance: "1000", transferAmount: "500",
+      transferDirection: "TO_CUSTODY", reason: "تغطية العجز", actuallyTransferred: true, negativeAcknowledged,
+    });
+
+    // الخزنة فيها ١٠٠ فقط، فتغطية ٥٠٠ تجعلها −٤٠٠ بلا تنبيه.
+    await assert.rejects(() => confirm(false));
+    assert.equal(await movementCount(pg), 0);
+    assert.deepEqual(await balances(pg), { "1": "100.00", "2": "1000.00" });
+
+    // بعد الإقرار الصريح تُسجَّل، ويبقى السالب ظاهرًا لا مخفيًا.
+    // العهدة تعود إلى رصيدها الدفتري، والخزنة تحمل العجز كاملًا.
+    await confirm(true);
+    assert.deepEqual(await balances(pg), { "1": "-400.00", "2": "1000.00" });
+  } finally {
+    await pg.close();
+  }
+});

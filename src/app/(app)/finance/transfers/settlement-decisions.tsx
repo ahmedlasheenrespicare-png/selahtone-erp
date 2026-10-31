@@ -8,6 +8,7 @@ import { formatMoney } from "../format";
 
 export type SettlementDecisionItem = {
   id: string;
+  branchId: string;
   branchName: string;
   holderName: string | null;
   systemBalance: string;

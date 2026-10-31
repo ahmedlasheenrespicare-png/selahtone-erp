@@ -8,9 +8,10 @@ import type { PaymentMethod } from "@/lib/commerce-validation";
 import { scaledInteger } from "@/lib/inventory-math";
 import { positiveDatabaseId } from "@/lib/inventory-validation";
 import { prisma } from "@/lib/prisma";
-import MovementForm from "./movement-form";
+import MovementForm, { type MovementAccountOption } from "./movement-form";
 import ReturnForm from "./return-form";
 import PrintButton from "./print-button";
+import { loadRefundAccounts } from "./refund-accounts";
 
 export const dynamic = "force-dynamic";
 type Props = { params: Promise<{ saleId: string }> };
@@ -46,6 +47,7 @@ export default async function SaleDetailPage({ params }: Props) {
     },
   });
   if (!sale) notFound();
+  const cashAccounts = await loadRefundAccounts(sale.branchId);
   const original = cents(sale.total);
   const returned = sale.returns.flatMap((entry) => entry.lines).reduce((sum, line) => sum + cents(line.total), 0n);
   const collected = sale.collections.reduce((sum, entry) => sum + cents(entry.amount), 0n);
@@ -83,7 +85,7 @@ export default async function SaleDetailPage({ params }: Props) {
       {session.role === "MANAGER" && <ReturnForm requestId={randomUUID()} saleId={id} lines={remainingLines} originalCents={original.toString()} returnedCents={returned.toString()} collectedCents={collected.toString()} refundedCents={refunded.toString()} unavailable={Boolean(sale.cancelledAt) || allReturned} />}
     </div><div className="sale-stack">
       <MovementForm mode="collect" saleId={id} requestId={randomUUID()} maximum={balance.dueFromCustomerCents.toString()} />
-      {canRefund && <MovementForm mode="refund" saleId={id} requestId={randomUUID()} maximum={balance.dueToCustomerCents.toString()} />}
+      {canRefund && <MovementForm mode="refund" saleId={id} requestId={randomUUID()} maximum={balance.dueToCustomerCents.toString()} accounts={cashAccounts} />}
     </div></div>
   </div>;
 }
