@@ -32,8 +32,8 @@ async function withSerializableRetry<T>(db: Db, work: (tx: Transaction) => Promi
   }
 }
 async function authorize(tx: Transaction, actorId: bigint, action: CommerceAction, branchId: bigint | null, branchActive: boolean): Promise<void> {
-  const actor = await tx.user.findUnique({ where: { id: actorId }, select: { status: true, roleCode: true, branchId: true, mustChangePassword: true } });
-  if (!actor || !canPerformCommerce({ role: actor.roleCode, status: actor.status, mustChangePassword: actor.mustChangePassword, branchId: actor.branchId }, action, branchId, branchActive)) {
+  const actor = await tx.user.findUnique({ where: { id: actorId }, select: { status: true, roleCode: true, branchId: true, mustChangePassword: true, canCancelSales: true } });
+  if (!actor || !canPerformCommerce({ role: actor.roleCode, status: actor.status, mustChangePassword: actor.mustChangePassword, branchId: actor.branchId, canCancelSales: actor.canCancelSales }, action, branchId, branchActive)) {
     throw new InventoryProblem("ليس لديك صلاحية لتنفيذ العملية في هذا الفرع.");
   }
 }

@@ -188,6 +188,7 @@ export default async function AdminPage() {
                               mustChangePassword: user.mustChangePassword,
                               isSelf: user.id.toString() === session.id,
                               menuScope: isMenuScope(user.menuScope) ? user.menuScope : "FULL",
+                              canCancelSales: user.canCancelSales,
                             }}
                             branches={activeBranches.map((branch) => ({ id: branch.id.toString(), nameAr: branch.nameAr, code: branch.code }))}
                           />
@@ -203,6 +204,7 @@ export default async function AdminPage() {
                               mustChangePassword: user.mustChangePassword,
                               isSelf: user.id.toString() === session.id,
                               menuScope: isMenuScope(user.menuScope) ? user.menuScope : "FULL",
+                              canCancelSales: user.canCancelSales,
                             }}
                           />
                         </div>

@@ -10,11 +10,11 @@ export async function searchAvailableSaleSerials(db: PrismaClient, actorId: bigi
   const normalized = latinDigits(raw.query.normalize("NFKC").trim()).toUpperCase();
   if (!warehouseId || !productId || normalized.length > 80 || /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u206f]/u.test(normalized)) throw new InventoryProblem("راجع بحث السيريال والصنف والمستودع.");
   const [actor, warehouse, product] = await Promise.all([
-    db.user.findUnique({ where: { id: actorId }, select: { status: true, roleCode: true, branchId: true, mustChangePassword: true } }),
+    db.user.findUnique({ where: { id: actorId }, select: { status: true, roleCode: true, branchId: true, mustChangePassword: true, canCancelSales: true } }),
     db.warehouse.findUnique({ where: { id: BigInt(warehouseId) }, include: { branch: { select: { isActive: true } } } }),
     db.product.findUnique({ where: { id: BigInt(productId) }, select: { isActive: true, category: true, isSerialized: true } }),
   ]);
-  if (!actor || !warehouse || !warehouse.isActive || !warehouse.holdsStock || !canPerformCommerce({ role: actor.roleCode, status: actor.status, mustChangePassword: actor.mustChangePassword, branchId: actor.branchId }, "CREATE_SALE", warehouse.branchId, warehouse.branch.isActive)) {
+  if (!actor || !warehouse || !warehouse.isActive || !warehouse.holdsStock || !canPerformCommerce({ role: actor.roleCode, status: actor.status, mustChangePassword: actor.mustChangePassword, branchId: actor.branchId, canCancelSales: actor.canCancelSales }, "CREATE_SALE", warehouse.branchId, warehouse.branch.isActive)) {
     throw new InventoryProblem("ليس لديك صلاحية للبحث في سيريالات هذا المستودع.");
   }
   if (!product || !product.isActive || product.category === "SERVICE" || !(product.isSerialized || product.category === "HEARING_AID")) throw new InventoryProblem("الصنف غير متاح أو لا يتطلب سيريالًا.");
