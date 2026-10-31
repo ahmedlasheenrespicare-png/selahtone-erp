@@ -3,6 +3,7 @@ import { AppIcon, type AppIconName } from "@/components/app-icon";
 import { prisma } from "@/lib/prisma";
 import { requireSession, branchScope, canSeeAllBranches } from "@/lib/auth";
 import { formatInventoryDecimal, stockValueScaled } from "@/lib/inventory-math";
+import { loadCashSummary, loadEmployeeCash } from "@/lib/finance/dashboard";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +58,30 @@ export default async function DashboardPage() {
   );
   const warehouseCount = branches.reduce((count, branch) => count + branch.warehouses.length, 0);
   const now = new Date();
+
+  // النقد أولًا لمن يحمل عهدة: ما بيده وما يُطلب منه، لا ملخّص الشركة.
+  // الوحدة تُرجع null إن كانت المالية معطّلة أو لم تُفتح له عهدة، فلا يظهر شيء.
+  const cash = await loadEmployeeCash(session);
+  const summary = cash ? null : await loadCashSummary(session);
+  const cashActions = cash
+    ? [
+        cash.settlementStale
+          ? { key: "stale", tone: "warning", text: "طلب تسوية معلق وقد بطل بحركة نقدية بعده — ألغِه بسبب وأعد الجرد بطلب جديد.", href: "/finance/mine" }
+          : null,
+        cash.openSettlementId
+          ? { key: "open", tone: "info", text: "لديك طلب تسوية معلق بانتظار اعتماد المدير. أي حركة نقدية جديدة تُبطل المعدود.", href: "/finance/mine" }
+          : null,
+        cash.pendingExpenses > 0
+          ? { key: "pending", tone: "info", text: `${cash.pendingExpenses} مصروفًا بانتظار اعتماد المدير.`, href: "/finance/expenses" }
+          : null,
+        cash.approvedUnpaid > 0
+          ? { key: "approved", tone: "warning", text: `${cash.approvedUnpaid} مصروفًا معتمدًا بانتظار تسجيل الصرف.`, href: "/finance/expenses" }
+          : null,
+        cash.outstandingCount > 0
+          ? { key: "outstanding", tone: "info", text: `${cash.outstandingCount} فاتورة عليها باقٍ لدى العملاء.`, href: "/sales" }
+          : null,
+      ].filter((item): item is { key: string; tone: string; text: string; href: string } => item !== null)
+    : [];
   const metrics: Metric[] = [
     {
       label: "الفروع النشطة",
@@ -102,6 +127,109 @@ export default async function DashboardPage() {
           <div><small>تاريخ اليوم</small><time dateTime={now.toISOString()}>{dateFormatter.format(now)}</time></div>
         </div>
       </div>
+
+      {cash ? (
+        <section className="dashboard-panel" aria-labelledby="cash-title" style={{ marginBottom: 18 }}>
+          <div className="dashboard-panel__heading">
+            <div>
+              <p className="dashboard-panel__eyebrow">عهدة الموظف</p>
+              <h2 id="cash-title">المتوقَّع بيدك الآن</h2>
+              <p>هذا ما يجب أن يكون في يدك فعلًا وبه تُسأل عند التسليم — لا الرصيد الدفتري وحده.</p>
+            </div>
+            <span className="dashboard-panel__heading-icon"><AppIcon name="receipt" /></span>
+          </div>
+          <div className="dashboard-metrics">
+            <article className="dashboard-metric">
+              <p className="dashboard-metric__label">المتوقَّع بيدك</p>
+              <div className="dashboard-metric__value"><strong>{nf.format(Number(cash.expected))}</strong><span>ج.م</span></div>
+              <p className="dashboard-metric__detail">
+                رصيد العهدة {nf.format(Number(cash.balance))} + مبيعات الفترة {nf.format(Number(cash.sales))} − مصروفاتها من نقدك {nf.format(Number(cash.expenses))}
+              </p>
+            </article>
+            <article className="dashboard-metric">
+              <p className="dashboard-metric__label">مبيعات اليوم نقدًا</p>
+              <div className="dashboard-metric__value"><strong>{nf.format(Number(cash.todaySales))}</strong><span>ج.م</span></div>
+              <p className="dashboard-metric__detail">{nf.format(cash.todaySalesCount)} فاتورة</p>
+            </article>
+            <article className="dashboard-metric">
+              <p className="dashboard-metric__label">مصروفات اليوم من نقدك</p>
+              <div className="dashboard-metric__value"><strong>{nf.format(Number(cash.todayExpenses))}</strong><span>ج.م</span></div>
+              <p className="dashboard-metric__detail">مما صرفته من العهدة اليوم</p>
+            </article>
+            <article className="dashboard-metric">
+              <p className="dashboard-metric__label">باقٍ على العملاء</p>
+              <div className="dashboard-metric__value"><strong>{nf.format(Number(cash.outstanding))}</strong><span>ج.م</span></div>
+              <p className="dashboard-metric__detail">{nf.format(cash.outstandingCount)} فاتورة آجلة</p>
+            </article>
+          </div>
+          <div className="dashboard-panel__footer">
+            <span>المتوقَّع بيدك يتغيّر مع كل بيع نقدي ومع كل مصروف تصرفه من نقدك</span>
+          </div>
+        </section>
+      ) : null}
+
+      {cash ? (
+        <section className="dashboard-panel" aria-labelledby="todo-title" style={{ marginBottom: 18 }}>
+          <div className="dashboard-panel__heading">
+            <div>
+              <p className="dashboard-panel__eyebrow">يحتاج إجراءك</p>
+              <h2 id="todo-title">ما ينتظرك اليوم</h2>
+            </div>
+            <span className="dashboard-count">{nf.format(cashActions.length)} عنصر</span>
+          </div>
+          {cashActions.length > 0 ? (
+            <div className="dashboard-setup__items">
+              {cashActions.map((item) => (
+                <Link className="dashboard-shortcut" key={item.key} href={item.href}>
+                  <span className={`dashboard-shortcut__icon ${item.tone === "warning" ? "is-cyan" : "is-blue"}`}><AppIcon name="receipt" /></span>
+                  <span><strong>{item.text}</strong></span>
+                  <AppIcon className="dashboard-shortcut__arrow" name="arrow" />
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="dashboard-empty">
+              <strong>لا شيء يطلب منك الآن</strong>
+              <p>لا طلب تسوية معلق ولا مصروفات بانتظار الاعتماد.</p>
+            </div>
+          )}
+        </section>
+      ) : null}
+
+      {summary && summary.custodyCount > 0 ? (
+        <section className="dashboard-panel" aria-labelledby="summary-title" style={{ marginBottom: 18 }}>
+          <div className="dashboard-panel__heading">
+            <div>
+              <p className="dashboard-panel__eyebrow">ملخّص النقد</p>
+              <h2 id="summary-title">العهدة والمستحق للخزنة</h2>
+              <p>مجمَّع «المتوقَّع بيده» لكل عهدة، لا أرصدتها الدفترية.</p>
+            </div>
+            <span className="dashboard-count">{nf.format(summary.custodyCount)} عهدة</span>
+          </div>
+          <div className="dashboard-metrics">
+            <article className="dashboard-metric">
+              <p className="dashboard-metric__label">المتوقَّع في كل العهد</p>
+              <div className="dashboard-metric__value"><strong>{nf.format(Number(summary.totalExpected))}</strong><span>ج.م</span></div>
+              <p className="dashboard-metric__detail">ما سيُسلَّم للخزنة عند التسويات</p>
+            </article>
+            <article className="dashboard-metric">
+              <p className="dashboard-metric__label">طلبات تسوية معلقة</p>
+              <div className="dashboard-metric__value"><strong>{nf.format(summary.pendingSettlements)}</strong></div>
+              <p className="dashboard-metric__detail">بانتظار اعتمادك</p>
+            </article>
+            <article className="dashboard-metric">
+              <p className="dashboard-metric__label">مصروفات بانتظار الاعتماد</p>
+              <div className="dashboard-metric__value"><strong>{nf.format(summary.pendingExpenses)}</strong></div>
+              <p className="dashboard-metric__detail">لم تُعتمد بعد</p>
+            </article>
+            <article className="dashboard-metric">
+              <p className="dashboard-metric__label">معتمدة بانتظار الصرف</p>
+              <div className="dashboard-metric__value"><strong>{nf.format(summary.approvedUnpaid)}</strong></div>
+              <p className="dashboard-metric__detail">اعتمدت ولم تُصرف</p>
+            </article>
+          </div>
+        </section>
+      ) : null}
 
       <section className="dashboard-overview" aria-labelledby="overview-title">
         <div className="dashboard-section-heading">

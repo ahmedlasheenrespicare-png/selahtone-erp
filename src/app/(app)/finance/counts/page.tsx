@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
-import { listAccounts, listCashCounts } from "@/lib/finance/engine";
+import { listAccounts, listCashCounts, settlementOverview } from "@/lib/finance/engine";
 import { prisma } from "@/lib/prisma";
 import { accountLabel, formatMoney } from "../format";
 import { financePage, financeRead } from "../page-context";
@@ -30,12 +30,21 @@ export default async function CountsPage() {
   ]);
   const branchNames = new Map(branches.map((branch) => [branch.id.toString(), branch.nameAr]));
   const userNames = new Map(users.map((user) => [user.id.toString(), user.fullName]));
+  // العهدة وحدها تُسوّى: مبيعات الفترة ومصروفاتها من نقد الموظف تدخل في
+  // «المتوقَّع بيده» الذي يُقاس عليه الجرد، ولا تدخل في رصيد خزنة الفرع.
+  const expectedByAccount = new Map<string, string>();
+  for (const account of accounts) {
+    if (account.kind !== "CUSTODY") continue;
+    const overview = await financeRead(session, (tx) => settlementOverview({ serializable: (work) => work(tx) }, session.id, account.id));
+    if (overview.account) expectedByAccount.set(account.id, overview.expected);
+  }
   const accountOptions: CountAccountOption[] = accounts.map((account) => ({
     id: account.id,
     kind: account.kind,
     branchName: branchNames.get(account.branchId) ?? "الفرع",
     holderName: account.holderId ? userNames.get(account.holderId) ?? "موظف" : null,
     balance: account.balance,
+    expected: expectedByAccount.get(account.id) ?? account.balance,
   }));
   const accountLabelById = new Map(accountOptions.map((account) => [account.id, `${account.branchName} · ${accountLabel(account.kind)}${account.holderName ? ` · ${account.holderName}` : ""}`]));
   const open = counts.filter((count) => count.status === "OPEN");
@@ -65,7 +74,7 @@ export default async function CountsPage() {
                   <div className="fin-panel__heading">
                     <h2>جرد رقم {count.id}</h2>
                     <p>
-                      {accountLabelById.get(count.accountId) ?? "الحساب"} · رصيد دفتري {formatMoney(count.observedBalance)} ·
+                      {accountLabelById.get(count.accountId) ?? "الحساب"} · المتوقَّع في اليد {formatMoney(count.observedBalance)} ·
                       معدود {formatMoney(count.countedAmount)} · الفرق {formatMoney(count.difference)}
                     </p>
                     <p>السبب: {count.reason} · بتاريخ {count.countedOn}</p>

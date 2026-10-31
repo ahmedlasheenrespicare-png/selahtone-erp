@@ -5,7 +5,7 @@ import { cancelCountAction, confirmCountAction, requestCountAction } from "../ac
 import { initialFinanceActionState } from "../finance-state";
 import { accountLabel, formatMoney } from "../format";
 
-export type CountAccountOption = { id: string; kind: "VAULT" | "CUSTODY"; branchName: string; holderName: string | null; balance: string };
+export type CountAccountOption = { id: string; kind: "VAULT" | "CUSTODY"; branchName: string; holderName: string | null; balance: string; expected: string };
 
 /** A count is an observation: it records what was actually counted against the
  * balance the database holds, and never moves money on its own. */
@@ -20,7 +20,10 @@ export function CountRequestForm({ requestId, accounts }: { requestId: string; a
   const account = accounts.find((item) => item.id === accountId) ?? null;
   const counted = Number(countedAmount);
   const countedValid = countedAmount.trim() !== "" && Number.isFinite(counted) && counted >= 0;
-  const observed = account ? Number(account.balance) : null;
+  // مرجع الجرد «المتوقَّع بيده» لا الرصيد الدفتري: مبيعات الفترة ومصروفاتها من
+  // نقد الموظف لم تُسوَ بعد، والمقارنة بالدفتري تخترع عجزًا بقدرها ثم تخصمه
+  // التسوية مرة أخرى. خزنة الفرع لا تُسوّى فمرجعها رصيدها نفسه.
+  const observed = account ? Number(account.expected) : null;
   const difference = account && countedValid ? counted - observed! : null;
   const ready = Boolean(account) && countedValid && reason.trim().length > 0 && actuallyCounted;
 
@@ -48,7 +51,13 @@ export function CountRequestForm({ requestId, accounts }: { requestId: string; a
               </option>
             ))}
           </select>
-          {account ? <span className="fin-field__hint">الرصيد الدفتري الآن: {formatMoney(account.balance)}</span> : null}
+          {account ? (
+            <span className="fin-field__hint">
+              {account.kind === "CUSTODY"
+                ? `الرصيد الدفتري: ${formatMoney(account.balance)} · المتوقَّع بيده الآن: ${formatMoney(account.expected)}`
+                : `الرصيد الدفتري الآن: ${formatMoney(account.balance)}`}
+            </span>
+          ) : null}
         </label>
         <label className="field fin-field">
           <span className="fin-field__label">النقد المعدود فعليًا</span>

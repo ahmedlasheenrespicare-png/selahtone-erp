@@ -597,8 +597,15 @@ export async function requestCashCount(db: FinanceDatabase, actorId: string, raw
     const pending = await tx.query<IdRow>(`SELECT id::text AS id FROM finance.cash_counts WHERE account_id=$1::bigint AND status='OPEN'`, [account.id]);
     if (pending.rows[0]) throw new FinanceProblem("count_exists", "يوجد جرد مفتوح لهذا الحساب؛ راجعه أو ألغِه بسبب قبل تسجيل جرد آخر.");
     const current = await balance(tx, account.id);
-    if (current !== exactCents(input.expectedBalance)) throw new FinanceProblem("balance_changed", "تغير رصيد الحساب؛ أعد الجرد والمراجعة قبل التسجيل.");
-    const difference = exactCents(input.countedAmount) - current;
+    // الجرد يقيس «ما يجب أن يكون في اليد» لا الرصيد الدفتري وحده. مبيعات الفترة
+    // ومصروفاتها من نقد الموظف لم تُسوَ بعد، فالرصيد الدفتري يتجاهلها: المقارنة
+    // به تخترع عجزًا بقيمة المصروف، ثم تخصمه التسوية مرة أخرى فينقص رصيد العهدة
+    // بلا سبب ولا يُردّ المصروف للموظف. العهدة وحدها تحمل مبيعات ومصروفات؛
+    // خزنة الفرع لا تُسوّى، فمرجعها رصيدها الدفتري.
+    const period = account.kind === "CUSTODY" ? await settlementPeriod(tx, account.id, account.branchId) : null;
+    const expectedInHand = current + (period?.sales ?? 0n) - (period?.expenses ?? 0n);
+    if (expectedInHand !== exactCents(input.expectedBalance)) throw new FinanceProblem("balance_changed", "تغير الرصيد المتوقع في اليد؛ أعد الجرد والمراجعة قبل التسجيل.");
+    const difference = exactCents(input.countedAmount) - expectedInHand;
     // One movement has a bounded NUMERIC(14,2) amount; don't partially settle an extreme difference.
     if (difference !== 0n) money(formatCents(difference < 0n ? -difference : difference), "فرق الجرد");
     const saved = await tx.query<IdRow>(`INSERT INTO finance.cash_counts(account_id,counted_amount,observed_balance,difference,account_revision,counted_on,reason,created_by)
@@ -627,9 +634,11 @@ export async function confirmCashCount(db: FinanceDatabase, actorId: string, raw
     const count = counts.rows[0];
     if (!count || count.status !== "OPEN") throw new FinanceProblem("count_closed", "طلب الجرد غير مفتوح؛ راجع سجله.");
     const current = await balance(tx,account.id);
-    if (account.revision !== count.accountRevision || current !== exactCents(count.observedBalance)) throw new FinanceProblem("count_stale", "حدثت حركة بعد الجرد؛ ألغِ الطلب بسبب واضح وأعد الجرد قبل التسوية.");
+    const period = account.kind === "CUSTODY" ? await settlementPeriod(tx, account.id, account.branchId) : null;
+    const expectedInHand = current + (period?.sales ?? 0n) - (period?.expenses ?? 0n);
+    if (account.revision !== count.accountRevision || expectedInHand !== exactCents(count.observedBalance)) throw new FinanceProblem("count_stale", "حدثت حركة أو تحصيل أو مصروف بعد الجرد؛ ألغِ الطلب بسبب واضح وأعد الجرد قبل التسوية.");
     const difference = exactCents(count.difference);
-    if (difference !== exactCents(count.countedAmount) - current) throw new FinanceProblem("inconsistent_record", "بيانات فرق الجرد غير متطابقة؛ لم تُحفظ التسوية.");
+    if (difference !== exactCents(count.countedAmount) - expectedInHand) throw new FinanceProblem("inconsistent_record", "بيانات فرق الجرد غير متطابقة؛ لم تُحفظ التسوية.");
     let movementId: string | null = null;
     if (difference !== 0n) {
       const out = difference < 0n, amount = formatCents(out ? -difference : difference);
@@ -1168,6 +1177,20 @@ export async function confirmSettlement(db: FinanceDatabase, actorId: string, ra
 
     const current = await balance(tx, custody.id);
     if (current !== exactCents(input.expectedBalance)) throw new FinanceProblem("balance_changed", "تغيّر رصيد العهدة منذ المراجعة؛ أعد فتح الطلب وراجعه.", { currentBalance: formatCents(current) });
+    // المعدود لقطة زمنية: أي حركة نقدية بعد تقديم الطلب تعني أن النقد في اليد
+    // تغيّر منذ عُدّ. الاعتماد حينها يجعل الرصيد يطابق واقعًا قديمًا، فتُرفض
+    // العملية ليُعاد الجرد بطلب جديد بدل تسوية فرق لا أحد يعرف مصدره.
+    const stale = await tx.query<Row & { n: number }>(`SELECT ((
+        SELECT count(*) FROM finance.movements
+         WHERE (source_id=$1::bigint OR destination_id=$1::bigint) AND created_at > $2::timestamptz)
+      + (SELECT count(*) FROM public.commerce_collections c JOIN public.commerce_sales s ON s.id=c.sale_id
+          WHERE s.branch_id=$3::bigint AND c.method='CASH' AND c.created_at > $2::timestamptz)
+      + (SELECT count(*) FROM finance.payments p JOIN finance.expenses e ON e.id=p.expense_id
+          WHERE e.branch_id=$3::bigint AND p.source='HOLDER_CASH' AND p.recorded_at > $2::timestamptz)
+      )::int AS n`, [custody.id, settlement.createdAt, custody.branchId]);
+    if (Number(stale.rows[0].n) > 0)
+      throw new FinanceProblem("count_stale", "وقعت حركة نقدية بعد تقديم الطلب، فالمعدود لم يعد مطابقًا للنقد في اليد. ألغِ الطلب بسبب واضح وأعد الجرد، ثم قدّم طلبًا جديدًا.");
+
     // الأرقام تُعاد حسابها لحظة الاعتماد لا لحظة الطلب: أي تحصيل أو صرف وقع بين
     // اللحظتين يدخل هذه التسوية، فلا يضيع في الفراغ بين نهاية فترة وبداية أخرى.
     const period = await settlementPeriod(tx, custody.id, custody.branchId);
