@@ -90,6 +90,18 @@ export function parseSaleInput(raw: unknown): ValidationResult<SaleInput> {
  * of the record. Without it the amount is paid to the customer with no movement
  * anywhere, and the employee's custody silently keeps money he no longer holds.
  */
+// أصناف الكتالوج تُباع بلا productId، فلا قيدَ في قاعدة البيانات يمنع تكرار
+// الصنف في الفاتورة، وهذا الفحص بديله. وهو يمنع «التكرار بالقيم نفسها» لا
+// التكرار مطلقًا: لأن منع التكرار مطلقًا يمنع بيع وحدتين من صنفٍ تحمل كلّ واحدة
+// حقولًا تخصها — كرقم تسلسلي لسماعتين — إذ تحمل كل فاتورة «details» واحدًا لكل
+// بند، فالجمع في بند بكمية ٢ يضيع إحدى القيمتين. أما التكرار بالقيم نفسها فبلا
+// معنى ويُجمع في بند واحد.
+export function duplicatesCatalogLine(lines: ReadonlyArray<{ typeId: string; details: ReadonlyArray<{ key: string; value: string }> }>): boolean {
+  const fingerprints = lines.map((line) =>
+    `${line.typeId}|${JSON.stringify([...line.details].map((detail) => [detail.key, detail.value]).sort())}`);
+  return new Set(fingerprints).size !== fingerprints.length;
+}
+
 export type MoneyMovementInput = {
   requestId: string; saleId: string; amount: string; method: PaymentMethod; actuallyPaid: boolean;
   accountId: string | null; negativeAcknowledged: boolean;

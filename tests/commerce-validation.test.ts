@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { parseDiscountSetting, parseMoneyMovement, parseReturnInput, parseSaleInput } from "../src/lib/commerce-validation";
+import { duplicatesCatalogLine, parseDiscountSetting, parseMoneyMovement, parseReturnInput, parseSaleInput } from "../src/lib/commerce-validation";
 
 function sale() {
   return { requestId: randomUUID(), warehouseId: "١", customerName: "  عميل تجريبي  ", customerPhone: "٠١٠٠٠٠٠٠٠٠٠", discount: "١٠", initialPayment: "٢٠٫٥", method: "CARD", lines: [
@@ -47,4 +47,25 @@ test("return, paid refund and staff limit validation fail closed", () => {
   assert.equal(parseDiscountSetting({ requestId, percent: "10", managerPercent: "5" }).ok, false);
   // وسقف المدير لازم، فلا يُحفظ إعداد ناقص يترك المدير بلا حدّ.
   assert.equal(parseDiscountSetting({ requestId, percent: "10" }).ok, false);
+});
+
+// أصناف الكتالوج لا تحمل productId، فلا قيدَ في قاعدة البيانات يمنع تكرارها،
+// وهذه القاعدة بديله. وهي تمنع التكرار بالقيم نفسها لا التكرار مطلقًا: فالسماعة
+// تُباع بالرقم التسلسلي، وبيع اثنتين في فاتورة يلزم بندين لكلٍّ رقمه، لأن حقل
+// «details» واحد لكل بند ولا يسع الرقمين. أما البطارية بلا حقول فتكرارها تكرار
+// محض، ولا معنى له إلا الجمع في بند واحد.
+test("duplicate catalog lines are rejected when their values match and allowed when they differ", () => {
+  const battery = { typeId: "٧", details: [] };
+  assert.equal(duplicatesCatalogLine([battery, { typeId: "٧", details: [] }]), true);
+
+  const hearingAid = (serial: string) => ({ typeId: "٩", details: [{ key: "رقم تسلسلي", value: serial }] });
+  assert.equal(duplicatesCatalogLine([hearingAid("A-1"), hearingAid("B-2")]), false);
+  assert.equal(duplicatesCatalogLine([hearingAid("A-1"), hearingAid("A-1")]), true);
+
+  // ترتيب الحقول لا يغيّر البصمة، وإلا صار رفض الصنف يتوقف على ترتيب الإدخال.
+  const both = (a: string, b: string) => ({ typeId: "٩", details: [{ key: "يمين", value: a }, { key: "يسار", value: b }] });
+  assert.equal(duplicatesCatalogLine([both("A", "B"), { typeId: "٩", details: [{ key: "يسار", value: "B" }, { key: "يمين", value: "A" }] }]), true);
+
+  assert.equal(duplicatesCatalogLine([battery]), false);
+  assert.equal(duplicatesCatalogLine([]), false);
 });

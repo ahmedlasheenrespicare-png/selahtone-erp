@@ -6,6 +6,7 @@ import {
   CommerceMathError,
 } from "./commerce-math";
 import { canPerformCommerce, type CommerceAction } from "./commerce-policy";
+import { duplicatesCatalogLine } from "./commerce-validation";
 import { scaledInteger } from "./inventory-math";
 import { InventoryProblem } from "./inventory-operations";
 import {
@@ -113,7 +114,7 @@ export async function createCatalogSale(db: Db, actorId: bigint, raw: unknown): 
       if (!settings || settings.staffDiscountBps < 0 || settings.staffDiscountBps > 10000
         || settings.managerDiscountBps < 0 || settings.managerDiscountBps > 10000) throw new InventoryProblem("إعداد حد الخصم غير صالح؛ راجع المدير.");
 
-      if (new Set(input.lines.map((line) => line.typeId)).size !== input.lines.length) throw new InventoryProblem("لا تكرر الصنف في الفاتورة؛ اجمع الكمية في بند واحد.");
+      if (duplicatesCatalogLine(input.lines)) throw new InventoryProblem("لا تكرر الصنف في الفاتورة بالقيم نفسها؛ اجمع الكمية في بند واحد، أو اكتب قيمًا مختلفة إن اختلفت من وحدة لأخرى.");
       const types = await tx.salesItemType.findMany({
         where: { id: { in: input.lines.map((line) => BigInt(line.typeId)) }, isActive: true, category: { isActive: true } },
         include: { category: true, fields: { where: { isActive: true }, orderBy: [{ sortOrder: "asc" }, { id: "asc" }] } },
