@@ -353,8 +353,8 @@ export async function changeStaffDiscountLimit(db: Db, actorId: bigint, raw: unk
       if (prior) { ensureMatchingRequest(prior, actorId, requestHash); return { id: prior.id.toString(), replayed: true }; }
       const locked = await tx.$queryRaw<Array<{ id: number }>>`SELECT "id" FROM "commerce_settings" WHERE "id" = 1 FOR UPDATE`;
       if (locked.length !== 1) throw new InventoryProblem("إعداد حد الخصم غير موجود.");
-      await tx.commerceSettings.update({ where: { id: 1 }, data: { staffDiscountBps: input.basisPoints, updatedById: actorId, updatedAt: new Date() } });
-      const change = await tx.commerceSettingsChange.create({ data: { requestId: input.requestId, requestHash, staffDiscountBps: input.basisPoints, createdById: actorId }, select: { id: true } });
+      await tx.commerceSettings.update({ where: { id: 1 }, data: { staffDiscountBps: input.basisPoints, managerDiscountBps: input.managerBasisPoints, updatedById: actorId, updatedAt: new Date() } });
+      const change = await tx.commerceSettingsChange.create({ data: { requestId: input.requestId, requestHash, staffDiscountBps: input.basisPoints, managerDiscountBps: input.managerBasisPoints, createdById: actorId }, select: { id: true } });
       return { id: change.id.toString(), replayed: false };
     });
   } catch (error) {

@@ -40,7 +40,11 @@ test("return, paid refund and staff limit validation fail closed", () => {
   assert.equal(parseReturnInput({ requestId, saleId: "1", cancel: true, accepted: true, lines: [{ saleLineId: "1", quantity: "1", serialIds: [] }] }).ok, false);
   assert.equal(parseMoneyMovement({ requestId, saleId: "1", amount: "10", method: "CASH", actuallyPaid: false }, true).ok, false);
   assert.equal(parseMoneyMovement({ requestId, saleId: "1", amount: "10", method: "WALLET", actuallyPaid: true }, true).ok, true);
-  const limit = parseDiscountSetting({ requestId, percent: "٧٫٥" });
-  assert.ok(limit.ok); assert.equal(limit.value.basisPoints, 750);
-  assert.equal(parseDiscountSetting({ requestId, percent: "100.01" }).ok, false);
+  const limit = parseDiscountSetting({ requestId, percent: "٧٫٥", managerPercent: "٢٥" });
+  assert.ok(limit.ok); assert.equal(limit.value.basisPoints, 750); assert.equal(limit.value.managerBasisPoints, 2500);
+  assert.equal(parseDiscountSetting({ requestId, percent: "100.01", managerPercent: "25" }).ok, false);
+  // المدير استثناء أوسع لا أضيق: سقفه لا ينزل عن سقف الموظف.
+  assert.equal(parseDiscountSetting({ requestId, percent: "10", managerPercent: "5" }).ok, false);
+  // وسقف المدير لازم، فلا يُحفظ إعداد ناقص يترك المدير بلا حدّ.
+  assert.equal(parseDiscountSetting({ requestId, percent: "10" }).ok, false);
 });

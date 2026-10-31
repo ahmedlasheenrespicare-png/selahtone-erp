@@ -49,7 +49,7 @@ export default async function WarehouseSale({ warehouseParam }: Props) {
         </select></div><button className="inv-button inv-button--secondary" type="submit">فتح قائمة الأصناف</button>
       </div></form>
       {warehouse && settings && <>
-        <SaleForm requestId={randomUUID()} warehouseId={warehouse.id.toString()} warehouseName={`${warehouse.branch.nameAr} — ${warehouse.nameAr}`} staff={session.role === "CS_AGENT"} discountBps={settings.staffDiscountBps} products={products.map((product) => {
+        <SaleForm requestId={randomUUID()} warehouseId={warehouse.id.toString()} warehouseName={`${warehouse.branch.nameAr} — ${warehouse.nameAr}`} staff={session.role === "CS_AGENT"} discountBps={session.role === "MANAGER" ? settings.managerDiscountBps : settings.staffDiscountBps} products={products.map((product) => {
           const tax = product.taxRate;
           const supported = tax && tax.isActive && tax.effectiveFrom <= today && (!tax.effectiveTo || tax.effectiveTo >= today) && ["VAT", "SCHEDULE", "EXEMPT"].includes(tax.kind) && tax.rate.greaterThanOrEqualTo(0) && tax.rate.lessThanOrEqualTo(100) && (tax.kind !== "EXEMPT" || tax.rate.isZero());
           return { id: product.id.toString(), name: product.nameAr, sku: product.sku, unitPrice: product.salePrice.toFixed(2), taxId: tax?.id.toString() ?? "", taxKind: tax?.kind ?? "", taxRate: tax?.rate.toFixed(3) ?? "", taxCode: tax?.code ?? "غير محدد", taxUsable: Boolean(supported), isStock: product.category !== "SERVICE", isSerialized: product.category !== "SERVICE" && (product.isSerialized || product.category === "HEARING_AID"), quantityAvailable: levels.get(product.id.toString()) ?? "0.00" };

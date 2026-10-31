@@ -147,7 +147,7 @@ export function parseReturnInput(raw: unknown): ValidationResult<ReturnInput> {
   return { ok: true, value: { requestId: request, saleId, cancel, accepted: true, lines: sortIds(lines, (line) => line.saleLineId) } };
 }
 
-export type DiscountSettingInput = { requestId: string; basisPoints: number };
+export type DiscountSettingInput = { requestId: string; basisPoints: number; managerBasisPoints: number };
 export function parseDiscountSetting(raw: unknown): ValidationResult<DiscountSettingInput> {
   const input = object(raw);
   const request = requestId(input?.requestId);
@@ -155,5 +155,11 @@ export function parseDiscountSetting(raw: unknown): ValidationResult<DiscountSet
   if (!request || percent === null) return { ok: false, errors: { percent: "أدخل نسبة من 0 إلى 100 حتى منزلتين عشريتين." } };
   const basisPoints = scaledInteger(percent, 2);
   if (basisPoints > 10000n) return { ok: false, errors: { percent: "أدخل نسبة من 0 إلى 100." } };
-  return { ok: true, value: { requestId: request, basisPoints: Number(basisPoints) } };
+  const managerPercent = decimalString(string(input?.managerPercent), 5, 2);
+  if (managerPercent === null) return { ok: false, errors: { managerPercent: "أدخل نسبة من 0 إلى 100 حتى منزلتين عشريتين." } };
+  const managerBasisPoints = scaledInteger(managerPercent, 2);
+  if (managerBasisPoints > 10000n) return { ok: false, errors: { managerPercent: "أدخل نسبة من 0 إلى 100." } };
+  // المدير استثناء أوسع لا أضيق: سقفه لا ينزل عن سقف الموظف.
+  if (managerBasisPoints < basisPoints) return { ok: false, errors: { managerPercent: "سقف المدير يجب ألا يقل عن سقف الموظف." } };
+  return { ok: true, value: { requestId: request, basisPoints: Number(basisPoints), managerBasisPoints: Number(managerBasisPoints) } };
 }
