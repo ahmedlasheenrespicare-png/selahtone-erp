@@ -1168,6 +1168,20 @@ export async function confirmSettlement(db: FinanceDatabase, actorId: string, ra
 
     const current = await balance(tx, custody.id);
     if (current !== exactCents(input.expectedBalance)) throw new FinanceProblem("balance_changed", "تغيّر رصيد العهدة منذ المراجعة؛ أعد فتح الطلب وراجعه.", { currentBalance: formatCents(current) });
+    // المعدود لقطة زمنية: أي حركة نقدية بعد تقديم الطلب تعني أن النقد في اليد
+    // تغيّر منذ عُدّ. الاعتماد حينها يجعل الرصيد يطابق واقعًا قديمًا، فتُرفض
+    // العملية ليُعاد الجرد بطلب جديد بدل تسوية فرق لا أحد يعرف مصدره.
+    const stale = await tx.query<Row & { n: number }>(`SELECT ((
+        SELECT count(*) FROM finance.movements
+         WHERE (source_id=$1::bigint OR destination_id=$1::bigint) AND created_at > $2::timestamptz)
+      + (SELECT count(*) FROM public.commerce_collections c JOIN public.commerce_sales s ON s.id=c.sale_id
+          WHERE s.branch_id=$3::bigint AND c.method='CASH' AND c.created_at > $2::timestamptz)
+      + (SELECT count(*) FROM finance.payments p JOIN finance.expenses e ON e.id=p.expense_id
+          WHERE e.branch_id=$3::bigint AND p.source='HOLDER_CASH' AND p.recorded_at > $2::timestamptz)
+      )::int AS n`, [custody.id, settlement.createdAt, custody.branchId]);
+    if (Number(stale.rows[0].n) > 0)
+      throw new FinanceProblem("count_stale", "وقعت حركة نقدية بعد تقديم الطلب، فالمعدود لم يعد مطابقًا للنقد في اليد. ألغِ الطلب بسبب واضح وأعد الجرد، ثم قدّم طلبًا جديدًا.");
+
     // الأرقام تُعاد حسابها لحظة الاعتماد لا لحظة الطلب: أي تحصيل أو صرف وقع بين
     // اللحظتين يدخل هذه التسوية، فلا يضيع في الفراغ بين نهاية فترة وبداية أخرى.
     const period = await settlementPeriod(tx, custody.id, custody.branchId);

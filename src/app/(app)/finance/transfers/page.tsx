@@ -58,6 +58,23 @@ export default async function FinanceTransfersPage() {
       expectedBalance: balanceByAccount.get(String(settlement.accountId)) ?? String(settlement.systemBalance),
     }));
 
+  // المعدود لقطة زمنية: تُعلَّم الطلبات التي وقعت بعدها حركة نقدية، ليُعرف
+  // ذلك قبل محاولة الاعتماد لا بعد رفضه.
+  const staleSettlements = canManage && pendingSettlements.length
+    ? await financeRead(session, (tx) => tx.query<{ id: string }>(`
+        SELECT s.id::text AS id FROM finance.settlements s
+        JOIN finance.accounts a ON a.id = s.account_id
+        WHERE s.status = 'OPEN' AND (
+          EXISTS (SELECT 1 FROM finance.movements m
+                   WHERE (m.source_id = a.id OR m.destination_id = a.id) AND m.created_at > s.created_at)
+          OR EXISTS (SELECT 1 FROM public.commerce_collections c JOIN public.commerce_sales sl ON sl.id = c.sale_id
+                     WHERE sl.branch_id = a.branch_id AND c.method = 'CASH' AND c.created_at > s.created_at)
+          OR EXISTS (SELECT 1 FROM finance.payments p JOIN finance.expenses e ON e.id = p.expense_id
+                     WHERE e.branch_id = a.branch_id AND p.source = 'HOLDER_CASH' AND p.recorded_at > s.created_at)
+        )`))
+    : { rows: [] };
+  const staleSettlementIds = new Set(staleSettlements.rows.map((row) => row.id));
+
   if (!canManage) {
     return (
       <div className="fin-page">
@@ -110,6 +127,12 @@ export default async function FinanceTransfersPage() {
           </div>
           {pendingSettlements.map((item) => (
             <div key={item.id} className="fin-page__section">
+              {staleSettlementIds.has(item.id) ? (
+                <div className="fin-alert fin-alert--warning" role="status">
+                  وقعت حركة نقدية على هذه العهدة بعد تقديم الطلب، فالمعدود لم يعد مطابقًا للنقد في اليد.
+                  الاعتماد سيُرفض حتى يُلغى الطلب بسبب واضح ويُعاد الجرد بطلب جديد.
+                </div>
+              ) : null}
               {!branchesWithVault.has(item.branchId) ? (
                 <div className="fin-alert fin-alert--warning" role="status">
                   لا توجد خزنة مفتوحة لفرع {item.branchName}. الاعتماد يحتاج خزنة تُحوَّل إليها أو منها، فسيُرفض بدونها.
