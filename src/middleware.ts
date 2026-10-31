@@ -4,7 +4,18 @@ import { isValidAuthSecret } from "@/lib/auth-secret";
 import { requestHost } from "@/lib/request-host";
 
 const COOKIE_NAME = "selahtone_session";
-const PUBLIC_PATHS = ["/login", "/api/health", "/api/logout", "/api/session/clear", "/icon.svg"];
+/*
+ * ملفات التثبيت عامة بالضرورة لا بالتسامح: المتصفح يجلب ملف التعريف وخدمة
+ * العميل والأيقونات قبل أن تكون لديه جلسة — فهي ما يسمح بأن تكون هناك جلسة
+ * أصلًا. وحجبها خلف الدخول يجعل التطبيق غير قابل للتثبيت، ويبدو للمستخدم
+ * كأن التثبيت غير مدعوم، لا كأنه يحتاج دخولًا.
+ *
+ * وليس فيها سرّ: أسماء وألوان وأيقونات، وكلها مرئية لمن يفتحها يدويًا أيضًا.
+ */
+const PUBLIC_PATHS = [
+  "/login", "/api/health", "/api/logout", "/api/session/clear", "/icon.svg",
+  "/manifest.webmanifest", "/sw.js", "/icons",
+];
 
 /** التحقق السريع عند الحافة؛ حالة الحساب والجلسة تُراجع أيضًا في الخادم وقاعدة البيانات. */
 export async function middleware(request: NextRequest) {
