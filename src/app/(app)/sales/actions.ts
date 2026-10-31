@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { InventoryProblem } from "@/lib/inventory-operations";
+import { createCatalogSale } from "@/lib/catalog-sales";
 import { changeStaffDiscountLimit, createCommerceSale, recordCommerceCollection, recordCommerceRefund, returnCommerceSale } from "@/lib/commerce-operations";
 import type { SalesActionState } from "./sales-state";
 
@@ -34,6 +35,16 @@ export async function createSaleAction(_previous: SalesActionState, formData: Fo
     const result = await createCommerceSale(prisma, BigInt(session.id), payload(formData));
     refresh(result.id);
     return { status: "success", id: result.id, message: result.replayed ? "سبق حفظ هذا الطلب؛ لم تُسجّل فاتورة مكررة." : "تم تسجيل الفاتورة والتحصيل الأول وخصم المخزون." };
+  } catch (error) { return failure(error); }
+}
+
+export async function createCatalogSaleAction(_previous: SalesActionState, formData: FormData): Promise<SalesActionState> {
+  const session = await requireSession();
+  if (text(formData, "reviewed") !== "yes") return { status: "error", message: "راجع الفاتورة قبل تأكيد البيع." };
+  try {
+    const result = await createCatalogSale(prisma, BigInt(session.id), payload(formData));
+    refresh(result.id);
+    return { status: "success", id: result.id, message: result.replayed ? "سبق حفظ هذا الطلب؛ لم تُسجّل فاتورة مكررة." : "تم تسجيل الفاتورة والدفعة الأولى. لا يوجد مخزون ولا مستودع في هذا المسار." };
   } catch (error) { return failure(error); }
 }
 

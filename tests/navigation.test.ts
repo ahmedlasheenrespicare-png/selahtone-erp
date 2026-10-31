@@ -10,7 +10,8 @@ const hrefs = (groups: ReturnType<typeof navigationGroups>) =>
   groups.flatMap((group) => group.items.map((item) => item.href ?? ""));
 
 test("management navigation is grouped, and every item has a real destination", () => {
-  const groups = navigationGroups(true, true);
+  // المخزون معطّل افتراضيًا: يُمرَّر true لاختبار مساره صراحةً.
+  const groups = navigationGroups(true, true, "FULL", true);
   assert.deepEqual(labels(groups), ["الرئيسية", "المبيعات والمخزون", "المالية", "الإدارة"]);
 
   // لا توجد عناصر نائبة بلا رابط في أي مجموعة.
@@ -32,13 +33,13 @@ test("management navigation is grouped, and every item has a real destination", 
 });
 
 test("management navigation hides the finance group while the module is off", () => {
-  const groups = navigationGroups(true, false);
+  const groups = navigationGroups(true, false, "FULL", true);
   assert.deepEqual(labels(groups), ["الرئيسية", "المبيعات والمخزون", "الإدارة"]);
   assert.equal(hrefs(groups).some((href) => href.startsWith("/finance")), false);
 });
 
 test("staff navigation shows branch work only, without management screens", () => {
-  const groups = navigationGroups(false, true);
+  const groups = navigationGroups(false, true, "FULL", true);
   assert.deepEqual(labels(groups), ["الرئيسية", "أعمال الفرع"]);
   assert.deepEqual(itemsOf(groups, "أعمال الفرع").map((item) => item.href), [
     "/sales",
@@ -58,7 +59,7 @@ test("staff navigation shows branch work only, without management screens", () =
 });
 
 test("staff navigation keeps sales and inventory while the module is off", () => {
-  const groups = navigationGroups(false, false);
+  const groups = navigationGroups(false, false, "FULL", true);
   assert.deepEqual(labels(groups), ["الرئيسية", "أعمال الفرع"]);
   assert.deepEqual(itemsOf(groups, "أعمال الفرع").map((item) => item.href), ["/sales", "/inventory"]);
   assert.equal(hrefs(groups).some((href) => href.startsWith("/finance")), false);
@@ -82,4 +83,23 @@ test("a limited accountant hides the finance group while the module is off", () 
   const groups = navigationGroups(true, false, "LIMITED");
   assert.deepEqual(labels(groups), ["الرئيسية", "المبيعات"]);
   assert.equal(hrefs(groups).some((href) => href.startsWith("/finance")), false);
+});
+
+test("management navigation hides inventory while it is switched off", () => {
+  const groups = navigationGroups(true, true);
+  assert.deepEqual(labels(groups), ["الرئيسية", "المبيعات", "المالية", "الإدارة"]);
+  assert.equal(hrefs(groups).some((href) => href.startsWith("/inventory")), false);
+  assert.deepEqual(itemsOf(groups, "المبيعات").map((item) => item.href), ["/sales"]);
+});
+
+test("staff navigation hides inventory while it is switched off", () => {
+  const groups = navigationGroups(false, true);
+  assert.deepEqual(itemsOf(groups, "أعمال الفرع").map((item) => item.href), [
+    "/sales",
+    "/finance/mine",
+    "/finance/expenses",
+    "/finance/expenses/new",
+    "/finance/settlements",
+  ]);
+  assert.equal(hrefs(groups).some((href) => href.startsWith("/inventory")), false);
 });

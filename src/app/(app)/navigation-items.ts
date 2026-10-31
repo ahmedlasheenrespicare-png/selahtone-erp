@@ -22,7 +22,12 @@ const DASHBOARD: NavigationItem = { label: "لوحة القيادة", icon: "das
 const SALES: NavigationItem = { label: "المبيعات والفواتير", icon: "sales", href: "/sales" };
 const INVENTORY: NavigationItem = { label: "المخزون والمستودعات", icon: "inventory", href: "/inventory" };
 
-export function navigationGroups(canViewAllBranches: boolean, financeEnabled = false, menuScope: MenuScope = "FULL"): NavigationGroup[] {
+export function navigationGroups(
+  canViewAllBranches: boolean,
+  financeEnabled = false,
+  menuScope: MenuScope = "FULL",
+  inventoryEnabled = false,
+): NavigationGroup[] {
   if (menuScope === "LIMITED") {
     return [
       { label: "الرئيسية", items: [DASHBOARD] },
@@ -58,7 +63,7 @@ export function navigationGroups(canViewAllBranches: boolean, financeEnabled = f
   if (canViewAllBranches) {
     return [
       { label: "الرئيسية", items: [DASHBOARD] },
-      { label: "المبيعات والمخزون", items: [SALES, INVENTORY] },
+      { label: inventoryEnabled ? "المبيعات والمخزون" : "المبيعات", items: inventoryEnabled ? [SALES, INVENTORY] : [SALES] },
       ...financeGroups,
       {
         label: "الإدارة",
@@ -76,7 +81,7 @@ export function navigationGroups(canViewAllBranches: boolean, financeEnabled = f
       label: "أعمال الفرع",
       items: [
         SALES,
-        INVENTORY,
+        ...(inventoryEnabled ? [INVENTORY] : []),
         ...(financeEnabled
           ? [
               { label: "عهدتي", icon: "cash" as const, href: "/finance/mine" },

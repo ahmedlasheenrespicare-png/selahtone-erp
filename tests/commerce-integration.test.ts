@@ -19,6 +19,8 @@ const baseline = readFileSync(path.join(root, "tests/fixtures/inventory-baseline
 const openingUpgrade = readFileSync(path.join(root, "prisma/manual-inventory-upgrade.sql"), "utf8");
 const receivingUpgrade = readFileSync(path.join(root, "prisma/manual-receiving-upgrade.sql"), "utf8");
 const commerceUpgrade = readFileSync(path.join(root, "prisma/manual-commerce-upgrade.sql"), "utf8");
+// عميل Prisma يقرأ أعمدة الأصناف الفنية الجديدة، فتُطبَّق ترقيتها هنا أيضًا.
+const catalogUpgrade = readFileSync(path.join(root, "prisma/manual-catalog-sales-upgrade.sql"), "utf8");
 
 function line(productId: string, quantity: string, serialIds: string[]) {
   return productId === "1"
@@ -75,7 +77,7 @@ test("isolated sales, money and returns", { timeout: 120_000 }, async (t) => {
         const levels = await other.query<{ qty: string }>("SELECT qty_on_hand::text AS qty FROM stock_levels WHERE warehouse_id=1 AND product_id=1"); assert.equal(levels.rows[0].qty, "3.00");
       } finally { await other.close(); }
     });
-    pg = new PGlite(); await setupInventory(pg); await pg.exec(commerceUpgrade);
+    pg = new PGlite(); await setupInventory(pg); await pg.exec(commerceUpgrade); await pg.exec(catalogUpgrade);
     db = new TestClient({ adapter: new PrismaPGlite(pg) as never }); const client = db;
     let saleId = ""; let aidLineId = "";
 
@@ -108,9 +110,9 @@ test("isolated sales, money and returns", { timeout: 120_000 }, async (t) => {
       await expectProblem(() => createCommerceSale(client, 3n, { ...input, customerName: "اسم مختلف" }), /بيانات مختلفة/);
       const saved = await client.commerceSale.findUniqueOrThrow({ where: { id: BigInt(saleId) }, include: { lines: true, collections: true } });
       assert.equal(saved.subtotal.toFixed(2), "230.00"); assert.equal(saved.discount.toFixed(2), "10.00"); assert.equal(saved.total.toFixed(2), "220.00");
-      assert.equal(saved.taxableBase.plus(saved.taxTotal).toFixed(2), saved.total.toFixed(2));
+      assert.equal(saved.taxableBase!.plus(saved.taxTotal!).toFixed(2), saved.total.toFixed(2));
       const aid = saved.lines.find((item) => item.productId === 1n)!; aidLineId = aid.id.toString();
-      assert.equal(aid.unitCost!.toFixed(4), "10.0000"); assert.equal(aid.taxRateSnapshot.toFixed(3), "5.000");
+      assert.equal(aid.unitCost!.toFixed(4), "10.0000"); assert.equal(aid.taxRateSnapshot!.toFixed(3), "5.000");
       assert.equal(saved.collections.length, 1); assert.equal(saved.collections[0].amount.toFixed(2), "100.00"); assert.equal(saved.collections[0].isInitial, true);
       assert.equal((await client.stockLevel.findUniqueOrThrow({ where: { warehouseId_productId: { warehouseId: 1n, productId: 1n } } })).qtyOnHand.toFixed(2), "1.00");
       assert.equal((await client.stockLevel.findUniqueOrThrow({ where: { warehouseId_productId: { warehouseId: 1n, productId: 2n } } })).qtyOnHand.toFixed(2), "9.00");
