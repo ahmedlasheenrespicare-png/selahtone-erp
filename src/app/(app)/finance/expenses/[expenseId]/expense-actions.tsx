@@ -14,6 +14,20 @@ const METHODS: Array<{ value: string; label: string }> = [
   { value: "WALLET", label: "محفظة" },
 ];
 
+/** نقد الموظف هو الأصل: المصروف يُصرف من نقده ويُسوّى في التسوية، لا بخصم فوري. */
+const PAY_SOURCES: Array<{ value: "HOLDER_CASH" | "ACCOUNT"; label: string; hint: string }> = [
+  {
+    value: "HOLDER_CASH",
+    label: "نقد الموظف (يُسوّى في التسوية)",
+    hint: "المبلغ خرج من نقد الموظف. لا يتحرك رصيد العهدة الآن، ويُجمع ضمن مصروفات الفترة ليُسوّى عند اعتماد التسوية القادمة.",
+  },
+  {
+    value: "ACCOUNT",
+    label: "خصم فوري من حساب",
+    hint: "النقد خرج من خزنة الفرع أو من العهدة نفسها، فيُخصم من رصيدها فور تسجيل الصرف.",
+  },
+];
+
 export function ApproveForm({ requestId, expenseId, revision }: { requestId: string; expenseId: string; revision: string }) {
   const [selfApproved, setSelfApproved] = useState(false);
   const [state, formAction, pending] = useActionState(approveExpenseAction, initialFinanceActionState);
@@ -39,6 +53,7 @@ export function ApproveForm({ requestId, expenseId, revision }: { requestId: str
 export function PayForm({
   requestId, expenseId, revision, amount, today, accounts, branchId,
 }: { requestId: string; expenseId: string; revision: string; amount: string; today: string; accounts: AccountOption[]; branchId: string }) {
+  const [paySource, setPaySource] = useState<"HOLDER_CASH" | "ACCOUNT">("HOLDER_CASH");
   const [method, setMethod] = useState("CASH");
   const [accountId, setAccountId] = useState("");
   const [paymentDate, setPaymentDate] = useState(today);
@@ -46,6 +61,17 @@ export function PayForm({
   const [includedInOpening, setIncludedInOpening] = useState(false);
   const [negativeAcknowledged, setNegativeAcknowledged] = useState(false);
   const [state, formAction, pending] = useActionState(payExpenseAction, initialFinanceActionState);
+
+  // نقد الموظف نقدي دائمًا وبلا حساب؛ تبديل المصدر يفرّغ كل ما يخصّ الحساب.
+  const holderCash = paySource === "HOLDER_CASH";
+  function choosePaySource(next: "HOLDER_CASH" | "ACCOUNT") {
+    setPaySource(next);
+    setAccountId("");
+    setOpeningOrder("");
+    setIncludedInOpening(false);
+    setNegativeAcknowledged(false);
+    if (next === "HOLDER_CASH") setMethod("CASH");
+  }
 
   const branchAccounts = accounts.filter((account) => account.branchId === branchId);
   const usableAccounts = branchAccounts.length ? branchAccounts : accounts;
@@ -61,17 +87,30 @@ export function PayForm({
       <input type="hidden" name="requestId" value={requestId} />
       <input type="hidden" name="expenseId" value={expenseId} />
       <input type="hidden" name="expectedRevision" value={revision} />
-      <input type="hidden" name="method" value={method} />
-      <input type="hidden" name="accountId" value={method === "CASH" ? accountId : ""} />
+      <input type="hidden" name="source" value={paySource} />
+      <input type="hidden" name="method" value={holderCash ? "CASH" : method} />
+      <input type="hidden" name="accountId" value={!holderCash && method === "CASH" ? accountId : ""} />
       <input type="hidden" name="paymentDate" value={paymentDate} />
-      <input type="hidden" name="expectedBalance" value={source?.balance ?? ""} />
-      <input type="hidden" name="openingOrder" value={sameDayAsOpening ? openingOrder : ""} />
-      <input type="hidden" name="includedInOpening" value={includedInOpening ? "yes" : "no"} />
+      <input type="hidden" name="expectedBalance" value={!holderCash && method === "CASH" ? source?.balance ?? "" : ""} />
+      <input type="hidden" name="openingOrder" value={!holderCash && sameDayAsOpening ? openingOrder : ""} />
+      <input type="hidden" name="includedInOpening" value={!holderCash && includedInOpening ? "yes" : "no"} />
       <input type="hidden" name="afterCountId" value="" />
       <input type="hidden" name="afterCount" value="no" />
-      <input type="hidden" name="negativeAcknowledged" value={negativeAcknowledged ? "yes" : "no"} />
+      <input type="hidden" name="negativeAcknowledged" value={!holderCash && negativeAcknowledged ? "yes" : "no"} />
 
       <div className="fin-fields">
+        <label className="field fin-field fin-field--wide">
+          <span className="fin-field__label">مصدر الصرف</span>
+          <select value={paySource} onChange={(event) => choosePaySource(event.target.value as "HOLDER_CASH" | "ACCOUNT")}>
+            {PAY_SOURCES.map((option) => (<option key={option.value} value={option.value}>{option.label}</option>))}
+          </select>
+          <span className="fin-field__hint">{PAY_SOURCES.find((option) => option.value === paySource)?.hint ?? ""}</span>
+        </label>
+        {holderCash ? (
+          <div className="fin-alert fin-alert--warning fin-field--wide" role="status">
+            الرصيد لن يتحرك الآن. سيظهر المبلغ ضمن «مصروفات الفترة» ويُسوّى عند اعتماد التسوية القادمة.
+          </div>
+        ) : (
         <label className="field fin-field">
           <span className="fin-field__label">وسيلة الدفع</span>
           <select value={method} onChange={(event) => { setMethod(event.target.value); setAccountId(""); }}>
@@ -79,12 +118,13 @@ export function PayForm({
           </select>
           <span className="fin-field__hint">غير النقدي لا يحرك النقد ولا يفترض رصيدًا بنكيًا.</span>
         </label>
+        )}
         <label className="field fin-field">
           <span className="fin-field__label">تاريخ الدفع الفعلي</span>
           <input type="date" value={paymentDate} max={today} onChange={(event) => setPaymentDate(event.target.value)} />
           <span className="fin-field__hint">افتراضًا اليوم، وقابل للتغيير.</span>
         </label>
-        {method === "CASH" ? (
+        {!holderCash && method === "CASH" ? (
           <>
             <label className="field fin-field">
               <span className="fin-field__label">مصدر النقد</span>
@@ -137,9 +177,15 @@ export function PayForm({
         <button
           type="submit"
           className="fin-button"
-          disabled={pending || (method === "CASH" && !accountId) || (sameDayAsOpening && !openingOrder) || (needsWarning && !negativeAcknowledged)}
+          disabled={
+            pending ||
+            (!holderCash &&
+              ((method === "CASH" && !accountId) ||
+                (sameDayAsOpening && !openingOrder) ||
+                (needsWarning && !negativeAcknowledged)))
+          }
         >
-          {pending ? "جارٍ الحفظ…" : "تسجيل الصرف الفعلي"}
+          {pending ? "جارٍ الحفظ…" : holderCash ? "تسجيل الصرف من نقد الموظف" : "تسجيل الصرف الفعلي"}
         </button>
       </div>
     </form>

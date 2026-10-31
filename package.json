@@ -33,6 +33,7 @@
     "check:inventory:integration": "tsx --test tests/inventory-integration.test.ts",
     "check:menu-scope": "tsx --test tests/menu-scope.test.ts",
     "check:navigation": "tsx --test tests/navigation.test.ts",
+    "check:pay:source": "tsx --test tests/pay-expense-source.test.ts",
     "check:receiving": "tsx --test tests/receiving-validation.test.ts",
     "check:receiving:integration": "tsx --test tests/receiving-integration.test.ts",
     "check:settlement:engine": "tsx --test tests/settlement-engine.test.ts",

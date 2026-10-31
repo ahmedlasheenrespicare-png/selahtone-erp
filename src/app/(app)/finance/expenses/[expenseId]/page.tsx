@@ -99,7 +99,7 @@ export default async function ExpenseDetailPage({ params }: Props) {
         <div className="fin-panel">
           <div className="fin-panel__heading">
             <h2>الصرف الفعلي</h2>
-            <p>النقدي يخصم من مصدره فقط. غير النقدي لا يحرك النقد ولا يفترض رصيدًا بنكيًا.</p>
+            <p>الأصل أن المصروف صُرف من نقد الموظف فيُسوّى في التسوية ولا يُخصم الآن. الخصم الفوري من حساب يحرك رصيده فورًا. غير النقدي لا يحرك النقد ولا يفترض رصيدًا بنكيًا.</p>
           </div>
           <div className="fin-panel__body">
             {accountOptions.length === 0 ? (

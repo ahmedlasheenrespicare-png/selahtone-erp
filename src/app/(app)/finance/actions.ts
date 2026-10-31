@@ -5,6 +5,7 @@ import { requireSession, type SessionUser } from "@/lib/auth";
 import { createAppCategory, editAppCategory } from "@/lib/finance/app-categories";
 import { financeDb, financeEnabled } from "@/lib/finance/db";
 import { approveExpense, cancelCashCount, cancelSettlement, confirmCashCount, confirmSettlement, createExpense, openAccount, payExpense, rejectSettlement, requestCashCount, requestPaidExpenseReview, requestSettlement, transferCash } from "@/lib/finance/engine";
+import { payExpensePayload } from "@/lib/finance/pay-expense-source";
 import { FinanceProblem } from "@/lib/finance/types";
 import type { FinanceActionState } from "./finance-state";
 
@@ -157,22 +158,9 @@ export async function approveExpenseAction(_previous: FinanceActionState, formDa
 export async function payExpenseAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
   const guard = await requireFinanceManager();
   if ("state" in guard) return guard.state;
-  const method = text(formData, "method");
-  const raw = {
-    requestId: text(formData, "requestId"),
-    expenseId: text(formData, "expenseId"),
-    expectedRevision: text(formData, "expectedRevision"),
-    method,
-    accountId: method === "CASH" ? text(formData, "accountId") : null,
-    paymentDate: text(formData, "paymentDate"),
-    actuallyPaid: confirmed(formData, "actuallyPaid"),
-    openingOrder: text(formData, "openingOrder") || null,
-    includedInOpening: confirmed(formData, "includedInOpening"),
-    afterCountId: text(formData, "afterCountId") || null,
-    afterCount: confirmed(formData, "afterCount"),
-    expectedBalance: method === "CASH" ? text(formData, "expectedBalance") : null,
-    negativeAcknowledged: confirmed(formData, "negativeAcknowledged"),
-  };
+  // مصدر الصرف (نقد الموظف أو خصم فوري) يُشكَّل في وحدة مُختبَرة: غيابه يعني خصمًا
+  // فوريًا، ومثل هذا الدفع لا يصل إلى التسوية أبدًا.
+  const raw = payExpensePayload(formData);
   try {
     const result = await payExpense(financeDb, guard.session.id, raw);
     revalidateFinance();
