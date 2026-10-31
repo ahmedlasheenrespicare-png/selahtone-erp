@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireSession, branchScope, canSeeAllBranches } from "@/lib/auth";
 import { formatInventoryDecimal, stockValueScaled } from "@/lib/inventory-math";
 import { loadCashSummary, loadEmployeeCash } from "@/lib/finance/dashboard";
+import { loadSalesStats } from "@/lib/sales-stats";
 
 export const dynamic = "force-dynamic";
 
@@ -66,6 +67,9 @@ export default async function DashboardPage() {
   const isAccountant = session.role === "ACCOUNTANT";
   const cash = isEmployee ? await loadEmployeeCash(session) : null;
   const summary = isEmployee ? null : await loadCashSummary(session);
+  // ملخّص مبيعات الشهر للمدير: الأرقام المفصّلة في /sales/stats، وهنا ما يكفي
+  // ليعرف هل يفتحها. فالعناوين بلا أعداد تجعل المدير ينتقل ليسأل.
+  const sales = session.role === "MANAGER" ? await loadSalesStats(prisma, scope.branchId ?? null, "month") : null;
   const cashActions = cash
     ? [
         cash.settlementStale
@@ -259,6 +263,36 @@ export default async function DashboardPage() {
                 <AppIcon className="dashboard-shortcut__arrow" name="arrow" />
               </Link>
             ))}
+          </div>
+        </section>
+      ) : null}
+
+      {sales ? (
+        <section className="dashboard-panel" aria-labelledby="sales-title" style={{ marginBottom: 18 }}>
+          <div className="dashboard-panel__heading">
+            <div>
+              <p className="dashboard-panel__eyebrow">هذا الشهر</p>
+              <h2 id="sales-title">المبيعات</h2>
+              <p>الفواتير غير الملغاة، وما بقي على العملاء.</p>
+            </div>
+            <Link className="dashboard-text-link" href="/sales/stats">التفاصيل <AppIcon name="arrow" /></Link>
+          </div>
+          <div className="dashboard-metrics">
+            <article className="dashboard-metric">
+              <p className="dashboard-metric__label">عدد الفواتير</p>
+              <div className="dashboard-metric__value"><strong>{nf.format(sales.invoiceCount)}</strong></div>
+              <p className="dashboard-metric__detail">منها {nf.format(sales.cancelledCount)} ملغاة</p>
+            </article>
+            <article className="dashboard-metric">
+              <p className="dashboard-metric__label">صافي المبيعات</p>
+              <div className="dashboard-metric__value"><strong>{nf.format(Number(sales.total))}</strong><span>ج.م</span></div>
+              <p className="dashboard-metric__detail">بعد الخصم، والضريبة متضمنة في السعر</p>
+            </article>
+            <article className="dashboard-metric">
+              <p className="dashboard-metric__label">باقٍ على العملاء</p>
+              <div className="dashboard-metric__value"><strong>{nf.format(Number(sales.outstandingTotal))}</strong><span>ج.م</span></div>
+              <p className="dashboard-metric__detail">{nf.format(sales.outstandingCount)} فاتورة لم تُسدَّد بالكامل</p>
+            </article>
           </div>
         </section>
       ) : null}

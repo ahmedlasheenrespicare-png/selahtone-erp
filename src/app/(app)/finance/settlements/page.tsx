@@ -101,8 +101,9 @@ export default async function SettlementsPage() {
                         <th scope="col">الرصيد النظامي</th>
                         <th scope="col">المبيعات</th>
                         <th scope="col">المصروفات</th>
+                        <th scope="col">المتوقَّع بيده</th>
                         <th scope="col">المعدود</th>
-                        <th scope="col">الفرق</th>
+                        <th scope="col">العجز أو الزيادة</th>
                         <th scope="col">الحالة</th>
                         <th scope="col">إجراء</th>
                       </tr>
@@ -114,8 +115,9 @@ export default async function SettlementsPage() {
                           <td>{formatMoney(String(settlement.systemBalance))}</td>
                           <td>{formatMoney(String(settlement.salesTotal))}</td>
                           <td>{formatMoney(String(settlement.expensesTotal))}</td>
+                          <td>{formatMoney(String(settlement.expectedAmount))}</td>
                           <td>{formatMoney(String(settlement.countedAmount))}</td>
-                          <td>{formatMoney(String(settlement.adjustment))}</td>
+                          <td>{formatMoney(String(settlement.deviation))}</td>
                           <td>{SETTLEMENT_STATUS_LABEL[String(settlement.status)] ?? String(settlement.status)}</td>
                           <td>
                             {settlement.status === "OPEN" ? (
