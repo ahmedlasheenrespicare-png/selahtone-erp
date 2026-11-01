@@ -40,6 +40,7 @@
     "check:settlement:upgrade": "tsx --test tests/settlement-upgrade.test.ts",
     "check:setup:safety": "tsx --test tests/setup-safety.test.ts",
     "check:tax": "tsx scripts/check-tax.ts",
+    "check:ui:contrast": "node --test tests/ui-contrast.test.mjs",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",

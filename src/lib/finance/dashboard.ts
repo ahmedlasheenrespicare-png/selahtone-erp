@@ -63,7 +63,7 @@ export async function loadEmployeeCash(session: SessionUser): Promise<EmployeeCa
       a.branch_id::text AS "branchId",
       (a.opening_amount + COALESCE((SELECT SUM(CASE WHEN m.destination_id=a.id THEN m.amount ELSE -m.amount END)
         FROM finance.movements m WHERE m.source_id=a.id OR m.destination_id=a.id),0))::text AS balance
-      FROM finance.accounts a WHERE a.kind='CUSTODY' AND a.holder_id=$1::bigint`, [session.id]);
+      FROM finance.accounts a WHERE a.kind='CUSTODY' AND a.holder_id=$1::bigint AND a.closed_at IS NULL`, [session.id]);
     const account = accounts.rows[0];
     if (!account) return null;
 
@@ -159,7 +159,7 @@ export async function loadCashSummary(session: SessionUser): Promise<CashSummary
             AND p.recorded_at > COALESCE((SELECT st2.resolved_at FROM finance.settlements st2
               WHERE st2.account_id=a.id AND st2.status='CONFIRMED' ORDER BY st2.resolved_at DESC, st2.id DESC LIMIT 1), a.opened_at)),0) AS period_expenses
       FROM finance.accounts a
-      WHERE a.kind='CUSTODY' AND ($1::bigint IS NULL OR a.branch_id=$1::bigint)) x`, [branchId]);
+      WHERE a.kind='CUSTODY' AND a.closed_at IS NULL AND ($1::bigint IS NULL OR a.branch_id=$1::bigint)) x`, [branchId]);
 
     const pendingSettlements = await tx.query<{ n: number }>(`SELECT count(*)::int AS n FROM finance.settlements WHERE status='OPEN'`);
     const pendingExpenses = await tx.query<{ n: number }>(`SELECT count(*)::int AS n FROM finance.expenses WHERE status='PENDING'`);

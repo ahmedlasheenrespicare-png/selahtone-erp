@@ -1,0 +1,40 @@
+/* ============================================================
+   التصميم الجديد — طبقة فوق أنماط شاشة المالية (?design=new)
+
+   نفس قواعد التلميع المُقرَّرة، مُكيَّفة على طبيعة هذه الشاشة:
+   هي شاشة جدول لا شاشة أرقام، فلا «بطاقة قائدة» فيها — والقائد
+   فيها هو الجدول نفسه، فحُسِّنت قراءته لا زخرفته.
+
+   ولم يُضف رأس جدول لاصق هنا (خلاف المعاينة): الحاوية .fin-table-wrap
+   فيها overflow-x:auto، فيصير اللاصق محبوسًا فيها فلا يعمل.
+   ============================================================ */
+
+/* ١) الترويسة الملوّنة — بدرجات --navy الموجودة في الموقع نفسه */
+[data-design="new"] .fin-heading{
+  align-items: center;
+  padding: 15px 18px;
+  border-radius: 14px;
+  background: linear-gradient(115deg, #0f2f4d 0%, #14395e 55%, #1d5a8f 100%);
+  box-shadow: 0 16px 32px -16px rgba(15, 47, 77, .55);
+  margin-bottom: 20px;
+}
+[data-design="new"] .fin-heading__eyebrow{color:#cfe0f7}
+[data-design="new"] .fin-heading h1{color:#fff; font-size:clamp(21px,2.2vw,27px)}
+[data-design="new"] .fin-heading p:not(.fin-heading__eyebrow){color:#c9dcf5; font-size:14px}
+
+/* أزرار الترويسة: بيضاء فوق الشريط الملوّن */
+[data-design="new"] .fin-heading .fin-button{
+  background:#fff; border-color:#fff; color:#14395e;
+}
+[data-design="new"] .fin-heading .fin-button--secondary{
+  background:rgba(255,255,255,.16); border-color:rgba(255,255,255,.30); color:#eaf2ff;
+}
+
+/* ٢) الجدول أوضح: رأس أثقل، وأرقام بعرض ثابت فتتساوى الأعمدة */
+[data-design="new"] .fin-table th{background:#eef3f9; color:#3d5573; font-size:12px}
+[data-design="new"] .fin-table td{font-variant-numeric:tabular-nums}
+[data-design="new"] .fin-table tbody tr:hover{background:#f8fafd}
+
+/* ٣) سُلَّم موحّد وهواء أوضح بين الأقسام لا داخلها */
+[data-design="new"] .fin-panel{margin-bottom:20px}
+[data-design="new"] .fin-panel__heading{padding:16px 18px}

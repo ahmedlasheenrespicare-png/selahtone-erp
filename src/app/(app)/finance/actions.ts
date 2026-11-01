@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireSession, type SessionUser } from "@/lib/auth";
 import { createAppCategory, editAppCategory } from "@/lib/finance/app-categories";
 import { financeDb, financeEnabled } from "@/lib/finance/db";
-import { approveExpense, cancelCashCount, cancelSettlement, confirmCashCount, confirmSettlement, createExpense, openAccount, payExpense, rejectSettlement, requestCashCount, requestPaidExpenseReview, requestSettlement, transferCash } from "@/lib/finance/engine";
+import { approveExpense, cancelCashCount, cancelSettlement, confirmCashCount, confirmSettlement, createExpense, openAccount, payExpense, rejectSettlement, requestCashCount, requestPaidExpenseReview, requestSettlement, transferCash, closeAccount } from "@/lib/finance/engine";
 import { payExpensePayload } from "@/lib/finance/pay-expense-source";
 import { FinanceProblem } from "@/lib/finance/types";
 import type { FinanceActionState } from "./finance-state";
@@ -75,6 +75,28 @@ export async function openAccountAction(_previous: FinanceActionState, formData:
       status: "success",
       id: result.id,
       message: result.replayed ? "سبق حفظ هذا الطلب؛ لم يُفتح حساب مكرر." : "فُتح الحساب بالرصيد الفعلي بعد تأكيد الجرد.",
+    };
+  } catch (error) {
+    return translate(error);
+  }
+}
+
+/** إقفال عهدة بعد تصفيتها. ليس حركة مال: فالرصيد صفرٌ سلفًا بتسوية سابقة. */
+export async function closeAccountAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
+  const guard = await requireFinanceManager();
+  if ("state" in guard) return guard.state;
+  const raw = {
+    requestId: text(formData, "requestId"),
+    accountId: text(formData, "accountId"),
+    reason: text(formData, "reason") || null,
+  };
+  try {
+    const result = await closeAccount(financeDb, guard.session.id, raw);
+    revalidateFinance();
+    return {
+      status: "success",
+      id: result.id,
+      message: result.replayed ? "سبق حفظ هذا الطلب؛ لم يُقفل الحساب مرتين." : "أُقفلت العهدة. سجلها وحركاتها وتسوياتها باقية للمراجعة.",
     };
   } catch (error) {
     return translate(error);

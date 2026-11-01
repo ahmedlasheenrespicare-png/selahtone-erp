@@ -1,0 +1,52 @@
+/* ============================================================
+   التصميم الجديد — طبقة فوق أنماط الشاشة الحقيقية (?design=new)
+
+   لا تعدّل أصل الشاشة: تُحمَّل فوقها وحدها، فيظهر الفرق جنبًا إلى جنب.
+   نفس أربع قواعد التلميع المُقرَّة في المعاينة:
+   ترويسة ملوّنة · بطاقة قائدة · أرقام قائدة أكبر · هواء بين الأقسام
+   ============================================================ */
+
+/* ١) الترويسة الملوّنة — بدرجات --navy الموجودة في الموقع نفسه */
+[data-design="new"] .dashboard-heading{
+  align-items: center;
+  padding: 15px 18px;
+  border-radius: 14px;
+  background: linear-gradient(115deg, #0f2f4d 0%, #14395e 55%, #1d5a8f 100%);
+  box-shadow: 0 16px 32px -16px rgba(15, 47, 77, .55);
+}
+[data-design="new"] .dashboard-eyebrow{color:#cfe0f7}
+[data-design="new"] .dashboard-eyebrow span{background:#eaf2ff}
+[data-design="new"] .dashboard-heading h1{color:#fff; font-size:clamp(21px,2.2vw,27px)}
+[data-design="new"] .dashboard-heading__description{color:#c9dcf5; font-size:14px}
+[data-design="new"] .dashboard-date{
+  background: rgba(255,255,255,.14);
+  border-color: rgba(255,255,255,.28);
+}
+[data-design="new"] .dashboard-date small,
+[data-design="new"] .dashboard-date time{color:#dbe7f7}
+
+/* ٢) البطاقة القائدة — أول مقياس في أول لوحة («المتوقَّع في كل العهد») */
+[data-design="new"] .dashboard-panel:first-of-type .dashboard-metric:first-child{
+  background: linear-gradient(180deg, #eef4ff, #ffffff 44%);
+  border-color: #d3e3f8;
+  box-shadow: inset 0 3px 0 var(--navy), 0 12px 28px rgba(22,39,63,.07);
+}
+
+/* ٣) الأرقام القائدة أكبر وأثقل — والقائد يقفز فوقها */
+[data-design="new"] .dashboard-metric__value strong{
+  font-size: clamp(28px, 3.2vw, 36px);
+  letter-spacing: -.035em;
+  color: var(--navy);
+}
+[data-design="new"] .dashboard-panel:first-of-type .dashboard-metric:first-child .dashboard-metric__value strong{
+  font-size: clamp(36px, 4.2vw, 50px);
+}
+
+/* ٤) سُلَّم موحّد: ١٠ · ١١ · ١٢ · ١٤ · ١٦ · ١٧ (كان فيها ١٠.٥ و١٢.٥ و١٣) */
+[data-design="new"] .dashboard-metric__label{font-size:12px}
+[data-design="new"] .dashboard-count{font-size:11px}
+[data-design="new"] .dashboard-metric__detail{font-size:11px}
+
+/* ٥) هواء أوضح بين الأقسام لا داخلها — الكثافة محفوظة
+   (!important ضروري: الشاشة الحقيقية تستخدم style="margin-bottom:18px" سطريًا) */
+[data-design="new"] .dashboard-panel{margin-bottom:22px !important}

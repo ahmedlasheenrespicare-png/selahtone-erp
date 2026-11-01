@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
@@ -7,6 +8,7 @@ import { listAccounts } from "@/lib/finance/engine";
 import { loadCashSummary } from "@/lib/finance/dashboard";
 import { prisma } from "@/lib/prisma";
 import { accountLabel, formatMoney } from "./format";
+import { CustodyCloseForm } from "./custody-close-form";
 
 /**
  * Staged finance hub. While the finance schema is not installed the route
@@ -105,6 +107,7 @@ export default async function FinancePage() {
                   <th>تاريخ الجرد</th>
                   <th>رصيد الجرد</th>
                   <th>الرصيد الحالي</th>
+                  {canManage ? <th>إجراء</th> : null}
                 </tr>
               </thead>
               <tbody>
@@ -118,7 +121,23 @@ export default async function FinancePage() {
                     <td>{accountLabel(account.kind)}</td>
                     <td>{account.openingDate}</td>
                     <td>{formatMoney(account.recordedOpening)}</td>
-                    <td>{formatMoney(account.balance)}</td>
+                    <td>
+                      {formatMoney(account.balance)}
+                      {account.closedAt ? <span className="fin-field__hint"> · مقفلة</span> : null}
+                    </td>
+                    {canManage ? (
+                      <td>
+                        {/* لا تُقفل إلا عهدة صُفّيت: فالإقفال تسجيل لحالة لا حركة
+                            مال، وعهدة في ذمتها نقد تُصفّى بتسوية أولًا. */}
+                        {account.kind === "CUSTODY" && !account.closedAt && Number(account.balance) === 0 ? (
+                          <CustodyCloseForm
+                            requestId={randomUUID()}
+                            accountId={account.id}
+                            holderName={(account.holderId && holderNames.get(account.holderId)) || "الموظف"}
+                          />
+                        ) : null}
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>

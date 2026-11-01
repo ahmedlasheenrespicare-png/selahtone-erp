@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>مرآة الشاشة الحقيقية — لوحة القيادة | صلة تون</title>
+  <link rel="stylesheet" href="./site-dashboard.css">
+  <script type="module">
+    // البصمة فقط — لا تُحمَّل ورقة المعاينة هنا، فالمرآة تستخدم أنماط الموقع الحقيقية.
+    import { PREVIEW_VERSION } from "./ui.mjs";
+    document.getElementById("version-chip").textContent = `نسخة ${PREVIEW_VERSION.id} · ${PREVIEW_VERSION.at}`;
+
+    // ?design=new يضيف طبقة التصميم الجديد فوق أنماط الشاشة الحقيقية،
+    // فيُرى الفرق جنبًا إلى جنب في site-mirror.html دون مساس بالأصل.
+    if (new URLSearchParams(location.search).get("design") === "new") {
+      document.documentElement.dataset.design = "new";
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = "./site-design.css";
+      document.head.appendChild(link);
+    }
+  </script>
+</head>
+<body>
+  <p class="preview-banner">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 16H3l9-16z"/><path d="M12 9v5"/><path d="M12 17h.01"/></svg>
+    <strong>مرآة</strong>
+    <span class="sep">·</span>
+    <span>لوحة القيادة الحقيقية ببيانات ثابتة — نفس الأصناف ونفس الأنماط المنسوخة من <span dir="ltr">workspace.css</span></span>
+    <span class="sep">·</span>
+    <span id="version-chip"></span>
+  </p>
+
+  <div class="dashboard" style="padding:16px">
+    <div class="dashboard-heading">
+      <div>
+        <p class="dashboard-eyebrow"><span></span> لوحة القيادة</p>
+        <h1>أهلًا بك، مدير الشركة</h1>
+        <p class="dashboard-heading__description">نظرة واضحة على أعمالك وبيانات الفروع في مكان واحد.</p>
+      </div>
+      <div class="dashboard-date">
+        <span></span>
+        <div><small>تاريخ اليوم</small><time>السبت، ١ نوفمبر ٢٠٢٦</time></div>
+      </div>
+    </div>
+
+    <section class="dashboard-panel" aria-labelledby="summary-title" style="margin-bottom:18px">
+      <div class="dashboard-panel__heading">
+        <div>
+          <p class="dashboard-panel__eyebrow">ملخّص النقد</p>
+          <h2 id="summary-title">العهدة والمستحق للخزنة</h2>
+          <p>مجمَّع «المتوقَّع بيده» لكل عهدة، لا أرصدتها الدفترية.</p>
+        </div>
+        <span class="dashboard-count">٤ عهدة</span>
+      </div>
+      <div class="dashboard-metrics">
+        <article class="dashboard-metric">
+          <p class="dashboard-metric__label">المتوقَّع في كل العهد</p>
+          <div class="dashboard-metric__value"><strong>9,255.00</strong><span>ج.م</span></div>
+          <p class="dashboard-metric__detail">ما سيُسلَّم للخزنة عند التسويات</p>
+        </article>
+        <article class="dashboard-metric">
+          <p class="dashboard-metric__label">طلبات تسوية معلقة</p>
+          <div class="dashboard-metric__value"><strong>4</strong></div>
+          <p class="dashboard-metric__detail">بانتظار اعتمادك</p>
+        </article>
+        <article class="dashboard-metric">
+          <p class="dashboard-metric__label">مصروفات بانتظار الاعتماد</p>
+          <div class="dashboard-metric__value"><strong>4</strong></div>
+          <p class="dashboard-metric__detail">لم تُعتمد بعد</p>
+        </article>
+        <article class="dashboard-metric">
+          <p class="dashboard-metric__label">معتمدة بانتظار الصرف</p>
+          <div class="dashboard-metric__value"><strong>3</strong></div>
+          <p class="dashboard-metric__detail">اعتمدت ولم تُصرف</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="dashboard-panel" aria-labelledby="todo-title" style="margin-bottom:18px">
+      <div class="dashboard-panel__heading">
+        <div>
+          <p class="dashboard-panel__eyebrow">يحتاج اعتمادك</p>
+          <h2 id="todo-title">ما ينتظر قرارك</h2>
+        </div>
+        <span class="dashboard-count">١١ عنصر</span>
+      </div>
+      <div class="dashboard-setup__items">
+        <a class="dashboard-shortcut" href="#">
+          <span class="dashboard-shortcut__icon is-cyan"></span>
+          <span><strong>٤ طلبات تسوية بانتظار الاعتماد</strong></span>
+        </a>
+        <a class="dashboard-shortcut" href="#">
+          <span class="dashboard-shortcut__icon is-blue"></span>
+          <span><strong>٤ مصروفات بانتظار الاعتماد</strong></span>
+        </a>
+        <a class="dashboard-shortcut" href="#">
+          <span class="dashboard-shortcut__icon is-cyan"></span>
+          <span><strong>٣ مصروفات معتمدة بانتظار الصرف</strong></span>
+        </a>
+      </div>
+    </section>
+
+    <section class="dashboard-panel" aria-labelledby="sales-title" style="margin-bottom:18px">
+      <div class="dashboard-panel__heading">
+        <div>
+          <p class="dashboard-panel__eyebrow">هذا الشهر</p>
+          <h2 id="sales-title">المبيعات</h2>
+          <p>الفواتير غير الملغاة، وما بقي على العملاء.</p>
+        </div>
+        <a class="dashboard-text-link" href="#">التفاصيل</a>
+      </div>
+      <div class="dashboard-metrics">
+        <article class="dashboard-metric">
+          <p class="dashboard-metric__label">عدد الفواتير</p>
+          <div class="dashboard-metric__value"><strong>69</strong><span>فاتورة</span></div>
+          <p class="dashboard-metric__detail">غير الملغاة هذا الشهر</p>
+        </article>
+        <article class="dashboard-metric">
+          <p class="dashboard-metric__label">صافي المبيعات</p>
+          <div class="dashboard-metric__value"><strong>8,840.00</strong><span>ج.م</span></div>
+          <p class="dashboard-metric__detail">بعد الخصم وقبل الضريبة</p>
+        </article>
+        <article class="dashboard-metric">
+          <p class="dashboard-metric__label">النقد المحصَّل</p>
+          <div class="dashboard-metric__value"><strong>6,120.00</strong><span>ج.م</span></div>
+          <p class="dashboard-metric__detail">دخل خزنة الفرع</p>
+        </article>
+        <article class="dashboard-metric">
+          <p class="dashboard-metric__label">باقٍ على العملاء</p>
+          <div class="dashboard-metric__value"><strong>2,720.00</strong><span>ج.م</span></div>
+          <p class="dashboard-metric__detail">١٢ فاتورة آجلة</p>
+        </article>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

@@ -7,6 +7,7 @@ import { inventoryEnabled } from "@/lib/feature-flags";
 import { AppNavigation } from "./app-navigation";
 import LogoutButton from "./logout-button";
 import "./workspace.css";
+import "./design.css"; // طبقة التصميم الجديد — فوق أنماط الشاشات القائمة، بلا تغيير في بنيتها
 
 const ROLE_LABEL: Record<string, string> = {
   MANAGER: "مدير الشركة",
