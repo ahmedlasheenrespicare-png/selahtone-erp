@@ -55,7 +55,8 @@ export default function SaleForm({ requestId, warehouseId, warehouseName, staff,
       for (const item of values.lines) {
         const product = productMap.get(item.productId)!;
         if (!product.taxUsable) throw new Error("أحد الأصناف يحتاج مراجعة ضريبته.");
-        if (product.isStock && scaledInteger(item.quantity, 2) > scaledInteger(product.quantityAvailable, 2)) throw new Error(`الكمية المطلوبة من ${product.name} تزيد على المتاح.`);
+        // الفصل المؤقت يرفع شرط «المتاح»: فيُباع الصنف وإن لم يُسجَّل له رصيد.
+        if (!stockDecoupled && product.isStock && scaledInteger(item.quantity, 2) > scaledInteger(product.quantityAvailable, 2)) throw new Error(`الكمية المطلوبة من ${product.name} تزيد على المتاح.`);
         if (product.isSerialized && BigInt(item.serialIds.length) * 100n !== scaledInteger(item.quantity, 2)) throw new Error(`اختر سيريالًا لكل جهاز من ${product.name}.`);
       }
       const calculation = calculateInclusiveSale(values.lines.map((item) => {

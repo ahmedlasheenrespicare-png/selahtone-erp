@@ -22,6 +22,13 @@ function fixed(value: bigint, places: number): string {
   const power = 10n ** BigInt(places);
   return `${value / power}.${(value % power).toString().padStart(places, "0")}`;
 }
+/* فصلٌ مؤقت بين البيع والمخزون. حين يُفعَّل، تُسجَّل الفواتير والمرتجعات
+   بلا تحريك أرصدة المستودع — الغرض: إتمام البيع ريثما تُضبط الأرصدة
+   الافتتاحية والاستلام.
+   تنبيهٌ لازم: كل بيع يُسجَّل في هذه الفترة لا ينعكس على الرصيد، فيلزم
+   جردٌ وتسوية عند إعادة الربط. */
+function salesStockDecoupled(): boolean { return process.env.SALES_STOCK_DECOUPLED === "true"; }
+
 function ensureMatchingRequest(record: { requestHash: string; createdById: bigint }, actorId: bigint, expectedHash: string): void {
   if (record.createdById !== actorId || record.requestHash.trim() !== expectedHash) throw new InventoryProblem("استُخدم هذا الطلب مسبقًا ببيانات مختلفة. افتح نموذجًا جديدًا.");
 }
@@ -101,7 +108,8 @@ export async function createCommerceSale(db: Db, actorId: bigint, raw: unknown):
       for (const [index, item] of prepared.entries()) {
         const computed = calculation.lines[index];
         let unitCost: string | null = null;
-        if (item.isStock) {
+        // والفصل المؤقت يُلغي هذا الخصم جملةً: فالبيع يُسجَّل ولا ينقص الرصيد.
+        if (item.isStock && !salesStockDecoupled()) {
           // Conditional decrement protects against overselling; the returned cost is
           // the actual warehouse average at the instant this row is locked.
           const updated = await tx.$queryRaw<Array<{ avg_cost: DecimalLike }>>`
@@ -311,7 +319,9 @@ export async function returnCommerceSale(db: Db, actorId: bigint, raw: unknown):
           if (changed.count !== ids.length) throw new InventoryProblem("تغيّرت حالة أحد السيريالات؛ لم يُحفظ المرتجع.");
           await tx.commerceReturnSerial.createMany({ data: item.links.map((link) => ({ returnLineId: returnLine.id, saleLineSerialId: link.id })) });
         }
-        if (item.line.isStock) {
+        // والمرتجع لا يردّ رصيدًا لم يُخصم أصلًا؛ فالفصل إن كان مفعّلًا يمنع
+        // الردّ كما منع الخصم، وإلا زاد الرصيد بلا مقابل.
+        if (item.line.isStock && !salesStockDecoupled()) {
           const cost = item.line.unitCost!.toFixed(4);
           const changed = await tx.$queryRaw<Array<{ id: bigint }>>`
             INSERT INTO "stock_levels" ("warehouse_id", "product_id", "qty_on_hand", "avg_cost", "updated_at")
