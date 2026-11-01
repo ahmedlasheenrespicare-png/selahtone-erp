@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import type { SessionUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -43,12 +44,12 @@ export default async function MyCustodyPage() {
       {countRequests.length > 0 ? (
         <div className="fin-form-stack">
           {countRequests.map((item) => (
-            <HolderCountForm key={String(item.id)} countId={String(item.id)} reason={item.reason ? String(item.reason) : null} />
+            <HolderCountForm key={String(item.id)} requestId={randomUUID()} countId={String(item.id)} reason={item.reason ? String(item.reason) : null} />
           ))}
         </div>
       ) : null}
 
-      {account === null ? <CustodyRequestForm /> : null}
+      {account === null ? <CustodyRequestForm requestId={randomUUID()} /> : null}
 
       <div className="fin-heading">
         <div>

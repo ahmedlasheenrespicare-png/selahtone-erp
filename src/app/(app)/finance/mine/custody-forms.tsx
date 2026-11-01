@@ -1,12 +1,11 @@
 "use client";
 
-import { randomUUID } from "node:crypto";
 import { useActionState, useState } from "react";
 import { initialFinanceActionState } from "../finance-state";
 import { requestCustodyAction, submitHolderCountAction } from "../actions";
 
 /** طلب عهدة: الموظف يطلب، والمدير يعتمد. وهو الباب الذي لم يكن. */
-export function CustodyRequestForm() {
+export function CustodyRequestForm({ requestId }: { requestId: string }) {
   const [state, formAction, pending] = useActionState(requestCustodyAction, initialFinanceActionState);
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
@@ -22,7 +21,7 @@ export function CustodyRequestForm() {
 
   return (
     <form action={formAction} className="fin-form-stack">
-      <input type="hidden" name="requestId" value={randomUUID()} />
+      <input type="hidden" name="requestId" value={requestId} />
       <div className="fin-panel">
         <div className="fin-panel__heading">
           <h2>طلب عهدة</h2>
@@ -54,7 +53,7 @@ export function CustodyRequestForm() {
 }
 
 /** الجرد الموجَّه: المدير طلب، وأنت تعدّ وتُقرّ. فالجرد شهادةُ صاحب اليد. */
-export function HolderCountForm({ countId, reason }: { countId: string; reason: string | null }) {
+export function HolderCountForm({ requestId, countId, reason }: { requestId: string; countId: string; reason: string | null }) {
   const [state, formAction, pending] = useActionState(submitHolderCountAction, initialFinanceActionState);
   const [counted, setCounted] = useState("");
   const [actuallyCounted, setActuallyCounted] = useState(false);
@@ -70,7 +69,7 @@ export function HolderCountForm({ countId, reason }: { countId: string; reason: 
 
   return (
     <form action={formAction} className="fin-form-stack">
-      <input type="hidden" name="requestId" value={randomUUID()} />
+      <input type="hidden" name="requestId" value={requestId} />
       <input type="hidden" name="countId" value={countId} />
       <div className="fin-panel">
         <div className="fin-panel__heading">
