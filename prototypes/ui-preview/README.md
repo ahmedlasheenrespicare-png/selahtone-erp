@@ -17,10 +17,19 @@
 من جذر المستودع:
 
 ```bash
+# المفضّل: خادم بلا تبعيات يمنع التخزين المؤقت (no-store)
+node prototypes/ui-preview/serve.mjs
+
+# أو: خادم بايثون — لكنه يرسل 304، فالمتصفح قد يعرض تصميمًا قديمًا
 python3 -m http.server 3000 --bind 0.0.0.0 --directory prototypes/ui-preview
+
 node --test prototypes/ui-preview/model.test.mjs      # ١٩ اختبارًا للأرقام
 node --test prototypes/ui-preview/contrast.test.mjs   # ٧ اختبارات لتباين الألوان
 ```
+
+> **لماذا `no-store`؟** المعاينة تتغيّر كل ساعة، والخادم العادي يجيب `304 Not Modified`
+> فيبقى المتصفح على نسخة قديمة ويحكم المستخدم على تصميم مضى. لو فتحت المعاينة قبل
+> تحديثها فاضغط تحديثًا قويًا مرة واحدة (Ctrl+Shift+R) لطرد النسخة المخزّنة.
 
 ثم افتح `http://localhost:3000/` (لوحة القيادة) و`http://localhost:3000/shell.html` (الهيكل). للانتقال المباشر إلى دور بعينه أضف `?role=MANAGER` أو `?role=ACCOUNTANT` أو `?role=CS_AGENT`.
 
@@ -30,6 +39,7 @@ node --test prototypes/ui-preview/contrast.test.mjs   # ٧ اختبارات لت
 
 | الملف | ما فيه |
 |---|---|
+| `serve.mjs` | خادم ثابت بلا تبعيات يمنع التخزين المؤقت، ولا يقدّم ملفًا خارج المجلد |
 | `model.mjs` | البيانات الافتراضية وكل الحساب — لا شيء يُحسب في العرض |
 | `ui.mjs` | الأجزاء المشتركة: القائمة، الشريط الأعلى، التنبيهات، الأيقونات |
 | `dashboard.mjs` · `shell.mjs` · `finance.mjs` | عارض كل صفحة |
