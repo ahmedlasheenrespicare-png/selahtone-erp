@@ -50,15 +50,15 @@ jobs:
       - name: تثبيت Bubblewrap
         run: npm install -g @bubblewrap/cli
 
-      # Bubblewrap يسأل أسئلة تفاعلية (مسار JDK، مسار Android SDK، كلمة السر)
+      # Bubblewrap يسأل أسئلة تفاعلية (تثبيت JDK، تثبيت Android SDK، كلمة السر)
       # ويقرأ الطرفية مباشرة لا مجرى الإدخال، فلا يجدي معه تمرير الإجابة
-      # بأنبوب (yes |). فالحل من وجهين: ملف إعداد يمنع معظم الأسئلة من
-      # أصلها، و expect يحاكي طرفية حقيقية فيجيب عمّا يبقى منها.
+      # بأنبوب (yes |). فالحل من وجهين: ملف إعداد يمنع سؤال JDK من أصله،
+      # و expect يحاكي طرفية حقيقية فيجيب عمّا يبقى.
+      # ولا نحدّد androidSdkPath: فالمجلد الذي ننشئه يكون فارغًا فيرفضه.
       - name: إعداد بيئة Bubblewrap بلا أسئلة
         run: |
           mkdir -p "$HOME/.bubblewrap"
-          printf '{"jdkPath": "%s", "androidSdkPath": "%s/.bubblewrap/android-sdk"}\n' \
-            "$JAVA_HOME" "$HOME" > "$HOME/.bubblewrap/config.json"
+          printf '{"jdkPath": "%s"}\n' "$JAVA_HOME" > "$HOME/.bubblewrap/config.json"
           echo "محتوى إعداد Bubblewrap:"
           cat "$HOME/.bubblewrap/config.json"
           echo "JAVA_HOME = $JAVA_HOME"
@@ -111,10 +111,14 @@ jobs:
           log_user 1
           spawn bubblewrap build --skipJdkInstallation
           expect {
-            -re {\(Y/n\)}   { send "n\r"; exp_continue }
-            -re {\(y/n\)}   { send "n\r"; exp_continue }
-            -re {assword}   { send "$env(BUBBLEWRAP_KEYSTORE_PASSWORD)\r"; exp_continue }
-            -re {Enter}     { send "\r"; exp_continue }
+            -re {install the JDK} { send "n\r"; exp_continue }
+            -re {[Jj][Dd][Kk]}    { send "n\r"; exp_continue }
+            -re {Android SDK}     { send "y\r"; exp_continue }
+            -re {[Ss][Dd][Kk]}    { send "y\r"; exp_continue }
+            -re {[Ll]icense}      { send "y\r"; exp_continue }
+            -re {assword}         { send "$env(BUBBLEWRAP_KEYSTORE_PASSWORD)\r"; exp_continue }
+            -re {\(Y/n\)}         { send "y\r"; exp_continue }
+            -re {\(y/n\)}         { send "y\r"; exp_continue }
             timeout         { puts "\nانتهى وقت الانتظار"; exit 1 }
             eof
           }
