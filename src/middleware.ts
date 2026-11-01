@@ -4,7 +4,24 @@ import { isValidAuthSecret } from "@/lib/auth-secret";
 import { requestHost } from "@/lib/request-host";
 
 const COOKIE_NAME = "selahtone_session";
-const PUBLIC_PATHS = ["/login", "/api/health", "/api/logout", "/api/session/clear", "/icon.svg"];
+/**
+ * المسارات التي تمرّ بلا جلسة.
+ *
+ * ملفات تثبيت التطبيق (PWA) يجب أن تكون هنا: فالمتصفح يطلب manifest
+ * و service worker والأيقونات بلا كوكي جلسة، وكانت تُعاد إلى /login
+ * (٣٠٧) فيفشل تثبيت التطبيق على الجوال بلا أي رسالة خطأ ظاهرة.
+ */
+const PUBLIC_PATHS = [
+  "/login",
+  "/api/health",
+  "/api/logout",
+  "/api/session/clear",
+  "/icon.svg",
+  "/manifest.webmanifest",
+  "/sw.js",
+  "/icons",
+  "/.well-known", // ربط النطاق بتطبيق أندرويد (assetlinks.json) — يُطلب بلا جلسة
+];
 
 /** التحقق السريع عند الحافة؛ حالة الحساب والجلسة تُراجع أيضًا في الخادم وقاعدة البيانات. */
 export async function middleware(request: NextRequest) {
