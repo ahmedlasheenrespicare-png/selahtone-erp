@@ -10,7 +10,7 @@
 #  ⚠ تسلسل إلزامي قبل أول تشغيل:
 #    ١) يجب أن يكون الموقع المنشور يعمل (ليقرأ Bubblewrap الـ manifest منه)
 #    ٢) بعد أول بناء: خذ بصمة SHA-256 المطبوعة في السجل وضعها في
-#       متغيّر البيئة ANDROID_SHA256 عند Netlify، ثم أعد نشر الموقع
+#       متغيّر البيئة ANDROID_SHA256 عند Render، ثم أعد نشر الموقع
 #    ٣) هكذا يتحقّق أندرويد من assetlinks.json ولا يظهر شريط المتصفح
 # ============================================================
 name: بناء تطبيق أندرويد (APK)
@@ -56,12 +56,18 @@ jobs:
       - name: استعادة مفتاح التوقيع
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || 'selahtone' }}
         run: |
           if [ -n "$KEYSTORE_B64" ]; then
             echo "$KEYSTORE_B64" | base64 -d > android.keystore
-            echo "✓ استُخدم المفتاح المحفوظ"
+            echo "✓ استُستخدم المفتاح المحفوظ"
           else
-            echo "⚠ لا مفتاح محفوظ — سيُنشأ مفتاح جديد وتُرفع نسخته"
+            echo "⚠ لا مفتاح محفوظ — يُنشأ مفتاح جديد وتُرفع نسخته"
+            # -dname يجيب عن كل أسئلة الاسم والمؤسسة والدولة مسبقًا، فلا يتوقف البناء
+            keytool -genkeypair -v -keystore android.keystore -alias android \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$KS_PASSWORD" -keypass "$KS_PASSWORD" \
+              -dname "CN=Selah Tone, OU=IT, O=Selah Tone, L=Cairo, ST=Cairo, C=EG"
           fi
 
       - name: تحديث الإصدار
@@ -78,16 +84,16 @@ jobs:
 
       # يقرأ الـ manifest الحي من الموقع المنتشر، فيضمن تطابق الأيقونات والألوان
       - name: مطابقة الإعداد مع الموقع الحي
-        run: bubblewrap update --manifest=https://selahtone-erp.netlify.app/manifest.webmanifest || echo "⚠ تعذّر تحديث الـ manifest من الموقع الحي — يُكمل بالإعداد المحفوظ"
+        run: bubblewrap update --manifest=https://selahtone-erp.onrender.com/manifest.webmanifest || echo "⚠ تعذّر تحديث الـ manifest من الموقع الحي — يُكمل بالإعداد المحفوظ"
 
       - name: بناء APK
         env:
           BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || 'selahtone' }}
           BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD || 'selahtone' }}
-        run: bubblewrap build
+        run: yes | bubblewrap build --skipJdkInstallation
 
       # البصمة مطلوبة لربط النطاق بالتطبيق (assetlinks.json)
-      - name: بصمة SHA-256 — ضعها في ANDROID_SHA256 عند Netlify
+      - name: بصمة SHA-256 — ضعها في ANDROID_SHA256 عند Render
         run: |
           echo "================ بصمة التوقيع ================"
           keytool -list -v -keystore android.keystore \
