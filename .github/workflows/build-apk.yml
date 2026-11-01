@@ -154,7 +154,9 @@ jobs:
                 if {!$sent_sdk} { send "y\r"; set sent_sdk 1; set last_answer [clock seconds] }
                 exp_continue
             }
-            -re {Accept\? \(y/N\)} {
+            # سؤال الترخيص لفظه «...terms.html? (y/N)»: لا كلمة «Accept» فيه،
+            # فنمطٌ ينتظرها لا يطابقه أبدًا فيبقى السؤال بلا جواب.
+            -re {terms\.html\? \(y/N\)} {
                 if {!$sent_license} { send "y\r"; set sent_license 1; set last_answer [clock seconds] }
                 exp_continue
             }
@@ -166,7 +168,7 @@ jobs:
                 if {!$sent_pass} { send "$env(BUBBLEWRAP_KEYSTORE_PASSWORD)\r"; set sent_pass 1; set last_answer [clock seconds] }
                 exp_continue
             }
-            -re {\(Y/n\)|\(y/n\)} {
+            -re {(?i)\(y/n\)} {
                 if {[clock seconds] - $last_answer > 20} { send "y\r"; set last_answer [clock seconds] }
                 exp_continue
             }
