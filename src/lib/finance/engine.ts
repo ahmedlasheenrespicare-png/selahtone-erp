@@ -536,6 +536,42 @@ export async function transferCash(db: FinanceDatabase, actorId: string, raw: un
 /** طلب عهدة: يقدّمه موظف الفرع، ويعتمده المدير أو المحاسب بفتح العهدة بجرد
  *  فعلي. فالعهدة كانت حِكرًا على الإدارة يفتحونها من طرفٍ واحد، فإن أرادها
  *  موظف فليس له إلا أن يطلبها شفويًّا. */
+/** طلبات العهدة: للموظف طلبُه، وللمدير طلباتُ فرعه المعلَّقة. */
+export async function listCustodyRequests(db: FinanceDatabase, actorId: string, scope: "MINE" | "PENDING" = "PENDING"): Promise<Row[]> {
+  const actorIdChecked = identifier(actorId, "المستخدم");
+  return db.serializable(async (tx) => {
+    const actor = await loadActor(tx, actorIdChecked);
+    if (scope === "MINE") {
+      const rows = await tx.query<Row>(`SELECT id::text AS id, status, requested_amount::text AS amount,
+        reason, decision_reason, created_at::text AS "createdAt"
+        FROM finance.custody_requests WHERE requester_id=$1::bigint
+        ORDER BY created_at DESC LIMIT 10`, [actor.id]);
+      return rows.rows;
+    }
+    if (!canManageFinance(actor)) throw new FinanceProblem("forbidden", "عرض طلبات العهدة للمدير والمحاسب.");
+    const rows = await tx.query<Row>(`SELECT r.id::text AS id, r.status, r.requested_amount::text AS amount,
+        r.reason, r.requester_id::text AS "requesterId", r.created_at::text AS "createdAt"
+      FROM finance.custody_requests r JOIN public.users u ON u.id = r.requester_id
+      WHERE r.status='PENDING' AND ($1::boolean OR u.branch_id = $2::bigint)
+      ORDER BY r.created_at ASC`, [actor.role === "MANAGER", actor.branchId]);
+    return rows.rows;
+  });
+}
+
+/** الجرود الموجَّهة التي طُلِبت مني ولم أعدّها بعد. */
+export async function listMyCountRequests(db: FinanceDatabase, actorId: string): Promise<Row[]> {
+  const actorIdChecked = identifier(actorId, "المستخدم");
+  return db.serializable(async (tx) => {
+    const actor = await loadActor(tx, actorIdChecked);
+    const rows = await tx.query<Row>(`SELECT c.id::text AS id, c.account_id::text AS "accountId",
+        c.request_reason AS reason, c.created_at::text AS "createdAt"
+      FROM finance.cash_counts c JOIN finance.accounts a ON a.id = c.account_id
+      WHERE c.status='OPEN' AND c.counter_id IS NULL AND a.kind='CUSTODY'
+        AND a.holder_id=$1::bigint ORDER BY c.created_at DESC`, [actor.id]);
+    return rows.rows;
+  });
+}
+
 export async function requestCustody(db: FinanceDatabase, actorId: string, raw: unknown): Promise<WriteResult> {
   const value = inputObject(raw), input = {
     requestId: requestId(value.requestId),
