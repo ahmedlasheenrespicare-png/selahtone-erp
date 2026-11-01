@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { requireSession, type SessionUser } from "@/lib/auth";
 import { createAppCategory, editAppCategory } from "@/lib/finance/app-categories";
 import { financeDb, financeEnabled } from "@/lib/finance/db";
-import { prisma } from "@/lib/prisma";
 import { approveExpense, cancelCashCount, cancelSettlement, confirmCashCount, confirmSettlement, createExpense, openAccount, payExpense, rejectSettlement, requestCashCount, requestPaidExpenseReview, requestSettlement, transferCash, closeAccount, requestCustody, decideCustodyRequest, requestCountFromHolder, submitHolderCount } from "@/lib/finance/engine";
 import { payExpensePayload } from "@/lib/finance/pay-expense-source";
 import { FinanceProblem } from "@/lib/finance/types";
@@ -415,7 +414,7 @@ export async function requestCustodyAction(_previous: FinanceActionState, formDa
   if ("state" in guard) return guard.state;
   const { session } = guard;
   try {
-    const result = await requestCustody(prisma, session.id, {
+    const result = await requestCustody(financeDb, session.id, {
       requestId: formData.get("requestId"), amount: formData.get("amount"), reason: formData.get("reason"),
     });
     revalidateFinance();
@@ -429,7 +428,7 @@ export async function decideCustodyRequestAction(_previous: FinanceActionState, 
   if ("state" in guard) return guard.state;
   const { session } = guard;
   try {
-    await decideCustodyRequest(prisma, session.id, {
+    await decideCustodyRequest(financeDb, session.id, {
       requestId: formData.get("requestId"), requestId2: formData.get("requestDbId"),
       decision: formData.get("decision"), reason: formData.get("reason"),
       openingDate: formData.get("openingDate"), counted: formData.get("counted"),
@@ -445,7 +444,7 @@ export async function requestCountFromHolderAction(_previous: FinanceActionState
   if ("state" in guard) return guard.state;
   const { session } = guard;
   try {
-    const result = await requestCountFromHolder(prisma, session.id, {
+    const result = await requestCountFromHolder(financeDb, session.id, {
       requestId: formData.get("requestId"), accountId: formData.get("accountId"), reason: formData.get("reason"),
     });
     revalidateFinance();
@@ -459,7 +458,7 @@ export async function submitHolderCountAction(_previous: FinanceActionState, for
   if ("state" in guard) return guard.state;
   const { session } = guard;
   try {
-    await submitHolderCount(prisma, session.id, {
+    await submitHolderCount(financeDb, session.id, {
       requestId: formData.get("requestId"), countId: formData.get("countId"),
       countedAmount: formData.get("countedAmount"), actuallyCounted: formData.get("actuallyCounted"),
     });
