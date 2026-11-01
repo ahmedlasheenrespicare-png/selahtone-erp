@@ -38,14 +38,14 @@ function token(name) {
 /**
  * آخر قاعدة تطابق المحدِّد — ففي CSS تنتصر القاعدة الأخيرة.
  *
- * وتُستثنى قواعد التصميمين (ب) و(ج) لأنها مشروطة بـ `[data-design]` فلا
- * تنطبق على التصميم الأساسي؛ تُقرأ قاعدتها فقط إن لم توجد قاعدة أساسية.
+ * وتُستثنى القواعد المشروطة بسمة على الجذر (`[data-design]` للتصميمين ب/ج،
+ * و`[data-depth]` لطبقة العمق) لأنها لا تنطبق على التصميم الأساسي.
  */
 function ruleBodies(selector) {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const matches = [...css.matchAll(new RegExp(`(.{0,70})${escaped}\\{([^}]*)\\}`, "g"))];
   assert.ok(matches.length, `القاعدة ${selector} غير موجودة`);
-  const plain = matches.filter((match) => !match[1].includes("[data-design"));
+  const plain = matches.filter((match) => !match[1].includes("[data-"));
   return (plain.length ? plain : matches).map((match) => match[2]);
 }
 

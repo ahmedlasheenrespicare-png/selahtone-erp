@@ -68,7 +68,7 @@ function emitChange() {
  * عليه. فإن رأى رقمًا قديمًا فالمشكلة في التخزين المؤقت عنده،
  * لا في التصميم نفسه.
  */
-export const PREVIEW_VERSION = { id: "٧", at: "١ نوفمبر · 01:33" };
+export const PREVIEW_VERSION = { id: "٨", at: "١ نوفمبر · 01:38" };
 
 /** التصميمات الثلاثة — نفس المحتوى بترتيب وهيئة مختلفين. */
 export const DESIGNS = [
