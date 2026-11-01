@@ -50,6 +50,21 @@ jobs:
       - name: تثبيت Bubblewrap
         run: npm install -g @bubblewrap/cli
 
+      # Bubblewrap يسأل أسئلة تفاعلية (مسار JDK، مسار Android SDK، كلمة السر)
+      # ويقرأ الطرفية مباشرة لا مجرى الإدخال، فلا يجدي معه تمرير الإجابة
+      # بأنبوب (yes |). فالحل من وجهين: ملف إعداد يمنع معظم الأسئلة من
+      # أصلها، و expect يحاكي طرفية حقيقية فيجيب عمّا يبقى منها.
+      - name: إعداد بيئة Bubblewrap بلا أسئلة
+        run: |
+          mkdir -p "$HOME/.bubblewrap"
+          printf '{"jdkPath": "%s", "androidSdkPath": "%s/.bubblewrap/android-sdk"}\n' \
+            "$JAVA_HOME" "$HOME" > "$HOME/.bubblewrap/config.json"
+          echo "محتوى إعداد Bubblewrap:"
+          cat "$HOME/.bubblewrap/config.json"
+          echo "JAVA_HOME = $JAVA_HOME"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq expect
+
       # مفتاح التوقيع: إن ضُبط كأسرار في المستودع استُخدم، وإلا أُنشئ
       # جديدًا. احفظ المفتاح المرفوع بعد أول بناء: ففقدانه يمنع تحديث
       # التطبيق على المتجر (لا يقبل تحديثًا بتوقيع مختلف).
@@ -90,7 +105,22 @@ jobs:
         env:
           BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || 'selahtone' }}
           BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD || 'selahtone' }}
-        run: yes | bubblewrap build --skipJdkInstallation
+        run: |
+          expect <<'EXPECT_SCRIPT'
+          set timeout 1800
+          log_user 1
+          spawn bubblewrap build --skipJdkInstallation
+          expect {
+            -re {\(Y/n\)}   { send "n\r"; exp_continue }
+            -re {\(y/n\)}   { send "n\r"; exp_continue }
+            -re {assword}   { send "$env(BUBBLEWRAP_KEYSTORE_PASSWORD)\r"; exp_continue }
+            -re {Enter}     { send "\r"; exp_continue }
+            timeout         { puts "\nانتهى وقت الانتظار"; exit 1 }
+            eof
+          }
+          catch wait result
+          exit [lindex $result 3]
+          EXPECT_SCRIPT
 
       # البصمة مطلوبة لربط النطاق بالتطبيق (assetlinks.json)
       - name: بصمة SHA-256 — ضعها في ANDROID_SHA256 عند Render
