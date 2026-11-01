@@ -85,6 +85,15 @@ jobs:
               -dname "CN=Selah Tone, OU=IT, O=Selah Tone, L=Cairo, ST=Cairo, C=EG"
           fi
 
+      # بيئة GitHub تضبط ANDROID_SDK_ROOT مسبقًا إلى مسار آخر غير الذي ثبّت
+      # فيه Bubblewrap الـ SDK، فيرى Gradle مسارين متضاربين فيرفض البناء.
+      # فنوحّدهما على مسار واحد ونُثبته لكل الخطوات التالية.
+      - name: توحيد مسار Android SDK
+        run: |
+          echo "ANDROID_HOME=$HOME/.bubblewrap/android_sdk" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$HOME/.bubblewrap/android_sdk" >> $GITHUB_ENV
+          echo "✓ وحّدنا المسار على: $HOME/.bubblewrap/android_sdk"
+
       - name: تحديث الإصدار
         if: github.event_name == 'workflow_dispatch'
         run: |
@@ -129,9 +138,9 @@ jobs:
             -re {install the Android SDK}             { send "y\r"; exp_continue }
             -re {Accept\? \(y/N\)}                    { send "y\r"; exp_continue }
             -re {regenerate your}                     { send "y\r"; exp_continue }
-            -re {assword}                             { send "$env(BUBBLEWRAP_KEYSTORE_PASSWORD)\r"; exp_continue }
             -re {\(Y/n\)}                             { send "y\r"; exp_continue }
             -re {\(y/n\)}                             { send "y\r"; exp_continue }
+            -re {[Pp]assword[: ]}                     { send "$env(BUBBLEWRAP_KEYSTORE_PASSWORD)\r"; exp_continue }
             timeout         { puts "\nانتهى وقت الانتظار"; exit 1 }
             eof
           }
