@@ -97,12 +97,25 @@ jobs:
             fs.writeFileSync(p, JSON.stringify(m, null, 2));
           "
 
+      # الخطة المجانية تنام بعد ربع ساعة خمول، فإن نام الموقع لحظة قراءته
+      # ردّ بصفحة HTML فرفض Bubblewrap الأيقونة. فنوقظه أولًا وننتظر جوابه.
+      - name: إيقاظ الموقع الحي قبل قراءته
+        run: |
+          for i in $(seq 1 12); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" -m 90 \
+              https://selahtone-erp.onrender.com/api/health || echo "000")
+            echo "محاولة $i: $code"
+            if [ "$code" = "200" ]; then break; fi
+            sleep 10
+          done
+
       # يقرأ الـ manifest الحي من الموقع المنتشر، فيضمن تطابق الأيقونات والألوان
       - name: مطابقة الإعداد مع الموقع الحي
         run: bubblewrap update --manifest=https://selahtone-erp.onrender.com/manifest.webmanifest || echo "⚠ تعذّر تحديث الـ manifest من الموقع الحي — يُكمل بالإعداد المحفوظ"
 
       - name: بناء APK
         env:
+          VERSION_NAME: ${{ inputs.version_name || '1.0.0' }}
           BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || 'selahtone' }}
           BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD || 'selahtone' }}
         run: |
@@ -111,6 +124,7 @@ jobs:
           log_user 1
           spawn bubblewrap build --skipJdkInstallation
           expect {
+            -re {versionName}    { send "$env(VERSION_NAME)\r"; exp_continue }
             -re {install the JDK} { send "n\r"; exp_continue }
             -re {[Jj][Dd][Kk]}    { send "n\r"; exp_continue }
             -re {Android SDK}     { send "y\r"; exp_continue }
