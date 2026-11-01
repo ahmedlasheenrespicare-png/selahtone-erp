@@ -13,10 +13,10 @@ import SerialSelector, { type SerialOption } from "./serial-selector";
 
 type Product = { id: string; name: string; sku: string; unitPrice: string; taxId: string; taxKind: string; taxRate: string; taxCode: string; taxUsable: boolean; isStock: boolean; isSerialized: boolean; quantityAvailable: string };
 type CartItem = { productId: string; quantity: string; serials: SerialOption[] };
-type Props = { requestId: string; warehouseId: string; warehouseName: string; staff: boolean; discountBps: number; products: Product[] };
+type Props = { requestId: string; warehouseId: string; warehouseName: string; staff: boolean; discountBps: number; products: Product[]; stockDecoupled: boolean };
 type Review = { input: SaleInput; calculation: CalculatedSale; payment: bigint };
 
-export default function SaleForm({ requestId, warehouseId, warehouseName, staff, discountBps, products }: Props) {
+export default function SaleForm({ requestId, warehouseId, warehouseName, staff, discountBps, products, stockDecoupled }: Props) {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [discount, setDiscount] = useState("0");
