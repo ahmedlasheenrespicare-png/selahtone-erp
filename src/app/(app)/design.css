@@ -1,0 +1,94 @@
+/* ============================================================
+   التصميم الجديد — طبقة أنماط فوق أنماط الشاشات الحالية
+
+   لا تغيّر بنية الشاشات ولا مكوّناتها: تعيد تنسيق ما هو قائم.
+   طُوِّرت أولًا على مرايا الشاشات الحقيقية في prototypes/ui-preview/
+   (site-mirror.html و site-mirror-finance.html) ثم نُقلت إلى هنا.
+
+   الخصوصية مرفوعة قصدًا (.dashboard .dashboard-heading لا .dashboard-heading):
+   فـ finance.css يُستورد في layout الأعمق، فيُحقن بعد هذه الورقة، ولولا
+   رفع الخصوصية لانتصرت قواعده الأصلية على قواعد التصميم.
+
+   !important في لوحة القيادة ضروري لا اختياري: شاشتها تضبط
+   margin-bottom سطريًا في JSX، والسطري ينتصر على أي ورقة.
+   ============================================================ */
+
+/* ======================= لوحة القيادة ======================= */
+
+/* الترويسة الملوّنة — بدرجات --navy الموجودة في الموقع نفسه */
+.dashboard .dashboard-heading{
+  align-items: center;
+  padding: 15px 18px;
+  border-radius: 14px;
+  background: linear-gradient(115deg, #0f2f4d 0%, #14395e 55%, #1d5a8f 100%);
+  box-shadow: 0 16px 32px -16px rgba(15, 47, 77, .55);
+}
+.dashboard .dashboard-eyebrow{color:#cfe0f7}
+.dashboard .dashboard-eyebrow span{background:#eaf2ff}
+.dashboard .dashboard-heading h1{color:#fff; font-size:clamp(21px,2.2vw,27px)}
+.dashboard .dashboard-heading__description{color:#c9dcf5; font-size:14px}
+.dashboard .dashboard-date{
+  background: rgba(255,255,255,.14);
+  border-color: rgba(255,255,255,.28);
+}
+.dashboard .dashboard-date small,
+.dashboard .dashboard-date time{color:#dbe7f7}
+
+/* البطاقة القائدة — أول مقياس في أول لوحة («المتوقَّع في كل العهد») */
+.dashboard .dashboard-panel:first-of-type .dashboard-metric:first-child{
+  background: linear-gradient(180deg, #eef4ff, #ffffff 44%);
+  border-color: #d3e3f8;
+  box-shadow: inset 0 3px 0 var(--navy), 0 12px 28px rgba(22,39,63,.07);
+}
+
+/* الأرقام القائدة أكبر وأثقل — والقائد يقفز فوقها */
+.dashboard .dashboard-metric__value strong{
+  font-size: clamp(28px, 3.2vw, 36px);
+  letter-spacing: -.035em;
+  color: var(--navy);
+}
+.dashboard .dashboard-panel:first-of-type .dashboard-metric:first-child .dashboard-metric__value strong{
+  font-size: clamp(36px, 4.2vw, 50px);
+}
+
+/* سُلَّم موحّد: ١٠ · ١١ · ١٢ · ١٤ · ١٦ · ١٧ (كان فيها ١٠.٥ و١٢.٥ و١٣) */
+.dashboard .dashboard-metric__label{font-size:12px}
+.dashboard .dashboard-count{font-size:11px}
+.dashboard .dashboard-metric__detail{font-size:11px}
+
+/* هواء أوضح بين الأقسام لا داخلها — الكثافة محفوظة */
+.dashboard .dashboard-panel{margin-bottom:22px !important}
+
+/* ========================= المالية ========================= */
+
+/* الترويسة الملوّنة — الشريط نفسه، فتبدو الشاشتان نظامًا واحدًا */
+.fin-page .fin-heading{
+  align-items: center;
+  padding: 15px 18px;
+  border-radius: 14px;
+  background: linear-gradient(115deg, #0f2f4d 0%, #14395e 55%, #1d5a8f 100%);
+  box-shadow: 0 16px 32px -16px rgba(15, 47, 77, .55);
+  margin-bottom: 20px;
+}
+.fin-page .fin-heading__eyebrow{color:#cfe0f7}
+.fin-page .fin-heading h1{color:#fff; font-size:clamp(21px,2.2vw,27px)}
+.fin-page .fin-heading p:not(.fin-heading__eyebrow){color:#c9dcf5; font-size:14px}
+
+/* أزرار الترويسة: بيضاء فوق الشريط الملوّن */
+.fin-page .fin-heading .fin-button{
+  background:#fff; border-color:#fff; color:#14395e;
+}
+.fin-page .fin-heading .fin-button--secondary{
+  background:rgba(255,255,255,.16); border-color:rgba(255,255,255,.30); color:#eaf2ff;
+}
+
+/* الجدول أوضح: رأس أثقل، وأرقام بعرض ثابت فتتساوى الأعمدة.
+   ولم يُضف رأس لاصق هنا: الحاوية .fin-table-wrap فيها overflow-x:auto
+   فيُحبس اللاصق داخلها فلا يعمل. */
+.fin-page .fin-table th{background:#eef3f9; color:#3d5573; font-size:12px}
+.fin-page .fin-table td{font-variant-numeric:tabular-nums}
+.fin-page .fin-table tbody tr:hover{background:#f8fafd}
+
+/* هواء أوضح بين الأقسام لا داخلها */
+.fin-page .fin-panel{margin-bottom:20px}
+.fin-page .fin-panel__heading{padding:16px 18px}
