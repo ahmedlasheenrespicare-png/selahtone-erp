@@ -1112,14 +1112,24 @@ async function settlementPeriod(
       (SELECT resolved_at::text FROM finance.settlements WHERE account_id=$1::bigint AND status='CONFIRMED' ORDER BY resolved_at DESC, id DESC LIMIT 1),
       (SELECT opened_at::text FROM finance.accounts WHERE id=$1::bigint)) AS since`, [accountId]);
   const from = since.rows[0].since;
+  // حامل العهدة: مَن بيده النقد. فإن وُجد حُسبت الفترة له وحده لا للفرع،
+  // وإلا بقي الحساب على الفرع كما كان فلا يتغيّر شيءٌ بغير سبب.
+  const holder = await tx.query<Row & { holderId: string | null }>(
+    `SELECT holder_id::text AS "holderId" FROM finance.accounts WHERE id=$1::bigint`, [accountId]);
+  const holderId = holder.rows[0]?.holderId ?? null;
+  // مَن سجّل البيع هو مَن قبض نقده، فإليه يُنسب لا إلى الفرع كلِّه.
+  const salesByHolder = holderId ? ` AND s.created_by_id=$3::bigint` : ``;
+  const salesParams = holderId ? [branchId, from, holderId] : [branchId, from];
   const sales = await tx.query<Row & { total: string }>(`SELECT COALESCE(SUM(c.amount),0)::text AS total
       FROM public.commerce_collections c
       JOIN public.commerce_sales s ON s.id = c.sale_id
-      WHERE s.branch_id=$1::bigint AND c.method='CASH' AND c.created_at > $2::timestamptz`, [branchId, from]);
+      WHERE s.branch_id=$1::bigint AND c.method='CASH' AND c.created_at > $2::timestamptz${salesByHolder}`, salesParams);
+  // ومَن طلب المصروف من نقده هو مَن يُخصم منه لا الفرع كلّه.
+  const expByHolder = holderId ? ` AND e.requested_by=$3::bigint` : ``;
   const expenses = await tx.query<Row & { total: string }>(`SELECT COALESCE(SUM(p.amount),0)::text AS total
       FROM finance.payments p
       JOIN finance.expenses e ON e.id = p.expense_id
-      WHERE e.branch_id=$1::bigint AND p.source='HOLDER_CASH' AND p.recorded_at > $2::timestamptz`, [branchId, from]);
+      WHERE e.branch_id=$1::bigint AND p.source='HOLDER_CASH' AND p.recorded_at > $2::timestamptz${expByHolder}`, salesParams);
   return { since: from, sales: exactCents(sales.rows[0].total), expenses: exactCents(expenses.rows[0].total) };
 }
 
