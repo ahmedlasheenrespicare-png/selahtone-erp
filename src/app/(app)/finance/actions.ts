@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { requireSession, type SessionUser } from "@/lib/auth";
 import { createAppCategory, editAppCategory } from "@/lib/finance/app-categories";
 import { financeDb, financeEnabled } from "@/lib/finance/db";
-import { approveExpense, cancelCashCount, cancelSettlement, confirmCashCount, confirmSettlement, createExpense, openAccount, payExpense, rejectSettlement, requestCashCount, requestPaidExpenseReview, requestSettlement, transferCash, closeAccount } from "@/lib/finance/engine";
+import { prisma } from "@/lib/prisma";
+import { approveExpense, cancelCashCount, cancelSettlement, confirmCashCount, confirmSettlement, createExpense, openAccount, payExpense, rejectSettlement, requestCashCount, requestPaidExpenseReview, requestSettlement, transferCash, closeAccount, requestCustody, decideCustodyRequest, requestCountFromHolder, submitHolderCount } from "@/lib/finance/engine";
 import { payExpensePayload } from "@/lib/finance/pay-expense-source";
 import { FinanceProblem } from "@/lib/finance/types";
 import type { FinanceActionState } from "./finance-state";
@@ -104,7 +105,7 @@ export async function closeAccountAction(_previous: FinanceActionState, formData
 }
 
 export async function transferCashAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
-  const guard = await requireFinanceManager();
+  const guard = await requireFinanceWriter();
   if ("state" in guard) return guard.state;
   const raw = {
     requestId: text(formData, "requestId"),
@@ -406,4 +407,63 @@ export async function cancelSettlementAction(_previous: FinanceActionState, form
   } catch (error) {
     return translate(error);
   }
+}
+
+/** طلب عهدة: يقدّمه الموظف، ويبتّ فيه المدير أو المحاسب. */
+export async function requestCustodyAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
+  const guard = await requireFinanceWriter();
+  if ("state" in guard) return guard.state;
+  const { session } = guard;
+  try {
+    const result = await requestCustody(prisma, session.id, {
+      requestId: formData.get("requestId"), amount: formData.get("amount"), reason: formData.get("reason"),
+    });
+    revalidateFinance();
+    return { status: "success", message: `سُجّل طلب العهدة برقم ${result.id}، وهو بانتظار اعتماد المدير.` };
+  } catch (error) { return translate(error); }
+}
+
+/** البتّ في طلب عهدة: بالموافقة تُفتح العهدة بجرد فعلي، أو بالرفض بسبب. */
+export async function decideCustodyRequestAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
+  const guard = await requireFinanceManager();
+  if ("state" in guard) return guard.state;
+  const { session } = guard;
+  try {
+    await decideCustodyRequest(prisma, session.id, {
+      requestId: formData.get("requestId"), requestId2: formData.get("requestDbId"),
+      decision: formData.get("decision"), reason: formData.get("reason"),
+      openingDate: formData.get("openingDate"), counted: formData.get("counted"),
+    });
+    revalidateFinance();
+    return { status: "success", message: formData.get("decision") === "APPROVE" ? "اعتُمد الطلب وفُتحت العهدة." : "رُفض الطلب." };
+  } catch (error) { return translate(error); }
+}
+
+/** المدير يطلب جردًا من موظف: فيعدّه الموظف بنفسه ثم يعتمده المدير. */
+export async function requestCountFromHolderAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
+  const guard = await requireFinanceManager();
+  if ("state" in guard) return guard.state;
+  const { session } = guard;
+  try {
+    const result = await requestCountFromHolder(prisma, session.id, {
+      requestId: formData.get("requestId"), accountId: formData.get("accountId"), reason: formData.get("reason"),
+    });
+    revalidateFinance();
+    return { status: "success", message: `طُلب الجرد من الموظف (طلب ${result.id}).` };
+  } catch (error) { return translate(error); }
+}
+
+/** الموظف يعدّ الجرد الموجَّه ويُقرّ أنّه عدّه بنفسه. */
+export async function submitHolderCountAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
+  const guard = await requireFinanceWriter();
+  if ("state" in guard) return guard.state;
+  const { session } = guard;
+  try {
+    await submitHolderCount(prisma, session.id, {
+      requestId: formData.get("requestId"), countId: formData.get("countId"),
+      countedAmount: formData.get("countedAmount"), actuallyCounted: formData.get("actuallyCounted"),
+    });
+    revalidateFinance();
+    return { status: "success", message: "سُجّل جردُك، وهو بانتظار تأكيد المدير." };
+  } catch (error) { return translate(error); }
 }

@@ -67,6 +67,15 @@ async function loadActor(tx: FinanceTransaction, actorId: string): Promise<Actor
   if (!activeActor(actor)) throw new FinanceProblem("forbidden", "الحساب غير نشط أو لا يملك صلاحية لهذه العملية.");
   return actor;
 }
+/** التسليم مفتوح للمدير والمحاسب بين حسابات الفرع، ولموظف الفرع من عهدته
+ *  إلى خزنة فرعه فقط. وفحصُ الجهة لا يتم هنا — إذ الحسابان لا يُعرفان قبل
+ *  قفلهما داخل المعاملة — بل بعد القفل، فلا يُترك الباب مفتوحًا بحال. */
+function transferActor(actor: Actor): void {
+  if (canManageFinance(actor)) return;
+  if (actor.role === "CS_AGENT" && actor.branchId) return;
+  throw new FinanceProblem("forbidden", "التسليم للمدير والمحاسب، أو لموظف الفرع من عهدته.");
+}
+
 function manage(actor: Actor): void {
   if (!canManageFinance(actor)) throw new FinanceProblem("forbidden", "هذه العملية للمدير والمحاسب فقط.");
 }
@@ -504,15 +513,194 @@ export async function transferCash(db: FinanceDatabase, actorId: string, raw: un
     actuallyTransferred: confirmation(value.actuallyTransferred, "التسليم الفعلي"), negativeAcknowledged: flag(value.negativeAcknowledged),
   };
   if (input.fromId === input.toId) throw new FinanceProblem("invalid_transfer", "اختر حسابين مختلفين.");
-  return command(db, actorId, "TRANSFER", input.requestId, input, manage, async (tx, actor) => {
+  return command(db, actorId, "TRANSFER", input.requestId, input, transferActor, async (tx, actor) => {
     const locked = await lockAccounts(tx, [input.fromId,input.toId]), from = locked.find((a) => a.id === input.fromId)!, to = locked.find((a) => a.id === input.toId)!;
     if (from.branchId !== to.branchId || from.kind === to.kind) throw new FinanceProblem("invalid_transfer", "التسليم بين خزنة وعهدة في الفرع نفسه فقط.");
+    // الموظف: عهدته وحدها، وإلى خزنة فرعه وحدها. فلا يمسّ خزنةً يَقبض منها،
+    // ولا عهدة زميلٍ له في الفرع نفسه.
+    if (actor.role === "CS_AGENT") {
+      if (from.kind !== "CUSTODY" || String(from.holderId ?? "") !== String(actor.id))
+        throw new FinanceProblem("forbidden", "لا يمكنك التسليم إلا من عهدتك أنت.");
+      if (to.kind !== "VAULT" || to.branchId !== actor.branchId)
+        throw new FinanceProblem("forbidden", "تُسلَّم العهدة إلى خزنة فرعك فقط.");
+    }
     await activeBranch(tx, from.branchId);
     const current = await balance(tx, from.id), projected = checkBalance(current, input.expectedBalance, exactCents(input.amount), input.negativeAcknowledged);
     const result = await tx.query<IdRow>(`INSERT INTO finance.movements(kind,branch_id,source_id,destination_id,amount,actor_id)
       VALUES('TRANSFER',$1::bigint,$2::bigint,$3::bigint,$4::numeric,$5::bigint) RETURNING id::text AS id`, [from.branchId,from.id,to.id,input.amount,actor.id]);
     await bumpAccounts(tx, [from.id,to.id]);
     const id = result.rows[0].id; await audit(tx, "MOVEMENT", id, "TRANSFER", actor.id, null, { sourceBalance: formatCents(current) }, { fromId: from.id, toId: to.id, amount: input.amount, projectedBalance: formatCents(projected), negativeAcknowledged: input.negativeAcknowledged }); return id;
+  });
+}
+
+/** طلب عهدة: يقدّمه موظف الفرع، ويعتمده المدير أو المحاسب بفتح العهدة بجرد
+ *  فعلي. فالعهدة كانت حِكرًا على الإدارة يفتحونها من طرفٍ واحد، فإن أرادها
+ *  موظف فليس له إلا أن يطلبها شفويًّا. */
+/** طلبات العهدة: للموظف طلبُه، وللمدير طلباتُ فرعه المعلَّقة. */
+export async function listCustodyRequests(db: FinanceDatabase, actorId: string, scope: "MINE" | "PENDING" = "PENDING"): Promise<Row[]> {
+  const actorIdChecked = identifier(actorId, "المستخدم");
+  return db.serializable(async (tx) => {
+    const actor = await loadActor(tx, actorIdChecked);
+    if (scope === "MINE") {
+      const rows = await tx.query<Row>(`SELECT id::text AS id, status, requested_amount::text AS amount,
+        reason, decision_reason, created_at::text AS "createdAt"
+        FROM finance.custody_requests WHERE requester_id=$1::bigint
+        ORDER BY created_at DESC LIMIT 10`, [actor.id]);
+      return rows.rows;
+    }
+    if (!canManageFinance(actor)) throw new FinanceProblem("forbidden", "عرض طلبات العهدة للمدير والمحاسب.");
+    const rows = await tx.query<Row>(`SELECT r.id::text AS id, r.status, r.requested_amount::text AS amount,
+        r.reason, r.requester_id::text AS "requesterId", r.created_at::text AS "createdAt"
+      FROM finance.custody_requests r JOIN public.users u ON u.id = r.requester_id
+      WHERE r.status='PENDING' AND ($1::boolean OR u.branch_id = $2::bigint)
+      ORDER BY r.created_at ASC`, [actor.role === "MANAGER", actor.branchId]);
+    return rows.rows;
+  });
+}
+
+/** الجرود الموجَّهة التي طُلِبت مني ولم أعدّها بعد. */
+export async function listMyCountRequests(db: FinanceDatabase, actorId: string): Promise<Row[]> {
+  const actorIdChecked = identifier(actorId, "المستخدم");
+  return db.serializable(async (tx) => {
+    const actor = await loadActor(tx, actorIdChecked);
+    const rows = await tx.query<Row>(`SELECT c.id::text AS id, c.account_id::text AS "accountId",
+        c.request_reason AS reason, c.created_at::text AS "createdAt"
+      FROM finance.cash_counts c JOIN finance.accounts a ON a.id = c.account_id
+      WHERE c.status='OPEN' AND c.counter_id IS NULL AND a.kind='CUSTODY'
+        AND a.holder_id=$1::bigint ORDER BY c.created_at DESC`, [actor.id]);
+    return rows.rows;
+  });
+}
+
+export async function requestCustody(db: FinanceDatabase, actorId: string, raw: unknown): Promise<WriteResult> {
+  const value = inputObject(raw), input = {
+    requestId: requestId(value.requestId),
+    amount: money(value.amount, "مبلغ العهدة"),
+    reason: text(value.reason, "سبب الطلب", 300, true)!,
+  };
+  return command(db, actorId, "CUSTODY_REQUEST", input.requestId, input, (actor: Actor): void => {
+    if (actor.role !== "CS_AGENT" || !actor.branchId)
+      throw new FinanceProblem("forbidden", "طلب العهدة لموظفي الفرع.");
+  }, async (tx, actor) => {
+    // عهدةٌ واحدة لكل موظف: فإن كانت له عهدةٌ مفتوحة فلا معنى لطلب أخرى.
+    const existing = await tx.query<IdRow>(
+      `SELECT id::text AS id FROM finance.accounts
+        WHERE kind='CUSTODY' AND holder_id=$1::bigint AND closed_at IS NULL LIMIT 1`, [actor.id]);
+    if (existing.rows.length > 0)
+      throw new FinanceProblem("duplicate_custody", "لك عهدة مفتوحة بالفعل؛ لا تطلب أخرى قبل إقفالها.");
+    const pending = await tx.query<IdRow>(
+      `SELECT id::text AS id FROM finance.custody_requests
+        WHERE requester_id=$1::bigint AND status='PENDING' LIMIT 1`, [actor.id]);
+    if (pending.rows.length > 0)
+      throw new FinanceProblem("duplicate_request", "لديك طلب عهدة معلَّق بالفعل.");
+    const saved = await tx.query<IdRow>(
+      `INSERT INTO finance.custody_requests (branch_id,requester_id,requested_amount,reason)
+       VALUES ($1::bigint,$2::bigint,$3::numeric,$4) RETURNING id::text AS id`,
+      [actor.branchId, actor.id, input.amount, input.reason]);
+    const id = saved.rows[0].id;
+    await audit(tx, "CUSTODY_REQUEST", id, "CREATE", actor.id, input.reason, null,
+      { branchId: actor.branchId, amount: input.amount });
+    return id;
+  });
+}
+
+/** البتّ في طلب العهدة: بالموافقة تُفتح العهدةُ بجرد فعلي، أو بالرفض بسبب. */
+export async function decideCustodyRequest(db: FinanceDatabase, actorId: string, raw: unknown, today = cairoDate()): Promise<WriteResult> {
+  const value = inputObject(raw), input = {
+    requestId: requestId(value.requestId), requestDbId: identifier(value.requestId2, "الطلب"),
+    decision: text(value.decision, "القرار", 10, true)!,
+    reason: text(value.reason, "سبب القرار", 300, true)!,
+    openingDate: date(value.openingDate, "تاريخ الجرد"),
+    counted: confirmation(value.counted, "الجرد الفعلي"),
+  };
+  if (input.decision !== "APPROVE" && input.decision !== "REJECT")
+    throw new FinanceProblem("invalid_input", "القرار: موافقة أو رفض.");
+  return command(db, actorId, "CUSTODY_DECIDE", input.requestId, input, manage, async (tx, actor) => {
+    const rows = await tx.query<Row & { id: string; branchId: string; requesterId: string; amount: string; status: string }>(
+      `SELECT id::text AS id, branch_id::text AS "branchId", requester_id::text AS "requesterId",
+              requested_amount::text AS amount, status
+         FROM finance.custody_requests WHERE id=$1::bigint FOR UPDATE`, [input.requestDbId]);
+    const request = rows.rows[0];
+    if (!request) throw new FinanceProblem("not_found", "الطلب غير موجود.");
+    if (request.status !== "PENDING") throw new FinanceProblem("already_decided", "بُتّ في هذا الطلب من قبل.");
+
+    if (input.decision === "REJECT") {
+      await tx.query(`UPDATE finance.custody_requests SET status='REJECTED',decided_by=$1::bigint,
+        decided_at=CURRENT_TIMESTAMP,decision_reason=$2 WHERE id=$3::bigint`, [actor.id, input.reason, request.id]);
+      await audit(tx, "CUSTODY_REQUEST", request.id, "REJECT", actor.id, input.reason, { status: "PENDING" }, { status: "REJECTED" });
+      return request.id;
+    }
+    // الموافقة = فتح العهدة بجرد فعلي بمبلغ الطلب، باسم المدير الذي أقرّ الجرد
+    const opened = await tx.query<IdRow>(
+      `INSERT INTO finance.accounts (branch_id,kind,holder_id,opening_amount,opening_date,opened_by)
+       VALUES ($1::bigint,'CUSTODY',$2::bigint,$3::numeric,$4::date,$5::bigint) RETURNING id::text AS id`,
+      [request.branchId, request.requesterId, request.amount, input.openingDate, actor.id]);
+    const accountId = opened.rows[0].id;
+    await tx.query(`UPDATE finance.custody_requests SET status='APPROVED',decided_by=$1::bigint,
+      decided_at=CURRENT_TIMESTAMP,decision_reason=$2,account_id=$3::bigint WHERE id=$4::bigint`,
+      [actor.id, input.reason, accountId, request.id]);
+    await audit(tx, "CUSTODY_REQUEST", request.id, "APPROVE", actor.id, input.reason, { status: "PENDING" },
+      { status: "APPROVED", accountId, amount: request.amount });
+    return accountId;
+  });
+}
+
+/** جردٌ موجَّه: المدير يطلبه من موظف، والموظف يعدّ ويُقرّ، ثم يعتمده المدير.
+ *  كان الجردُ يُسجَّل بيد المدير عن يدٍ لا يشهدها؛ فصار بيد صاحبها. */
+/** الموظف يعدّ الجرد الموجَّه الذي طُلب منه ويُقرّ أنّه عدّه بنفسه. فالجرد
+ *  كان روايةَ المدير عن يد الموظف، فصار شهادةَ صاحبها. */
+export async function submitHolderCount(db: FinanceDatabase, actorId: string, raw: unknown): Promise<WriteResult> {
+  const value = inputObject(raw), input = {
+    requestId: requestId(value.requestId), countId: identifier(value.countId, "الجرد"),
+    countedAmount: money(value.countedAmount, "النقد المعدود", true),
+    actuallyCounted: confirmation(value.actuallyCounted, "الجرد الفعلي"),
+  };
+  return command(db, actorId, "HOLDER_COUNT", input.requestId, input, (actor: Actor): void => {
+    if (actor.role !== "CS_AGENT" || !actor.branchId)
+      throw new FinanceProblem("forbidden", "تسجيل الجرد الموجَّه لموظفي الفرع.");
+  }, async (tx, actor) => {
+    const rows = await tx.query<Row & { id: string; accountId: string; counterId: string | null; status: string }>(
+      `SELECT id::text AS id, account_id::text AS "accountId", counter_id::text AS "counterId", status
+         FROM finance.cash_counts WHERE id=$1::bigint FOR UPDATE`, [input.countId]);
+    const count = rows.rows[0];
+    if (!count) throw new FinanceProblem("not_found", "الجرد غير موجود.");
+    if (count.status !== "OPEN") throw new FinanceProblem("count_closed", "هذا الجرد لم يعد معلَّقًا.");
+    if (count.counterId) throw new FinanceProblem("already_counted", "سُجّل هذا الجرد من قبل.");
+    const account = (await lockAccounts(tx, [count.accountId]))[0];
+    if (account.kind !== "CUSTODY" || String(account.holderId ?? "") !== String(actor.id))
+      throw new FinanceProblem("forbidden", "لا تعدّ إلا جردَ عهدتك أنت.");
+    const current = await balance(tx, account.id);
+    await tx.query(`UPDATE finance.cash_counts SET counted_amount=$1::numeric, observed_balance=$2::numeric,
+      difference=($1::numeric - $2::numeric), counter_id=$3::bigint WHERE id=$4::bigint`,
+      [input.countedAmount, formatCents(current), actor.id, count.id]);
+    await audit(tx, "CASH_COUNT", count.id, "HOLDER_COUNTED", actor.id, null, null,
+      { countedAmount: input.countedAmount, observedBalance: formatCents(current) });
+    return count.id;
+  });
+}
+
+export async function requestCountFromHolder(db: FinanceDatabase, actorId: string, raw: unknown): Promise<WriteResult> {
+  const value = inputObject(raw), input = {
+    requestId: requestId(value.requestId), accountId: identifier(value.accountId, "العهدة"),
+    reason: text(value.reason, "سبب الجرد", 300, true)!,
+  };
+  return command(db, actorId, "COUNT_REQUEST", input.requestId, input, manage, async (tx, actor) => {
+    const account = (await lockAccounts(tx, [input.accountId]))[0];
+    if (account.kind !== "CUSTODY" || !account.holderId)
+      throw new FinanceProblem("invalid_input", "الجرد الموجَّه لعهدة موظف فقط.");
+    const pending = await tx.query<IdRow>(
+      `SELECT id::text AS id FROM finance.cash_counts WHERE account_id=$1::bigint AND status='OPEN'`, [account.id]);
+    if (pending.rows.length > 0)
+      throw new FinanceProblem("count_open", "لهذه العهدة جردٌ مفتوح بالفعل.");
+    const saved = await tx.query<IdRow>(
+      `INSERT INTO finance.cash_counts (account_id,counted_amount,observed_balance,difference,account_revision,
+         counted_on,reason,created_by,requested_by,request_reason)
+       VALUES ($1::bigint,'0.00','0.00','0.00',$2::bigint,CURRENT_DATE,$3,$4::bigint,$4::bigint,$3)
+       RETURNING id::text AS id`, [account.id, account.revision, input.reason, actor.id]);
+    const id = saved.rows[0].id;
+    await audit(tx, "CASH_COUNT", id, "REQUEST", actor.id, input.reason, null,
+      { accountId: account.id, holderId: account.holderId });
+    return id;
   });
 }
 
@@ -1095,14 +1283,24 @@ async function settlementPeriod(
       (SELECT resolved_at::text FROM finance.settlements WHERE account_id=$1::bigint AND status='CONFIRMED' ORDER BY resolved_at DESC, id DESC LIMIT 1),
       (SELECT opened_at::text FROM finance.accounts WHERE id=$1::bigint)) AS since`, [accountId]);
   const from = since.rows[0].since;
+  // حامل العهدة: مَن بيده النقد. فإن وُجد حُسبت الفترة له وحده لا للفرع،
+  // وإلا بقي الحساب على الفرع كما كان فلا يتغيّر شيءٌ بغير سبب.
+  const holder = await tx.query<Row & { holderId: string | null }>(
+    `SELECT holder_id::text AS "holderId" FROM finance.accounts WHERE id=$1::bigint`, [accountId]);
+  const holderId = holder.rows[0]?.holderId ?? null;
+  // مَن سجّل البيع هو مَن قبض نقده، فإليه يُنسب لا إلى الفرع كلِّه.
+  const salesByHolder = holderId ? ` AND s.created_by_id=$3::bigint` : ``;
+  const salesParams = holderId ? [branchId, from, holderId] : [branchId, from];
   const sales = await tx.query<Row & { total: string }>(`SELECT COALESCE(SUM(c.amount),0)::text AS total
       FROM public.commerce_collections c
       JOIN public.commerce_sales s ON s.id = c.sale_id
-      WHERE s.branch_id=$1::bigint AND c.method='CASH' AND c.created_at > $2::timestamptz`, [branchId, from]);
+      WHERE s.branch_id=$1::bigint AND c.method='CASH' AND c.created_at > $2::timestamptz${salesByHolder}`, salesParams);
+  // ومَن طلب المصروف من نقده هو مَن يُخصم منه لا الفرع كلّه.
+  const expByHolder = holderId ? ` AND e.requested_by=$3::bigint` : ``;
   const expenses = await tx.query<Row & { total: string }>(`SELECT COALESCE(SUM(p.amount),0)::text AS total
       FROM finance.payments p
       JOIN finance.expenses e ON e.id = p.expense_id
-      WHERE e.branch_id=$1::bigint AND p.source='HOLDER_CASH' AND p.recorded_at > $2::timestamptz`, [branchId, from]);
+      WHERE e.branch_id=$1::bigint AND p.source='HOLDER_CASH' AND p.recorded_at > $2::timestamptz${expByHolder}`, salesParams);
   return { since: from, sales: exactCents(sales.rows[0].total), expenses: exactCents(expenses.rows[0].total) };
 }
 

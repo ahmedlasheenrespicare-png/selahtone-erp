@@ -1,10 +1,11 @@
 import Link from "next/link";
 import type { SessionUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { listAccountActivity, listAccounts } from "@/lib/finance/engine";
+import { listAccountActivity, listAccounts, listMyCountRequests } from "@/lib/finance/engine";
 import { loadEmployeeCash } from "@/lib/finance/dashboard";
 import { formatMoney } from "../format";
 import { financePage, financeRead } from "../page-context";
+import { CustodyRequestForm, HolderCountForm } from "./custody-forms";
 import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +31,8 @@ export default async function MyCustodyPage() {
 
   const accounts = await financeRead(session, (tx) => listAccounts({ serializable: (work) => work(tx) }, session.id));
   const account = accounts.find((item) => item.kind === "CUSTODY" && item.holderId === session.id) ?? null;
+  // الجرود التي طُلِبت مني ولم أعدّها بعد
+  const countRequests = await financeRead(session, (tx) => listMyCountRequests({ serializable: (work) => work(tx) }, session.id));
   // «المتوقَّع بيدك» يُقرأ من الوحدة نفسها التي تعرضها اللوحة، لا يُحسب هنا
   // مرة أخرى: فحسابه في موضعين يعني احتمال اختلافهما، والرقم الذي يُسأل عنه
   // الموظف عند التسليم يجب أن يكون واحدًا أينما رآه.
@@ -37,6 +40,16 @@ export default async function MyCustodyPage() {
 
   return (
     <div className="fin-page">
+      {countRequests.length > 0 ? (
+        <div className="fin-form-stack">
+          {countRequests.map((item) => (
+            <HolderCountForm key={String(item.id)} countId={String(item.id)} reason={item.reason ? String(item.reason) : null} />
+          ))}
+        </div>
+      ) : null}
+
+      {account === null ? <CustodyRequestForm /> : null}
+
       <div className="fin-heading">
         <div>
           <p className="fin-heading__eyebrow">عهدة الموظف</p>
