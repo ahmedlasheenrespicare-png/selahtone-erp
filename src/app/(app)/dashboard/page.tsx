@@ -231,27 +231,66 @@ export default async function DashboardPage() {
             </div>
             <span className="dashboard-count">{nf.format(summary.custodyCount)} عهدة</span>
           </div>
-          <div className="dashboard-metrics">
-            <article className="dashboard-metric">
-              <p className="dashboard-metric__label">المتوقَّع في كل العهد</p>
-              <div className="dashboard-metric__value"><strong>{nf.format(Number(summary.totalExpected))}</strong><span>ج.م</span></div>
-              <p className="dashboard-metric__detail">ما سيُسلَّم للخزنة عند التسويات</p>
+          <div className="cash-summary__body">
+            <article className="cash-hero">
+              <div className="cash-hero__head">
+                <div>
+                  <p className="cash-hero__label">المتوقَّع في كل العهد</p>
+                  <div className="cash-hero__value">
+                    <strong>{nf.format(Number(summary.totalExpected))}</strong>
+                    <span>ج.م</span>
+                  </div>
+                </div>
+                <span className="cash-hero__badge">{nf.format(summary.custodyCount)} عهد</span>
+              </div>
+              {summary.custodies.length > 0 ? (
+                <div className="cash-hero__branches">
+                  {summary.custodies.map((custody) => (
+                    <div className="cash-branch" key={custody.branchName}>
+                      <span className="cash-branch__name">{custody.branchName}</span>
+                      <strong className="cash-branch__amount">
+                        {nf.format(Number(custody.expected))}
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              <p className="cash-hero__math">
+                بمتوسط{" "}
+                {nf.format(
+                  Math.round(Number(summary.totalExpected) / Math.max(summary.custodyCount, 1)),
+                )}{" "}
+                ج.م للعهدة — وهو ما سيُسلَّم للخزنة عند التسويات
+              </p>
             </article>
-            <article className="dashboard-metric">
-              <p className="dashboard-metric__label">طلبات تسوية معلقة</p>
-              <div className="dashboard-metric__value"><strong>{nf.format(summary.pendingSettlements)}</strong></div>
-              <p className="dashboard-metric__detail">بانتظار اعتمادك</p>
-            </article>
-            <article className="dashboard-metric">
-              <p className="dashboard-metric__label">مصروفات بانتظار الاعتماد</p>
-              <div className="dashboard-metric__value"><strong>{nf.format(summary.pendingExpenses)}</strong></div>
-              <p className="dashboard-metric__detail">لم تُعتمد بعد</p>
-            </article>
-            <article className="dashboard-metric">
-              <p className="dashboard-metric__label">معتمدة بانتظار الصرف</p>
-              <div className="dashboard-metric__value"><strong>{nf.format(summary.approvedUnpaid)}</strong></div>
-              <p className="dashboard-metric__detail">اعتمدت ولم تُصرف</p>
-            </article>
+            {summary.pendingSettlements + summary.pendingExpenses + summary.approvedUnpaid > 0 ? (
+              <div className="cash-tallies">
+                {summary.pendingSettlements > 0 ? (
+                  <div className="cash-tally is-amber">
+                    <strong>{nf.format(summary.pendingSettlements)}</strong>
+                    <span>طلب تسوية بانتظار اعتمادك</span>
+                  </div>
+                ) : null}
+                {summary.pendingExpenses > 0 ? (
+                  <div className="cash-tally">
+                    <strong>{nf.format(summary.pendingExpenses)}</strong>
+                    <span>مصروفًا بانتظار الاعتماد</span>
+                  </div>
+                ) : null}
+                {summary.approvedUnpaid > 0 ? (
+                  <div className="cash-tally is-warning">
+                    <strong>{nf.format(summary.approvedUnpaid)}</strong>
+                    <span>معتمدًا بانتظار الصرف</span>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <div className="cash-tallies">
+                <span className="cash-tallies__empty">
+                  لا شيء بانتظارك — التسويات معتمدة والمصروفات مصروفة
+                </span>
+              </div>
+            )}
           </div>
         </section>
       ) : null}

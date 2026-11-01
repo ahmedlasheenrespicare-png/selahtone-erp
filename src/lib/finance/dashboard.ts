@@ -32,7 +32,25 @@ export type CashSummary = {
   pendingSettlements: number;
   pendingExpenses: number;
   approvedUnpaid: number;
+  /** عهدة كل فرع على حدة — تعرضها البطاقة تفصيلًا تحت الإجمالي */
+  custodies: { branchName: string; expected: string }[];
 };
+
+/* المتوقَّع بيد كل عهدة = الرصيد + مبيعات الفترة − مصروفاتها من نقد العهدة.
+   كُتب مرة واحدة ويُستخدم مرتين: للإجمالي، ولتفصيله فرعًا فرعًا. */
+const CUSTODY_EXPECTATION_SQL = `SELECT a.id, a.branch_id,
+    (a.opening_amount + COALESCE((SELECT SUM(CASE WHEN m.destination_id=a.id THEN m.amount ELSE -m.amount END)
+      FROM finance.movements m WHERE m.source_id=a.id OR m.destination_id=a.id),0)) AS bal,
+    COALESCE((SELECT SUM(c.amount) FROM public.commerce_collections c JOIN public.commerce_sales s ON s.id=c.sale_id
+      WHERE s.branch_id=a.branch_id AND c.method='CASH'
+        AND c.created_at > COALESCE((SELECT st.resolved_at FROM finance.settlements st
+          WHERE st.account_id=a.id AND st.status='CONFIRMED' ORDER BY st.resolved_at DESC, st.id DESC LIMIT 1), a.opened_at)),0) AS period_sales,
+    COALESCE((SELECT SUM(p.amount) FROM finance.payments p JOIN finance.expenses e ON e.id=p.expense_id
+      WHERE e.branch_id=a.branch_id AND p.source='HOLDER_CASH'
+        AND p.recorded_at > COALESCE((SELECT st2.resolved_at FROM finance.settlements st2
+          WHERE st2.account_id=a.id AND st2.status='CONFIRMED' ORDER BY st2.resolved_at DESC, st2.id DESC LIMIT 1), a.opened_at)),0) AS period_expenses
+  FROM finance.accounts a
+  WHERE a.kind='CUSTODY' AND a.closed_at IS NULL AND ($1::bigint IS NULL OR a.branch_id=$1::bigint)`;
 
 function toCents(value: string): bigint {
   const negative = value.trim().startsWith("-");
@@ -145,21 +163,32 @@ export async function loadCashSummary(session: SessionUser): Promise<CashSummary
   if (!financeEnabled()) return null;
   const branchId = session.branchId === null || session.branchId === undefined ? null : String(session.branchId);
   return read(session, async (tx) => {
-    const totals = await tx.query<{ total: string; n: number }>(`SELECT COALESCE(SUM(x.bal + x.period_sales - x.period_expenses),0)::text AS total,
-        COUNT(*)::int AS n FROM (
-      SELECT a.id,
-        (a.opening_amount + COALESCE((SELECT SUM(CASE WHEN m.destination_id=a.id THEN m.amount ELSE -m.amount END)
-          FROM finance.movements m WHERE m.source_id=a.id OR m.destination_id=a.id),0)) AS bal,
-        COALESCE((SELECT SUM(c.amount) FROM public.commerce_collections c JOIN public.commerce_sales s ON s.id=c.sale_id
-          WHERE s.branch_id=a.branch_id AND c.method='CASH'
-            AND c.created_at > COALESCE((SELECT st.resolved_at FROM finance.settlements st
-              WHERE st.account_id=a.id AND st.status='CONFIRMED' ORDER BY st.resolved_at DESC, st.id DESC LIMIT 1), a.opened_at)),0) AS period_sales,
-        COALESCE((SELECT SUM(p.amount) FROM finance.payments p JOIN finance.expenses e ON e.id=p.expense_id
-          WHERE e.branch_id=a.branch_id AND p.source='HOLDER_CASH'
-            AND p.recorded_at > COALESCE((SELECT st2.resolved_at FROM finance.settlements st2
-              WHERE st2.account_id=a.id AND st2.status='CONFIRMED' ORDER BY st2.resolved_at DESC, st2.id DESC LIMIT 1), a.opened_at)),0) AS period_expenses
-      FROM finance.accounts a
-      WHERE a.kind='CUSTODY' AND a.closed_at IS NULL AND ($1::bigint IS NULL OR a.branch_id=$1::bigint)) x`, [branchId]);
+    const totals = await tx.query<{ total: string; n: number }>(
+      `SELECT COALESCE(SUM(x.bal + x.period_sales - x.period_expenses),0)::text AS total,
+        COUNT(*)::int AS n FROM (${CUSTODY_EXPECTATION_SQL}) x`,
+      [branchId],
+    );
+
+    // عهدة كل فرع على حدة. محجوب: فتعثّر هذا الاستعلام لا يجوز أن يُسقط
+    // اللوحة كلها، بل تظهر البطاقة بإجماليها دون تفصيل الفروع.
+    let custodies: { branchName: string; expected: string }[] = [];
+    try {
+      const perBranch = await tx.query<{ branch_name: string; total: string }>(
+        `SELECT b.name_ar AS branch_name,
+            COALESCE(SUM(x.bal + x.period_sales - x.period_expenses),0)::text AS total
+          FROM (${CUSTODY_EXPECTATION_SQL}) x
+          JOIN public.branches b ON b.id = x.branch_id
+          GROUP BY b.id, b.name_ar
+          ORDER BY COALESCE(SUM(x.bal + x.period_sales - x.period_expenses),0) DESC, b.name_ar`,
+        [branchId],
+      );
+      custodies = perBranch.rows.map((row) => ({
+        branchName: row.branch_name,
+        expected: toMoney(toCents(row.total)),
+      }));
+    } catch (error) {
+      console.error("[dashboard] تعذّر حساب العهدة فرعًا فرعًا", error);
+    }
 
     const pendingSettlements = await tx.query<{ n: number }>(`SELECT count(*)::int AS n FROM finance.settlements WHERE status='OPEN'`);
     const pendingExpenses = await tx.query<{ n: number }>(`SELECT count(*)::int AS n FROM finance.expenses WHERE status='PENDING'`);
@@ -171,6 +200,7 @@ export async function loadCashSummary(session: SessionUser): Promise<CashSummary
       pendingSettlements: Number(pendingSettlements.rows[0].n),
       pendingExpenses: Number(pendingExpenses.rows[0].n),
       approvedUnpaid: Number(approvedUnpaid.rows[0].n),
+      custodies,
     };
   });
 }
