@@ -18,7 +18,7 @@ services:
     plan: free
     # فرانكفورت: أقرب منطقة متاحة إلى مصر
     region: frankfurt
-    branch: arena/446c0540-selahtone-erp
+    branch: main
     buildCommand: npm install && npx prisma generate && npm run build
     startCommand: npm start
     # فحص الصحة على /login لا /api/health: فالأخير يقرأ قاعدة البيانات ويعيد
@@ -44,6 +44,6 @@ services:
       - key: AUTH_SECRET
         sync: false
       - key: SERVER_ACTION_ALLOWED_ORIGINS
-        sync: false
+        value: selahtone-erp.onrender.com
       - key: SEED_PASSWORD
         sync: false
