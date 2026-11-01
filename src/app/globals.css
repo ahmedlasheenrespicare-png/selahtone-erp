@@ -140,9 +140,42 @@ tbody tr:hover { background: #fbfdff; }
 .login-wrap {
   min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; padding: 40px 20px 28px;
   position: relative; overflow: hidden; isolation: isolate;
-  background: radial-gradient(ellipse at 88% 4%, rgba(32, 151, 128, .27), transparent 38%),
-              radial-gradient(ellipse at 4% 90%, rgba(50, 113, 155, .20), transparent 38%),
-              linear-gradient(140deg, #0b2439, #0f2f4d 60%, #123b58);
+  /* نمط هندسي: متدرّجات مخروطية ونقاط متكرّرة (مثل نمط vikas7754) بألوان الموقع
+     لا بألوانه الأصلية (أسود ووردي فاقع) — فالخلفية داكنة، والبطاقة البيضاء
+     فوقها تحتاج تباينًا محفوظًا. الحجم أصغر قليلًا من الأصل فيبدو أنعم. */
+  --pat-sz: 15px;
+  --pat-c0: #0a2135;
+  --pat-c1: #12655c;
+  --pat-ts: 50% / calc(var(--pat-sz) * 8) calc(var(--pat-sz) * 16);
+  --pat-dot: var(--pat-c1) 0 calc(var(--pat-sz) * 0.78),
+    #fff0 calc(calc(var(--pat-sz) * 0.78) + 1px) 100%;
+  --pat-dot2: radial-gradient(circle at 90% 0%, var(--pat-dot)) var(--pat-ts),
+    radial-gradient(circle at 65% 0%, var(--pat-dot)) var(--pat-ts),
+    radial-gradient(circle at 40% 0%, var(--pat-dot)) var(--pat-ts),
+    radial-gradient(circle at 15% 0%, var(--pat-dot)) var(--pat-ts);
+  --pat-cg1: conic-gradient(from -90deg at 5% 51%, var(--pat-c0) 0 90deg, #fff0 0 100%) var(--pat-ts);
+  --pat-cg2: conic-gradient(from -90deg at 25% 50%, var(--pat-c1) 0 90deg, #fff0 0 100%) var(--pat-ts);
+  --pat-cg3: conic-gradient(from -90deg at 30% 38.5%, var(--pat-c0) 0 90deg, #fff0 0 100%) var(--pat-ts);
+  --pat-cg4: conic-gradient(from -90deg at 50% 37.5%, var(--pat-c1) 0 90deg, #fff0 0 100%) var(--pat-ts);
+  --pat-cg5: conic-gradient(from -90deg at 55% 26%, var(--pat-c0) 0 90deg, #fff0 0 100%) var(--pat-ts);
+  --pat-cg6: conic-gradient(from -90deg at 75% 25%, var(--pat-c1) 0 90deg, #fff0 0 100%) var(--pat-ts);
+  --pat-cg7: conic-gradient(from -90deg at 80% 13.5%, var(--pat-c0) 0 90deg, #fff0 0 100%) var(--pat-ts);
+  --pat-cg8: conic-gradient(from -90deg at 100% 12.5%, var(--pat-c1) 0 90deg, #fff0 0 100%) var(--pat-ts);
+  background: var(--pat-dot2), var(--pat-dot2),
+    radial-gradient(circle at 90% 100%, var(--pat-dot)) var(--pat-ts),
+    radial-gradient(circle at 65% 100%, var(--pat-dot)) var(--pat-ts),
+    radial-gradient(circle at 40% 100%, var(--pat-dot)) var(--pat-ts),
+    radial-gradient(circle at 15% 100%, var(--pat-dot)) var(--pat-ts),
+    radial-gradient(circle at 90% 12.5%, var(--pat-dot)) var(--pat-ts),
+    radial-gradient(circle at 65% 25%, var(--pat-dot)) var(--pat-ts),
+    radial-gradient(circle at 40% 37.5%, var(--pat-dot)) var(--pat-ts),
+    radial-gradient(circle at 15% 50%, var(--pat-dot)) var(--pat-ts), var(--pat-cg1),
+    var(--pat-cg1), var(--pat-cg2), var(--pat-cg2), var(--pat-cg3), var(--pat-cg3),
+    var(--pat-cg4), var(--pat-cg4), var(--pat-cg5), var(--pat-cg5), var(--pat-cg6),
+    var(--pat-cg6), var(--pat-cg7), var(--pat-cg7), var(--pat-cg8), var(--pat-cg8),
+    linear-gradient(-45deg, #fff0 0 32.25%, #0a213533 50%, var(--pat-c0) 77.5%) var(--pat-ts),
+    linear-gradient(-45deg, #fff0 0 32.25%, var(--pat-c0) 60%) var(--pat-ts),
+    repeating-linear-gradient(90deg, var(--pat-c0) 0 5%, var(--pat-c1) 0 25%) var(--pat-ts);
 }
 .login-wrap::before, .login-wrap::after {
   content: ""; position: absolute; z-index: -1; border: 1px solid rgba(200, 235, 231, .08);
