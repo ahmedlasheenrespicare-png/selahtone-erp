@@ -63,6 +63,46 @@ export async function GET() {
     out.closedAtError = String((error as { message?: string })?.message ?? error).slice(0, 400);
   }
 
+  // ماذا يرى التطبيق في الكتالوج نفسه: فقد يكون العمود مثبَّتًا والمشكلة في الرؤية.
+  try {
+    const cols = await prisma.$queryRawUnsafe<Array<{ column_name: string }>>(
+      `SELECT column_name FROM information_schema.columns WHERE table_schema='finance' AND table_name='accounts' ORDER BY column_name`,
+    );
+    out.accountsColumnsAsSeenByApp = cols.map((row) => row.column_name);
+  } catch (error) {
+    out.accountsColumnsError = String(error).slice(0, 300);
+  }
+
+  // المخططات المرئية للاتصال: قد يُحلّ finance إلى غير ما نظن.
+  try {
+    const sp = await prisma.$queryRawUnsafe<Array<{ sp: string; schemas: unknown }>>(
+      `SELECT current_setting('search_path') AS sp, current_schemas(true) AS schemas`,
+    );
+    out.searchPath = sp[0] ?? null;
+  } catch (error) {
+    out.searchPathError = String(error).slice(0, 200);
+  }
+
+  // كل مخطط فيه جدول accounts: يكشف التكرار إن وُجد جدول آخر يحجبه.
+  try {
+    const tables = await prisma.$queryRawUnsafe<Array<{ table_schema: string; cols: number }>>(
+      `SELECT table_schema, count(*)::int AS cols FROM information_schema.columns WHERE table_name='accounts' GROUP BY table_schema ORDER BY table_schema`,
+    );
+    out.accountsTablesBySchema = tables;
+  } catch (error) {
+    out.accountsTablesError = String(error).slice(0, 300);
+  }
+
+  // معرّف الفرع عند Neon إن كان متاحًا.
+  try {
+    const branch = await prisma.$queryRawUnsafe<Array<{ branch: string | null }>>(
+      `SELECT current_setting('neon.branch_id', true) AS branch`,
+    );
+    out.neonBranch = branch[0]?.branch ?? null;
+  } catch (error) {
+    out.neonBranchError = String(error).slice(0, 200);
+  }
+
   // قراءتا اللوحة: أيّهما يسلكها الدور يظهر خطؤه الحقيقي.
   try {
     out.cashSummary = (await loadCashSummary(session)) ?? null;
