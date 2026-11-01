@@ -410,28 +410,40 @@ function chartFor(roleId, branchIds, now) {
   };
 }
 
+/**
+ * شريط أرقام كثيف: ستة أرقام في سطر واحد. الغرض أن تُقرأ الشاشة كلها
+ * بلا تنقّل — فالكثافة هنا في عدد الأرقام المساندة، لا في تسويتها
+ * بالرقم القائد: كل رقم مساند أصغر من الرقم القائد بمرتبتين على الأقل.
+ */
 function tilesFor(roleId, branchIds) {
   const branches = BRANCHES.filter((b) => branchIds.includes(b.id));
   const warehouses = sum(branches.map((b) => b.warehouses.length));
+  const users = sum(branches.map((b) => b.users));
   if (roleId === "MANAGER") {
     return [
       { label: "فروع نشطة", value: formatInt(branches.length), hint: branchIds.length === BRANCHES.length ? "في نطاق حسابك" : "بعد التصفية" },
       { label: "مستودعات", value: formatInt(warehouses), hint: "في الفروع المحددة" },
+      { label: "مستخدمون", value: formatInt(users), hint: "حسابات نشطة" },
       { label: "منتجات نشطة", value: formatInt(24), hint: "دليل المنتجات" },
       { label: "قيمة المخزون", value: formatMoney(48_630_000), unit: "ج.م", hint: "بمتوسط التكلفة" },
+      { label: "تسويات الأسبوع", value: formatInt(12), hint: "مؤكَّدة ومعلّقة" },
     ];
   }
   if (roleId === "ACCOUNTANT") {
     return [
       { label: "عهدة قائمة", value: formatInt(custodiesOf(branchIds).length), hint: "في نطاقك" },
-      { label: "تسويات هذا الأسبوع", value: formatInt(4), hint: "مؤكَّدة ومعلّقة" },
+      { label: "تسويات الأسبوع", value: formatInt(4), hint: "مؤكَّدة ومعلّقة" },
       { label: "بنود المصروفات", value: formatInt(12), hint: "دليل البنود" },
       { label: "معدلات الضريبة", value: formatInt(3), hint: "معدلات نشطة" },
+      { label: "مستخدمو الفرع", value: formatInt(users), hint: "حسابات نشطة" },
+      { label: "أصناف نشطة", value: formatInt(24), hint: "دليل المنتجات" },
     ];
   }
   return [
     { label: "فواتير اليوم", value: formatInt(SELF_WEEK.invoices[6]), hint: "أتممتها اليوم" },
     { label: "مبيعات اليوم", value: formatMoney(SELF_WEEK.sales[6]), unit: "ج.م", hint: "نقدًا وآجلًا" },
+    { label: "باقٍ على العملاء", value: formatMoney(420_000), unit: "ج.م", hint: counted(3, "فاتورة", "فواتير") },
+    { label: "آخر جرد", value: "٧", unit: "أيام", hint: "مذ كان آخر جرد" },
     { label: "أصناف متاحة", value: formatInt(24), hint: "في كتالوج فرعك" },
     { label: "مستودعات فرعك", value: formatInt(2), hint: "تخدم مبيعاتك" },
   ];
@@ -508,4 +520,178 @@ export function buildDashboard(input = {}) {
     table: tableFor(roleId, branchIds),
     shortcuts: SHORTCUTS[roleId],
   };
+}
+
+/* ============================================================
+   الهيكل العام والأنماط المشتركة
+   نفس قاعدة البيانات الافتراضية، مبنية للأجزاء المشتركة بين
+   كل الشاشات: القائمة، والتنبيهات، والجدول الكثيف.
+   ============================================================ */
+
+/** القائمة الجانبية — لكل دور ما يفتحه فعلاً، لا كل ما في النظام. */
+export const NAV = [
+  {
+    label: "الرئيسية",
+    items: [
+      { id: "dashboard", label: "لوحة القيادة", icon: "dashboard", href: "/dashboard" },
+      { id: "tasks", label: "مهامي", icon: "check", href: "/tasks" },
+    ],
+  },
+  {
+    label: "المبيعات",
+    items: [
+      { id: "sales-new", label: "فاتورة جديدة", icon: "sales", href: "/sales/new" },
+      { id: "sales", label: "الفواتير", icon: "receipt", href: "/sales" },
+      { id: "stats", label: "الإحصاءات", icon: "stockValue", href: "/sales/stats" },
+    ],
+  },
+  {
+    label: "المالية",
+    items: [
+      { id: "custody", label: "العهدة والخزنة", icon: "cash", href: "/finance" },
+      { id: "settlements", label: "التسويات", icon: "settlement", href: "/finance/transfers" },
+      { id: "expenses", label: "المصروفات", icon: "expenses", href: "/finance/expenses" },
+      { id: "counts", label: "الجرد", icon: "clock", href: "/finance/counts" },
+    ],
+  },
+  {
+    label: "المخزون",
+    items: [
+      { id: "inventory", label: "الأصناف", icon: "products", href: "/inventory" },
+      { id: "receipts", label: "الاستلام", icon: "warehouse", href: "/inventory/receipts" },
+    ],
+  },
+  {
+    label: "الإعدادات",
+    items: [
+      { id: "branches", label: "الفروع والمستودعات", icon: "branch", href: "/setup/branches" },
+      { id: "users", label: "المستخدمون", icon: "users", href: "/admin" },
+      { id: "setup", label: "إعدادات النظام", icon: "settings", href: "/setup" },
+    ],
+  },
+];
+
+/** ما يراه كل دور من القائمة — الموظف لا يفتح المالية ولا الإعدادات. */
+const MENU_SCOPE = {
+  MANAGER: ["dashboard", "tasks", "sales-new", "sales", "stats", "custody", "settlements", "expenses", "counts", "inventory", "receipts", "branches", "users", "setup"],
+  ACCOUNTANT: ["dashboard", "tasks", "sales", "custody", "settlements", "expenses", "counts", "inventory", "receipts"],
+  CS_AGENT: ["dashboard", "tasks", "sales-new", "sales", "counts"],
+};
+
+/** معرّفات «ما يحتاج إجراءً» التي تُغذّي شارات القائمة — مصدر واحد للعدد. */
+const BADGE_GROUPS = {
+  tasks: ["approve-expenses", "approve-settlements", "stale-settlement", "pay-expenses", "pay", "confirm", "pending", "count", "my-expense", "outstanding"],
+  settlements: ["approve-settlements", "stale-settlement", "confirm", "count"],
+  expenses: ["approve-expenses", "pay-expenses", "pay", "pending", "my-expense"],
+};
+
+export function badgesFor(roleId, branchIds = BRANCHES.map((b) => b.id)) {
+  const items = (FOCUS[roleId] ?? []);
+  const count = (ids) =>
+    sum(ids.flatMap((id) => {
+      const item = items.find((entry) => entry.id === id);
+      return item ? branchIds.map((branch) => item.perBranch[branch]?.count ?? 0) : [];
+    }));
+  return {
+    tasks: count(BADGE_GROUPS.tasks),
+    settlements: count(BADGE_GROUPS.settlements),
+    expenses: count(BADGE_GROUPS.expenses),
+  };
+}
+
+/** القائمة بعد تصفية الدور وحساب الشارات من مصدر واحد. */
+export function navFor(roleId, branchIds = BRANCHES.map((b) => b.id)) {
+  const scope = MENU_SCOPE[roleId] ?? MENU_SCOPE.MANAGER;
+  const badges = badgesFor(roleId, branchIds);
+  return NAV.map((group) => ({
+    label: group.label,
+    items: group.items
+      .filter((item) => scope.includes(item.id))
+      .map((item) => ({ ...item, badge: badges[item.id] ?? 0 })),
+  })).filter((group) => group.items.length > 0);
+}
+
+/** التنبيهات أعلى الصفحة — أحدثها أولًا. */
+export const NOTIFICATIONS = [
+  { id: "n1", tone: "is-red", icon: "alert", title: "طلب تسوية ST-1039 فيه عجز ٨٤.٠٠ ج.م", time: "قبل ١٢ دقيقة", unread: true },
+  { id: "n2", tone: "is-warning", icon: "expenses", title: "٤ مصروفات بانتظار اعتمادك", time: "قبل ساعة", unread: true },
+  { id: "n3", tone: "is-info", icon: "settlement", title: "نور الهدى سلّمت تسوية بانتظار تأكيدك", time: "قبل ٣ ساعات", unread: true },
+  { id: "n4", tone: "is-teal", icon: "check", title: "اعتمدتَ تسوية ST-1037", time: "أمس", unread: false },
+];
+
+export function unreadCount() {
+  return NOTIFICATIONS.filter((item) => item.unread).length;
+}
+
+/**
+ * جدول كثيف يمثّل شاشة التسويات: المعدود مقابل المتوقَّع، والفرق هو
+ * العجز الحقيقي — لا حصيلة الفترة.
+ */
+export const SETTLEMENT_ROWS = [
+  { id: "ST-1041", employee: "إبراهيم عيد", branch: "العريش", counted: 315_000, expected: 315_000, status: "بانتظار الاعتماد", tone: "amber" },
+  { id: "ST-1040", employee: "نور الهدى فتحي", branch: "العريش", counted: 187_500, expected: 187_500, status: "بانتظار التأكيد", tone: "blue" },
+  { id: "ST-1039", employee: "محمود فتحي", branch: "الشيخ زويد", counted: 260_000, expected: 268_400, status: "بانتظار الاعتماد", tone: "amber" },
+  { id: "ST-1038", employee: "سارة عادل", branch: "بئر العبد", counted: 154_600, expected: 154_600, status: "بانتظار الاعتماد", tone: "amber" },
+  { id: "ST-1037", employee: "محمود فتحي", branch: "الشيخ زويد", counted: 322_000, expected: 322_000, status: "مؤكَّدة", tone: "teal" },
+  { id: "ST-1036", employee: "إبراهيم عيد", branch: "العريش", counted: 291_000, expected: 294_000, status: "مؤكَّدة", tone: "teal" },
+  { id: "ST-1034", employee: "سارة عادل", branch: "بئر العبد", counted: 218_000, expected: 218_000, status: "بطلت بحركة نقدية", tone: "red" },
+  { id: "ST-1035", employee: "نور الهدى فتحي", branch: "العريش", counted: 160_000, expected: 160_000, status: "ملغاة", tone: "gray" },
+];
+
+const OPEN_STATUSES = ["بانتظار الاعتماد", "بانتظار التأكيد"];
+
+export const settlementTable = {
+  columns: ["رقم الطلب", "الموظف", "الفرع", "المعدود", "المتوقَّع", "الفرق", "الحالة", ""],
+  rows: SETTLEMENT_ROWS,
+  /** الفرق = المعدود − المتوقَّع: سالبه عجز حقيقي، وموجبه زيادة. */
+  diff: (row) => row.counted - row.expected,
+  isOpen: (row) => OPEN_STATUSES.includes(row.status),
+};
+
+/** مجاميع الجدول — تُعرض في تذييله. */
+export function settlementTotals() {
+  const rows = SETTLEMENT_ROWS;
+  const open = rows.filter(settlementTable.isOpen);
+  const shortage = sum(rows.map((row) => (settlementTable.diff(row) < 0 ? -settlementTable.diff(row) : 0)));
+  return {
+    rows: rows.length,
+    open: open.length,
+    openValue: sum(open.map((row) => row.expected)),
+    shortage,
+    counted: sum(open.map((row) => row.counted)),
+  };
+}
+
+/** شريط أرقام كثيف أعلى الجدول: ستة أرقام في سطر واحد. */
+export function shellStats() {
+  const totals = settlementTotals();
+  return [
+    { label: "طلبات معلّقة", value: formatInt(totals.open), hint: "بانتظار اعتماد أو تأكيد" },
+    { label: "قيمة المعلّق", value: formatMoney(totals.openValue), unit: "ج.م", hint: "ما لم يُسلَّم بعد" },
+    { label: "مؤكَّدة اليوم", value: formatInt(2), hint: "أُتمّت اليوم" },
+    { label: "عجز الجرد", value: formatMoney(totals.shortage), unit: "ج.م", hint: "المعدود أقل من المتوقَّع" },
+    { label: "زمن الاعتماد", value: "3", unit: "ساعات", hint: "المتوسط هذا الأسبوع" },
+    { label: "تسويات الأسبوع", value: formatInt(12), hint: "مؤكَّدة وملغاة" },
+  ];
+}
+
+/** خيارات شريط التصفية — تُبنى من الفروع والحالات المعروفة. */
+export const FILTERS = {
+  branch: [{ id: "", label: "كل الفروع" }, ...BRANCHES.map((b) => ({ id: b.id, label: b.nameAr }))],
+  status: [
+    { id: "", label: "كل الحالات" },
+    { id: "open", label: "معلّقة" },
+    { id: "confirmed", label: "مؤكَّدة" },
+    { id: "cancelled", label: "ملغاة ومبطلة" },
+  ],
+  period: [
+    { id: "7", label: "آخر ٧ أيام" },
+    { id: "30", label: "آخر ٣٠ يومًا" },
+    { id: "month", label: "هذا الشهر" },
+  ],
+};
+
+/** خيارات النطاق للمدير في شريط المعاينة. */
+export function scopeOptions() {
+  return [{ id: "", label: "كل الفروع" }, ...BRANCHES.map((b) => ({ id: b.id, label: b.nameAr }))];
 }

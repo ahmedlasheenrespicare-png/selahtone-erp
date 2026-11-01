@@ -106,3 +106,78 @@ test("تنسيق المبالغ: خانتان عشريتان وأرقام لات
   assert.equal(formatMoney(MONTH.net), "51,240.00");
   assert.equal(formatMoney(MONTH.outstanding), "18,450.00");
 });
+
+/* ---------- الهيكل العام والأنماط المشتركة ---------- */
+import {
+  NAV,
+  NOTIFICATIONS,
+  SETTLEMENT_ROWS,
+  navFor,
+  badgesFor,
+  unreadCount,
+  settlementTable,
+  settlementTotals,
+  shellStats,
+  formatInt,
+} from "./model.mjs";
+
+test("القائمة: كل دور يرى ما يفتحه فقط، والشارات من مصدر واحد", () => {
+  const manager = navFor("MANAGER");
+  const accountant = navFor("ACCOUNTANT");
+  const employee = navFor("CS_AGENT");
+
+  const ids = (groups) => groups.flatMap((group) => group.items.map((item) => item.id));
+  assert.ok(ids(employee).includes("sales-new"));
+  assert.ok(!ids(employee).includes("expenses"), "الموظف لا يفتح المصروفات");
+  assert.ok(!ids(employee).includes("setup"), "الموظف لا يفتح الإعدادات");
+  assert.ok(!ids(accountant).includes("users"), "المحاسب لا يدير المستخدمين");
+  assert.ok(ids(manager).includes("users"));
+
+  // شارة «مهامي» تساوي مجموع «ما يحتاج إجراءً» للدور نفسه
+  assert.equal(badgesFor("MANAGER").tasks, 11);
+  assert.equal(badgesFor("ACCOUNTANT").tasks, 5);
+  assert.equal(badgesFor("CS_AGENT").tasks, 5);
+  assert.equal(badgesFor("MANAGER").settlements, 4);
+
+  // كل عنصر في القائمة له أيقونة ومسار، ولا مجموعة بلا عناصر
+  for (const group of NAV) {
+    assert.ok(group.items.length > 0);
+    for (const item of group.items) {
+      assert.ok(item.icon && item.href, `عنصر ناقص: ${item.id}`);
+    }
+  }
+});
+
+test("التنبيهات: غير المقروء يحسب، والأحدث أولًا", () => {
+  assert.equal(unreadCount(), 3);
+  assert.equal(NOTIFICATIONS[0].unread, true);
+  assert.equal(NOTIFICATIONS.at(-1).unread, false);
+});
+
+test("جدول التسويات: الفرق = المعدود − المتوقَّع، والمعلّق هو ما ينتظر إجراءً", () => {
+  const row = SETTLEMENT_ROWS.find((item) => item.id === "ST-1039");
+  assert.equal(settlementTable.diff(row), -8_400); // عجز ٨٤.٠٠ جنيهًا
+  assert.equal(settlementTable.isOpen(row), true);
+
+  const cancelled = SETTLEMENT_ROWS.find((item) => item.id === "ST-1035");
+  assert.equal(settlementTable.isOpen(cancelled), false);
+
+  const totals = settlementTotals();
+  assert.equal(totals.open, 4);
+  assert.equal(totals.openValue, 925_500); // يساوي المتوقَّع في العهد على مستوى الشركة
+  assert.equal(totals.shortage, 11_400);
+  assert.equal(formatMoney(totals.openValue), "9,255.00");
+  assert.equal(formatMoney(totals.shortage), "114.00");
+});
+
+test("شريط الأرقام الكثيف: ستة أرقام، وقيمها من مجاميع الجدول نفسها", () => {
+  const stats = shellStats();
+  assert.equal(stats.length, 6);
+  const totals = settlementTotals();
+  assert.equal(stats[0].value, formatInt(totals.open));
+  assert.equal(stats[1].value, formatMoney(totals.openValue));
+  assert.equal(stats[3].value, formatMoney(totals.shortage));
+  for (const stat of stats) {
+    assert.ok(stat.label && stat.value && stat.hint, `رقم ناقص: ${stat.label}`);
+  }
+});
