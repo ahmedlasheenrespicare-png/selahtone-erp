@@ -6,6 +6,7 @@ import { accountLabel, formatMoney } from "../format";
 import { financePage, financeRead } from "../page-context";
 import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
 import { CountRequestForm, CountResolveForm, type CountAccountOption } from "./count-forms";
+import { RequestCountFromHolderForm } from "./holder-count-request";
 
 export const dynamic = "force-dynamic";
 const STATUS_LABEL: Record<string, string> = { OPEN: "معلق", CONFIRMED: "مؤكد", CANCELLED: "ملغى" };
@@ -98,7 +99,10 @@ export default async function CountsPage() {
           {accountOptions.length === 0 ? (
             <div className="fin-alert fin-alert--warning">لا يوجد حساب نقدي مفتوح؛ افتح حسابًا بجرد فعلي أولًا.</div>
           ) : (
-            <CountRequestForm requestId={randomUUID()} accounts={accountOptions} />
+            <>
+              <CountRequestForm requestId={randomUUID()} accounts={accountOptions} />
+              <RequestCountFromHolderForm requestId={randomUUID()} accounts={accountOptions} />
+            </>
           )}
         </div>
       </div>

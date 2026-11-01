@@ -4,10 +4,11 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
 import { assertFinanceActor, financeDb, financeEnabled } from "@/lib/finance/db";
-import { listAccounts } from "@/lib/finance/engine";
+import { listAccounts, listCustodyRequests } from "@/lib/finance/engine";
 import { cairoDate } from "@/lib/finance/validation";
 import { prisma } from "@/lib/prisma";
 import AccountForm, { type BranchOption, type StaffOption } from "./account-form";
+import { CustodyRequestDecision } from "./custody-request-decision";
 
 export const dynamic = "force-dynamic";
 
@@ -46,8 +47,34 @@ export default async function FinanceAccountsPage() {
     .filter((member) => member.branchId !== null)
     .map((member) => ({ id: member.id.toString(), name: member.fullName, branchId: member.branchId!.toString() }));
 
+  // طلبات العهدة: بابٌ يقرعه الموظف، ونجيبه نحن هنا
+  const staffNames = new Map(staff.map((member) => [member.id.toString(), member.fullName]));
+  const pendingRequests = await financeDb.serializable(async (tx) => {
+    await assertFinanceActor(tx, { id: session.id, role: session.role, branchId: session.branchId });
+    return listCustodyRequests({ serializable: (work) => work(tx) }, session.id, "PENDING");
+  });
+  const today = cairoDate();
+  const custodyRequests = pendingRequests.map((item) => ({
+    id: String(item.id),
+    amount: String(item.amount),
+    reason: String(item.reason),
+    requesterName: staffNames.get(String(item.requesterId)) ?? "موظف",
+    createdAt: String(item.createdAt),
+  }));
+
   return (
     <div className="fin-page">
+      {custodyRequests.length > 0 ? (
+        <div className="fin-form-stack">
+          <div className="fin-alert fin-alert--warning" role="status">
+            {custodyRequests.length === 1 ? "طلب عهدة واحد" : `${custodyRequests.length} طلبات عهدة`} بانتظار قرارك.
+          </div>
+          {custodyRequests.map((item) => (
+            <CustodyRequestDecision key={item.id} request={item} today={today} />
+          ))}
+        </div>
+      ) : null}
+
       <Link href="/finance" className="fin-back">العودة إلى المالية</Link>
       <div className="fin-heading">
         <div>
