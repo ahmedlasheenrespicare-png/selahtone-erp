@@ -64,7 +64,7 @@ function moneyCard(view) {
   const subs = view.money.subs
     .map((sub) => `<div class="money__sub"><small>${sub.label}</small><b class="num">${sub.value}${sub.unit ? `<span>${sub.unit}</span>` : ""}</b>${sub.hint ? `<span>${sub.hint}</span>` : ""}</div>`)
     .join("");
-  return `<section class="card" aria-labelledby="money-title">
+  return `<section class="card card--lead-money" aria-labelledby="money-title">
     <div class="card__head">
       <div><p class="card__eyebrow">المال الآن</p><h2 class="card__title" id="money-title">${view.money.label}</h2></div>
     </div>
@@ -156,13 +156,15 @@ function shortcutsCard(view) {
 function render() {
   const view = buildDashboard({ role: preview.role, branchId: preview.branchId });
 
-  refs.pageHead.innerHTML = `<div>
+  refs.pageHead.innerHTML = `<div class="page-hero page-head">
+      <div>
       <h1>${view.heading.greeting}</h1>
       <p class="page-subtitle">${view.heading.subtitle}</p>
     </div>
     <div class="head-actions">
       <span class="chip-scope">${view.heading.eyebrow} · ${view.scope.label}</span>
       <button type="button" class="btn btn--secondary btn--sm" data-refresh="1">${icon("refresh")} تحديث</button>
+      </div>
     </div>`;
 
   refs.focus.innerHTML = focusCard(view);

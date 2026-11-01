@@ -34,7 +34,7 @@ function pageHeadPattern() {
   return section(
     "رأس الصفحة",
     "عنوان واحد، وسطر واحد يشرحه، ثم الأزرار. العنوان في المحتوى والمسار في الشريط الأعلى.",
-    `<div class="page-head">
+    `<div class="page-hero page-head">
       <div>
         <h1>التسويات</h1>
         <p class="page-subtitle">طلبات سلّمها الموظفون، وما ينتظر اعتمادك أو تأكيدك.</p>

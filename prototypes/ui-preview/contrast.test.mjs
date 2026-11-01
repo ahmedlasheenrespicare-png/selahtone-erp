@@ -35,16 +35,37 @@ function token(name) {
   return match[1];
 }
 
+/**
+ * آخر قاعدة تطابق المحدِّد — ففي CSS تنتصر القاعدة الأخيرة.
+ *
+ * وتُستثنى قواعد التصميمين (ب) و(ج) لأنها مشروطة بـ `[data-design]` فلا
+ * تنطبق على التصميم الأساسي؛ تُقرأ قاعدتها فقط إن لم توجد قاعدة أساسية.
+ */
+function ruleBodies(selector) {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const matches = [...css.matchAll(new RegExp(`(.{0,70})${escaped}\\{([^}]*)\\}`, "g"))];
+  assert.ok(matches.length, `القاعدة ${selector} غير موجودة`);
+  const plain = matches.filter((match) => !match[1].includes("[data-design"));
+  return (plain.length ? plain : matches).map((match) => match[2]);
+}
+
+function lastRule(selector) {
+  return ruleBodies(selector).at(-1);
+}
+
 /** يقرأ لونًا من قاعدة CSS، ويحلّ المتغيّرات إن وُجدت. */
 function fromRule(selector, property) {
-  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const rule = css.match(new RegExp(`${escaped}\\{([^}]*)\\}`));
-  assert.ok(rule, `القاعدة ${selector} غير موجودة`);
-  const value = rule[1].match(new RegExp(`${property}:\\s*([^;}]+)`));
-  assert.ok(value, `${property} غير موجود في ${selector}`);
-  const raw = value[1].trim();
-  const asVar = raw.match(/^var\(--([a-z0-9-]+)\)$/);
-  return asVar ? token(asVar[1]) : raw;
+  // الحدّ قبل اسم الخاصية يمنع أن يطابق border-color بدل color،
+  // والبحث من الآخر يضمن أخذ التعريف الأخير للّون لا أقرب قاعدة.
+  const pattern = new RegExp(`(?:^|[;{\\s])${property}:\\s*([^;}]+)`);
+  for (const body of ruleBodies(selector).reverse()) {
+    const value = body.match(pattern);
+    if (!value) continue;
+    const raw = value[1].trim();
+    const asVar = raw.match(/^var\(--([a-z0-9-]+)\)$/);
+    return asVar ? token(asVar[1]) : raw;
+  }
+  assert.fail(`${property} غير موجود في ${selector}`);
 }
 
 const MIN = 4.5;
@@ -89,4 +110,29 @@ test("تباين الأزرار: الأبيض على الأزرق، والأزر
 test("تباين شريط التنبيه الأصفر أعلى المعاينة", () => {
   const ratio = contrast(fromRule(".preview-banner", "color"), fromRule(".preview-banner", "background"));
   assert.ok(ratio >= MIN, `شريط التنبيه تباينه ${ratio.toFixed(2)}`);
+});
+
+test("تباين نص الترويسة الملوّنة على أفتح لون في المتدرّج", () => {
+  // أسوأ حالة: النص على أفتح نقطة في المتدرّج، لا على أغمقها.
+  const stops = [...lastRule(".page-hero").matchAll(/#[0-9a-fA-F]{6}/g)].map((match) => match[0]);
+  assert.ok(stops.length >= 2, "المتدرّج يحتاج لونين على الأقل");
+  const lightest = stops.reduce((best, stop) => (luminance(hex(stop)) > luminance(hex(best)) ? stop : best));
+
+  assert.ok(contrast(fromRule(".page-hero h1", "color"), lightest) >= MIN, "عنوان الترويسة");
+  assert.ok(contrast(fromRule(".page-hero .page-subtitle", "color"), lightest) >= MIN, "وصف الترويسة");
+  assert.ok(
+    contrast(fromRule(".page-hero .btn", "color"), fromRule(".page-hero .btn", "background")) >= MIN,
+    "زر الترويسة",
+  );
+});
+
+test("تباين الأرقام القائدة على بطانة البطاقة الملوّنة", () => {
+  // البطانة متدرّجة أيضًا: النص يُقاس على أفتح لون فيها.
+  for (const lead of [".card.focus", ".card--lead-money"]) {
+    const stops = [...lastRule(lead).matchAll(/#[0-9a-fA-F]{6}/g)].map((match) => match[0]);
+    if (stops.length === 0) continue; // بطانة من متغيّرات — تُقاس في اختبار آخر
+    const lightest = stops.reduce((best, stop) => (luminance(hex(stop)) > luminance(hex(best)) ? stop : best));
+    const value = lead === ".card.focus" ? fromRule(".focus__value b", "color") : fromRule(".money__value b", "color");
+    assert.ok(contrast(value, lightest) >= MIN, `الرقم القائد في ${lead}: ${contrast(value, lightest).toFixed(2)}`);
+  }
 });

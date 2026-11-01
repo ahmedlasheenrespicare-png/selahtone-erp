@@ -178,7 +178,7 @@ function render() {
   const stats = financeStats(active.id);
 
   root.innerHTML = `
-    <div class="page-head">
+    <div class="page-hero page-head">
       <div>
         <h1>المالية</h1>
         <p class="page-subtitle">الخزنة والعهد والتسويات والمصروفات في شاشة واحدة.</p>
