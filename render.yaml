@@ -18,7 +18,7 @@ services:
     plan: free
     # فرانكفورت: أقرب منطقة متاحة إلى مصر
     region: frankfurt
-    branch: main
+    branch: arena/446c0540-selahtone-erp
     buildCommand: npm install && npx prisma generate && npm run build
     startCommand: npm start
     # فحص الصحة على /login لا /api/health: فالأخير يقرأ قاعدة البيانات ويعيد
