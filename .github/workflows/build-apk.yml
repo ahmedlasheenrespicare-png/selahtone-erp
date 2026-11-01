@@ -124,15 +124,14 @@ jobs:
           log_user 1
           spawn bubblewrap build --skipJdkInstallation
           expect {
-            -re {versionName}    { send "$env(VERSION_NAME)\r"; exp_continue }
-            -re {install the JDK} { send "n\r"; exp_continue }
-            -re {[Jj][Dd][Kk]}    { send "n\r"; exp_continue }
-            -re {Android SDK}     { send "y\r"; exp_continue }
-            -re {[Ss][Dd][Kk]}    { send "y\r"; exp_continue }
-            -re {[Ll]icense}      { send "y\r"; exp_continue }
-            -re {assword}         { send "$env(BUBBLEWRAP_KEYSTORE_PASSWORD)\r"; exp_continue }
-            -re {\(Y/n\)}         { send "y\r"; exp_continue }
-            -re {\(y/n\)}         { send "y\r"; exp_continue }
+            -re {versionName for the new App version} { send "$env(VERSION_NAME)\r"; exp_continue }
+            -re {install the JDK}                     { send "n\r"; exp_continue }
+            -re {install the Android SDK}             { send "y\r"; exp_continue }
+            -re {Accept\? \(y/N\)}                    { send "y\r"; exp_continue }
+            -re {regenerate your}                     { send "y\r"; exp_continue }
+            -re {assword}                             { send "$env(BUBBLEWRAP_KEYSTORE_PASSWORD)\r"; exp_continue }
+            -re {\(Y/n\)}                             { send "y\r"; exp_continue }
+            -re {\(y/n\)}                             { send "y\r"; exp_continue }
             timeout         { puts "\nانتهى وقت الانتظار"; exit 1 }
             eof
           }
