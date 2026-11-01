@@ -155,8 +155,14 @@ jobs:
                 exp_continue
             }
             # سؤال الترخيص لفظه «...terms.html? (y/N)»: لا كلمة «Accept» فيه،
-            # فنمطٌ ينتظرها لا يطابقه أبدًا فيبقى السؤال بلا جواب.
-            -re {terms\.html\? \(y/N\)} {
+            # فنمطٌ ينتظرها لا يطابقه أبدًا فيبقى السؤال بلا جواب. وهو يُقسَم
+            # على سطرين، وقد يفصل بين «terms.html?» و«(y/N)» أكثر من مسافة،
+            # فصار النمط يقبل أي فاصل، وأُضيف نمطٌ على أول السؤال احتياطًا.
+            -re {terms\.html\?\s*\(y/N\)} {
+                if {!$sent_license} { send "y\r"; set sent_license 1; set last_answer [clock seconds] }
+                exp_continue
+            }
+            -re {agree to the Android SDK} {
                 if {!$sent_license} { send "y\r"; set sent_license 1; set last_answer [clock seconds] }
                 exp_continue
             }
