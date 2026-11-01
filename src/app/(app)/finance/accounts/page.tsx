@@ -70,7 +70,7 @@ export default async function FinanceAccountsPage() {
             {custodyRequests.length === 1 ? "طلب عهدة واحد" : `${custodyRequests.length} طلبات عهدة`} بانتظار قرارك.
           </div>
           {custodyRequests.map((item) => (
-            <CustodyRequestDecision key={item.id} request={item} today={today} />
+            <CustodyRequestDecision key={item.id} requestId={randomUUID()} request={item} today={today} />
           ))}
         </div>
       ) : null}

@@ -1,6 +1,5 @@
 "use client";
 
-import { randomUUID } from "node:crypto";
 import { useActionState, useState } from "react";
 import { decideCustodyRequestAction } from "../actions";
 import { initialFinanceActionState } from "../finance-state";
@@ -16,7 +15,7 @@ export type PendingCustodyRequest = {
 
 /** البتّ في طلب عهدة: بالموافقة تُفتح العهدة بجرد فعلي، أو بالرفض بسبب.
  *  فالعهدة كانت تُفتح من طرفٍ واحد، فصار الموظف يقرع بابها ويُجاب. */
-export function CustodyRequestDecision({ request, today }: { request: PendingCustodyRequest; today: string }) {
+export function CustodyRequestDecision({ requestId, request, today }: { requestId: string; request: PendingCustodyRequest; today: string }) {
   const [state, formAction, pending] = useActionState(decideCustodyRequestAction, initialFinanceActionState);
   const [decision, setDecision] = useState<"APPROVE" | "REJECT" | "">("");
   const [reason, setReason] = useState("");
@@ -32,7 +31,7 @@ export function CustodyRequestDecision({ request, today }: { request: PendingCus
 
   return (
     <form action={formAction} className="fin-form-stack">
-      <input type="hidden" name="requestId" value={randomUUID()} />
+      <input type="hidden" name="requestId" value={requestId} />
       <input type="hidden" name="requestDbId" value={request.id} />
       <input type="hidden" name="openingDate" value={today} />
       <div className="fin-panel">
