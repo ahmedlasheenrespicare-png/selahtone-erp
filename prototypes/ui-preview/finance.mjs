@@ -50,7 +50,7 @@ function diffTag(diff) {
 
 function toolbar(statusOptions) {
   const options = (list) => list.map((option) => `<option value="${option.id}">${option.label}</option>`).join("");
-  return `<div class="toolbar" style="margin:-9px -12px 9px;border-radius:11px 11px 0 0">
+  return `<div class="toolbar" style="margin:-9px -12px 9px;border-radius:var(--radius) var(--radius) 0 0">
     <div class="field"><label for="f-branch">الفرع</label><select id="f-branch">${options(FILTERS.branch)}</select></div>
     <div class="field"><label for="f-status">الحالة</label><select id="f-status">${options(statusOptions)}</select></div>
     <div class="field"><label for="f-period">الفترة</label><select id="f-period">${options(FILTERS.period)}</select></div>
@@ -67,7 +67,7 @@ function tableCard(tabId, rows, footLeft, footRight) {
   return `<div class="table-wrap" role="region" aria-label="جدول ${tabId}" tabindex="0">
       <table class="table"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>
     </div>
-    <div class="card__foot" style="margin:0 -12px -12px;border-radius:0 0 13px 13px">
+    <div class="card__foot" style="margin:0 -12px -12px;border-radius:0 0 var(--radius) var(--radius)">
       <span>${footLeft}</span><span>${footRight}</span>
     </div>`;
 }
@@ -76,7 +76,7 @@ function accountsTable() {
   const rows = ACCOUNTS.map(
     (row) => `<tr>
       <td class="strong">${row.name}</td>
-      <td>${tag(row.kind, row.kind === "خزنة" ? "is-blue" : "is-gray")}</td>
+      <td>${tag(row.kind, row.kind === "خزنة" ? "is-blue" : "is-copper")}</td>
       <td>${row.branch}</td>
       <td>${money(row.balance)}</td>
       <td>${money(row.expected)}</td>
