@@ -5,6 +5,8 @@ export type NavigationItem = {
   label: string;
   icon: AppIconName;
   href?: string;
+  /** عناصر فرعية تُعرض منسدلة عند الضغط على العنصر الأب. */
+  children?: NavigationItem[];
 };
 
 export type NavigationGroup = {
@@ -21,6 +23,24 @@ export type NavigationGroup = {
 const DASHBOARD: NavigationItem = { label: "لوحة القيادة", icon: "dashboard", href: "/dashboard" };
 const SALES: NavigationItem = { label: "المبيعات والفواتير", icon: "sales", href: "/sales" };
 const INVENTORY: NavigationItem = { label: "المخزون والمستودعات", icon: "inventory", href: "/inventory" };
+
+/**
+ * شاشات البيع منسدلةً تحت «المبيعات»: ثلاث منها مدير فقط (إحصائيات المبيعات،
+ * أصناف البيع، حد خصم الموظف) تحرسها صفحاتُها نفسها. فلا تُعرض لمن يرفضه
+ * الحارس، وإلا صار في القائمة رابطٌ يُحوّل صاحبه إلى لوحته كلما ضغطه.
+ */
+const SALES_MANAGER_CHILDREN: NavigationItem[] = [
+  { label: "المبيعات والفواتير", icon: "receipt", href: "/sales" },
+  { label: "بيع جديد", icon: "arrow", href: "/sales/new" },
+  { label: "إحصائيات المبيعات", icon: "reports", href: "/sales/stats" },
+  { label: "أصناف البيع", icon: "products", href: "/sales/catalog" },
+  { label: "حد خصم الموظف", icon: "settings", href: "/sales/settings" },
+];
+const SALES_EMPLOYEE_CHILDREN: NavigationItem[] = SALES_MANAGER_CHILDREN.filter(
+  (item) => item.href === "/sales" || item.href === "/sales/new",
+);
+const SALES_PARENT: NavigationItem = { label: "المبيعات", icon: "sales", children: SALES_MANAGER_CHILDREN };
+const SALES_EMPLOYEE_PARENT: NavigationItem = { label: "المبيعات", icon: "sales", children: SALES_EMPLOYEE_CHILDREN };
 
 export function navigationGroups(
   canViewAllBranches: boolean,
@@ -63,7 +83,7 @@ export function navigationGroups(
   if (canViewAllBranches) {
     return [
       { label: "الرئيسية", items: [DASHBOARD] },
-      { label: inventoryEnabled ? "المبيعات والمخزون" : "المبيعات", items: inventoryEnabled ? [SALES, INVENTORY] : [SALES] },
+      { label: inventoryEnabled ? "المبيعات والمخزون" : "المبيعات", items: inventoryEnabled ? [SALES_PARENT, INVENTORY] : [SALES_PARENT] },
       ...financeGroups,
       {
         label: "الإدارة",
@@ -80,7 +100,7 @@ export function navigationGroups(
     {
       label: "أعمال الفرع",
       items: [
-        SALES,
+        SALES_EMPLOYEE_PARENT,
         ...(inventoryEnabled ? [INVENTORY] : []),
         ...(financeEnabled
           ? [

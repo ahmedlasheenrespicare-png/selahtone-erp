@@ -74,6 +74,13 @@
 .workspace-nav-item.is-disabled { color: #667690; cursor: default; }
 .workspace-nav-item.is-disabled svg { color: #8997a9; }
 .workspace-nav-item small { margin-inline-start: auto; padding: 2px 6px; border-radius: 5px; background: #f2f5f9; color: #566b86; font-size: 10px; font-weight: 600; white-space: nowrap; }
+
+/* عنصر أب يُفتح منسدلًا: زر لا رابط، فالضغط يوسّع ولا ينقل. */
+.workspace-nav-parent { width: 100%; font: inherit; text-align: start; cursor: pointer; background: none; border: 0; }
+.workspace-nav-chevron { margin-inline-start: auto; width: 15px; height: 15px; color: #8493a8; transition: transform 0.16s ease; }
+.workspace-nav-chevron.is-open { transform: rotate(-90deg); }
+.workspace-nav-sublist { margin: 4px 0 6px; padding-inline-start: 24px; display: grid; gap: 2px; list-style: none; border-inline-start: 2px solid #e4ebf6; }
+.workspace-nav-subitem { font-size: 13.2px; }
 .workspace-sidebar__foot {
   display: flex;
   align-items: center;
