@@ -75,11 +75,14 @@ export default async function FinanceTransfersPage() {
     : { rows: [] };
   const staleSettlementIds = new Set(staleSettlements.rows.map((row) => row.id));
 
-  if (!canManage) {
+  // الموظف يسلّم من عهدته إلى خزنة فرعه: والحسابات التي يراها مقيَّدة سلفًا
+  // من listAccounts (عهدة نفسه وخزنة فرعه)، والمحرك يرفض أيَّ جهةٍ سواهما.
+  const ownCustody = accounts.find((item) => item.kind === "CUSTODY" && String(item.holderId ?? "") === String(session.id)) ?? null;
+  if (!canManage && !ownCustody) {
     return (
       <div className="fin-page">
-        <Link href="/finance" className="fin-back">العودة إلى المالية</Link>
-        <div className="fin-alert fin-alert--error">تسجيل التسليم النقدي متاح للمدير والمحاسب فقط.</div>
+        <Link href="/finance/mine" className="fin-back">العودة إلى عهدتي</Link>
+        <div className="fin-alert fin-alert--error">لا عهدة مفتوحة باسمك. تُفتح العهدة بجرد فعلي يسجّله المدير أو المحاسب.</div>
       </div>
     );
   }

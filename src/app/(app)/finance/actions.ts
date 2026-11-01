@@ -104,7 +104,7 @@ export async function closeAccountAction(_previous: FinanceActionState, formData
 }
 
 export async function transferCashAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
-  const guard = await requireFinanceManager();
+  const guard = await requireFinanceWriter();
   if ("state" in guard) return guard.state;
   const raw = {
     requestId: text(formData, "requestId"),

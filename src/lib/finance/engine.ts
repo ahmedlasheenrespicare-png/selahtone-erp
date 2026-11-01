@@ -67,6 +67,15 @@ async function loadActor(tx: FinanceTransaction, actorId: string): Promise<Actor
   if (!activeActor(actor)) throw new FinanceProblem("forbidden", "الحساب غير نشط أو لا يملك صلاحية لهذه العملية.");
   return actor;
 }
+/** التسليم مفتوح للمدير والمحاسب بين حسابات الفرع، ولموظف الفرع من عهدته
+ *  إلى خزنة فرعه فقط. وفحصُ الجهة لا يتم هنا — إذ الحسابان لا يُعرفان قبل
+ *  قفلهما داخل المعاملة — بل بعد القفل، فلا يُترك الباب مفتوحًا بحال. */
+function transferActor(actor: Actor): void {
+  if (canManageFinance(actor)) return;
+  if (actor.role === "CS_AGENT" && actor.branchId) return;
+  throw new FinanceProblem("forbidden", "التسليم للمدير والمحاسب، أو لموظف الفرع من عهدته.");
+}
+
 function manage(actor: Actor): void {
   if (!canManageFinance(actor)) throw new FinanceProblem("forbidden", "هذه العملية للمدير والمحاسب فقط.");
 }
@@ -504,9 +513,17 @@ export async function transferCash(db: FinanceDatabase, actorId: string, raw: un
     actuallyTransferred: confirmation(value.actuallyTransferred, "التسليم الفعلي"), negativeAcknowledged: flag(value.negativeAcknowledged),
   };
   if (input.fromId === input.toId) throw new FinanceProblem("invalid_transfer", "اختر حسابين مختلفين.");
-  return command(db, actorId, "TRANSFER", input.requestId, input, manage, async (tx, actor) => {
+  return command(db, actorId, "TRANSFER", input.requestId, input, transferActor, async (tx, actor) => {
     const locked = await lockAccounts(tx, [input.fromId,input.toId]), from = locked.find((a) => a.id === input.fromId)!, to = locked.find((a) => a.id === input.toId)!;
     if (from.branchId !== to.branchId || from.kind === to.kind) throw new FinanceProblem("invalid_transfer", "التسليم بين خزنة وعهدة في الفرع نفسه فقط.");
+    // الموظف: عهدته وحدها، وإلى خزنة فرعه وحدها. فلا يمسّ خزنةً يَقبض منها،
+    // ولا عهدة زميلٍ له في الفرع نفسه.
+    if (actor.role === "CS_AGENT") {
+      if (from.kind !== "CUSTODY" || String(from.holderId ?? "") !== String(actor.id))
+        throw new FinanceProblem("forbidden", "لا يمكنك التسليم إلا من عهدتك أنت.");
+      if (to.kind !== "VAULT" || to.branchId !== actor.branchId)
+        throw new FinanceProblem("forbidden", "تُسلَّم العهدة إلى خزنة فرعك فقط.");
+    }
     await activeBranch(tx, from.branchId);
     const current = await balance(tx, from.id), projected = checkBalance(current, input.expectedBalance, exactCents(input.amount), input.negativeAcknowledged);
     const result = await tx.query<IdRow>(`INSERT INTO finance.movements(kind,branch_id,source_id,destination_id,amount,actor_id)
