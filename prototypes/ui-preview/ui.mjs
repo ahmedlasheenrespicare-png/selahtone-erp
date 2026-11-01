@@ -61,6 +61,15 @@ function emitChange() {
   for (const listener of listeners) listener(preview);
 }
 
+/**
+ * بصمة المعاينة — تُحدَّث مع كل تغيير في التصميم.
+ *
+ * الغرض: أن يعرف من يفتح المعاينة أن ما يراه هو الأحدث قبل أن يحكم
+ * عليه. فإن رأى رقمًا قديمًا فالمشكلة في التخزين المؤقت عنده،
+ * لا في التصميم نفسه.
+ */
+export const PREVIEW_VERSION = { id: "٥", at: "١ نوفمبر · ٠١:٢٠" };
+
 /** التصميمات الثلاثة — نفس المحتوى بترتيب وهيئة مختلفين. */
 export const DESIGNS = [
   { id: "a", mark: "أ", name: "لوحة", note: "بطاقات · رقم قائد لكل قسم · كثافة عالية" },
@@ -207,6 +216,11 @@ export function mountChrome(options) {
   // الرابط ?design=b يفتح المعاينة على تصميم بعينه للمقارنة.
   const requestedDesign = new URLSearchParams(globalThis.location?.search ?? "").get("design");
   setDesign(DESIGNS.some((item) => item.id === requestedDesign) ? requestedDesign : "a");
+
+  const chip = document.getElementById("version-chip");
+  if (chip) {
+    chip.innerHTML = `<strong style="color:#63470c">نسخة ${PREVIEW_VERSION.id}</strong> · ${PREVIEW_VERSION.at}`;
+  }
 
   const draw = () => {
     sidebar.innerHTML = sidebarHtml(options.active);

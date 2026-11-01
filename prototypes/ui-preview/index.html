@@ -6,7 +6,7 @@
   <meta name="robots" content="noindex, nofollow">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'">
   <title>لوحة القيادة — معاينة التصميم | صلة تون</title>
-  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./theme.mjs"></script>
   <script type="module" src="./dashboard.mjs"></script>
 </head>
 <body>
@@ -19,6 +19,8 @@
     <span>الأرقام والفروع والأسماء افتراضية ولا تمثل بياناتك الفعلية</span>
     <span class="sep">·</span>
     <span>تبديل الأدوار من أسفل القائمة، وليس مصادقة ولا صلاحيات</span>
+    <span class="sep">·</span>
+    <span id="version-chip"></span>
   </p>
 
   <div class="shell" id="shell">
