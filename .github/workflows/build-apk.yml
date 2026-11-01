@@ -129,7 +129,8 @@ jobs:
           BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD || 'selahtone' }}
         run: |
           expect <<'EXPECT_SCRIPT'
-          set timeout 1800
+          set timeout 420
+          match_max 200000
           log_user 1
           spawn bubblewrap build --skipJdkInstallation
           set sent_version 0
@@ -158,7 +159,9 @@ jobs:
             # فنمطٌ ينتظرها لا يطابقه أبدًا فيبقى السؤال بلا جواب. وهو يُقسَم
             # على سطرين، وقد يفصل بين «terms.html?» و«(y/N)» أكثر من مسافة،
             # فصار النمط يقبل أي فاصل، وأُضيف نمطٌ على أول السؤال احتياطًا.
-            -re {terms\.html\?\s*\(y/N\)} {
+            # أقصر لفظ ممكن: «y/N» وحده. فالنمط الطويل يقاوم اختلاف المسافات
+            # لكنه لا يقاوم أكواد الطرفية إن تخلّلته، والقصير يطابق على أي حال.
+            -re {y/N} {
                 if {!$sent_license} { send "y\r"; set sent_license 1; set last_answer [clock seconds] }
                 exp_continue
             }
@@ -171,7 +174,12 @@ jobs:
                 exp_continue
             }
             -re {[Pp]assword[: ]} {
-                if {!$sent_pass} { send "$env(BUBBLEWRAP_KEYSTORE_PASSWORD)\r"; set sent_pass 1; set last_answer [clock seconds] }
+                if {!$sent_pass} {
+                    send "$env(BUBBLEWRAP_KEYSTORE_PASSWORD)\r"
+                    set sent_pass 1
+                    set last_answer [clock seconds]
+                    set timeout 1800
+                }
                 exp_continue
             }
             -re {(?i)\(y/n\)} {
