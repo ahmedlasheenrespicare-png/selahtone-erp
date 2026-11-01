@@ -9,8 +9,8 @@
   "navigationColor": "#0e7c6b",
   "backgroundColor": "#f4f7fa",
   "startUrl": "/",
-  "iconUrl": "https://selahtone-erp.netlify.app/icons/icon-512.png",
-  "maskableIconUrl": "https://selahtone-erp.netlify.app/icons/icon-maskable-512.png",
+  "iconUrl": "https://selahtone-erp.onrender.com/icons/icon-512.png",
+  "maskableIconUrl": "https://selahtone-erp.onrender.com/icons/icon-maskable-512.png",
   "splashScreenFadeOutDuration": 300,
   "signingKey": {
     "path": "./android.keystore",
@@ -20,7 +20,7 @@
   "appVersionCode": 1,
   "shortcuts": [],
   "generatorApp": "bubblewrap-cli",
-  "webManifestUrl": "https://selahtone-erp.netlify.app/manifest.webmanifest",
+  "webManifestUrl": "https://selahtone-erp.onrender.com/manifest.webmanifest",
   "features": {},
   "alphaDependencies": {
     "enabled": false
@@ -28,7 +28,7 @@
   "enableSiteSettingsShortcut": true,
   "isChromeOSOnly": false,
   "isMetaQuest": false,
-  "fullScopeUrl": "https://selahtone-erp.netlify.app/",
+  "fullScopeUrl": "https://selahtone-erp.onrender.com/",
   "minSdkVersion": 21,
   "orientationLock": false
 }
