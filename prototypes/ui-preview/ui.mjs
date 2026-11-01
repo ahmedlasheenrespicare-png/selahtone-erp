@@ -61,6 +61,27 @@ function emitChange() {
   for (const listener of listeners) listener(preview);
 }
 
+/** التصميمات الثلاثة — نفس المحتوى بترتيب وهيئة مختلفين. */
+export const DESIGNS = [
+  { id: "a", mark: "أ", name: "لوحة", note: "بطاقات · رقم قائد لكل قسم · كثافة عالية" },
+  { id: "b", mark: "ب", name: "مهام", note: "عمود مهام ثابت · الأرقام قائمة رأسية بجانب المحتوى" },
+  { id: "c", mark: "ج", name: "جدول", note: "لا بطاقات ولا ظلال · صفوف مخطّطة · أقصى كثافة" },
+];
+
+export const design = { current: "a" };
+const designListeners = new Set();
+
+export function onDesignChange(listener) {
+  designListeners.add(listener);
+}
+
+export function setDesign(id) {
+  const next = DESIGNS.find((item) => item.id === id) ?? DESIGNS[0];
+  design.current = next.id;
+  document.documentElement.dataset.design = next.id;
+  for (const listener of designListeners) listener(next);
+}
+
 /* ---------------- التنبيه العائم ---------------- */
 
 let toastTimer = null;
@@ -158,6 +179,9 @@ function topbarHtml(breadcrumb) {
       <kbd>Ctrl K</kbd>
     </div>
     <div class="topbar-actions">
+      <div class="design-switch" role="group" aria-label="تبديل التصميم">
+        ${DESIGNS.map((item) => `<button type="button" data-design="${item.id}" class="${item.id === design.current ? "is-active" : ""}" title="${item.note}" aria-pressed="${item.id === design.current}"><b>${item.mark}</b>${item.name}</button>`).join("")}
+      </div>
       <div class="notif-wrap">
         <button type="button" class="icon-btn notif-btn" id="notif-btn" aria-label="التنبيهات" aria-expanded="false">
           ${icon("bell")}<span class="dot num">${unreadCount()}</span>
@@ -180,6 +204,10 @@ export function mountChrome(options) {
   const sidebar = document.getElementById("sidebar");
   const topbar = document.getElementById("topbar");
 
+  // الرابط ?design=b يفتح المعاينة على تصميم بعينه للمقارنة.
+  const requestedDesign = new URLSearchParams(globalThis.location?.search ?? "").get("design");
+  setDesign(DESIGNS.some((item) => item.id === requestedDesign) ? requestedDesign : "a");
+
   const draw = () => {
     sidebar.innerHTML = sidebarHtml(options.active);
     topbar.innerHTML = topbarHtml(options.breadcrumb);
@@ -187,6 +215,7 @@ export function mountChrome(options) {
     sidebar.querySelector("#role-select").addEventListener("change", (event) => {
       preview.role = event.target.value;
       preview.branchId = null;
+      draw(); // بطاقة المستخدم وشارات القائمة تتغيّر مع الدور
       emitChange();
     });
 
@@ -194,9 +223,18 @@ export function mountChrome(options) {
     if (branchSelect) {
       branchSelect.addEventListener("change", (event) => {
         preview.branchId = event.target.value || null;
+        draw();
         emitChange();
       });
     }
+
+    topbar.querySelectorAll("[data-design]").forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        setDesign(button.dataset.design);
+        draw();
+      });
+    });
 
     sidebar.querySelector("#collapse-btn").addEventListener("click", () => {
       shell.classList.toggle("is-collapsed");
