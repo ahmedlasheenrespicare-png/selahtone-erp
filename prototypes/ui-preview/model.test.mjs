@@ -181,3 +181,84 @@ test("شريط الأرقام الكثيف: ستة أرقام، وقيمها م�
     assert.ok(stat.label && stat.value && stat.hint, `رقم ناقص: ${stat.label}`);
   }
 });
+
+/* ---------- شاشات المالية ---------- */
+import {
+  ACCOUNTS,
+  EXPENSES,
+  COUNTS,
+  FINANCE_COLUMNS,
+  accountsTotals,
+  countsTotals,
+  expensesTotals,
+  expensesOf,
+  financeStats,
+  financeTabs,
+} from "./model.mjs";
+
+test("الخزنة والعهدة: خزنة لكل فرع، والعهدة المقفلة تبقى ظاهرة بلا حذف", () => {
+  const totals = accountsTotals();
+  assert.equal(totals.vault, 5_545_000);
+  assert.equal(totals.expected, 925_500);
+  assert.equal(totals.total, 6_470_500);
+  assert.equal(totals.open, 4);
+  assert.equal(totals.closed, 1);
+  assert.equal(totals.stale, 2); // إبراهيم ٧ أيام · سارة ٩ أيام
+  assert.equal(ACCOUNTS.filter((item) => item.kind === "خزنة").length, 3);
+  const closed = ACCOUNTS.find((item) => item.status === "مقفلة");
+  assert.equal(closed.balance, 0, "العهدة تُصفَّر بتسوية قبل إقفالها");
+});
+
+test("المصروفات: أعداد الشاشة هي نفسها أعداد «ما يحتاج قرارك» في اللوحة", () => {
+  const totals = expensesTotals();
+  assert.equal(totals.count, 12);
+  assert.equal(totals.total, 1_044_500);
+  assert.equal(totals.pending.length, 4);
+  assert.equal(sum(totals.pending.map((row) => row.amount)), 234_000);
+  assert.equal(totals.approved.length, 3);
+  assert.equal(sum(totals.approved.map((row) => row.amount)), 245_000);
+
+  // نفس التوزيع على الفروع الموجود في بطاقة الإجراءات
+  const focus = buildDashboard({ role: "MANAGER" }).focus.items.find((item) => item.id === "approve-expenses");
+  assert.equal(focus.amount, sum(totals.pending.map((row) => row.amount)));
+  assert.deepEqual(
+    totals.pending.reduce((acc, row) => ({ ...acc, [row.branch]: (acc[row.branch] ?? 0) + 1 }), {}),
+    { "العريش": 2, "الشيخ زويد": 1, "بئر العبد": 1 },
+  );
+});
+
+test("تصفية المصروفات بالفرع: العريش لا يرى مصروفات الشيخ زويد", () => {
+  assert.equal(expensesOf(["ARH"]).length, 8); // ٦ مدفوعة أو معلّقة + ٢ معتمدة
+  assert.equal(expensesOf(["ARH", "SHM", "BID"]).length, EXPENSES.length);
+  assert.equal(sum(expensesOf(["BID"]).map((row) => row.amount)), 58_500);
+});
+
+test("الجرد: مفتوح واحد، والعجز مجموعه ١١٤.٠٠ جنيهًا", () => {
+  const totals = countsTotals();
+  assert.equal(totals.open, 1);
+  assert.equal(totals.shortage, 11_400);
+  assert.equal(totals.shortageCount, 2);
+  assert.equal(totals.cancelled, 1);
+  assert.equal(totals.total, COUNTS.length);
+});
+
+test("كل تبويب: ثمانية أرقام، وأعمدة معرَّفة، وشارات من مجاميعه", () => {
+  for (const tab of financeTabs()) {
+    const stats = financeStats(tab.id);
+    assert.equal(stats.length, 8, `تبويب ${tab.id}`);
+    assert.ok(FINANCE_COLUMNS[tab.id].length >= 8, `أعمدة ${tab.id}`);
+    for (const stat of stats) {
+      assert.ok(stat.label && stat.value && stat.hint, `رقم ناقص في ${tab.id}: ${stat.label}`);
+    }
+  }
+  assert.deepEqual(financeTabs().map((tab) => tab.badge), [4, 4, 7, 1]);
+});
+
+test("التطابق بين الشاشتين: «النقد تحت الإدارة» في المالية = الرقم القائد في اللوحة", () => {
+  const dashboard = buildDashboard({ role: "MANAGER" });
+  const accounts = financeStats("accounts").find((stat) => stat.label === "النقد تحت الإدارة");
+  assert.equal(accounts.value, formatMoney(dashboard.money.value));
+  const settlements = financeStats("settlements").find((stat) => stat.label === "قيمة المعلّق");
+  const custody = financeStats("accounts").find((stat) => stat.label === "المتوقَّع في العهد");
+  assert.equal(settlements.value, custody.value, "قيمة التسويات المعلّقة = المتوقَّع في العهد");
+});

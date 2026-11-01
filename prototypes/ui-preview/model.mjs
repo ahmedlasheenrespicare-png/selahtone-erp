@@ -419,6 +419,8 @@ function tilesFor(roleId, branchIds) {
   const branches = BRANCHES.filter((b) => branchIds.includes(b.id));
   const warehouses = sum(branches.map((b) => b.warehouses.length));
   const users = sum(branches.map((b) => b.users));
+  const custodies = custodiesOf(branchIds);
+  const monthExpenses = sum(expensesOf(branchIds).map((row) => row.amount));
   if (roleId === "MANAGER") {
     return [
       { label: "فروع نشطة", value: formatInt(branches.length), hint: branchIds.length === BRANCHES.length ? "في نطاق حسابك" : "بعد التصفية" },
@@ -426,26 +428,33 @@ function tilesFor(roleId, branchIds) {
       { label: "مستخدمون", value: formatInt(users), hint: "حسابات نشطة" },
       { label: "منتجات نشطة", value: formatInt(24), hint: "دليل المنتجات" },
       { label: "قيمة المخزون", value: formatMoney(48_630_000), unit: "ج.م", hint: "بمتوسط التكلفة" },
-      { label: "تسويات الأسبوع", value: formatInt(12), hint: "مؤكَّدة ومعلّقة" },
+      { label: "عهدة قائمة", value: formatInt(custodies.length), hint: "نشطة" },
+      { label: "المتوقَّع في العهد", value: formatMoney(sum(custodies.map(expectedInHand))), unit: "ج.م", hint: "ما سيُسلَّم" },
+      { label: "مصروفات الشهر", value: formatMoney(monthExpenses), unit: "ج.م", hint: `${formatInt(expensesOf(branchIds).length)} مصروفًا` },
     ];
   }
   if (roleId === "ACCOUNTANT") {
     return [
-      { label: "عهدة قائمة", value: formatInt(custodiesOf(branchIds).length), hint: "في نطاقك" },
+      { label: "عهدة قائمة", value: formatInt(custodies.length), hint: "في نطاقك" },
+      { label: "المتوقَّع في العهد", value: formatMoney(sum(custodies.map(expectedInHand))), unit: "ج.م", hint: "ما سيُسلَّم" },
       { label: "تسويات الأسبوع", value: formatInt(4), hint: "مؤكَّدة ومعلّقة" },
+      { label: "بانتظار الصرف", value: formatInt(2), hint: formatMoney(190_000) },
       { label: "بنود المصروفات", value: formatInt(12), hint: "دليل البنود" },
       { label: "معدلات الضريبة", value: formatInt(3), hint: "معدلات نشطة" },
       { label: "مستخدمو الفرع", value: formatInt(users), hint: "حسابات نشطة" },
       { label: "أصناف نشطة", value: formatInt(24), hint: "دليل المنتجات" },
     ];
   }
+  const selfSettlements = SETTLEMENT_ROWS.filter((row) => row.employee === "إبراهيم عيد" && row.status === "مؤكَّدة");
   return [
     { label: "فواتير اليوم", value: formatInt(SELF_WEEK.invoices[6]), hint: "أتممتها اليوم" },
     { label: "مبيعات اليوم", value: formatMoney(SELF_WEEK.sales[6]), unit: "ج.م", hint: "نقدًا وآجلًا" },
+    { label: "مبيعات الأسبوع", value: formatMoney(sum(SELF_WEEK.sales)), unit: "ج.م", hint: "٧ أيام" },
+    { label: "المتوقَّع بيدك", value: formatMoney(315_000), unit: "ج.م", hint: "عهدة + محصَّل − مصروف" },
     { label: "باقٍ على العملاء", value: formatMoney(420_000), unit: "ج.م", hint: counted(3, "فاتورة", "فواتير") },
     { label: "آخر جرد", value: "٧", unit: "أيام", hint: "مذ كان آخر جرد" },
+    { label: "تسوياتي المؤكَّدة", value: formatInt(selfSettlements.length), hint: "هذا الشهر" },
     { label: "أصناف متاحة", value: formatInt(24), hint: "في كتالوج فرعك" },
-    { label: "مستودعات فرعك", value: formatInt(2), hint: "تخدم مبيعاتك" },
   ];
 }
 
@@ -636,6 +645,10 @@ export const SETTLEMENT_ROWS = [
   { id: "ST-1036", employee: "إبراهيم عيد", branch: "العريش", counted: 291_000, expected: 294_000, status: "مؤكَّدة", tone: "teal" },
   { id: "ST-1034", employee: "سارة عادل", branch: "بئر العبد", counted: 218_000, expected: 218_000, status: "بطلت بحركة نقدية", tone: "red" },
   { id: "ST-1035", employee: "نور الهدى فتحي", branch: "العريش", counted: 160_000, expected: 160_000, status: "ملغاة", tone: "gray" },
+  { id: "ST-1033", employee: "إبراهيم عيد", branch: "العريش", counted: 245_000, expected: 245_000, status: "مؤكَّدة", tone: "teal" },
+  { id: "ST-1032", employee: "محمود فتحي", branch: "الشيخ زويد", counted: 315_000, expected: 315_000, status: "مؤكَّدة", tone: "teal" },
+  { id: "ST-1031", employee: "سارة عادل", branch: "بئر العبد", counted: 120_000, expected: 120_000, status: "مؤكَّدة", tone: "teal" },
+  { id: "ST-1030", employee: "نور الهدى فتحي", branch: "العريش", counted: 205_000, expected: 205_000, status: "ملغاة", tone: "gray" },
 ];
 
 const OPEN_STATUSES = ["بانتظار الاعتماد", "بانتظار التأكيد"];
@@ -691,7 +704,191 @@ export const FILTERS = {
   ],
 };
 
+/** أسماء الفروع في الجداول تُطابق مُعرّفاتها بهذا المفتاح. */
+const BRANCH_BY_CITY = { "العريش": "ARH", "الشيخ زويد": "SHM", "بئر العبد": "BID" };
+
+/** مصروفات نطاق محدَّد — حتى لا يُعرض للمدير عند تصفية فرع إجمالي الشركة. */
+export function expensesOf(branchIds) {
+  return EXPENSES.filter((row) => branchIds.includes(BRANCH_BY_CITY[row.branch]));
+}
+
 /** خيارات النطاق للمدير في شريط المعاينة. */
 export function scopeOptions() {
   return [{ id: "", label: "كل الفروع" }, ...BRANCHES.map((b) => ({ id: b.id, label: b.nameAr }))];
 }
+
+/* ============================================================
+   شاشات المالية: الخزنة والعهدة، التسويات، المصروفات، الجرد
+   أربعة تبويبات في شاشة واحدة — بياناتها من نفس المصدر الذي
+   يغذّي اللوحة، فلا يتناقض رقم بين شاشتين.
+   ============================================================ */
+
+/** الحسابات: خزنة لكل فرع، وعهدة لكل موظف. العهدة المقفلة تبقى ظاهرة. */
+export const ACCOUNTS = [
+  { id: "V-ARH", name: "خزنة العريش", kind: "خزنة", branch: "العريش", balance: 3_420_000, expected: null, lastMove: "اليوم ١٢:٤٠", idleDays: null, status: "نشطة", tone: "is-blue" },
+  { id: "V-SHM", name: "خزنة الشيخ زويد", kind: "خزنة", branch: "الشيخ زويد", balance: 1_280_000, expected: null, lastMove: "أمس", idleDays: null, status: "نشطة", tone: "is-blue" },
+  { id: "V-BID", name: "خزنة بئر العبد", kind: "خزنة", branch: "بئر العبد", balance: 845_000, expected: null, lastMove: "قبل ٣ أيام", idleDays: null, status: "نشطة", tone: "is-blue" },
+  { id: "C-4", name: "عهدة إبراهيم عيد", kind: "عهدة", branch: "العريش", balance: 100_000, expected: 315_000, lastMove: "اليوم", idleDays: 7, status: "نشطة", tone: "is-amber" },
+  { id: "C-5", name: "عهدة نور الهدى", kind: "عهدة", branch: "العريش", balance: 150_000, expected: 187_500, lastMove: "قبل يومين", idleDays: 2, status: "نشطة", tone: "is-teal" },
+  { id: "C-6", name: "عهدة محمود فتحي", kind: "عهدة", branch: "الشيخ زويد", balance: 200_000, expected: 268_400, lastMove: "قبل ٤ أيام", idleDays: 4, status: "نشطة", tone: "is-teal" },
+  { id: "C-7", name: "عهدة سارة عادل", kind: "عهدة", branch: "بئر العبد", balance: 120_000, expected: 154_600, lastMove: "قبل ٩ أيام", idleDays: 9, status: "نشطة", tone: "is-amber" },
+  { id: "C-2", name: "عهدة وليد حسن", kind: "عهدة", branch: "العريش", balance: 0, expected: 0, lastMove: "قبل ٢٠ يومًا", idleDays: null, status: "مقفلة", tone: "is-gray" },
+];
+
+export function accountsTotals() {
+  const vaults = ACCOUNTS.filter((item) => item.kind === "خزنة");
+  const open = ACCOUNTS.filter((item) => item.kind === "عهدة" && item.status !== "مقفلة");
+  const closed = ACCOUNTS.filter((item) => item.status === "مقفلة");
+  const vault = sum(vaults.map((item) => item.balance));
+  const expected = sum(open.map((item) => item.expected));
+  return {
+    vault,
+    expected,
+    total: vault + expected,
+    open: open.length,
+    closed: closed.length,
+    stale: open.filter((item) => (item.idleDays ?? 0) >= 7).length,
+    largest: Math.max(...open.map((item) => item.expected)),
+  };
+}
+
+/** المصروفات — الأعداد هنا هي نفسها التي تظهر في بطاقة «ما يحتاج قرارك». */
+export const EXPENSES = [
+  { id: "EX-2101", date: "2026-10-27", category: "كهرباء", beneficiary: "شركة الكهرباء", branch: "العريش", amount: 45_000, status: "مدفوع", tone: "is-teal" },
+  { id: "EX-2102", date: "2026-10-28", category: "نقل", beneficiary: "أحمد السائق", branch: "العريش", amount: 12_000, status: "مدفوع", tone: "is-teal" },
+  { id: "EX-2103", date: "2026-10-29", category: "صيانة", beneficiary: "مركز الصيانة", branch: "العريش", amount: 63_000, status: "بانتظار الاعتماد", tone: "is-amber" },
+  { id: "EX-2104", date: "2026-10-29", category: "قرطاسية", beneficiary: "مكتبة النور", branch: "العريش", amount: 57_000, status: "بانتظار الاعتماد", tone: "is-amber" },
+  { id: "EX-2105", date: "2026-10-30", category: "إيجار", beneficiary: "المالك", branch: "الشيخ زويد", amount: 64_000, status: "بانتظار الاعتماد", tone: "is-amber" },
+  { id: "EX-2106", date: "2026-10-30", category: "دعاية", beneficiary: "مطبعة الخير", branch: "بئر العبد", amount: 50_000, status: "بانتظار الاعتماد", tone: "is-amber" },
+  { id: "EX-2107", date: "2026-10-28", category: "كهرباء", beneficiary: "شركة الكهرباء", branch: "العريش", amount: 90_000, status: "معتمد بانتظار الصرف", tone: "is-blue" },
+  { id: "EX-2108", date: "2026-10-30", category: "صيانة", beneficiary: "مركز الصيانة", branch: "العريش", amount: 100_000, status: "معتمد بانتظار الصرف", tone: "is-blue" },
+  { id: "EX-2109", date: "2026-10-31", category: "نقل", beneficiary: "محمود السائق", branch: "الشيخ زويد", amount: 55_000, status: "معتمد بانتظار الصرف", tone: "is-blue" },
+  { id: "EX-2110", date: "2026-10-25", category: "مشتريات", beneficiary: "المورد", branch: "العريش", amount: 180_000, status: "مدفوع", tone: "is-teal" },
+  { id: "EX-2111", date: "2026-10-26", category: "مرتبات", beneficiary: "الموظفون", branch: "العريش", amount: 320_000, status: "مدفوع", tone: "is-teal" },
+  { id: "EX-2112", date: "2026-10-27", category: "متنوع", beneficiary: "—", branch: "بئر العبد", amount: 8_500, status: "مرفوض", tone: "is-red" },
+];
+
+export function expensesTotals() {
+  const by = (status) => EXPENSES.filter((row) => row.status === status);
+  const top = EXPENSES.reduce((best, row) => (row.amount > best.amount ? row : best), EXPENSES[0]);
+  return {
+    count: EXPENSES.length,
+    total: sum(EXPENSES.map((row) => row.amount)),
+    pending: by("بانتظار الاعتماد"),
+    approved: by("معتمد بانتظار الصرف"),
+    paid: by("مدفوع"),
+    rejected: by("مرفوض"),
+    top,
+    average: Math.round(sum(EXPENSES.map((row) => row.amount)) / EXPENSES.length),
+  };
+}
+
+/** الجرد: طلب مفتوح واحد، والباقي مؤكَّد. الفرق سالبه عجز. */
+export const COUNTS = [
+  { id: "CT-3101", date: "2026-11-01", employee: "إبراهيم عيد", branch: "العريش", expected: 315_000, counted: null, status: "مفتوح", tone: "is-blue" },
+  { id: "CT-3100", date: "2026-10-25", employee: "إبراهيم عيد", branch: "العريش", expected: 294_000, counted: 291_000, status: "مؤكَّد", tone: "is-teal" },
+  { id: "CT-3099", date: "2026-10-26", employee: "نور الهدى", branch: "العريش", expected: 187_500, counted: 187_500, status: "مؤكَّد", tone: "is-teal" },
+  { id: "CT-3098", date: "2026-10-27", employee: "محمود فتحي", branch: "الشيخ زويد", expected: 268_400, counted: 260_000, status: "مؤكَّد", tone: "is-teal" },
+  { id: "CT-3097", date: "2026-10-28", employee: "سارة عادل", branch: "بئر العبد", expected: 154_600, counted: 154_600, status: "مؤكَّد", tone: "is-teal" },
+  { id: "CT-3096", date: "2026-10-22", employee: "إبراهيم عيد", branch: "العريش", expected: 245_000, counted: 245_000, status: "مؤكَّد", tone: "is-teal" },
+  { id: "CT-3095", date: "2026-10-20", employee: "محمود فتحي", branch: "الشيخ زويد", expected: 315_000, counted: 315_000, status: "مؤكَّد", tone: "is-teal" },
+  { id: "CT-3094", date: "2026-10-18", employee: "سارة عادل", branch: "بئر العبد", expected: 120_000, counted: 120_000, status: "مؤكَّد", tone: "is-teal" },
+  { id: "CT-3093", date: "2026-10-16", employee: "نور الهدى", branch: "العريش", expected: 205_000, counted: 205_000, status: "مؤكَّد", tone: "is-teal" },
+  { id: "CT-3092", date: "2026-10-15", employee: "إبراهيم عيد", branch: "العريش", expected: 190_000, counted: 190_000, status: "ملغى", tone: "is-gray" },
+];
+
+export function countsTotals() {
+  const closed = COUNTS.filter((row) => row.counted != null && row.status !== "ملغى");
+  const shortage = sum(COUNTS.map((row) => (row.counted != null && row.counted - row.expected < 0 ? row.expected - row.counted : 0)));
+  const shortageCount = COUNTS.filter((row) => row.counted != null && row.counted - row.expected < 0).length;
+  return {
+    open: COUNTS.filter((row) => row.status === "مفتوح").length,
+    week: 5,
+    shortage,
+    shortageCount,
+    cancelled: COUNTS.filter((row) => row.status === "ملغى").length,
+    average: Math.round(sum(closed.map((row) => row.counted - row.expected)) / Math.max(closed.length, 1)),
+    total: COUNTS.length,
+  };
+}
+
+/** تبويبات شاشة المالية — الأعداد على التبويب من مجاميع كل قسم. */
+export function financeTabs() {
+  const expenses = expensesTotals();
+  const counts = countsTotals();
+  const accounts = accountsTotals();
+  const settlements = settlementTotals();
+  return [
+    { id: "accounts", label: "الخزنة والعهدة", badge: accounts.open },
+    { id: "settlements", label: "التسويات", badge: settlements.open },
+    { id: "expenses", label: "المصروفات", badge: expenses.pending.length + expenses.approved.length },
+    { id: "counts", label: "الجرد", badge: counts.open },
+  ];
+}
+
+/** شريط أرقام من ثمانية عناصر لكل تبويب — كلها من مجاميع الجدول نفسه. */
+export function financeStats(tabId) {
+  if (tabId === "expenses") {
+    const totals = expensesTotals();
+    return [
+      { label: "مصروفات الشهر", value: formatInt(totals.count), hint: "مسجَّلة" },
+      { label: "إجمالي الشهر", value: formatMoney(totals.total), unit: "ج.م", hint: "بكل حالاتها" },
+      { label: "بانتظار الاعتماد", value: formatInt(totals.pending.length), hint: formatMoney(sum(totals.pending.map((r) => r.amount))) },
+      { label: "بانتظار الصرف", value: formatInt(totals.approved.length), hint: formatMoney(sum(totals.approved.map((r) => r.amount))) },
+      { label: "مدفوع", value: formatMoney(sum(totals.paid.map((r) => r.amount))), unit: "ج.م", hint: `${formatInt(totals.paid.length)} مصروفًا` },
+      { label: "مرفوض", value: formatInt(totals.rejected.length), hint: formatMoney(sum(totals.rejected.map((r) => r.amount))) },
+      { label: "أكبر بند", value: formatMoney(totals.top.amount), unit: "ج.م", hint: totals.top.category },
+      { label: "متوسط المصروف", value: formatMoney(totals.average), unit: "ج.م", hint: "للمصروف الواحد" },
+    ];
+  }
+  if (tabId === "accounts") {
+    const totals = accountsTotals();
+    return [
+      { label: "خزن الشركة", value: formatMoney(totals.vault), unit: "ج.م", hint: "٣ خزنات" },
+      { label: "المتوقَّع في العهد", value: formatMoney(totals.expected), unit: "ج.م", hint: `${formatInt(totals.open)} عهدة` },
+      { label: "النقد تحت الإدارة", value: formatMoney(totals.total), unit: "ج.م", hint: "الخزن والعهد" },
+      { label: "عهدة قائمة", value: formatInt(totals.open), hint: "نشطة" },
+      { label: "عهدة مقفلة", value: formatInt(totals.closed), hint: "سجلها محفوظ" },
+      { label: "عهدة بلا جرد أسبوعًا", value: formatInt(totals.stale), hint: "تحتاج متابعة" },
+      { label: "أكبر عهدة", value: formatMoney(totals.largest), unit: "ج.م", hint: "محمود فتحي" },
+      { label: "تسويات معلّقة", value: formatInt(settlementTotals().open), hint: "بانتظار إجراء" },
+    ];
+  }
+  if (tabId === "counts") {
+    const totals = countsTotals();
+    return [
+      { label: "جرد مفتوح", value: formatInt(totals.open), hint: "بانتظار الإتمام" },
+      { label: "جرد هذا الأسبوع", value: formatInt(totals.week), hint: "مؤكَّد" },
+      { label: "عجز الجرد", value: formatMoney(totals.shortage), unit: "ج.م", hint: "المعدود أقل" },
+      { label: "عدد العجز", value: formatInt(totals.shortageCount), hint: "مرات العجز" },
+      { label: "متوسط الفرق", value: formatMoney(Math.abs(totals.average)), unit: "ج.م", hint: averagesign(totals.average) },
+      { label: "عهدة بلا جرد أسبوعًا", value: formatInt(accountsTotals().stale), hint: "تحتاج متابعة" },
+      { label: "جرد ملغى", value: formatInt(totals.cancelled), hint: "بسبب" },
+      { label: "إجمالي الجرد", value: formatInt(totals.total), hint: "في الشهر" },
+    ];
+  }
+  const totals = settlementTotals();
+  const confirmed = SETTLEMENT_ROWS.filter((row) => row.status === "مؤكَّدة");
+  return [
+    { label: "طلبات معلّقة", value: formatInt(totals.open), hint: "بانتظار إجراء" },
+    { label: "قيمة المعلّق", value: formatMoney(totals.openValue), unit: "ج.م", hint: "ما لم يُسلَّم" },
+    { label: "مؤكَّدة اليوم", value: formatInt(2), hint: "أُتمّت اليوم" },
+    { label: "مبالغ مؤكَّدة", value: formatMoney(sum(confirmed.map((row) => row.expected))), unit: "ج.م", hint: `${formatInt(confirmed.length)} تسوية` },
+    { label: "عجز الجرد", value: formatMoney(totals.shortage), unit: "ج.م", hint: "المعدود أقل" },
+    { label: "أعلى عجز", value: formatMoney(Math.max(...SETTLEMENT_ROWS.map((row) => (settlementTable.diff(row) < 0 ? -settlementTable.diff(row) : 0)))), unit: "ج.م", hint: "ST-1039" },
+    { label: "زمن الاعتماد", value: "3", unit: "ساعات", hint: "المتوسط" },
+    { label: "تسويات الأسبوع", value: formatInt(12), hint: "مؤكَّدة وملغاة" },
+  ];
+}
+
+function averagesign(value) {
+  return value < 0 ? "عجز في المتوسط" : "زيادة في المتوسط";
+}
+
+/** عناوين الأعمدة لكل تبويب. */
+export const FINANCE_COLUMNS = {
+  accounts: ["الحساب", "النوع", "الفرع", "الرصيد", "المتوقَّع", "آخر حركة", "الحالة", ""],
+  settlements: ["رقم الطلب", "الموظف", "الفرع", "المعدود", "المتوقَّع", "الفرق", "الحالة", ""],
+  expenses: ["رقم المصروف", "التاريخ", "البند", "المستفيد", "الفرع", "المبلغ", "الحالة", ""],
+  counts: ["رقم الجرد", "التاريخ", "الموظف", "الفرع", "المتوقَّع", "المعدود", "الفرق", "الحالة"],
+};

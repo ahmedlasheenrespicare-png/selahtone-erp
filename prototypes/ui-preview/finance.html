@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'">
+  <title>المالية — معاينة التصميم | صلة تون</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./finance.mjs"></script>
+</head>
+<body>
+  <a class="skip-link" href="#content">تخطي إلى المحتوى</a>
+
+  <p class="preview-banner">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 16H3l9-16z"/><path d="M12 9v5"/><path d="M12 17h.01"/></svg>
+    <strong>معاينة تصميم</strong>
+    <span class="sep">·</span>
+    <span>أربعة تبويبات لشاشات المالية — الأعداد هنا هي نفسها أعداد لوحة القيادة</span>
+    <span class="sep">·</span>
+    <span>تبديل الأدوار من أسفل القائمة، وليس مصادقة</span>
+  </p>
+
+  <div class="shell" id="shell">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="work">
+      <header class="topbar" id="topbar"></header>
+      <main id="content" class="content">
+        <section id="finance" aria-label="شاشات المالية"></section>
+        <p class="foot-note">
+          <span>المالية: ٤ تبويبات، و٨ أرقام لكل تبويب، و١٢ صفًّا في الجدول بلا تنقّل</span>
+          <span class="dot"></span>
+          <span>الفرق في الجرد = المعدود − المتوقَّع: سالبه عجز حقيقي</span>
+          <span class="dot"></span>
+          <a href="./index.html">لوحة القيادة</a>
+          <span class="dot"></span>
+          <a href="./shell.html">الهيكل والأنماط</a>
+        </p>
+      </main>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>
+    <span id="toast-text"></span>
+  </div>
+
+  <noscript><p style="padding:24px">تحتاج المعاينة إلى JavaScript. لا تتصل المعاينة بقاعدة بيانات.</p></noscript>
+</body>
+</html>
