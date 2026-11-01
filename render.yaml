@@ -32,6 +32,10 @@ services:
         value: "true"
       - key: INVENTORY_ENABLED
         value: "true"
+      # فصل مؤقت بين البيع والمخزون: «true» فيُسجَّل البيع ولا ينقص الرصيد.
+      # أعده إلى «false» بعد ضبط الأرصدة الافتتاحية والاستلام، ثم اجرد.
+      - key: SALES_STOCK_DECOUPLED
+        value: "true"
       - key: DEFAULT_CURRENCY
         value: "EGP"
       - key: APP_NAME

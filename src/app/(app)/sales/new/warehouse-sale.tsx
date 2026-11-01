@@ -32,6 +32,8 @@ export default async function WarehouseSale({ warehouseParam }: Props) {
   const requested = typeof warehouseParam === "string" ? positiveDatabaseId(warehouseParam) : null;
   const warehouse = requested ? warehouses.find((item) => item.id.toString() === requested) : null;
   const today = cairoDate();
+  // فصلٌ مؤقت بين البيع والمخزون: «true» فيسجَّل البيع بلا اشتراط رصيد ولا خصم منه
+  const stockDecoupled = process.env.SALES_STOCK_DECOUPLED === "true";
   const [products, stock, settings] = warehouse ? await Promise.all([
     prisma.product.findMany({ where: { isActive: true }, include: { taxRate: true }, orderBy: [{ nameAr: "asc" }, { id: "asc" }] }),
     prisma.stockLevel.findMany({ where: { warehouseId: warehouse.id }, select: { productId: true, qtyOnHand: true } }),
@@ -41,6 +43,7 @@ export default async function WarehouseSale({ warehouseParam }: Props) {
   return <div className="inv-page">
     <Link href="/sales" className="inv-back">← العودة إلى الفواتير</Link>
     <div className="inv-heading"><div><p className="inv-heading__eyebrow">كاونتر البيع</p><h1>بيع جديد</h1><p>اختر المستودع ثم راجع الأصناف والدفعة قبل تأكيد البيع.</p></div></div>
+    {stockDecoupled && <div className="inv-alert inv-alert--warning">المخزون مفصول مؤقتًا عن البيع: تُسجَّل الفواتير والمرتجعات بلا اشتراط رصيد وبلا تحريكه. يلزم جردٌ وتسوية عند إعادة الربط.</div>}
     <div className="inv-alert inv-alert--warning">الأسعار نهائية وشاملة الضريبة المحددة للصنف. يجب مراجعة المعالجة والنسب مع المحاسب قبل التشغيل الفعلي؛ معدل غير محدد ليس إعفاءً.</div>
     {!warehouses.length ? <div className="inv-panel inv-empty">لا يوجد مستودع نشط في نطاق حسابك.</div> : <>
       <form className="inv-panel" method="get" action="/sales/new" style={{ marginBottom: 16 }}><div className="inv-panel__body sale-inline">
@@ -49,7 +52,7 @@ export default async function WarehouseSale({ warehouseParam }: Props) {
         </select></div><button className="inv-button inv-button--secondary" type="submit">فتح قائمة الأصناف</button>
       </div></form>
       {warehouse && settings && <>
-        <SaleForm requestId={randomUUID()} warehouseId={warehouse.id.toString()} warehouseName={`${warehouse.branch.nameAr} — ${warehouse.nameAr}`} staff={session.role === "CS_AGENT"} discountBps={session.role === "MANAGER" ? settings.managerDiscountBps : settings.staffDiscountBps} products={products.map((product) => {
+        <SaleForm stockDecoupled={stockDecoupled} requestId={randomUUID()} warehouseId={warehouse.id.toString()} warehouseName={`${warehouse.branch.nameAr} — ${warehouse.nameAr}`} staff={session.role === "CS_AGENT"} discountBps={session.role === "MANAGER" ? settings.managerDiscountBps : settings.staffDiscountBps} products={products.map((product) => {
           const tax = product.taxRate;
           const supported = tax && tax.isActive && tax.effectiveFrom <= today && (!tax.effectiveTo || tax.effectiveTo >= today) && ["VAT", "SCHEDULE", "EXEMPT"].includes(tax.kind) && tax.rate.greaterThanOrEqualTo(0) && tax.rate.lessThanOrEqualTo(100) && (tax.kind !== "EXEMPT" || tax.rate.isZero());
           return { id: product.id.toString(), name: product.nameAr, sku: product.sku, unitPrice: product.salePrice.toFixed(2), taxId: tax?.id.toString() ?? "", taxKind: tax?.kind ?? "", taxRate: tax?.rate.toFixed(3) ?? "", taxCode: tax?.code ?? "غير محدد", taxUsable: Boolean(supported), isStock: product.category !== "SERVICE", isSerialized: product.category !== "SERVICE" && (product.isSerialized || product.category === "HEARING_AID"), quantityAvailable: levels.get(product.id.toString()) ?? "0.00" };
