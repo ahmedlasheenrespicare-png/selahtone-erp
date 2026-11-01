@@ -1,23 +1,21 @@
 /**
  * مسار تشخيص مؤقت — يُحذف بعد أن يُحدَّد سبب تعطّل لوحة القيادة.
  *
- * يعرض ثلاث حقائق لا تظهر في الواجهة:
- *   ١. بأي قاعدة يتصل التطبيق فعلًا (اسمها وعنوانها).
- *   ٢. هل يرى عمود finance.accounts.closed_at من نفس الاتصال.
- *   ٣. رسالة الخطأ الحقيقية من loadCashSummary، وهي ما تخفيه الصفحة خلف «حدث خطأ مؤقت».
+ * مفتوح لكل جلسة صالحة (لا للمدير وحده) لأن الحساب المستعمل تبيّن أنه ليس
+ * مديرًا. يجرب قراءتي اللوحة معًا: ملخّص الشركة (loadCashSummary) وعهدة
+ * الموظف (loadEmployeeCash)، فيظهر الخطأ أيًّا كان الدور.
  *
- * مقصور على المدير، ولا يكشف كلمة سر ولا رابط اتصال.
+ * لا يكشف كلمة سر ولا رابط اتصال: من الرابط يُطبع المضيف وحده.
  */
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { loadCashSummary } from "@/lib/finance/dashboard";
+import { loadCashSummary, loadEmployeeCash } from "@/lib/finance/dashboard";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   const session = await requireSession();
-  if (session.role !== "MANAGER") return new NextResponse("not found", { status: 404 });
 
   const out: Record<string, unknown> = {
     userId: session.id,
@@ -34,7 +32,7 @@ export async function GET() {
     out.connectionError = String(error).slice(0, 400);
   }
 
-  // بصمة النسخة: تميّز كل قاعدة عن أختها، فيُعرف هل المحرّر والتطبيق على قاعدة واحدة.
+  // بصمة النسخة: تميّز كل قاعدة عن أختها فيُعرف هل المحرّر والتطبيق على قاعدة واحدة.
   try {
     const rows = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
       `SELECT system_identifier::text AS id FROM pg_control_system()`,
@@ -52,8 +50,8 @@ export async function GET() {
   };
   out.datasourceHost = hostOf(process.env.DATABASE_URL);
   out.directHost = hostOf(process.env.DIRECT_URL);
-  out.financeEnabled = process.env.FINANCE_ENABLED ?? null;
 
+  // هل يرى التطبيق عمود الإقفال من اتصاله هو، لا من المحرّر.
   try {
     const rows = await prisma.$queryRawUnsafe<Array<{ n: number }>>(
       `SELECT count(*)::int AS n FROM finance.accounts WHERE closed_at IS NULL`,
@@ -65,12 +63,24 @@ export async function GET() {
     out.closedAtError = String((error as { message?: string })?.message ?? error).slice(0, 400);
   }
 
+  // قراءتا اللوحة: أيّهما يسلكها الدور يظهر خطؤه الحقيقي.
   try {
-    const summary = await loadCashSummary(session);
-    out.cashSummary = summary ?? null;
+    out.cashSummary = (await loadCashSummary(session)) ?? null;
   } catch (error) {
     const e = error as { name?: string; code?: string; message?: string; meta?: unknown };
     out.cashSummaryError = {
+      name: e?.name ?? null,
+      code: e?.code ?? null,
+      message: String(e?.message ?? error).slice(0, 700),
+      meta: e?.meta ? String(JSON.stringify(e.meta)).slice(0, 400) : null,
+    };
+  }
+
+  try {
+    out.employeeCash = (await loadEmployeeCash(session)) ?? null;
+  } catch (error) {
+    const e = error as { name?: string; code?: string; message?: string; meta?: unknown };
+    out.employeeCashError = {
       name: e?.name ?? null,
       code: e?.code ?? null,
       message: String(e?.message ?? error).slice(0, 700),
