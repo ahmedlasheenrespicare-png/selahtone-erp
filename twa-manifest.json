@@ -30,5 +30,6 @@
   "isMetaQuest": false,
   "fullScopeUrl": "https://selahtone-erp.onrender.com/",
   "minSdkVersion": 21,
-  "orientationLock": false
+  "orientationLock": false,
+  "enableNotifications": false
 }
