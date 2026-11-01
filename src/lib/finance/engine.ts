@@ -541,6 +541,10 @@ export async function listCustodyRequests(db: FinanceDatabase, actorId: string, 
   const actorIdChecked = identifier(actorId, "المستخدم");
   return db.serializable(async (tx) => {
     const actor = await loadActor(tx, actorIdChecked);
+    // إن لم يُنفَّذ ترحيلُ الجدول بعد، فلا تنهر الصفحة: تعود بلا طلبات.
+    const ready = await tx.query<Row & { ok: boolean }>(
+      `SELECT to_regclass('finance.custody_requests') IS NOT NULL AS ok`);
+    if (!ready.rows[0]?.ok) return [];
     if (scope === "MINE") {
       const rows = await tx.query<Row>(`SELECT id::text AS id, status, requested_amount::text AS amount,
         reason, decision_reason, created_at::text AS "createdAt"
@@ -563,6 +567,11 @@ export async function listMyCountRequests(db: FinanceDatabase, actorId: string):
   const actorIdChecked = identifier(actorId, "المستخدم");
   return db.serializable(async (tx) => {
     const actor = await loadActor(tx, actorIdChecked);
+    // كذلك: إن لم يُضف ترحيلُ counter_id بعد، تعود الصفحة بلا جرود موجَّهة.
+    const ready = await tx.query<Row & { ok: boolean }>(`SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema='finance' AND table_name='cash_counts' AND column_name='counter_id') AS ok`);
+    if (!ready.rows[0]?.ok) return [];
     const rows = await tx.query<Row>(`SELECT c.id::text AS id, c.account_id::text AS "accountId",
         c.request_reason AS reason, c.created_at::text AS "createdAt"
       FROM finance.cash_counts c JOIN finance.accounts a ON a.id = c.account_id
@@ -582,6 +591,10 @@ export async function requestCustody(db: FinanceDatabase, actorId: string, raw: 
     if (actor.role !== "CS_AGENT" || !actor.branchId)
       throw new FinanceProblem("forbidden", "طلب العهدة لموظفي الفرع.");
   }, async (tx, actor) => {
+    const ready = await tx.query<Row & { ok: boolean }>(
+      `SELECT to_regclass('finance.custody_requests') IS NOT NULL AS ok`);
+    if (!ready.rows[0]?.ok)
+      throw new FinanceProblem("not_ready", "باب طلب العهدة لم يُفتح بعد؛ نفّذ ترحيل القاعدة أولًا.");
     // عهدةٌ واحدة لكل موظف: فإن كانت له عهدةٌ مفتوحة فلا معنى لطلب أخرى.
     const existing = await tx.query<IdRow>(
       `SELECT id::text AS id FROM finance.accounts
