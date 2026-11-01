@@ -1,0 +1,46 @@
+# ============================================================
+#  نشر مشروع صلة تون على Render — الخطة المجانية
+#
+#  كيف يُستخدم: Render → New → Blueprint → اربط المستودع
+#  فيقرأ هذا الملف ويجهّز كل شيء، ثم تضيف المتغيرات السرية من اللوحة.
+#
+#  تنبيهان مهمان عن الخطة المجانية:
+#  ١) الخدمة تنام بعد ١٥ دقيقة بلا طلب، وأول فتح بعدها يستغرق ~دقيقة.
+#     الحل مجاني: خدمة مراقبة (UptimeRobot) تزور /api/health كل ٥ دقائق
+#     فتبقى مستيقظة. (المسار مستثنى من المصادقة في middleware)
+#  ٢) AUTH_SECRET يُولّده Render تلقائيًا، فإن تركته يُولَّد جديدًا
+#     سيُطلب من المستخدمين تسجيل الدخول مرة واحدة بعد الانتقال.
+# ============================================================
+services:
+  - type: web
+    name: selahtone-erp
+    runtime: node
+    plan: free
+    # فرانكفورت: أقرب منطقة متاحة إلى مصر
+    region: frankfurt
+    branch: main
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: FINANCE_ENABLED
+        value: "true"
+      - key: INVENTORY_ENABLED
+        value: "true"
+      - key: DEFAULT_CURRENCY
+        value: "EGP"
+      - key: APP_NAME
+        value: "صلة تون"
+      # تُضاف قيمها يدويًا من لوحة Render (لا تُكتب في الملف)
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: AUTH_SECRET
+        sync: false
+      - key: SERVER_ACTION_ALLOWED_ORIGINS
+        sync: false
+      - key: SEED_PASSWORD
+        sync: false
