@@ -136,3 +136,18 @@ test("تباين الأرقام القائدة على بطانة البطاقة 
     assert.ok(contrast(value, lightest) >= MIN, `الرقم القائد في ${lead}: ${contrast(value, lightest).toFixed(2)}`);
   }
 });
+
+test("تباين تسمية الرقم القائد على بطانة البطاقة الملوّنة", () => {
+  // النص داكن → أسوأ حالة هي أغمق نقطة في المتدرّج، لا أفتحها.
+  for (const [card, label] of [
+    [".card.focus", ".focus__value span"],
+    [".card--lead-money", ".money__value span"],
+  ]) {
+    const gradient = lastRule(card).match(/linear-gradient\([^;]*/);
+    assert.ok(gradient, `لا توجد بطانة متدرّجة في ${card}`);
+    const stops = [...gradient[0].matchAll(/#[0-9a-fA-F]{6}/g)].map((match) => match[0]);
+    const darkest = stops.reduce((worst, stop) => (luminance(hex(stop)) < luminance(hex(worst)) ? stop : worst));
+    const value = contrast(fromRule(label, "color"), darkest);
+    assert.ok(value >= MIN, `تسمية الرقم في ${card}: ${value.toFixed(2)}`);
+  }
+});
