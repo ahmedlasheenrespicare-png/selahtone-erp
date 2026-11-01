@@ -3,7 +3,7 @@
   --navy-2: #14395e;
   --teal: #0e7c6b;
   --teal-soft: #e6f4f1;
-  --copper: #c0763a;
+  --copper: #9c602f;   /* كان #c0763a — تباينه ٣.١٩ على #eef3f8 (تحت ٤.٥) */
   --ink: #1c2a38;
   --ink-2: #41556d;
   --ink-3: #586b80;
@@ -11,9 +11,9 @@
   --line-2: #eef3f8;
   --bg: #f4f7fa;
   --card: #ffffff;
-  --green: #27845a;
+  --green: #257d56;    /* كان #27845a — تباينه ٤.١٥ على #eef3f8 */
   --red: #b23b3b;
-  --amber: #a8700f;
+  --amber: #96640d;    /* كان #a8700f — تباينه ٣.٧٧ على #eef3f8 */
   --radius: 12px;
   --shadow: 0 1px 2px rgba(15, 47, 77, 0.05), 0 8px 24px rgba(15, 47, 77, 0.06);
 }
