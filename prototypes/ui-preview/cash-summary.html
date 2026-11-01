@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>بطاقة المتوقَّع في كل العهد</title>
+<link rel="stylesheet" href="../../src/app/globals.css">
+<link rel="stylesheet" href="../../src/app/(app)/design.css">
+<style>
+  body{margin:0; background:var(--bg); padding:40px 20px 80px; font-family:system-ui,"Segoe UI",Tahoma,sans-serif}
+  .wrap{max-width:760px; margin:0 auto}
+  .hint{text-align:center; font-size:11px; color:var(--ink-3); margin:0 0 22px; line-height:1.9}
+  .num{font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="hint">
+    مُرّر الفأرة على البطاقة لترى الظل الصلب يكبر فترتفع عن الصفحة
+    <br>
+    الأرقام وأسماء الفروع توضيحية — أما الأنماط فمن ملفي المشروع نفسيهما
+  </p>
+
+  <div class="dashboard">
+    <section class="dashboard-panel" style="margin-bottom:18px">
+      <div class="dashboard-panel__heading">
+        <div>
+          <p class="dashboard-panel__eyebrow">ملخّص النقد</p>
+          <h2>العهدة والمستحق للخزنة</h2>
+          <p>مجمَّع «المتوقَّع بيده» لكل عهدة، لا أرصدتها الدفترية.</p>
+        </div>
+        <span class="dashboard-count">٣ عهدة</span>
+      </div>
+
+      <div class="cash-summary__body">
+        <article class="cash-hero">
+          <div class="cash-hero__head">
+            <div>
+              <p class="cash-hero__label">المتوقَّع في كل العهد</p>
+              <div class="cash-hero__value">
+                <strong class="num">34,500</strong>
+                <span>ج.م</span>
+              </div>
+            </div>
+            <span class="cash-hero__badge">٣ عهد</span>
+          </div>
+
+          <div class="cash-hero__branches">
+            <div class="cash-branch">
+              <span class="cash-branch__name">الشيخ زويد</span>
+              <strong class="cash-branch__amount num">14,500</strong>
+            </div>
+            <div class="cash-branch">
+              <span class="cash-branch__name">العريش</span>
+              <strong class="cash-branch__amount num">12,500</strong>
+            </div>
+            <div class="cash-branch">
+              <span class="cash-branch__name">رفح</span>
+              <strong class="cash-branch__amount num">7,500</strong>
+            </div>
+          </div>
+
+          <p class="cash-hero__math">
+            بمتوسط <span class="num">11,500</span> ج.م للعهدة —
+            وهو ما سيُسلَّم للخزنة عند التسويات
+          </p>
+        </article>
+
+        <div class="cash-tallies">
+          <div class="cash-tally is-amber">
+            <strong class="num">2</strong><span>طلب تسوية بانتظار اعتمادك</span>
+          </div>
+          <div class="cash-tally">
+            <strong class="num">5</strong><span>مصروفًا بانتظار الاعتماد</span>
+          </div>
+          <div class="cash-tally is-warning">
+            <strong class="num">3</strong><span>معتمدًا بانتظار الصرف</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+</div>
+</body>
+</html>

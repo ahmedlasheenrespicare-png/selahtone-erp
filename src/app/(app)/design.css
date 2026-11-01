@@ -59,6 +59,98 @@
 /* هواء أوضح بين الأقسام لا داخلها — الكثافة محفوظة */
 .dashboard .dashboard-panel{margin-bottom:22px !important}
 
+/* ===== ملخّص النقد: بطاقة قائدة متوهّجة + شريط أعداد =====
+
+   مستوحى من بطاقة «إطار متدرّج رقيق · سطح أبيض داخلي · توهّج ملوّن
+   يذوب عند المرور». وأُخذت تقنيتها لا حيلتها: ففي الأصل لون الخط هو لون
+   الخلفية، فيغيب النص إلا عند المرور بالفأرة — وذلك يصلح لبطاقة استعراضية
+   لا لرقم عهدة يجب أن يُقرأ في كل لحظة.
+
+   والتدرّج من ألوان الموقع نفسه (--navy إلى --teal) لا من ألوان البطاقة
+   الأصلية، فيبقى القسم جزءًا من النظام لا جسماً دخيلاً عليه. */
+
+.dashboard .cash-summary__body{display:grid; gap:14px}
+
+/* البطاقة: حدود سميكة وظل صلب مسطّح يرتفع عند المرور */
+.dashboard .cash-hero{
+  background:#fff;
+  border:3px solid var(--navy);
+  border-radius:14px;
+  /* في RTL يقع الظل يسارًا وأسفل، فيبدو الضوء آتيًا من أعلى اليمين */
+  box-shadow:-7px 7px 0 rgba(15,47,77,.16);
+  overflow:hidden;
+  transition:transform .2s ease, box-shadow .2s ease;
+}
+.dashboard .cash-hero:hover{
+  transform:translate(3px,-3px);
+  box-shadow:-10px 10px 0 rgba(15,47,77,.20);
+}
+
+/* الترويسة المتدرّجة تحمل الإجمالي وحده — كالاسم الكبير في البطاقة الأصلية */
+.dashboard .cash-hero__head{
+  display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
+  padding:15px 20px 14px;
+  background:linear-gradient(90deg, #0f2f4d 0%, #14395e 55%, #0b5f52 100%);
+}
+.dashboard .cash-hero__label{
+  margin:0 0 3px; font-size:12px; font-weight:600; color:#cfe0f7;
+}
+.dashboard .cash-hero__value{display:flex; align-items:baseline; gap:7px}
+.dashboard .cash-hero__value strong{
+  font-size:clamp(34px,4.2vw,48px);
+  line-height:1.05;
+  letter-spacing:-.04em;
+  color:#fff;
+  font-variant-numeric: tabular-nums;
+}
+.dashboard .cash-hero__value span{font-size:13px; color:#cfe0f7}
+.dashboard .cash-hero__badge{
+  flex:none; padding:5px 12px; border-radius:999px;
+  background:rgba(255,255,255,.20);
+  border:1px solid rgba(255,255,255,.34);
+  color:#eaf2ff; font-size:11px; font-weight:700;
+}
+
+/* الجسم: عهدة كل فرع في عمود، تفصلها خطوط رأسية */
+.dashboard .cash-hero__branches{display:flex; flex-wrap:wrap}
+.dashboard .cash-branch{
+  flex:1 1 120px; min-width:108px;
+  padding:12px 16px;
+  display:flex; flex-direction:column; gap:3px;
+  border-inline-end:1px solid var(--line);
+}
+.dashboard .cash-branch:last-child{border-inline-end:none}
+.dashboard .cash-branch__name{font-size:11px; color:var(--ink-3)}
+.dashboard .cash-branch__amount{
+  font-size:17px; color:var(--navy); font-variant-numeric:tabular-nums;
+}
+
+/* جملة الحساب الواحدة: هي وحدها ما يشرح الرقم الكبير */
+.dashboard .cash-hero__math{
+  margin:0; padding:10px 18px 12px;
+  border-top:1px dashed var(--line);
+  font-size:12px; color:var(--ink-2);
+}
+
+/* شريط الأعداد: ثلاثة أعداد في سطر واحد، لا ثلاث بطاقات متساوية الوزن */
+.dashboard .cash-tallies{
+  display:flex; flex-wrap:wrap; align-items:baseline; gap:6px 14px;
+  padding:11px 14px;
+  background:#f7fafd;
+  border:1px solid var(--line);
+  border-radius:12px;
+}
+.dashboard .cash-tally{
+  display:flex; align-items:baseline; gap:6px;
+  font-size:11px; color:var(--ink-2);
+}
+.dashboard .cash-tally strong{
+  font-size:15px; color:var(--ink); font-variant-numeric: tabular-nums;
+}
+.dashboard .cash-tally.is-amber strong{color:var(--amber)}
+.dashboard .cash-tally.is-warning strong{color:var(--copper)}
+.dashboard .cash-tallies__empty{font-size:11px; color:var(--ink-3)}
+
 /* ========================= المالية ========================= */
 
 /* الترويسة الملوّنة — الشريط نفسه، فتبدو الشاشتان نظامًا واحدًا */

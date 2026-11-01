@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ملخّص النقد — قبل وبعد</title>
+<link rel="stylesheet" href="../../src/app/globals.css">
+<link rel="stylesheet" href="../../src/app/(app)/design.css">
+<style>
+  body{margin:0; background:var(--bg); padding:26px 20px 60px; font-family:system-ui,"Segoe UI",Tahoma,sans-serif}
+  .wrap{max-width:1080px; margin:0 auto}
+  .note{
+    background:#fff; border:1px solid var(--line); border-radius:12px;
+    padding:14px 18px; margin-bottom:22px; color:var(--ink-2); font-size:13px; line-height:1.9;
+  }
+  .note h1{margin:0 0 6px; font-size:19px; color:var(--navy)}
+  .tag{
+    display:inline-block; font-size:11px; font-weight:700; padding:3px 10px;
+    border-radius:999px; margin-bottom:10px;
+  }
+  .tag--old{background:#eef3f8; color:var(--ink-3)}
+  .tag--new{background:#e6f4f1; color:var(--teal)}
+  .frame{margin-bottom:34px}
+  /* الأرقام التوضيحية تُنسّق كما ينسّقها التطبيق */
+  .num{font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="note">
+    <h1>قسم «ملخّص النقد» — قبل وبعد</h1>
+    الأرقام هنا توضيحية (٣ عهد · ٣٤٥٠٠ ج.م · ٢ تسوية · ٥ مصروفات · ٣ معتمدة)،
+    لكن الأنماط مستمدة من ملفي المشروع نفسيهما: <code>globals.css</code> و <code>design.css</code>.
+    <br>
+    مُرّر الفأرة على البطاقة الجديدة لترى التوهّج يخفّ — وهي الحركة الوحيدة المأخوذة من التصميم المُستلهم.
+  </div>
+
+  <!-- ==================== قبل ==================== -->
+  <div class="frame">
+    <span class="tag tag--old">قبل</span>
+    <div class="dashboard">
+      <section class="dashboard-panel" style="margin-bottom:18px">
+        <div class="dashboard-panel__heading">
+          <div>
+            <p class="dashboard-panel__eyebrow">ملخّص النقد</p>
+            <h2>العهدة والمستحق للخزنة</h2>
+            <p>مجمَّع «المتوقَّع بيده» لكل عهدة، لا أرصدتها الدفترية.</p>
+          </div>
+          <span class="dashboard-count">٣ عهدة</span>
+        </div>
+        <div class="dashboard-metrics">
+          <article class="dashboard-metric">
+            <p class="dashboard-metric__label">المتوقَّع في كل العهد</p>
+            <div class="dashboard-metric__value"><strong class="num">34,500</strong><span>ج.م</span></div>
+            <p class="dashboard-metric__detail">ما سيُسلَّم للخزنة عند التسويات</p>
+          </article>
+          <article class="dashboard-metric">
+            <p class="dashboard-metric__label">طلبات تسوية معلقة</p>
+            <div class="dashboard-metric__value"><strong class="num">2</strong></div>
+            <p class="dashboard-metric__detail">بانتظار اعتمادك</p>
+          </article>
+          <article class="dashboard-metric">
+            <p class="dashboard-metric__label">مصروفات بانتظار الاعتماد</p>
+            <div class="dashboard-metric__value"><strong class="num">5</strong></div>
+            <p class="dashboard-metric__detail">لم تُعتمد بعد</p>
+          </article>
+          <article class="dashboard-metric">
+            <p class="dashboard-metric__label">معتمدة بانتظار الصرف</p>
+            <div class="dashboard-metric__value"><strong class="num">3</strong></div>
+            <p class="dashboard-metric__detail">اعتمدت ولم تُصرف</p>
+          </article>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ==================== بعد ==================== -->
+  <div class="frame">
+    <span class="tag tag--new">بعد</span>
+    <div class="dashboard">
+      <section class="dashboard-panel" style="margin-bottom:18px">
+        <div class="dashboard-panel__heading">
+          <div>
+            <p class="dashboard-panel__eyebrow">ملخّص النقد</p>
+            <h2>العهدة والمستحق للخزنة</h2>
+            <p>مجمَّع «المتوقَّع بيده» لكل عهدة، لا أرصدتها الدفترية.</p>
+          </div>
+          <span class="dashboard-count">٣ عهدة</span>
+        </div>
+        <div class="cash-summary__body">
+          <article class="cash-hero">
+            <div class="cash-hero__inner">
+              <p class="cash-hero__label">المتوقَّع في كل العهد</p>
+              <div class="cash-hero__value">
+                <strong class="num">34,500</strong>
+                <span>ج.م</span>
+              </div>
+              <p class="cash-hero__math">
+                ٣ عهد · بمتوسط <span class="num">11,500</span> ج.م للعهدة —
+                وهو ما سيُسلَّم للخزنة عند التسويات
+              </p>
+            </div>
+          </article>
+          <div class="cash-tallies">
+            <div class="cash-tally is-amber">
+              <strong class="num">2</strong><span>طلب تسوية بانتظار اعتمادك</span>
+            </div>
+            <div class="cash-tally">
+              <strong class="num">5</strong><span>مصروفًا بانتظار الاعتماد</span>
+            </div>
+            <div class="cash-tally is-warning">
+              <strong class="num">3</strong><span>معتمدًا بانتظار الصرف</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ==================== حالة الفراغ ==================== -->
+  <div class="frame">
+    <span class="tag tag--new">بعد — حين لا شيء بانتظارك</span>
+    <div class="dashboard">
+      <section class="dashboard-panel" style="margin-bottom:18px">
+        <div class="dashboard-panel__heading">
+          <div>
+            <p class="dashboard-panel__eyebrow">ملخّص النقد</p>
+            <h2>العهدة والمستحق للخزنة</h2>
+            <p>مجمَّع «المتوقَّع بيده» لكل عهدة، لا أرصدتها الدفترية.</p>
+          </div>
+          <span class="dashboard-count">٣ عهدة</span>
+        </div>
+        <div class="cash-summary__body">
+          <article class="cash-hero">
+            <div class="cash-hero__inner">
+              <p class="cash-hero__label">المتوقَّع في كل العهد</p>
+              <div class="cash-hero__value">
+                <strong class="num">34,500</strong>
+                <span>ج.م</span>
+              </div>
+              <p class="cash-hero__math">
+                ٣ عهد · بمتوسط <span class="num">11,500</span> ج.م للعهدة —
+                وهو ما سيُسلَّم للخزنة عند التسويات
+              </p>
+            </div>
+          </article>
+          <div class="cash-tallies">
+            <span class="cash-tallies__empty">لا شيء بانتظارك — التسويات معتمدة والمصروفات مصروفة</span>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
