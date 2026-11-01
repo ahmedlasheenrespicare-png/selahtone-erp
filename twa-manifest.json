@@ -1,0 +1,34 @@
+{
+  "packageId": "com.selahtone.erp",
+  "host": "selahtone-erp.netlify.app",
+  "name": "صلة تون للسمعيات",
+  "launcherName": "صلة تون",
+  "display": "standalone",
+  "orientation": "portrait",
+  "themeColor": "#0e7c6b",
+  "navigationColor": "#0e7c6b",
+  "backgroundColor": "#f4f7fa",
+  "startUrl": "/",
+  "iconUrl": "https://selahtone-erp.netlify.app/icons/icon-512.png",
+  "maskableIconUrl": "https://selahtone-erp.netlify.app/icons/icon-maskable-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "android"
+  },
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://selahtone-erp.netlify.app/manifest.webmanifest",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://selahtone-erp.netlify.app/",
+  "minSdkVersion": 21,
+  "orientationLock": false
+}
