@@ -7,12 +7,14 @@
 --                   على خاصيةٍ لم تتحقق.
 --   الثالث (23503): وُضع الجدولان المتعالقان في آخر الأمر، وmovements ابنٌ
 --                   لخزينة الجرد والمدفوعات والتصحيحات، فحُذف الأب قبل ابنه.
+--   الرابع (لا خطأ، لكنه خطأ): استُثنيت الخزائن بلا سند، والعهدة صفٌّ فيها
+--                   بـkind='CUSTODY'، فبقيت العهدة والخزائن بعد مسحٍ ناجح.
 --
 -- والرابع: الترتيب محسوب من القيود كلها، ومتحقَّقٌ منه آليًّا — أن كل جدولٍ
 -- يسبق كل أبٍ له — قبل أن يُكتب. والدورة بين movements و settlements تُعامل
 -- كعقدةٍ واحدة (بيان TRUNCATE واحد) فلا يعود لها أثر في الترتيب.
 --
--- المستثنى: الخزائن (accounts) والسجلات الثلاثة.
+-- المستثنى: السجلات الثلاثة (audit_events و category_audit و category_revisions) فحرمة
 -- الأمان: معاملة واحدة · to_regclass لكل جدول · TRUNCATE بلا CASCADE.
 -- ============================================================================
 
@@ -34,6 +36,9 @@ DO $clr$ BEGIN IF to_regclass('finance.reconciliation_cases') IS NOT NULL THEN D
 DO $clr$ BEGIN IF to_regclass('finance.historical_commerce') IS NOT NULL THEN DELETE FROM finance.historical_commerce; END IF; END $clr$;
 DO $clr$ BEGIN IF to_regclass('finance.opening_corrections') IS NOT NULL THEN DELETE FROM finance.opening_corrections; END IF; END $clr$;
 DO $clr$ BEGIN IF to_regclass('finance.cash_counts') IS NOT NULL THEN DELETE FROM finance.cash_counts; END IF; END $clr$;
+-- الخزائن والعهدة آخرًا: فالعهدة صفٌّ في accounts بـkind='CUSTODY' لا جدولٌ مستقل،
+-- وكل من كان يشير إلى accounts قد مُسح قبلها.
+DO $clr$ BEGIN IF to_regclass('finance.accounts') IS NOT NULL THEN DELETE FROM finance.accounts; END IF; END $clr$;
 
 COMMIT;
 
