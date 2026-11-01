@@ -29,7 +29,7 @@
   "isChromeOSOnly": false,
   "isMetaQuest": false,
   "fullScopeUrl": "https://selahtone-erp.onrender.com/",
-  "minSdkVersion": 21,
+  "minSdkVersion": 24,
   "orientationLock": false,
   "enableNotifications": false
 }

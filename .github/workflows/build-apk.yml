@@ -132,15 +132,44 @@ jobs:
           set timeout 1800
           log_user 1
           spawn bubblewrap build --skipJdkInstallation
+        set sent_version 0
+        set sent_jdk 0
+        set sent_sdk 0
+        set sent_license 0
+        set sent_regen 0
+        set sent_pass 0
+        set last_answer [clock seconds]
           expect {
-            -re {versionName for the new App version} { send "$env(VERSION_NAME)\r"; exp_continue }
-            -re {install the JDK}                     { send "n\r"; exp_continue }
-            -re {install the Android SDK}             { send "y\r"; exp_continue }
-            -re {Accept\? \(y/N\)}                    { send "y\r"; exp_continue }
-            -re {regenerate your}                     { send "y\r"; exp_continue }
-            -re {\(Y/n\)}                             { send "y\r"; exp_continue }
-            -re {\(y/n\)}                             { send "y\r"; exp_continue }
-            -re {[Pp]assword[: ]}                     { send "$env(BUBBLEWRAP_KEYSTORE_PASSWORD)\r"; exp_continue }
+            -re {versionName for the new App version} {
+                if {!$sent_version} { send "$env(VERSION_NAME)\r"; set sent_version 1; set last_answer [clock seconds] }
+                exp_continue
+            }
+            -re {install the JDK} {
+                if {!$sent_jdk} { send "n\r"; set sent_jdk 1; set last_answer [clock seconds] }
+                exp_continue
+            }
+            -re {install the Android SDK} {
+                if {!$sent_sdk} { send "y\r"; set sent_sdk 1; set last_answer [clock seconds] }
+                exp_continue
+            }
+            -re {Accept\? \(y/N\)} {
+                if {!$sent_license} { send "y\r"; set sent_license 1; set last_answer [clock seconds] }
+                exp_continue
+            }
+            -re {regenerate your} {
+                if {!$sent_regen} { send "y\r"; set sent_regen 1; set last_answer [clock seconds] }
+                exp_continue
+            }
+            -re {[Pp]assword[: ]} {
+                if {!$sent_pass} { send "$env(BUBBLEWRAP_KEYSTORE_PASSWORD)\r"; set sent_pass 1; set last_answer [clock seconds] }
+                exp_continue
+            }
+            # شبكة أمان لسؤال بنعم/لا لم نتوقعه: نجيب بعد عشرين ثانية من الصمت
+            # لا فورًا، فلا تتراكم إجاباتنا مع كل إعادة رسم للسؤال نفسه.
+            -re {\(Y/n\)|\(y/n\)} {
+                if {[clock seconds] - $last_answer > 20} { send "y\r"; set last_answer [clock seconds] }
+                exp_continue
+            }
             timeout         { puts "\nانتهى وقت الانتظار"; exit 1 }
             eof
           }
