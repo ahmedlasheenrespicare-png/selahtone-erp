@@ -136,7 +136,8 @@ jobs:
           set sent_version 0
           set sent_jdk 0
           set sent_sdk 0
-          set sent_license 0
+          set sent_license_bw 0
+          set sent_license_sdk 0
           set sent_regen 0
           set sent_pass 0
           set last_answer [clock seconds]
@@ -159,14 +160,16 @@ jobs:
             # فنمطٌ ينتظرها لا يطابقه أبدًا فيبقى السؤال بلا جواب. وهو يُقسَم
             # على سطرين، وقد يفصل بين «terms.html?» و«(y/N)» أكثر من مسافة،
             # فصار النمط يقبل أي فاصل، وأُضيف نمطٌ على أول السؤال احتياطًا.
-            # أقصر لفظ ممكن: «y/N» وحده. فالنمط الطويل يقاوم اختلاف المسافات
-            # لكنه لا يقاوم أكواد الطرفية إن تخلّلته، والقصير يطابق على أي حال.
-            -re {y/N} {
-                if {!$sent_license} { send "y\r"; set sent_license 1; set last_answer [clock seconds] }
+            # سؤالان للترخيص لا سؤال واحد: أولهما من Bubblewrap («Do you agree
+            # to the ... terms.html? (y/N)»)، وثانيهما من sdkmanager حين يثبّت
+            # أدوات البناء ولفظه «Accept? (y/N)». فلكلٍّ مؤقّته: فمؤقّت واحد
+            # يمنع الإجابة الثانية فيُترك سؤال sdkmanager بلا جواب.
+            -re {Accept\?} {
+                if {!$sent_license_sdk} { send "y\r"; set sent_license_sdk 1; set last_answer [clock seconds] }
                 exp_continue
             }
-            -re {agree to the Android SDK} {
-                if {!$sent_license} { send "y\r"; set sent_license 1; set last_answer [clock seconds] }
+            -re {agree to the} {
+                if {!$sent_license_bw} { send "y\r"; set sent_license_bw 1; set last_answer [clock seconds] }
                 exp_continue
             }
             -re {regenerate your} {
@@ -183,7 +186,7 @@ jobs:
                 exp_continue
             }
             -re {(?i)\(y/n\)} {
-                if {[clock seconds] - $last_answer > 20} { send "y\r"; set last_answer [clock seconds] }
+                if {[clock seconds] - $last_answer > 10} { send "y\r"; set last_answer [clock seconds] }
                 exp_continue
             }
             timeout         { puts "\nانتهى وقت الانتظار"; exit 1 }
