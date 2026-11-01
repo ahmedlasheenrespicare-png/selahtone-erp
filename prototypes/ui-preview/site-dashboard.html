@@ -10,6 +10,16 @@
     // البصمة فقط — لا تُحمَّل ورقة المعاينة هنا، فالمرآة تستخدم أنماط الموقع الحقيقية.
     import { PREVIEW_VERSION } from "./ui.mjs";
     document.getElementById("version-chip").textContent = `نسخة ${PREVIEW_VERSION.id} · ${PREVIEW_VERSION.at}`;
+
+    // ?design=new يضيف طبقة التصميم الجديد فوق أنماط الشاشة الحقيقية،
+    // فيُرى الفرق جنبًا إلى جنب في site-mirror.html دون مساس بالأصل.
+    if (new URLSearchParams(location.search).get("design") === "new") {
+      document.documentElement.dataset.design = "new";
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = "./site-design.css";
+      document.head.appendChild(link);
+    }
   </script>
 </head>
 <body>

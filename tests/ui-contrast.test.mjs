@@ -33,6 +33,12 @@ function luminance(hex) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
+/** #abc و #aabbcc سيّان — تُطبَّع قبل القياس. */
+function normalize(hex) {
+  const h = hex.slice(1).toLowerCase();
+  return "#" + (h.length === 3 ? h.split("").map((c) => c + c).join("") : h);
+}
+
 function contrast(a, b) {
   const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
   return (hi + 0.05) / (lo + 0.05);
@@ -64,5 +70,26 @@ test("كل لون نص في :root مقروء على كل خلفية مستخدم
 test("الألوان الأساسية معرَّفة وصريحة (لا متغيّرات مكسورة)", () => {
   for (const name of [...TEXT, ...BACKGROUNDS.map(([, n]) => n)]) {
     assert.match(token(name), /^#[0-9a-fA-F]{6}$/, `--${name}`);
+  }
+});
+
+test("تباين نص الترويسة الملوّنة في طبقة التصميم الجديد (site-design.css)", () => {
+  const design = readFileSync(new URL("../prototypes/ui-preview/site-design.css", import.meta.url), "utf8");
+
+  const hero = design.match(
+    /linear-gradient\(115deg,\s*(#[0-9a-f]{6})\s+0%,\s*(#[0-9a-f]{6})\s+\d*%?,\s*(#[0-9a-f]{6})\s+100%\)/i,
+  );
+  assert.ok(hero, "لا يوجد تدرّج الترويسة (linear-gradient 115deg) في site-design.css");
+
+  // النص فاتح على متدرّج داكن → أسوأ حالة هي أفتح نقطة في المتدرّج.
+  const lightest = hero.slice(1, 4).reduce((best, stop) => (luminance(stop) > luminance(best) ? stop : best));
+
+  const selectors = [".dashboard-heading h1", ".dashboard-eyebrow", ".dashboard-heading__description"];
+  for (const selector of selectors) {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const rule = design.match(new RegExp(`\\[data-design="new"\\]\\s+${escaped}\\{[^}]*color:\\s*(#[0-9a-fA-F]{3,6})`, "i"));
+    assert.ok(rule, `لا لون نص لِـ ${selector}`);
+    const ratio = contrast(normalize(rule[1]), normalize(lightest));
+    assert.ok(ratio >= MIN, `${selector}: ${rule[1]} على ${lightest} = ${ratio.toFixed(2)}`);
   }
 });
