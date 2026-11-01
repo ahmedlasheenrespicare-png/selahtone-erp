@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>مرآة الشاشة الحقيقية — المالية | صلة تون</title>
+  <link rel="stylesheet" href="./site-finance.css">
+  <script type="module">
+    // البصمة فقط — لا تُحمَّل ورقة المعاينة هنا، فالمرآة تستخدم أنماط الموقع الحقيقية.
+    import { PREVIEW_VERSION } from "./ui.mjs";
+    document.getElementById("version-chip").textContent = `نسخة ${PREVIEW_VERSION.id} · ${PREVIEW_VERSION.at}`;
+
+    // ?design=new يضيف طبقة التصميم الجديد فوق أنماط الشاشة الحقيقية.
+    if (new URLSearchParams(location.search).get("design") === "new") {
+      document.documentElement.dataset.design = "new";
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = "./site-finance-design.css";
+      document.head.appendChild(link);
+    }
+  </script>
+</head>
+<body>
+  <p class="preview-banner">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 16H3l9-16z"/><path d="M12 9v5"/><path d="M12 17h.01"/></svg>
+    <strong>مرآة</strong>
+    <span class="sep">·</span>
+    <span>شاشة المالية الحقيقية ببيانات ثابتة — نفس الأصناف والأنماط المنسوخة من <span dir="ltr">finance.css</span></span>
+    <span class="sep">·</span>
+    <span id="version-chip"></span>
+  </p>
+
+  <div class="fin-page" style="padding:16px">
+    <div class="fin-heading">
+      <div>
+        <p class="fin-heading__eyebrow">المالية</p>
+        <h1>الحسابات النقدية</h1>
+        <p>خزنة كل فرع وعهد موظفيه. كل حركة تُسجَّل باسم من نفّذها ووقتها.</p>
+      </div>
+      <div class="fin-actions">
+        <a class="fin-button" href="#">التسويات (4)</a>
+        <a class="fin-button" href="#">المصروفات (3 بانتظار الصرف)</a>
+        <a class="fin-button fin-button--secondary" href="#">تسليم نقد</a>
+        <a class="fin-button fin-button--secondary" href="#">فتح حساب بجرد فعلي</a>
+      </div>
+    </div>
+
+    <section class="fin-panel">
+      <div class="fin-panel__heading">
+        <h2>الحسابات</h2>
+        <div class="fin-actions">
+          <a class="fin-button fin-button--secondary" href="#">تحديث</a>
+        </div>
+      </div>
+      <div class="fin-table-wrap">
+        <table class="fin-table">
+          <thead>
+            <tr>
+              <th>الحساب</th>
+              <th>النوع</th>
+              <th>الفرع / الحامل</th>
+              <th>الرصيد</th>
+              <th>الحالة</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>خزنة فرع العريش</td>
+              <td>خزنة</td>
+              <td>العريش</td>
+              <td>55,450.00</td>
+              <td>مفتوح</td>
+            </tr>
+            <tr>
+              <td>عهدة — كاونتر العريش</td>
+              <td>عهدة</td>
+              <td>كاونتر العريش</td>
+              <td>9,255.00</td>
+              <td>مفتوح</td>
+            </tr>
+            <tr>
+              <td>خزنة فرع الشيخ زويد</td>
+              <td>خزنة</td>
+              <td>الشيخ زويد</td>
+              <td>12,400.00</td>
+              <td>مفتوح</td>
+            </tr>
+            <tr>
+              <td>عهدة — كاونتر الشيخ زويد</td>
+              <td>عهدة</td>
+              <td>كاونتر الشيخ زويد</td>
+              <td>3,150.00</td>
+              <td>مفتوح</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

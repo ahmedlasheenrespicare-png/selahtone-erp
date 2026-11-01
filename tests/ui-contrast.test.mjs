@@ -93,3 +93,33 @@ test("تباين نص الترويسة الملوّنة في طبقة التصم
     assert.ok(ratio >= MIN, `${selector}: ${rule[1]} على ${lightest} = ${ratio.toFixed(2)}`);
   }
 });
+
+test("تباين نص ترويسة المالية في طبقة التصميم (site-finance-design.css)", () => {
+  const design = readFileSync(new URL("../prototypes/ui-preview/site-finance-design.css", import.meta.url), "utf8");
+
+  const hero = design.match(
+    /linear-gradient\(115deg,\s*(#[0-9a-f]{6})\s+0%,\s*(#[0-9a-f]{6})\s+\d*%?,\s*(#[0-9a-f]{6})\s+100%\)/i,
+  );
+  assert.ok(hero, "لا يوجد تدرّج الترويسة في site-finance-design.css");
+
+  // النص فاتح على متدرّج داكن → أسوأ حالة هي أفتح نقطة في المتدرّج.
+  const lightest = hero.slice(1, 4).reduce((best, stop) => (luminance(stop) > luminance(best) ? stop : best));
+
+  for (const selector of [".fin-heading h1", ".fin-heading__eyebrow"]) {
+    const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const rule = design.match(
+      new RegExp(`\\[data-design="new"\\]\\s+${escaped}\\{[^}]*color:\\s*(#[0-9a-fA-F]{3,6})`, "i"),
+    );
+    assert.ok(rule, `لا لون نص لِـ ${selector}`);
+    const ratio = contrast(normalize(rule[1]), normalize(lightest));
+    assert.ok(ratio >= MIN, `${selector}: ${rule[1]} على ${lightest} = ${ratio.toFixed(2)}`);
+  }
+
+  // زر الترويسة الأبيض: نصه داكن على أبيض
+  const button = design.match(
+    /\[data-design="new"\]\s+\.fin-heading\s+\.fin-button\{[^}]*color:\s*(#[0-9a-fA-F]{3,6})/i,
+  );
+  assert.ok(button, "لا لوم نص لزر الترويسة");
+  const buttonRatio = contrast(normalize(button[1]), "#ffffff");
+  assert.ok(buttonRatio >= MIN, `زر الترويسة: ${button[1]} على أبيض = ${buttonRatio.toFixed(2)}`);
+});
