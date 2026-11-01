@@ -38,6 +38,11 @@ export function SettlementRequestForm({ requestId, accountId, systemBalance, sal
   //   الحقيقي، وبه يقيس المحرك الانحراف (deviation) عند الاعتماد.
   const handover = valid ? countedNumber - Number(systemBalance) : null;
   const deviation = valid ? countedNumber - Number(expected) : null;
+  // عجزٌ يبتلع معظم المتوقَّع علامةُ خطأٍ في الإدخال لا عجزٌ حقيقي:
+  // فالموظف كثيرًا ما يكتب «ما سيُسلَّم» في حقل «ما بيده». نُنبّه قبل الإرسال.
+  const expectedNumber = Number(expected);
+  const deviationTooLarge = deviation !== null && expectedNumber > 0 && deviation < 0
+    && Math.abs(deviation) > expectedNumber / 2;
 
   if (state.status === "success") {
     return (
@@ -93,10 +98,11 @@ export function SettlementRequestForm({ requestId, accountId, systemBalance, sal
         <div className="fin-panel__body">
           <div className="fin-fields">
             <label className="field fin-field">
-              <span className="fin-field__label">المبلغ المعدود</span>
+              <span className="fin-field__label">كل ما بيدك الآن — عُدّ النقد كاملًا</span>
               <input inputMode="decimal" value={counted} onChange={(event) => { setCounted(event.target.value); setReview(false); }} placeholder="0.00" />
               <input type="hidden" name="countedAmount" value={counted} />
             </label>
+            <span className="fin-field__hint">المتوقَّع ١٤٥٠؟ فاكتب ١٤٥٠ — لا تكتب ما ستسلّمه للخزنة.</span>
             <div className="field fin-field">
               <span className="fin-field__label">الفرق عن المتوقَّع بيدك</span>
               <span className="fin-field__hint">
@@ -104,7 +110,7 @@ export function SettlementRequestForm({ requestId, accountId, systemBalance, sal
               </span>
             </div>
             <div className="field fin-field">
-              <span className="fin-field__label">ما سيُسلَّم للخزنة</span>
+              <span className="fin-field__label">ما سيُسلَّم للخزنة — <em>محسوب</em></span>
               <span className="fin-field__hint">{handover === null ? "—" : `${formatMoney(handover.toFixed(2))} ج.م`}</span>
             </div>
             <label className="field fin-field fin-field--wide">
@@ -115,6 +121,17 @@ export function SettlementRequestForm({ requestId, accountId, systemBalance, sal
           </div>
         </div>
       </div>
+
+      {deviationTooLarge ? (
+
+        <div className="fin-alert fin-alert--warning" role="alert">
+
+          <strong>تأكّد ممّا كتبتَه.</strong> كتبتَ {formatMoney(countedNumber.toFixed(2))} والمتوقَّع بيدك {formatMoney(expectedNumber.toFixed(2))} — أي عجزًا قدره {formatMoney(Math.abs(deviation ?? 0).toFixed(2))}. فإن كنتَ تقصد «ما ستسلّمه للخزنة»، فاكتب هنا <strong>كل ما بيدك</strong> ({formatMoney(expectedNumber.toFixed(2))}) ويُحسَب المُسلَّم وحده.
+
+        </div>
+
+      ) : null}
+
 
       {state.status === "error" ? (
         <div className="fin-alert fin-alert--error" role="alert">
