@@ -1,0 +1,112 @@
+# ============================================================
+#  بناء تطبيق أندرويد (APK) من PWA — عبر Bubblewrap (TWA)
+#
+#  لماذا TWA لا تغليف الكود: الموقع كله صفحات ديناميكية تقرأ قاعدة
+#  بيانات واحدة مشتركة، فلا يمكن تحزيمه داخل الهاتف. والتطبيق يبقى
+#  واجهةً للسيرفر — وهذا هو الصحيح لنظام محاسبي.
+#
+#  التشغيل: Actions ← "بناء تطبيق أندرويد (APK)" ← Run workflow
+#
+#  ⚠ تسلسل إلزامي قبل أول تشغيل:
+#    ١) يجب أن يكون الموقع المنشور يعمل (ليقرأ Bubblewrap الـ manifest منه)
+#    ٢) بعد أول بناء: خذ بصمة SHA-256 المطبوعة في السجل وضعها في
+#       متغيّر البيئة ANDROID_SHA256 عند Netlify، ثم أعد نشر الموقع
+#    ٣) هكذا يتحقّق أندرويد من assetlinks.json ولا يظهر شريط المتصفح
+# ============================================================
+name: بناء تطبيق أندرويد (APK)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: "اسم الإصدار (مثل 1.0.0)"
+        required: false
+        default: "1.0.0"
+      version_code:
+        description: "رقم الإصدار (يزيد مع كل رفع للمتجر)"
+        required: false
+        default: "1"
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: سحب الكود
+        uses: actions/checkout@v4
+
+      - name: إعداد Java (يحتاجه Bubblewrap)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: إعداد Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: تثبيت Bubblewrap
+        run: npm install -g @bubblewrap/cli
+
+      # مفتاح التوقيع: إن ضُبط كأسرار في المستودع استُخدم، وإلا أُنشئ
+      # جديدًا. احفظ المفتاح المرفوع بعد أول بناء: ففقدانه يمنع تحديث
+      # التطبيق على المتجر (لا يقبل تحديثًا بتوقيع مختلف).
+      - name: استعادة مفتاح التوقيع
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > android.keystore
+            echo "✓ استُخدم المفتاح المحفوظ"
+          else
+            echo "⚠ لا مفتاح محفوظ — سيُنشأ مفتاح جديد وتُرفع نسخته"
+          fi
+
+      - name: تحديث الإصدار
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          node -e "
+            const fs = require('fs');
+            const p = 'twa-manifest.json';
+            const m = JSON.parse(fs.readFileSync(p, 'utf8'));
+            m.appVersionName = '${{ inputs.version_name }}' || m.appVersionName;
+            m.appVersionCode = Number('${{ inputs.version_code }}' || m.appVersionCode);
+            fs.writeFileSync(p, JSON.stringify(m, null, 2));
+          "
+
+      # يقرأ الـ manifest الحي من الموقع المنتشر، فيضمن تطابق الأيقونات والألوان
+      - name: مطابقة الإعداد مع الموقع الحي
+        run: bubblewrap update --manifest=https://selahtone-erp.netlify.app/manifest.webmanifest || echo "⚠ تعذّر تحديث الـ manifest من الموقع الحي — يُكمل بالإعداد المحفوظ"
+
+      - name: بناء APK
+        env:
+          BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || 'selahtone' }}
+          BUBBLEWRAP_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD || 'selahtone' }}
+        run: bubblewrap build
+
+      # البصمة مطلوبة لربط النطاق بالتطبيق (assetlinks.json)
+      - name: بصمة SHA-256 — ضعها في ANDROID_SHA256 عند Netlify
+        run: |
+          echo "================ بصمة التوقيع ================"
+          keytool -list -v -keystore android.keystore \
+            -alias android \
+            -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD || 'selahtone' }}" \
+            -keypass "${{ secrets.ANDROID_KEY_PASSWORD || 'selahtone' }}" \
+            | grep -i "SHA256" || echo "تعذّر استخراج البصمة"
+          echo "============================================"
+
+      - name: رفع ملف APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: selahtone-apk
+          path: app-release-signed.apk
+          if-no-files-found: error
+
+      - name: رفع مفتاح التوقيع (احتفظ به!)
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-keystore
+          path: android.keystore
+          if-no-files-found: warn
