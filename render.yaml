@@ -21,7 +21,10 @@ services:
     branch: main
     buildCommand: npm install && npx prisma generate && npm run build
     startCommand: npm start
-    healthCheckPath: /api/health
+    # فحص الصحة على /login لا /api/health: فالأخير يقرأ قاعدة البيانات ويعيد
+    # ٥٠٣ إن تعثّرت، فيحسبه Render «خدمة معطوبة» ويعيد تشغيلها بلا توقف.
+    # و/api/health يبقى أداة تشخيص ممتازة بعد النشر (يرى هل القاعدة متصلة).
+    healthCheckPath: /login
     envVars:
       - key: NODE_VERSION
         value: "20"
