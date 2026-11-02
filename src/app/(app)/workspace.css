@@ -455,3 +455,93 @@
 .stat-card .dashboard-status { color: #fff; }
 .stat-card .dashboard-branch-name small,
 .stat-card .dashboard-table td small { color: rgba(255, 255, 255, .75); }
+
+/* ══ الحافظة — عن تصميم byllzz «rude-bat-50» (MIT)، بلون الموقع ════════
+   بطاقاتٌ متراكبة في جيب. ولا يُقرأ منها إلا أعلاها حتى تُمَرَّ عليها
+   الفأرةُ فتتفرّق صعودًا — وهذا مقصودٌ معلوم: هكذا أرادها صاحبُها، وعلى
+   هذا اختارها المستخدم بعد أن عُرض عليه أنّ سواها أقرأُ منها.
+   والارتفاعُ ثابتٌ لأنّ الكروت مطلقةٌ فلا تسهم فيه؛ فجُعل أوسعَ من أطولِ
+   كرتٍ (340) كيلا يخرجَ منها شيء.
+   وأمّا الجيبُ ففوقها كلها (z-index 40) يخبّئ الناتج. */
+.dashboard-wallet {
+  position: relative;
+  perspective: 1000px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  cursor: pointer;
+  height: calc(40px + 11 * 14px + 340px + 160px);
+  margin-top: 16px;
+}
+/* الحاوياتُ تذوب: فتصير الكروت أبناءً للحافظة بلا وسيطٍ يقطع ترتيبها. */
+.dashboard-wallet .stat-cards { display: contents; }
+
+/* ظهر الحافظة — بلون الموقع (0a2135) لا أخضر التصميم (1e341e). */
+.dashboard-wallet::before {
+  content: "";
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 200px;
+  border-radius: 22px 22px 60px 60px;
+  background: #0a2135;
+  z-index: 5;
+  box-shadow: inset 0 25px 35px rgba(0, 0, 0, .4), inset 0 5px 15px rgba(0, 0, 0, .5);
+}
+
+.dashboard-wallet .stat-card {
+  position: absolute;
+  left: 0; right: 0;
+  bottom: calc(40px + var(--i, 0) * 14px);
+  z-index: calc(10 + var(--i, 0));
+  margin-bottom: 0;
+  transform: none;
+  animation: slideIntoPocket .8s cubic-bezier(.2, .8, .2, 1) backwards;
+  animation-delay: calc(var(--i, 0) * .05s);
+}
+
+@keyframes slideIntoPocket {
+  from { transform: translateY(-100px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+.dashboard-pocket {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 160px;
+  z-index: 40;
+  border-radius: 22px 22px 60px 60px;
+  background: #0f2c45;
+  filter: drop-shadow(0 15px 25px rgba(10, 33, 53, .4));
+}
+.dashboard-pocket__content {
+  position: absolute;
+  top: 45px; left: 0; right: 0;
+  z-index: 50;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.dashboard-pocket__stars {
+  color: #a9c6de; font-size: 24px; letter-spacing: 4px; transition: .3s;
+}
+.dashboard-pocket__value {
+  position: absolute; top: 0; left: 50%;
+  transform: translate(-50%, 10px);
+  color: #cfe6c4; font-size: 22px; font-weight: 600;
+  opacity: 0; transition: .3s; white-space: nowrap;
+}
+.dashboard-pocket__label {
+  margin-top: 34px; font-size: 11px; font-weight: 600;
+  color: rgba(255, 255, 255, .82);
+}
+
+/* المرور: تتفرّق البطاقات صعودًا كلٌّ بمقدار ترتيبه، ويظهر الناتج. */
+.dashboard-wallet:hover .stat-card { transform: translateY(calc(-1 * var(--i, 0) * 14px)); }
+.dashboard-wallet:hover .dashboard-pocket__stars { opacity: 0; }
+.dashboard-wallet:hover .dashboard-pocket__value { opacity: 1; transform: translate(-50%, 0); }
+.dashboard-wallet:hover .stat-card:hover { z-index: 100; }
+
+/* الجوال: لا فأرة فيه تُمَرّ، فالكومةُ كلها مستورة. فتُعاد عمودًا. */
+@media (max-width: 760px), (hover: none) {
+  .dashboard-wallet { display: block; height: auto; cursor: default; }
+  .dashboard-wallet::before, .dashboard-pocket { display: none; }
+  .dashboard-wallet .stat-card { position: static; margin-bottom: 8px; animation: none; transform: none; }
+}
