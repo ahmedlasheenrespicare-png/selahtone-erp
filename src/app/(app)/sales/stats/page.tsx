@@ -65,29 +65,29 @@ export default async function SalesStatsPage({ searchParams }: { searchParams: P
         </div>
         <div className="inv-panel__body">
           <div className="inv-fields">
-            <div className="field inv-field">
+            <div className="field inv-field inv-field--stat">
               <span className="inv-field__label">عدد الفواتير</span>
               <span className="inv-field__hint">{nf.format(stats.invoiceCount)}</span>
             </div>
-            <div className="field inv-field">
+            <div className="field inv-field inv-field--stat">
               <span className="inv-field__label">إجمالي قبل الخصم</span>
               <span className="inv-field__hint">{money(stats.subtotal)} ج.م</span>
             </div>
-            <div className="field inv-field">
+            <div className="field inv-field inv-field--stat">
               <span className="inv-field__label">الخصومات</span>
               <span className="inv-field__hint">{money(stats.discount)} ج.م</span>
             </div>
-            <div className="field inv-field">
+            <div className="field inv-field inv-field--stat">
               <span className="inv-field__label">صافي المبيعات</span>
               <span className="inv-field__hint">{money(stats.total)} ج.م</span>
             </div>
             {/* الضريبة داخلة في السعر — المحرك يقولها صراحةً ولا يجمعها فوق
                 الإجمالي. فعرضها بعد النهائي يمنع قراءتها على أنها تُضاف إليه. */}
-            <div className="field inv-field">
+            <div className="field inv-field inv-field--stat">
               <span className="inv-field__label">منها ضريبة (متضمنة)</span>
               <span className="inv-field__hint">{money(stats.tax)} ج.م</span>
             </div>
-            <div className="field inv-field">
+            <div className="field inv-field inv-field--stat">
               <span className="inv-field__label">متوسط الفاتورة</span>
               <span className="inv-field__hint">{money(stats.averageInvoice)} ج.م</span>
             </div>
@@ -102,15 +102,15 @@ export default async function SalesStatsPage({ searchParams }: { searchParams: P
         </div>
         <div className="inv-panel__body">
           <div className="inv-fields">
-            <div className="field inv-field">
+            <div className="field inv-field inv-field--stat">
               <span className="inv-field__label">فواتير ملغاة</span>
               <span className="inv-field__hint">{nf.format(stats.cancelledCount)}</span>
             </div>
-            <div className="field inv-field">
+            <div className="field inv-field inv-field--stat">
               <span className="inv-field__label">فواتير عليها باقٍ</span>
               <span className="inv-field__hint">{nf.format(stats.outstandingCount)}</span>
             </div>
-            <div className="field inv-field">
+            <div className="field inv-field inv-field--stat">
               <span className="inv-field__label">مجموع الباقي على العملاء</span>
               <span className="inv-field__hint">{money(stats.outstandingTotal)} ج.م</span>
             </div>
