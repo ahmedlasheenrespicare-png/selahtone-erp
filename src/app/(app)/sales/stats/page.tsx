@@ -58,64 +58,69 @@ export default async function SalesStatsPage({ searchParams }: { searchParams: P
         ))}
       </div>
 
-      <div className="inv-panel" style={{ marginBottom: 18 }}>
-        <div className="inv-panel__heading">
-          <h2>المبيعات</h2>
-          <p>الفواتير غير الملغاة في الفترة المحددة. الأسعار نهائية والضريبة متضمنة فيها، فلا تُجمع فوق الإجمالي.</p>
-        </div>
-        <div className="inv-panel__body">
-          <div className="inv-fields">
-            <div className="field inv-field inv-field--stat">
-              <span className="inv-field__label">عدد الفواتير</span>
-              <span className="inv-field__hint">{nf.format(stats.invoiceCount)}</span>
-            </div>
-            <div className="field inv-field inv-field--stat">
-              <span className="inv-field__label">إجمالي قبل الخصم</span>
-              <span className="inv-field__hint">{money(stats.subtotal)} ج.م</span>
-            </div>
-            <div className="field inv-field inv-field--stat">
-              <span className="inv-field__label">الخصومات</span>
-              <span className="inv-field__hint">{money(stats.discount)} ج.م</span>
-            </div>
-            <div className="field inv-field inv-field--stat">
-              <span className="inv-field__label">صافي المبيعات</span>
-              <span className="inv-field__hint">{money(stats.total)} ج.م</span>
-            </div>
-            {/* الضريبة داخلة في السعر — المحرك يقولها صراحةً ولا يجمعها فوق
-                الإجمالي. فعرضها بعد النهائي يمنع قراءتها على أنها تُضاف إليه. */}
-            <div className="field inv-field inv-field--stat">
-              <span className="inv-field__label">منها ضريبة (متضمنة)</span>
-              <span className="inv-field__hint">{money(stats.tax)} ج.م</span>
-            </div>
-            <div className="field inv-field inv-field--stat">
-              <span className="inv-field__label">متوسط الفاتورة</span>
-              <span className="inv-field__hint">{money(stats.averageInvoice)} ج.م</span>
+      {/* كرتان لا تسعة: الأرقامُ المرتبطةُ تُجمع، وصافي المبيعات يُبرز لأنه
+          الناتج. والترتيبُ يتبع المعادلة: الإجمالي، ثم الخصم، ثم الصافي. */}
+      <div className="stat-cards">
+        <article className="stat-card is-sales">
+          <div className="stat-card__head">
+            <h2>المبيعات</h2>
+            <p>الفواتير غير الملغاة في الفترة المحددة. الأسعار نهائية والضريبة متضمنة فيها، فلا تُجمع فوق الإجمالي.</p>
+          </div>
+          <div className="stat-card__body">
+            <div className="stat-grid">
+              <div className="stat-grid__item">
+                <span className="stat-grid__label">إجمالي قبل الخصم</span>
+                <span className="stat-grid__value">{money(stats.subtotal)} ج.م</span>
+              </div>
+              <div className="stat-grid__item">
+                <span className="stat-grid__label">الخصومات</span>
+                <span className="stat-grid__value">{money(stats.discount)} ج.م</span>
+              </div>
+              {/* الناتج: ممتدٌّ عرضًا وفوقه فاصل، فيُقرأ أنه حصيلةُ ما قبله. */}
+              <div className="stat-grid__item is-primary">
+                <span className="stat-grid__label">صافي المبيعات</span>
+                <span className="stat-grid__value">{money(stats.total)} ج.م</span>
+              </div>
+              <div className="stat-grid__item">
+                <span className="stat-grid__label">عدد الفواتير</span>
+                <span className="stat-grid__value">{nf.format(stats.invoiceCount)}</span>
+              </div>
+              <div className="stat-grid__item">
+                <span className="stat-grid__label">متوسط الفاتورة</span>
+                <span className="stat-grid__value">{money(stats.averageInvoice)} ج.م</span>
+              </div>
+              {/* الضريبة داخلة في السعر — المحرك يقولها صراحةً ولا يجمعها فوق
+                  الإجمالي. فعرضها بعد النهائي يمنع قراءتها على أنها تُضاف إليه. */}
+              <div className="stat-grid__item is-note">
+                <span className="stat-grid__label">منها ضريبة — متضمنة في السعر لا مضافة إليه</span>
+                <span className="stat-grid__value">{money(stats.tax)} ج.م</span>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
+        </article>
 
-      <div className="inv-panel" style={{ marginBottom: 18 }}>
-        <div className="inv-panel__heading">
-          <h2>الفواتير</h2>
-          <p>ما أُلغي، وما بقي على العملاء.</p>
-        </div>
-        <div className="inv-panel__body">
-          <div className="inv-fields">
-            <div className="field inv-field inv-field--stat">
-              <span className="inv-field__label">فواتير ملغاة</span>
-              <span className="inv-field__hint">{nf.format(stats.cancelledCount)}</span>
-            </div>
-            <div className="field inv-field inv-field--stat">
-              <span className="inv-field__label">فواتير عليها باقٍ</span>
-              <span className="inv-field__hint">{nf.format(stats.outstandingCount)}</span>
-            </div>
-            <div className="field inv-field inv-field--stat">
-              <span className="inv-field__label">مجموع الباقي على العملاء</span>
-              <span className="inv-field__hint">{money(stats.outstandingTotal)} ج.م</span>
+        <article className="stat-card is-invoices">
+          <div className="stat-card__head">
+            <h2>الفواتير</h2>
+            <p>ما أُلغي، وما بقي على العملاء.</p>
+          </div>
+          <div className="stat-card__body">
+            <div className="stat-grid">
+              <div className="stat-grid__item">
+                <span className="stat-grid__label">فواتير ملغاة</span>
+                <span className="stat-grid__value">{nf.format(stats.cancelledCount)}</span>
+              </div>
+              <div className="stat-grid__item">
+                <span className="stat-grid__label">فواتير عليها باقٍ</span>
+                <span className="stat-grid__value">{nf.format(stats.outstandingCount)}</span>
+              </div>
+              <div className="stat-grid__item is-primary">
+                <span className="stat-grid__label">مجموع الباقي على العملاء</span>
+                <span className="stat-grid__value">{money(stats.outstandingTotal)} ج.م</span>
+              </div>
             </div>
           </div>
-        </div>
+        </article>
       </div>
 
       <div className="inv-panel">
