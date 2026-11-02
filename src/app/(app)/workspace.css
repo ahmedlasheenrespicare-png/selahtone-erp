@@ -212,7 +212,6 @@
 .dashboard-empty strong { color: #405675; font-size: 13px; }
 .dashboard-empty p { margin: 0; font-size: 11.5px; }
 .dashboard-panel__footer { padding: 13px 21px; color: #62728a; font-size: 11px; }
-.dashboard-side { display: grid; gap: 16px; }
 .dashboard-panel__heading-icon { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 10px; background: #f1f5fc; color: #587ab4; }
 .dashboard-panel__heading-icon svg { width: 18px; height: 18px; }
 .dashboard-setup__items { padding: 0 20px; }
@@ -242,7 +241,6 @@
 
 @media (max-width: 1300px) {
   .dashboard-grid { grid-template-columns: 1fr; }
-  .dashboard-side { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
 }
 @media (max-width: 1100px) {
   .workspace-topbar { padding-inline: 24px; }
@@ -280,7 +278,6 @@
   .dashboard-date { padding: 7px 10px; }
   .dashboard-date > span { width: 30px; height: 30px; }
   .dashboard-grid { margin-top: 16px; }
-  .dashboard-side { grid-template-columns: 1fr; }
   .dashboard-panel__heading { padding: 18px 16px; }
   .dashboard-panel__footer { padding-inline: 16px; }
 }
@@ -295,6 +292,13 @@
    والناتجُ (is-primary) ممتدٌّ عرضًا وفوقه فاصل، فيُعلم أنه حصيلةُ ما
    فوقه لا رقمٌ آخرُ بين الأرقام. */
 .stat-cards { margin-bottom: 18px; }
+
+/* كروتٌ مسطّحة: التراكبُ صُنع لكرتين اثنين (المبيعات والفواتير) يدخل
+   أحدُهما في الآخر، فلو وُرِّث على سبعة لالتبس بعضُها ببعض. فجاءت
+   هذه متباعدة قليلًا، وهواؤها بينها أضيقُ من هوائها عن سائر الصفحة. */
+.stat-cards--flat { display: grid; gap: 8px; margin-top: 16px; }
+.stat-cards--flat .stat-card { margin-bottom: 0; transform: none; }
+.stat-cards--flat:hover .stat-card { transform: none; box-shadow: inset 0 1px 1px rgba(255, 255, 255, .28), 0 -4px 15px rgba(10, 33, 53, .10); }
 .stat-card {
   --card-accent: #12655c;
   position: relative;

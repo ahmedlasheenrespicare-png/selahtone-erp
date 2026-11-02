@@ -417,7 +417,12 @@ export default async function DashboardPage() {
         </div>
       </section>
 
-      <div className="dashboard-grid">
+      {/* نفس الحاوي الذي يحمل المبيعات والفواتير وملخّص العهد: فتستوي
+          السبعةُ عرْضًا. وبصنفٍ مسطّح لا متراكب، لأنّ التراكب صُنع لكرتين
+          اثنين فلو وُرِّث على سبعة لالتبس بعضُها ببعض. وأُزيل العمود
+          الجانبي: كان يحبس كرتين في ٣٠٥ بكسل في حين سائر الكروت
+          بعرض الصفحة كاملًا. */}
+      <div className="stat-cards stat-cards--flat">
         <article className="stat-card is-branches" aria-labelledby="branches-title">
           <div className="stat-card__head">
             <h3 id="branches-title">متابعة الفروع</h3>
@@ -470,7 +475,6 @@ export default async function DashboardPage() {
           </div>
         </article>
 
-        <div className="dashboard-side">
           {!isEmployee && !isAccountant ? (
           <article className="stat-card is-setup" aria-labelledby="setup-title">
             <div className="stat-card__head">
@@ -554,7 +558,6 @@ export default async function DashboardPage() {
               </div>
             </div>
           </article>
-        </div>
       </div>
 
       <div className="dashboard-account-note"><span>حسابك: <strong>{ROLE_LABEL[session.role] ?? session.role}</strong></span><span aria-hidden="true">·</span><span dir="ltr">{session.email}</span></div>
