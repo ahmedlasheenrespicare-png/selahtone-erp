@@ -38,13 +38,64 @@ function copy(rel) {
     return !lstatSync(source).isSymbolicLink() && !/^\.env(?:\..*)?$/.test(name) && ![".git", ".next", "node_modules"].includes(name);
   } });
 }
-for (const rel of ["src", "prisma/schema.prisma", "prisma/manual-inventory-upgrade.sql", "prisma/manual-receiving-upgrade.sql", "prisma/manual-commerce-upgrade.sql", "tests/fixtures/inventory-baseline.sql", "prototypes/finance-engine", "package.json", "tsconfig.json"]) copy(rel);
-cpSync(join(root, "prototypes/finance-app/overlay"), dir, { recursive: true });
-if (appTest) cpSync(join(root, "prototypes/finance-app/test/integration.test.ts"), join(dir, "tests/finance-lab-app.test.ts"));
-if (cutoverTest) {
-  for (const rel of ["prototypes/finance-cutover", "tests/fixtures/finance-cutover.sql", "tests/fixtures/finance-legacy-categories.sql"]) copy(rel);
-  cpSync(join(root, "prototypes/finance-app/test/cutover-integration.test.ts"), join(dir, "tests/finance-cutover-lab.test.ts"));
+
+const baseFiles = [
+  "src",
+  "public",
+  "prisma/schema.prisma",
+  "prisma/manual-inventory-upgrade.sql",
+  "prisma/manual-receiving-upgrade.sql",
+  "prisma/manual-commerce-upgrade.sql",
+  "prisma/manual-catalog-sales-upgrade.sql",
+  "prisma/manual-menu-scope-upgrade.sql",
+  "prisma/manual-cancel-permission-upgrade.sql",
+  "prisma/manual-discount-ceiling-upgrade.sql",
+  "prisma/manual-finance-release-upgrade.sql",
+  "prisma/manual-settlement-upgrade.sql",
+  "prisma/manual-custody-closure-upgrade.sql",
+  "prisma/manual-custody-and-count-requests.sql",
+  "tests/fixtures/inventory-baseline.sql",
+  "tests/fixtures/finance-legacy-categories.sql",
+  "prototypes/finance-engine",
+  "package.json",
+  "tsconfig.json",
+];
+for (const rel of baseFiles) copy(rel);
+
+if (testMode) {
+  cpSync(join(root, "prototypes/finance-app/overlay"), dir, { recursive: true });
+  if (appTest) cpSync(join(root, "prototypes/finance-app/test/integration.test.ts"), join(dir, "tests/finance-lab-app.test.ts"));
+  if (cutoverTest) {
+    for (const rel of ["prototypes/finance-cutover", "tests/fixtures/finance-cutover.sql"]) copy(rel);
+    cpSync(join(root, "prototypes/finance-app/test/cutover-integration.test.ts"), join(dir, "tests/finance-cutover-lab.test.ts"));
+  }
+} else {
+  cpSync(join(root, "prototypes/finance-app/preview"), dir, { recursive: true });
+
+  // Allow session cookies inside cross-site HTTPS preview iframes (*.e2b.app)
+  // as well as plain HTTP local smoke requests, strictly in this disposable copy.
+  const authPath = join(dir, "src/lib/auth.ts");
+  let authSrc = readFileSync(authPath, "utf8");
+  authSrc = authSrc.replace(
+    'import { cookies } from "next/headers";',
+    'import { cookies, headers } from "next/headers";\nasync function labCookiePolicy() {\n  const proto = (await headers()).get("x-forwarded-proto")?.split(",")[0].trim().toLowerCase();\n  return proto === "https"\n    ? { sameSite: "none" as const, secure: true, partitioned: true }\n    : { sameSite: "lax" as const, secure: false };\n}',
+  );
+  authSrc = authSrc.replaceAll(
+    'sameSite: "lax", secure: process.env.NODE_ENV === "production"',
+    '...(await labCookiePolicy())',
+  );
+  writeFileSync(authPath, authSrc);
+
+  for (const rel of ["src/middleware.ts", "src/app/api/logout/route.ts", "src/app/api/session/clear/route.ts"]) {
+    const filePath = join(dir, rel);
+    const src = readFileSync(filePath, "utf8").replaceAll(
+      'sameSite: "lax", secure: process.env.NODE_ENV === "production"',
+      '...(request.headers.get("x-forwarded-proto")?.split(",")[0].trim().toLowerCase() === "https" ? { sameSite: "none" as const, secure: true, partitioned: true } : { sameSite: "lax" as const, secure: false })',
+    );
+    writeFileSync(filePath, src);
+  }
 }
+
 symlinkSync(join(root, "node_modules"), join(dir, "node_modules"), "dir");
 // A separate PGlite-compatible client; the project's generated client is never changed.
 const schemaPath = join(dir, "prisma/schema.prisma");
@@ -53,6 +104,7 @@ const generator = 'provider = "prisma-client-js"';
 if (originalSchema.split(generator).length !== 2) { clean(); throw new Error("Expected exactly one Prisma client generator; lab generation was stopped."); }
 const schema = originalSchema.replace(generator, 'provider = "prisma-client-js"\n  output = "../.finance-client"\n  engineType = "client"');
 writeFileSync(schemaPath, schema);
+
 // Deliberate allowlist: in particular, never inherit DATABASE_URL, DIRECT_URL,
 // authentication secrets, deployment tokens, or any production .env file.
 const env = {
@@ -65,6 +117,7 @@ const env = {
   DATABASE_URL: "postgresql://unused.invalid/finance_lab",
   DIRECT_URL: "postgresql://unused.invalid/finance_lab",
   AUTH_SECRET: randomBytes(48).toString("base64url"),
+  FINANCE_ENABLED: "true",
   FINANCE_LAB_ONLY: "disposable-in-memory",
   FINANCE_LAB_PROJECT_DIR: dir,
   // Prisma's generator is WASM here. Dummy executables suppress network engine

@@ -160,29 +160,20 @@ export default async function DashboardPage() {
           وكانت لوحةٌ بيضاء تحوي هذا الكرتَ الكحليّ ورأسُها يكرّر رأسَه
           («عهدة الموظف» مرتين)، فأُزيلت اللوحة وبقي الكرت، ونُقل وصفُها
           إلى جسمه ملاحظةً لئلّا يضيع. */}
-      {/* الحافظة — عن تصميم محفظةٍ مرخّص بـMIT، بلون الموقع: قسمٌ واحدٌ
-          معروض، والغلافُ يُمرَّر أفقيًّا باللمس أو بالسهمين، في الجوال
-          وفي المكتبي جميعًا. والجيبُ ثابتٌ أسفلها: فإنّه ملخّصُ الأقسام
-          كلها لا واحدًا منها، فلا يُمرَّر معها. */}
+      {/* الحافظة — على تصميم byllzz «rude-bat-50» (MIT) بألوانه الأصلية:
+          كل كرتٍ شريحةٌ مباشرة في مسار السحب الأفقي، وتعلوها طبقتا التراكب،
+          ويحفظ الجيبُ الأمامي المنحني «المستحق للخزنة» مستورًا بنجوم حتى يُمرَّ عليه أو يُلمس. */}
       <DashboardWallet
-        pocket={
-          <div className="dashboard-pocket">
-            <div className="dashboard-pocket__content">
-              <span className="dashboard-pocket__stars" aria-hidden="true">•••••</span>
-              <span className="dashboard-pocket__value">
-                {cash
-                  ? `${nf.format(Number(cash.expected))} ج.م`
-                  : summary
-                    ? `${nf.format(Number(summary.totalExpected))} ج.م`
-                    : "—"}
-              </span>
-              <span className="dashboard-pocket__label">المستحق للخزنة</span>
-            </div>
-          </div>
+        balanceValue={
+          cash
+            ? `${nf.format(Number(cash.expected))} ج.م`
+            : summary
+              ? `${nf.format(Number(summary.totalExpected))} ج.م`
+              : "—"
         }
+        balanceLabel="المستحق للخزنة"
       >
       {cash ? (
-        <div className="stat-cards">
           <article className="stat-card is-custody" aria-labelledby="cash-title">
             <div className="stat-card__head">
               <h3 id="cash-title">عهدة الموظف</h3>
@@ -224,7 +215,6 @@ export default async function DashboardPage() {
                 <span>المتوقَّع بيدك يتغيّر مع كل بيع نقدي ومع كل مصروف تصرفه من نقدك</span>
               </div>
             </article>
-          </div>
       ) : null}
 
       {cash ? (
@@ -257,11 +247,7 @@ export default async function DashboardPage() {
       ) : null}
 
       {summary && summary.custodyCount > 0 ? (
-        <div className="stat-cards">
-          {/* كرتان لا كرتٌ واحد: لأنّ الفروعَ تتكاثر، فإن ضُمّت إلى الناتج
-              في كرتٍ واحد طغت عليه وصار هو التائه. فالفروعُ مكوّناتٌ في
-              كرت، والمستحقُّ للخزنة ناتجٌ في كرت — يليه كما يلي المجموع
-              مكوّناته. والتراكب بينهما قائم، كسائر الكروت. */}
+        <>
           <article className="stat-card is-custody" aria-labelledby="summary-title">
             <div className="stat-card__head">
               <h3 id="summary-title">عهدة كل فرع</h3>
@@ -291,7 +277,11 @@ export default async function DashboardPage() {
             </article>
 
             {/* الناتج: وحده في كرت، مبرزًا، لا ينازعه عددُ الفروع. */}
-            <article className="stat-card is-custody">
+            <article className="stat-card is-custody" aria-labelledby="expected-total-title">
+              <div className="stat-card__head">
+                <h3 id="expected-total-title">المستحق للخزنة</h3>
+                <p>المتوقَّع تسليمه من كل العهد النشطة.</p>
+              </div>
               <div className="stat-card__body">
                 <div className="stat-grid">
                   <div className="stat-grid__item is-primary">
@@ -343,7 +333,7 @@ export default async function DashboardPage() {
                 )}
               </div>
             </article>
-          </div>
+        </>
       ) : null}
 
       {roleActions.length > 0 ? (
@@ -380,9 +370,6 @@ export default async function DashboardPage() {
       ) : null}
 
       {sales ? (
-        <div className="stat-cards">
-          {/* لوحةٌ بيضاء أخرى تحوي الكرتَ ورأسُها يكرّر رأسَه؛ فأُزيلت،
-              ونُقل رابطُ «التفاصيل» إلى جسم الكرت لئلّا يضيع. */}
           <article className="stat-card is-sales" aria-labelledby="sales-title">
             <div className="stat-card__head">
               <h3 id="sales-title">المبيعات</h3>
@@ -410,14 +397,12 @@ export default async function DashboardPage() {
                 </div>
               </div>
             </article>
-          </div>
       ) : null}
 
       {/* كان عنوانُ هذا القسم خارج الكرت — شاذًّا عن سائر الكروت التي تحمل
           عناوينَها في رؤوسها. فصار العنوانُ رأسًا وشارةُ النطاق شارةً فيه.
           والناتجُ هو المبلغُ وحده: فكل رقمٍ له وحدة (ج.م) نال is-primary،
           أيًّا كان دور الناظر. */}
-      <div className="stat-cards">
         <article className="stat-card is-overview" aria-labelledby="overview-title">
           <div className="stat-card__head">
             <h3 id="overview-title">نظرة عامة</h3>
@@ -439,14 +424,7 @@ export default async function DashboardPage() {
               </div>
             </div>
           </article>
-        </div>
 
-      {/* نفس الحاوي الذي يحمل المبيعات والفواتير وملخّص العهد: فتستوي
-          السبعةُ عرْضًا. وبصنفٍ مسطّح لا متراكب، لأنّ التراكب صُنع لكرتين
-          اثنين فلو وُرِّث على سبعة لالتبس بعضُها ببعض. وأُزيل العمود
-          الجانبي: كان يحبس كرتين في ٣٠٥ بكسل في حين سائر الكروت
-          بعرض الصفحة كاملًا. */}
-      <div className="stat-cards stat-cards--flat">
         <article className="stat-card is-branches" aria-labelledby="branches-title">
           <div className="stat-card__head">
             <h3 id="branches-title">متابعة الفروع</h3>
@@ -582,7 +560,6 @@ export default async function DashboardPage() {
               </div>
             </div>
           </article>
-      </div>
 
       </DashboardWallet>
 
