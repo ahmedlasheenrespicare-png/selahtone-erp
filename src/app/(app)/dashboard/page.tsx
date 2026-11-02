@@ -356,10 +356,13 @@ export default async function DashboardPage() {
             <article className="dashboard-metric" key={metric.label}>
               <div className="dashboard-metric__top">
                 <span className={`dashboard-metric__icon is-${metric.tone}`}><AppIcon name={metric.icon} /></span>
+                <p className="dashboard-metric__label">{metric.label}</p>
+                <span className="dashboard-metric__dots" aria-hidden="true"><i /><i /><i /></span>
               </div>
-              <p className="dashboard-metric__label">{metric.label}</p>
-              <div className="dashboard-metric__value"><strong>{metric.value}</strong>{metric.unit && <span>{metric.unit}</span>}</div>
-              <p className="dashboard-metric__detail">{metric.detail}</p>
+              <div className="dashboard-metric__desc">
+                <div className="dashboard-metric__value"><strong>{metric.value}</strong>{metric.unit && <span>{metric.unit}</span>}</div>
+                <p className="dashboard-metric__detail">{metric.detail}</p>
+              </div>
             </article>
           ))}
         </div>
