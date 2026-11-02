@@ -54,104 +54,79 @@
 .sale-note--error { color: #9f3636; margin: 0; font-size: 11.5px; }
 .sale-catalog-row + .sale-catalog-row { margin-top: 10px; }
 
-/* ══ كروت إحصاءات المبيعات بنمط «بطاقة المحفظة» ═══════════════════
-   لمعةُ حافةٍ علوية (inset)، وصعودٌ وميلٌ عند المرور، ودخولٌ من فوق
-   عند فتح الصفحة. وخُصّصت بصفة --stat ليقع أثرُها على الكروت التسعة
-   وحدها: فصنف inv-field تشترك فيه حقولُ النماذج في إحدى عشرة صفحةً
-   أخرى، ولولا التخصيص لانطبق عليها كلِّها. */
-.inv-field--stat {
+/* ══ كرتا الإحصاءات: المبيعات، والفواتير ═════════════════════════
+   تسعةُ أرقامٍ كانت مفرَّقة في تسعة كروت، فصارت مجموعتين في كرتين.
+   والترتيبُ داخل الكرت يتبع المعادلة لا الترتيبَ الذي جاءت به من
+   المحرك: الإجمالي، ثم الخصم، ثم الصافي — فيقرأها الناظرُ كما تُحسب.
+   والناتجُ (is-primary) ممتدٌّ عرضًا وفوقه فاصل، فيُعلم أنه حصيلةُ ما
+   فوقه لا رقمٌ آخرُ بين الأرقام. */
+.stat-cards { margin-bottom: 18px; }
+.stat-card {
+  --card-accent: #12655c;
   position: relative;
-  min-height: 122px;
-  /* الحاشيةُ السفلية (34px) هي منطقةُ التراكب: يدخل فيها الكرتُ الذي يليه،
-     فلا يغطّي رقمًا ولا تسمية. وبها صار التراكبُ ممكنًا بلا إخفاء. */
-  padding: 16px 16px 34px;
-  justify-content: flex-start;
-  margin-bottom: -20px;            /* التراكب الحقيقي: كل كرتٍ يدخل في الذي بعده */
+  margin-bottom: -20px;            /* التراكب: كرت الفواتير يدخل في كرت المبيعات */
   border-radius: 16px;
   color: #fff;
-  background: var(--stat-clr, #0a2135);
+  background: #0a2135;
   box-shadow:
-    inset 0 1px 1px rgba(255, 255, 255, .30),
+    inset 0 1px 1px rgba(255, 255, 255, .28),
     0 -4px 15px rgba(10, 33, 53, .10);
   transition: transform .6s cubic-bezier(.34, 1.56, .64, 1), box-shadow .4s ease;
-  animation: stat-slide-in .8s cubic-bezier(.2, .8, .2, 1) backwards;
 }
-.inv-field--stat:last-child { margin-bottom: 0; }
+.stat-card:last-child { margin-bottom: 0; }
+.stat-card:nth-child(1) { z-index: 1; transform: rotate(-.5deg); }
+.stat-card:nth-child(2) { z-index: 2; transform: rotate(.7deg); }
+.stat-card.is-invoices { --card-accent: #3156a3; }
 
-/* كل كرتٍ فوق الذي قبله — كترتيب البطاقات في المحفظة. */
-.inv-field--stat:nth-child(1) { z-index: 1; }
-.inv-field--stat:nth-child(2) { z-index: 2; }
-.inv-field--stat:nth-child(3) { z-index: 3; }
-.inv-field--stat:nth-child(4) { z-index: 4; }
-.inv-field--stat:nth-child(5) { z-index: 5; }
-.inv-field--stat:nth-child(6) { z-index: 6; }
-.inv-field--stat:nth-child(n + 7) { z-index: 7; }
-
-/* مَيلٌ مختلف لكل بطاقة، كما في المكوّن (لا ميلًا موحّدًا). */
-.inv-field--stat:nth-child(3n + 1) { transform: rotate(-1.4deg); }
-.inv-field--stat:nth-child(3n + 2) { transform: rotate(.9deg); }
-.inv-field--stat:nth-child(3n + 3) { transform: rotate(-.4deg); }
-@keyframes stat-slide-in {
-  from { transform: translateY(-26px); opacity: 0; }
-  to   { transform: translateY(0);     opacity: 1; }
+.stat-card__head {
+  padding: 13px 16px 14px;
+  border-radius: 16px 16px 0 0;
+  background: var(--card-accent);
 }
-/* مُرّ على المجموعة: تتفرّق البطاقات صعودًا بمسافاتٍ مختلفة وتستقيم،
-   كبطاقات المحفظة حين تُسحب منها. */
-.inv-fields:hover .inv-field--stat { box-shadow: inset 0 1px 1px rgba(255, 255, 255, .30), 0 16px 30px rgba(10, 33, 53, .28); }
-.inv-fields:hover .inv-field--stat:nth-child(1) { transform: translateY(-44px) rotate(0deg); }
-.inv-fields:hover .inv-field--stat:nth-child(2) { transform: translateY(-35px) rotate(0deg); }
-.inv-fields:hover .inv-field--stat:nth-child(3) { transform: translateY(-26px) rotate(0deg); }
-.inv-fields:hover .inv-field--stat:nth-child(4) { transform: translateY(-18px) rotate(0deg); }
-.inv-fields:hover .inv-field--stat:nth-child(5) { transform: translateY(-10px) rotate(0deg); }
-.inv-fields:hover .inv-field--stat:nth-child(6) { transform: translateY(-4px)  rotate(0deg); }
-.inv-fields:hover .inv-field--stat:nth-child(n + 7) { transform: translateY(-3px) rotate(0deg); }
-
-/* والكرتُ الممسوسُ يعلو فوق رفيقاته، كما في المكوّن (z-index: 100). */
-.inv-field--stat:hover { z-index: 100 !important; }
-
-/* الألوان تتناوب كبطاقات المحفظة الثلاث — بلوحة الموقع لا بلوحة المكوّن. */
-.inv-field--stat:nth-child(3n + 1) { --stat-clr: #0a2135; }  /* كحلي */
-.inv-field--stat:nth-child(3n + 2) { --stat-clr: #12655c; }  /* تركوازي */
-.inv-field--stat:nth-child(3n + 3) { --stat-clr: #3156a3; }  /* أزرق */
-
-/* شريحة البطاقة (chip) — من المكوّن، بلا وظيفةٍ تُدعّى. */
-.inv-field--stat::before {
-  content: ""; flex: none; display: block;
-  order: 3;                        /* في الأسفل — وهو ما يغطّيه التراكب، كالمكوّن */
-  width: 32px; height: 14px; margin-top: auto;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, .22);
-  border: 1px solid rgba(255, 255, 255, .16);
+.stat-card__head h2 { margin: 0; font-size: 16px; font-weight: 700; color: #fff; }
+.stat-card__head p {
+  margin: 4px 0 0; font-size: 11.5px; line-height: 1.6;
+  color: rgba(255, 255, 255, .88);
 }
 
-/* الرقمُ هو ما جئنا نقرأه: فصار كبيرًا أبيض، والتسميةُ تحته شفافة. */
-.inv-field--stat .inv-field__label {
-  color: rgba(255, 255, 255, .85);
-  font-size: 11.5px; font-weight: 600;
+.stat-card__body { padding: 14px 16px 18px; }
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 11px 16px;
 }
-.inv-field--stat .inv-field__hint {
-  margin: 4px 0 0;
-  color: #fff;
-  font-size: clamp(19px, 2.1vw, 25px);
-  font-weight: 700; line-height: 1.2;
-  font-variant-numeric: tabular-nums;
+.stat-grid__item { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.stat-grid__label { font-size: 11.5px; font-weight: 600; color: rgba(255, 255, 255, .85); }
+.stat-grid__value {
+  font-size: 17px; font-weight: 700; color: #fff;
+  font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
 }
 
-/* دخولٌ متتابع: كرتٌ إثر كرت، كبطاقاتٍ تُلقى في المحفظة. */
-.inv-field--stat:nth-child(1) { animation-delay: .04s; }
-.inv-field--stat:nth-child(2) { animation-delay: .10s; }
-.inv-field--stat:nth-child(3) { animation-delay: .16s; }
-.inv-field--stat:nth-child(4) { animation-delay: .22s; }
-.inv-field--stat:nth-child(5) { animation-delay: .28s; }
-.inv-field--stat:nth-child(6) { animation-delay: .34s; }
+/* الناتج: ممتدٌّ عرضًا، وفوقه فاصل، وأكبرُ حجمًا. */
+.stat-grid__item.is-primary {
+  grid-column: 1 / -1;
+  padding-top: 11px;
+  border-top: 1px solid rgba(255, 255, 255, .24);
+}
+.stat-grid__item.is-primary .stat-grid__label { font-size: 12.5px; color: #fff; }
+.stat-grid__item.is-primary .stat-grid__value { font-size: clamp(24px, 2.6vw, 31px); }
 
-/* مَن كره الحركة: تبقى البطاقاتُ متراكبةً مائلة، ثابتةً لا تصعد. */
+/* ملاحظةٌ لا رقمًا: الضريبة متضمنة، فجاءت أصغرَ وأخفتَ لئلا تُجمع. */
+.stat-grid__item.is-note { grid-column: 1 / -1; }
+.stat-grid__item.is-note .stat-grid__label { font-size: 11px; font-weight: 500; color: rgba(255, 255, 255, .8); }
+.stat-grid__item.is-note .stat-grid__value { font-size: 14px; color: rgba(255, 255, 255, .88); }
+
+/* مُرّ على المجموعة: يتفرّق الكرتان صعودًا ويستقيمان. */
+.stat-cards:hover .stat-card { box-shadow: inset 0 1px 1px rgba(255, 255, 255, .28), 0 16px 30px rgba(10, 33, 53, .28); }
+.stat-cards:hover .stat-card:nth-child(1) { transform: translateY(-32px) rotate(0deg); }
+.stat-cards:hover .stat-card:nth-child(2) { transform: translateY(-8px)  rotate(0deg); }
+
+@media (max-width: 560px) {
+  .stat-grid { grid-template-columns: 1fr; }
+}
+
+/* مَن كره الحركة: يبقى الكرتان متراكبَين مائلَين ثابتَين. */
 @media (prefers-reduced-motion: reduce) {
-  .inv-field--stat { animation: none; transition: none; }
-  .inv-fields:hover .inv-field--stat { transform: none; box-shadow: inset 0 1px 1px rgba(255, 255, 255, .30), 0 -4px 15px rgba(10, 33, 53, .10); }
+  .stat-card { transition: none; }
+  .stat-cards:hover .stat-card { transform: none; }
 }
-
-/* متنفَّسٌ فوق المجموعة: فالبطاقاتُ تصعد عند المرور، فإن لم يكن فوقها
-   هواءٌ خرجت من موضعها. و:has() تُقيّده بمجموعةِ الكروت وحدها، فإن لم
-   يعرفه المتصفحُ فالأمرُ نقصُ عشرة بكسل هواء، لا فساد. */
-.inv-fields:has(.inv-field--stat) { padding-top: 10px; }
