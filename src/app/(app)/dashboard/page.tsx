@@ -153,23 +153,17 @@ export default async function DashboardPage() {
         </div>
       </div>
 
+      {/* كرتٌ واحد بترتيب المعادلة: الرصيد، ثم المبيعات، ثم المصروفات،
+          ثم الناتج — فيُقرأ «المتوقَّع بيدك» حصيلةً لا رقمًا بين أرقام.
+          وكانت لوحةٌ بيضاء تحوي هذا الكرتَ الكحليّ ورأسُها يكرّر رأسَه
+          («عهدة الموظف» مرتين)، فأُزيلت اللوحة وبقي الكرت، ونُقل وصفُها
+          إلى جسمه ملاحظةً لئلّا يضيع. */}
       {cash ? (
-        <section className="dashboard-panel" aria-labelledby="cash-title" style={{ marginBottom: 18 }}>
-          <div className="dashboard-panel__heading">
-            <div>
-              <p className="dashboard-panel__eyebrow">عهدة الموظف</p>
-              <h2 id="cash-title">المتوقَّع بيدك الآن</h2>
-              <p>هذا ما يجب أن يكون في يدك فعلًا وبه تُسأل عند التسليم — لا الرصيد الدفتري وحده.</p>
-            </div>
-            <span className="dashboard-panel__heading-icon"><AppIcon name="receipt" /></span>
-          </div>
-          {/* كرتٌ واحد بترتيب المعادلة: الرصيد، ثم المبيعات، ثم المصروفات،
-              ثم الناتج — فيُقرأ «المتوقَّع بيدك» حصيلةً لا رقمًا بين أرقام. */}
-          <div className="stat-cards">
-            <article className="stat-card is-custody">
-              <div className="stat-card__head">
-                <h3>عهدة الموظف</h3>
-                <p>الرصيد، زائدًا مبيعات الفترة، ناقصًا مصروفاتها من نقدك.</p>
+        <div className="stat-cards">
+          <article className="stat-card is-custody" aria-labelledby="cash-title">
+            <div className="stat-card__head">
+              <h3 id="cash-title">عهدة الموظف</h3>
+              <p>الرصيد، زائدًا مبيعات الفترة، ناقصًا مصروفاتها من نقدك.</p>
               </div>
               <div className="stat-card__body">
                 <div className="stat-grid">
@@ -203,61 +197,53 @@ export default async function DashboardPage() {
                   </div>
                 </div>
               </div>
+              <div className="dashboard-panel__footer">
+                <span>المتوقَّع بيدك يتغيّر مع كل بيع نقدي ومع كل مصروف تصرفه من نقدك</span>
+              </div>
             </article>
           </div>
-          <div className="dashboard-panel__footer">
-            <span>المتوقَّع بيدك يتغيّر مع كل بيع نقدي ومع كل مصروف تصرفه من نقدك</span>
-          </div>
-        </section>
       ) : null}
 
       {cash ? (
-        <section className="dashboard-panel" aria-labelledby="todo-title" style={{ marginBottom: 18 }}>
-          <div className="dashboard-panel__heading">
-            <div>
-              <p className="dashboard-panel__eyebrow">يحتاج إجراءك</p>
-              <h2 id="todo-title">ما ينتظرك اليوم</h2>
-            </div>
-            <span className="dashboard-count">{nf.format(cashActions.length)} عنصر</span>
+        <article className="stat-card is-todo" aria-labelledby="todo-title">
+          <div className="stat-card__head">
+            <h3 id="todo-title">ما ينتظرك اليوم</h3>
+            <p>يحتاج إجراءك</p>
+            <span className="stat-card__badge">{nf.format(cashActions.length)} عنصر</span>
           </div>
-          {cashActions.length > 0 ? (
-            <div className="dashboard-setup__items">
-              {cashActions.map((item) => (
-                <Link className="dashboard-shortcut" key={item.key} href={item.href}>
-                  <span className={`dashboard-shortcut__icon ${item.tone === "warning" ? "is-cyan" : "is-blue"}`}><AppIcon name="receipt" /></span>
-                  <span><strong>{item.text}</strong></span>
-                  <AppIcon className="dashboard-shortcut__arrow" name="arrow" />
-                </Link>
-              ))}
+          <div className="stat-card__body">
+            <div className="stat-grid">
+              {cashActions.length > 0 ? (
+                cashActions.map((item) => (
+                  <Link className="stat-grid__item is-link" key={item.key} href={item.href}>
+                    <span className="stat-grid__label">
+                      <span className={`stat-grid__icon ${item.tone === "warning" ? "is-cyan" : "is-blue"}`} aria-hidden="true"><AppIcon name="receipt" /></span>
+                      {item.text}
+                    </span>
+                    <AppIcon className="stat-grid__arrow" name="arrow" />
+                  </Link>
+                ))
+              ) : (
+                <div className="stat-grid__item is-note">
+                  <span className="stat-grid__label">لا شيء يطلب منك الآن — لا طلب تسوية معلّق ولا مصروفات بانتظار الاعتماد.</span>
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="dashboard-empty">
-              <strong>لا شيء يطلب منك الآن</strong>
-              <p>لا طلب تسوية معلق ولا مصروفات بانتظار الاعتماد.</p>
-            </div>
-          )}
-        </section>
+          </div>
+        </article>
       ) : null}
 
       {summary && summary.custodyCount > 0 ? (
-        <section className="dashboard-panel" aria-labelledby="summary-title" style={{ marginBottom: 18 }}>
-          <div className="dashboard-panel__heading">
-            <div>
-              <p className="dashboard-panel__eyebrow">ملخّص النقد</p>
-              <h2 id="summary-title">العهدة والمستحق للخزنة</h2>
-              <p>مجمَّع «المتوقَّع بيده» لكل عهدة، لا أرصدتها الدفترية.</p>
-            </div>
-            <span className="dashboard-count">{nf.format(summary.custodyCount)} عهدة</span>
-          </div>
-          <div className="cash-summary__body">
-            {/* كرتان لا كرتٌ واحد: لأنّ الفروعَ تتكاثر، فإن ضُمّت إلى الناتج
-                في كرتٍ واحد طغت عليه وصار هو التائه. فالفروعُ مكوّناتٌ في
-                كرت، والمستحقُّ للخزنة ناتجٌ في كرت — يليه كما يلي المجموع
-                مكوّناته. والتراكب بينهما قائم، كسائر الكروت. */}
-            <article className="stat-card is-custody">
-              <div className="stat-card__head">
-                <h3>عهدة كل فرع</h3>
-                <p>ما بيد كل فرعٍ الآن — مكوّناتُ المستحق.</p>
+        <div className="stat-cards">
+          {/* كرتان لا كرتٌ واحد: لأنّ الفروعَ تتكاثر، فإن ضُمّت إلى الناتج
+              في كرتٍ واحد طغت عليه وصار هو التائه. فالفروعُ مكوّناتٌ في
+              كرت، والمستحقُّ للخزنة ناتجٌ في كرت — يليه كما يلي المجموع
+              مكوّناته. والتراكب بينهما قائم، كسائر الكروت. */}
+          <article className="stat-card is-custody" aria-labelledby="summary-title">
+            <div className="stat-card__head">
+              <h3 id="summary-title">عهدة كل فرع</h3>
+              <p>ما بيد كل فرعٍ الآن — مكوّناتُ المستحق.</p>
+              <span className="stat-card__badge">{nf.format(summary.custodyCount)} عهدة</span>
               </div>
               <div className="stat-card__body">
                 <div className="stat-grid">
@@ -295,74 +281,89 @@ export default async function DashboardPage() {
                 </div>
               </div>
             </article>
-            {summary.pendingSettlements + summary.pendingExpenses + summary.approvedUnpaid > 0 ? (
-              <div className="cash-tallies">
-                {summary.pendingSettlements > 0 ? (
-                  <div className="cash-tally is-amber">
-                    <strong>{nf.format(summary.pendingSettlements)}</strong>
-                    <span>طلب تسوية بانتظار اعتمادك</span>
-                  </div>
-                ) : null}
-                {summary.pendingExpenses > 0 ? (
-                  <div className="cash-tally">
-                    <strong>{nf.format(summary.pendingExpenses)}</strong>
-                    <span>مصروفًا بانتظار الاعتماد</span>
-                  </div>
-                ) : null}
-                {summary.approvedUnpaid > 0 ? (
-                  <div className="cash-tally is-warning">
-                    <strong>{nf.format(summary.approvedUnpaid)}</strong>
-                    <span>معتمدًا بانتظار الصرف</span>
-                  </div>
-                ) : null}
+            {/* العدّاداتُ مهامٌ معلّقة لا أرقامُ ملخّص: فصارت كرتًا ثالثًا
+                يلي الناتج، وبقيت بتنسيقها وألوانها فإنّها محكومةٌ بمعانيها
+                (كهرمانيٌّ للانتظار، وتحذيريٌّ للمعتمدِ غيرِ المصروف). */}
+            <article className="stat-card is-todo">
+              <div className="stat-card__head">
+                <h3>بانتظارك</h3>
+                <p>تسوياتٌ ومصروفاتٌ تطلب إجراءً.</p>
               </div>
-            ) : (
-              <div className="cash-tallies">
-                <span className="cash-tallies__empty">
-                  لا شيء بانتظارك — التسويات معتمدة والمصروفات مصروفة
-                </span>
+              <div className="stat-card__body">
+                {summary.pendingSettlements + summary.pendingExpenses + summary.approvedUnpaid > 0 ? (
+                  <div className="cash-tallies">
+                    {summary.pendingSettlements > 0 ? (
+                      <div className="cash-tally is-amber">
+                        <strong>{nf.format(summary.pendingSettlements)}</strong>
+                        <span>طلب تسوية بانتظار اعتمادك</span>
+                      </div>
+                    ) : null}
+                    {summary.pendingExpenses > 0 ? (
+                      <div className="cash-tally">
+                        <strong>{nf.format(summary.pendingExpenses)}</strong>
+                        <span>مصروفًا بانتظار الاعتماد</span>
+                      </div>
+                    ) : null}
+                    {summary.approvedUnpaid > 0 ? (
+                      <div className="cash-tally is-warning">
+                        <strong>{nf.format(summary.approvedUnpaid)}</strong>
+                        <span>معتمدًا بانتظار الصرف</span>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="cash-tallies">
+                    <span className="cash-tallies__empty">
+                      لا شيء بانتظارك — التسويات معتمدة والمصروفات مصروفة
+                    </span>
+                  </div>
+                )}
               </div>
-            )}
+            </article>
           </div>
-        </section>
       ) : null}
 
       {roleActions.length > 0 ? (
-        <section className="dashboard-panel" aria-labelledby="role-todo-title" style={{ marginBottom: 18 }}>
-          <div className="dashboard-panel__heading">
-            <div>
-              <p className="dashboard-panel__eyebrow">{isAccountant ? "يحتاج إجراءك" : "يحتاج اعتمادك"}</p>
-              <h2 id="role-todo-title">{isAccountant ? "ما ينتظرك اليوم" : "ما ينتظر قرارك"}</h2>
+        <article className="stat-card is-todo" aria-labelledby="role-todo-title">
+          <div className="stat-card__head">
+            <h3 id="role-todo-title">{isAccountant ? "ما ينتظرك اليوم" : "ما ينتظر قرارك"}</h3>
+            <p>{isAccountant ? "يحتاج إجراءك" : "يحتاج اعتمادك"}</p>
+            <span className="stat-card__badge">{nf.format(roleActions.length)} عنصر</span>
+          </div>
+          <div className="stat-card__body">
+            <div className="stat-grid">
+              {/* كان هذا القسم يظهر فارغًا بلا بيان إن لم يكن ثمة عمل؛
+                  فصار يقولها، كأخيه كرت الموظف. */}
+              {roleActions.length > 0 ? (
+                roleActions.map((item) => (
+                  <Link className="stat-grid__item is-link" key={item.key} href={item.href}>
+                    <span className="stat-grid__label">
+                      <span className={`stat-grid__icon ${item.tone === "warning" ? "is-cyan" : "is-blue"}`} aria-hidden="true">
+                        <AppIcon name={item.href.includes("settlements") ? "cash" : "expenses"} />
+                      </span>
+                      {item.text}
+                    </span>
+                    <AppIcon className="stat-grid__arrow" name="arrow" />
+                  </Link>
+                ))
+              ) : (
+                <div className="stat-grid__item is-note">
+                  <span className="stat-grid__label">لا شيء ينتظر قرارك الآن.</span>
+                </div>
+              )}
             </div>
-            <span className="dashboard-count">{nf.format(roleActions.length)} عنصر</span>
           </div>
-          <div className="dashboard-setup__items">
-            {roleActions.map((item) => (
-              <Link className="dashboard-shortcut" key={item.key} href={item.href}>
-                <span className={`dashboard-shortcut__icon ${item.tone === "warning" ? "is-cyan" : "is-blue"}`}><AppIcon name={item.href.includes("settlements") ? "cash" : "expenses"} /></span>
-                <span><strong>{item.text}</strong></span>
-                <AppIcon className="dashboard-shortcut__arrow" name="arrow" />
-              </Link>
-            ))}
-          </div>
-        </section>
+        </article>
       ) : null}
 
       {sales ? (
-        <section className="dashboard-panel" aria-labelledby="sales-title" style={{ marginBottom: 18 }}>
-          <div className="dashboard-panel__heading">
-            <div>
-              <p className="dashboard-panel__eyebrow">هذا الشهر</p>
-              <h2 id="sales-title">المبيعات</h2>
-              <p>الفواتير غير الملغاة، وما بقي على العملاء.</p>
-            </div>
-            <Link className="dashboard-text-link" href="/sales/stats">التفاصيل <AppIcon name="arrow" /></Link>
-          </div>
-          <div className="stat-cards">
-            <article className="stat-card is-sales">
-              <div className="stat-card__head">
-                <h3>المبيعات</h3>
-                <p>الفواتير غير الملغاة هذا الشهر، وما بقي على العملاء.</p>
+        <div className="stat-cards">
+          {/* لوحةٌ بيضاء أخرى تحوي الكرتَ ورأسُها يكرّر رأسَه؛ فأُزيلت،
+              ونُقل رابطُ «التفاصيل» إلى جسم الكرت لئلّا يضيع. */}
+          <article className="stat-card is-sales" aria-labelledby="sales-title">
+            <div className="stat-card__head">
+              <h3 id="sales-title">المبيعات</h3>
+              <p>الفواتير غير الملغاة هذا الشهر، وما بقي على العملاء.</p>
               </div>
               <div className="stat-card__body">
                 <div className="stat-grid">
@@ -382,24 +383,25 @@ export default async function DashboardPage() {
                   <div className="stat-grid__item is-note">
                     <span className="stat-grid__label">بعد الخصم — والضريبة متضمنة في السعر لا مضافة إليه</span>
                   </div>
+                  <Link className="stat-grid__link" href="/sales/stats">التفاصيل <AppIcon name="arrow" /></Link>
                 </div>
               </div>
             </article>
           </div>
-        </section>
       ) : null}
 
-      <section className="dashboard-overview" aria-labelledby="overview-title">
-        <div className="dashboard-section-heading">
-          <div><h2 id="overview-title">نظرة عامة</h2><p>{isEmployee ? "مبيعاتك ونطاق فرعك" : isAccountant ? "ما يتحرّك تحت يدك" : "صورة الشركة"}</p></div>
-          <span className="dashboard-scope"><span /> {canViewAllBranches ? "كل الفروع" : (session.branchName ?? "فرعك")}</span>
-        </div>
-        {/* العنوانُ الأصليّ للقسم (مع شارة النطاق) قائمٌ فوق، فجاء الكرتُ
-            بلا رأسٍ لئلا يُكتب العنوانُ مرتين. والناتجُ هنا هو المبلغُ وحده:
-            فكل رقمٍ له وحدة (ج.م) نال is-primary، أيًّا كان دور الناظر. */}
-        <div className="stat-cards">
-          <article className="stat-card is-overview">
-            <div className="stat-card__body">
+      {/* كان عنوانُ هذا القسم خارج الكرت — شاذًّا عن سائر الكروت التي تحمل
+          عناوينَها في رؤوسها. فصار العنوانُ رأسًا وشارةُ النطاق شارةً فيه.
+          والناتجُ هو المبلغُ وحده: فكل رقمٍ له وحدة (ج.م) نال is-primary،
+          أيًّا كان دور الناظر. */}
+      <div className="stat-cards">
+        <article className="stat-card is-overview" aria-labelledby="overview-title">
+          <div className="stat-card__head">
+            <h3 id="overview-title">نظرة عامة</h3>
+            <p>{isEmployee ? "مبيعاتك ونطاق فرعك" : isAccountant ? "ما يتحرّك تحت يدك" : "صورة الشركة"}</p>
+            <span className="stat-card__badge">{canViewAllBranches ? "كل الفروع" : (session.branchName ?? "فرعك")}</span>
+          </div>
+          <div className="stat-card__body">
               <div className="stat-grid">
                 {metrics.map((metric) => (
                   <div className={`stat-grid__item${metric.unit ? " is-primary" : ""}`} key={metric.label}>
@@ -415,9 +417,13 @@ export default async function DashboardPage() {
             </div>
           </article>
         </div>
-      </section>
 
-      <div className="dashboard-grid">
+      {/* نفس الحاوي الذي يحمل المبيعات والفواتير وملخّص العهد: فتستوي
+          السبعةُ عرْضًا. وبصنفٍ مسطّح لا متراكب، لأنّ التراكب صُنع لكرتين
+          اثنين فلو وُرِّث على سبعة لالتبس بعضُها ببعض. وأُزيل العمود
+          الجانبي: كان يحبس كرتين في ٣٠٥ بكسل في حين سائر الكروت
+          بعرض الصفحة كاملًا. */}
+      <div className="stat-cards stat-cards--flat">
         <article className="stat-card is-branches" aria-labelledby="branches-title">
           <div className="stat-card__head">
             <h3 id="branches-title">متابعة الفروع</h3>
@@ -470,7 +476,6 @@ export default async function DashboardPage() {
           </div>
         </article>
 
-        <div className="dashboard-side">
           {!isEmployee && !isAccountant ? (
           <article className="stat-card is-setup" aria-labelledby="setup-title">
             <div className="stat-card__head">
@@ -554,7 +559,6 @@ export default async function DashboardPage() {
               </div>
             </div>
           </article>
-        </div>
       </div>
 
       <div className="dashboard-account-note"><span>حسابك: <strong>{ROLE_LABEL[session.role] ?? session.role}</strong></span><span aria-hidden="true">·</span><span dir="ltr">{session.email}</span></div>
