@@ -1,6 +1,7 @@
 /* Internal workspace: scoped so the sign-in and password pages keep their own design. */
 .workspace-shell {
   --ws-ink: #182b4c;
+  --metric-ink: #0a2135; /* حبر بطاقات «نظرة عامة»: الحدّ والظلّ. بدّله إلى #000 للنمط الحرفي » */
   --ws-muted: #667690;
   --ws-blue: #3156a3;
   --ws-border: #e7ecf4;
@@ -164,7 +165,14 @@
 .dashboard-scope { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid #e3eaf5; border-radius: 8px; background: #fff; color: #536983; font-size: 11px; font-weight: 600; white-space: nowrap; }
 .dashboard-scope span { width: 6px; height: 6px; border-radius: 50%; background: #60a3d4; }
 .dashboard-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
-.dashboard-metric { min-width: 0; padding: 18px; border: 1px solid #e8edf5; border-radius: 15px; background: #fff; box-shadow: 0 3px 14px rgba(33, 57, 92, .035); }
+.dashboard-metric { min-width: 0; padding: 18px; border: 4px solid var(--metric-ink, #0a2135); border-radius: 16px; background: #fff; box-shadow: 8px 8px 0 var(--metric-ink, #0a2135); transition: transform .18s ease, box-shadow .18s ease; }
+.dashboard-metric:hover { transform: translate(-2px, -2px); box-shadow: 10px 10px 0 var(--metric-ink, #0a2135); }
+[dir="rtl"] .dashboard-metric { box-shadow: -8px 8px 0 var(--metric-ink, #0a2135); }
+[dir="rtl"] .dashboard-metric:hover { transform: translate(2px, -2px); box-shadow: -10px 10px 0 var(--metric-ink, #0a2135); }
+@media (max-width: 480px) {
+  .dashboard-metric { border-width: 3px; box-shadow: 6px 6px 0 var(--metric-ink, #0a2135); }
+  [dir="rtl"] .dashboard-metric { box-shadow: -6px 6px 0 var(--metric-ink, #0a2135); }
+}
 .dashboard-metric__top { display: flex; align-items: flex-start; justify-content: space-between; }
 .dashboard-metric__icon { width: 43px; height: 43px; display: grid; place-items: center; border-radius: 12px; }
 .dashboard-metric__icon svg { width: 21px; height: 21px; }
