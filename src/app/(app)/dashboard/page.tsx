@@ -139,6 +139,12 @@ export default async function DashboardPage() {
         summary.approvedUnpaid > 0 && { key: "pay", tone: "info", text: `${summary.approvedUnpaid} مصروفًا معتمدًا بانتظار أن يصرفه المحاسب.`, href: "/finance/expenses" },
       ]).filter((item): item is { key: string; tone: string; text: string; href: string } => typeof item !== "boolean");
 
+  /* ترتيب الكروت في الحافظة يُحسب عند العرض لا يُكتب ثابتًا: فإنّ بعضها
+     مشروطٌ بالدور، فلو ثبتَ الفهرسُ لخلّف فراغاتٍ في الكومة حيثما غاب
+     كرتٌ لا يراه الناظر. */
+  let cardIndex = 0;
+  const nextCard = () => cardIndex++;
+
   return (
     <div className="dashboard">
       <div className="dashboard-heading">
@@ -158,9 +164,13 @@ export default async function DashboardPage() {
           وكانت لوحةٌ بيضاء تحوي هذا الكرتَ الكحليّ ورأسُها يكرّر رأسَه
           («عهدة الموظف» مرتين)، فأُزيلت اللوحة وبقي الكرت، ونُقل وصفُها
           إلى جسمه ملاحظةً لئلّا يضيع. */}
+      {/* الحافظة — عن تصميم byllzz «rude-bat-50» (MIT)، بلون الموقع:
+          بطاقاتٌ متراكبة في جيب. والترتيبُ يُحسب عند العرض (nextCard)
+          لأنّ بعضها مشروطٌ بالدور. */}
+      <div className="dashboard-wallet">
       {cash ? (
         <div className="stat-cards">
-          <article className="stat-card is-custody" aria-labelledby="cash-title">
+          <article className="stat-card is-custody" aria-labelledby="cash-title" style={{ ["--i" as string]: nextCard() }}>
             <div className="stat-card__head">
               <h3 id="cash-title">عهدة الموظف</h3>
               <p>الرصيد، زائدًا مبيعات الفترة، ناقصًا مصروفاتها من نقدك.</p>
@@ -205,7 +215,7 @@ export default async function DashboardPage() {
       ) : null}
 
       {cash ? (
-        <article className="stat-card is-todo" aria-labelledby="todo-title">
+        <article className="stat-card is-todo" aria-labelledby="todo-title" style={{ ["--i" as string]: nextCard() }}>
           <div className="stat-card__head">
             <h3 id="todo-title">ما ينتظرك اليوم</h3>
             <p>يحتاج إجراءك</p>
@@ -239,7 +249,7 @@ export default async function DashboardPage() {
               في كرتٍ واحد طغت عليه وصار هو التائه. فالفروعُ مكوّناتٌ في
               كرت، والمستحقُّ للخزنة ناتجٌ في كرت — يليه كما يلي المجموع
               مكوّناته. والتراكب بينهما قائم، كسائر الكروت. */}
-          <article className="stat-card is-custody" aria-labelledby="summary-title">
+          <article className="stat-card is-custody" aria-labelledby="summary-title" style={{ ["--i" as string]: nextCard() }}>
             <div className="stat-card__head">
               <h3 id="summary-title">عهدة كل فرع</h3>
               <p>ما بيد كل فرعٍ الآن — مكوّناتُ المستحق.</p>
@@ -268,7 +278,7 @@ export default async function DashboardPage() {
             </article>
 
             {/* الناتج: وحده في كرت، مبرزًا، لا ينازعه عددُ الفروع. */}
-            <article className="stat-card is-custody">
+            <article className="stat-card is-custody" style={{ ["--i" as string]: nextCard() }}>
               <div className="stat-card__body">
                 <div className="stat-grid">
                   <div className="stat-grid__item is-primary">
@@ -284,7 +294,7 @@ export default async function DashboardPage() {
             {/* العدّاداتُ مهامٌ معلّقة لا أرقامُ ملخّص: فصارت كرتًا ثالثًا
                 يلي الناتج، وبقيت بتنسيقها وألوانها فإنّها محكومةٌ بمعانيها
                 (كهرمانيٌّ للانتظار، وتحذيريٌّ للمعتمدِ غيرِ المصروف). */}
-            <article className="stat-card is-todo">
+            <article className="stat-card is-todo" style={{ ["--i" as string]: nextCard() }}>
               <div className="stat-card__head">
                 <h3>بانتظارك</h3>
                 <p>تسوياتٌ ومصروفاتٌ تطلب إجراءً.</p>
@@ -324,7 +334,7 @@ export default async function DashboardPage() {
       ) : null}
 
       {roleActions.length > 0 ? (
-        <article className="stat-card is-todo" aria-labelledby="role-todo-title">
+        <article className="stat-card is-todo" aria-labelledby="role-todo-title" style={{ ["--i" as string]: nextCard() }}>
           <div className="stat-card__head">
             <h3 id="role-todo-title">{isAccountant ? "ما ينتظرك اليوم" : "ما ينتظر قرارك"}</h3>
             <p>{isAccountant ? "يحتاج إجراءك" : "يحتاج اعتمادك"}</p>
@@ -360,7 +370,7 @@ export default async function DashboardPage() {
         <div className="stat-cards">
           {/* لوحةٌ بيضاء أخرى تحوي الكرتَ ورأسُها يكرّر رأسَه؛ فأُزيلت،
               ونُقل رابطُ «التفاصيل» إلى جسم الكرت لئلّا يضيع. */}
-          <article className="stat-card is-sales" aria-labelledby="sales-title">
+          <article className="stat-card is-sales" aria-labelledby="sales-title" style={{ ["--i" as string]: nextCard() }}>
             <div className="stat-card__head">
               <h3 id="sales-title">المبيعات</h3>
               <p>الفواتير غير الملغاة هذا الشهر، وما بقي على العملاء.</p>
@@ -395,7 +405,7 @@ export default async function DashboardPage() {
           والناتجُ هو المبلغُ وحده: فكل رقمٍ له وحدة (ج.م) نال is-primary،
           أيًّا كان دور الناظر. */}
       <div className="stat-cards">
-        <article className="stat-card is-overview" aria-labelledby="overview-title">
+        <article className="stat-card is-overview" aria-labelledby="overview-title" style={{ ["--i" as string]: nextCard() }}>
           <div className="stat-card__head">
             <h3 id="overview-title">نظرة عامة</h3>
             <p>{isEmployee ? "مبيعاتك ونطاق فرعك" : isAccountant ? "ما يتحرّك تحت يدك" : "صورة الشركة"}</p>
@@ -424,7 +434,7 @@ export default async function DashboardPage() {
           الجانبي: كان يحبس كرتين في ٣٠٥ بكسل في حين سائر الكروت
           بعرض الصفحة كاملًا. */}
       <div className="stat-cards stat-cards--flat">
-        <article className="stat-card is-branches" aria-labelledby="branches-title">
+        <article className="stat-card is-branches" aria-labelledby="branches-title" style={{ ["--i" as string]: nextCard() }}>
           <div className="stat-card__head">
             <h3 id="branches-title">متابعة الفروع</h3>
             <p>الفروع والمستودعات — تفاصيل الفروع النشطة المتاحة لحسابك</p>
@@ -477,7 +487,7 @@ export default async function DashboardPage() {
         </article>
 
           {!isEmployee && !isAccountant ? (
-          <article className="stat-card is-setup" aria-labelledby="setup-title">
+          <article className="stat-card is-setup" aria-labelledby="setup-title" style={{ ["--i" as string]: nextCard() }}>
             <div className="stat-card__head">
               <h3 id="setup-title">معلومات أساسية</h3>
               <p>بيانات النظام المسجّلة</p>
@@ -510,7 +520,7 @@ export default async function DashboardPage() {
 
           {/* روابطٌ لا أرقام: فجاءت عناصرَ شبكةٍ بنقرة، لا بطاقاتِ قيم.
               والمساران محفوظان — للموظف غيرهما لغيره. */}
-          <article className="stat-card is-shortcuts" aria-labelledby="shortcuts-title">
+          <article className="stat-card is-shortcuts" aria-labelledby="shortcuts-title" style={{ ["--i" as string]: nextCard() }}>
             <div className="stat-card__head">
               <h3 id="shortcuts-title">ابدأ من هنا</h3>
               <p>وصولٌ سريع إلى ما تفعله أولًا.</p>
@@ -559,6 +569,24 @@ export default async function DashboardPage() {
               </div>
             </div>
           </article>
+      </div>
+
+        {/* الجيب — كما في التصميم: الناتجُ مستورٌ بنجوم، فإن مُرَّ على
+            الحافظة ظهر. و«Total Balance» يُقابله هنا المستحق للخزنة؛
+            فإن لم يكن للناظر عهدةٌ فلا شيء يُكتب. */}
+        <div className="dashboard-pocket">
+          <div className="dashboard-pocket__content">
+            <span className="dashboard-pocket__stars" aria-hidden="true">•••••</span>
+            <span className="dashboard-pocket__value">
+              {cash
+                ? `${nf.format(Number(cash.expected))} ج.م`
+                : summary
+                  ? `${nf.format(Number(summary.totalExpected))} ج.م`
+                  : "—"}
+            </span>
+            <span className="dashboard-pocket__label">المستحق للخزنة</span>
+          </div>
+        </div>
       </div>
 
       <div className="dashboard-account-note"><span>حسابك: <strong>{ROLE_LABEL[session.role] ?? session.role}</strong></span><span aria-hidden="true">·</span><span dir="ltr">{session.email}</span></div>
