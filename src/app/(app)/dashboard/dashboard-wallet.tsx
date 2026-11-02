@@ -9,7 +9,8 @@ import { AppIcon } from "@/components/app-icon";
       (#ffffff الأبيض، #9bd86a الأخضر، #635bff البنفسجي) مع شريحة البطاقة،
       ترتفع وتميل عند التمرير، وتُقلَّب أفقيًّا بالسحب أو بالأسهم.
    ٣. الجيب الجلدي الأمامي المنحني بتجويف المنتصف والغرز المتقطعة،
-      يُخفي الرصيد بنجوم ويُظهره مع تبدّل أيقونة العين عند التمرير أو اللمس. */
+      يعرض المستحق للخزنة وصافي مبيعات اليوم والتسويات والمصروفات غير المعتمدة (إن وجدت)
+      مستورةً بالنجوم، وتكشفها جميعًا عينٌ واحدة عند التمرير أو اللمس. */
 
 const TONES = ["paypal", "wise", "stripe"] as const;
 
@@ -17,20 +18,34 @@ function toneFor(i: number) {
   return TONES[((i % 3) + 3) % 3];
 }
 
+export type WalletPocketItem = {
+  key: string;
+  label: string;
+  value: string;
+  kind?: "money" | "count";
+};
+
 export default function DashboardWallet({
   children,
   balanceValue,
   balanceLabel = "المستحق للخزنة",
+  pocketItems,
 }: {
   children: React.ReactNode;
   balanceValue: string;
   balanceLabel?: string;
+  pocketItems?: WalletPocketItem[];
 }) {
   const trackRef = useRef<HTMLDivElement | null>(null);
   const [index, setIndex] = useState(0);
   const [count, setCount] = useState(0);
   const [titles, setTitles] = useState<string[]>([]);
   const [revealed, setRevealed] = useState(false);
+
+  const items: WalletPocketItem[] =
+    pocketItems && pocketItems.length > 0
+      ? pocketItems
+      : [{ key: "balance", label: balanceLabel, value: balanceValue, kind: "money" }];
 
   useEffect(() => {
     const el = trackRef.current;
@@ -80,10 +95,11 @@ export default function DashboardWallet({
 
   const midIndex = count > 1 ? (index + 1) % count : 0;
   const backIndex = count > 2 ? (index + 2) % count : 0;
+  const hasExtraPocket = items.length > 2;
 
   return (
     <div
-      className={`dashboard-wallet${revealed ? " is-revealed" : ""}`}
+      className={`dashboard-wallet${revealed ? " is-revealed" : ""}${hasExtraPocket ? " has-extra-pocket" : ""}`}
       onKeyDown={(e) => {
         if (e.key === "ArrowLeft") {
           e.preventDefault();
@@ -139,7 +155,7 @@ export default function DashboardWallet({
           role="button"
           tabIndex={0}
           aria-pressed={revealed}
-          aria-label={`${balanceLabel}: اضغط لإظهار أو إخفاء الرصيد`}
+          aria-label="ملخص الجيب: اضغط لإظهار أو إخفاء الأرقام"
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
@@ -149,7 +165,7 @@ export default function DashboardWallet({
         >
           <svg
             className="dashboard-pocket__svg"
-            viewBox="0 0 560 188"
+            viewBox="0 0 560 196"
             preserveAspectRatio="none"
             aria-hidden="true"
           >
@@ -160,7 +176,7 @@ export default function DashboardWallet({
               </linearGradient>
             </defs>
             <path
-              d="M 0,0 L 165,0 C 215,0 232,28 280,28 C 328,28 345,0 395,0 L 560,0 L 560,188 L 0,188 Z"
+              d="M 0,0 L 165,0 C 215,0 232,28 280,28 C 328,28 345,0 395,0 L 560,0 L 560,196 L 0,196 Z"
               fill="url(#walletPocketSurface)"
             />
             <path
@@ -180,11 +196,23 @@ export default function DashboardWallet({
           </svg>
 
           <div className="dashboard-pocket__content">
-            <div className="dashboard-pocket__balance">
-              <span className="dashboard-pocket__stars" aria-hidden="true">******</span>
-              <span className="dashboard-pocket__value">{balanceValue}</span>
+            <div className="dashboard-pocket__metrics" data-count={items.length}>
+              {items.map((item) => (
+                <div
+                  key={item.key}
+                  className={`dashboard-pocket__metric${item.kind === "count" ? " is-count" : ""}`}
+                >
+                  <div className="dashboard-pocket__stat">
+                    <span className="dashboard-pocket__stars" aria-hidden="true">
+                      {item.kind === "count" ? "***" : "******"}
+                    </span>
+                    <span className="dashboard-pocket__value">{item.value}</span>
+                  </div>
+                  <span className="dashboard-pocket__label">{item.label}</span>
+                </div>
+              ))}
             </div>
-            <span className="dashboard-pocket__label">{balanceLabel}</span>
+
             <span className="dashboard-pocket__eye-wrap" aria-hidden="true">
               <svg
                 className="dashboard-pocket__eye is-slash"
@@ -256,7 +284,7 @@ export default function DashboardWallet({
         </div>
       </div>
 
-      <p className="dashboard-wallet__hint">مرّر المؤشر أو المس الجيب لإظهار الرصيد</p>
+      <p className="dashboard-wallet__hint">مرّر المؤشر أو المس الجيب لإظهار الأرقام</p>
     </div>
   );
 }

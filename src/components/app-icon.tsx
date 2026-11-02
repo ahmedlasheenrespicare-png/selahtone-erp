@@ -19,7 +19,8 @@ export type AppIconName =
   | "lock"
   | "menu"
   | "close"
-  | "check";
+  | "check"
+  | "theme";
 
 type AppIconProps = SVGProps<SVGSVGElement> & { name: AppIconName };
 
@@ -84,6 +85,16 @@ export function AppIcon({ name, ...props }: AppIconProps) {
       break;
     case "check":
       content = <><circle cx="12" cy="12" r="9" /><path d="m8 12 2.5 2.5L16 9" /></>;
+      break;
+    case "theme":
+      content = (
+        <>
+          <path d="M12 3a9 9 0 1 0 0 18h1.5a2.5 2.5 0 0 0 0-5H12a2 2 0 0 1-2-2c0-1.1.9-2 2-2h3a4 4 0 0 0 4-4c0-2.8-3.1-5-7-5Z" />
+          <circle cx="8" cy="10" r="1" fill="currentColor" />
+          <circle cx="11.5" cy="7.5" r="1" fill="currentColor" />
+          <circle cx="15.5" cy="8.5" r="1" fill="currentColor" />
+         </>
+      );
       break;
   }
 

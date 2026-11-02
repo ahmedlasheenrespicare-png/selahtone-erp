@@ -220,10 +220,14 @@ async function initialize(): Promise<PrismaClient> {
     accountId: "", paymentDate: today, actuallyPaid: true, expectedBalance: "", negativeAcknowledged: false, source: "HOLDER_CASH",
   }, today);
 
-  // One draft expense awaiting approval + one approved expense awaiting payment + one open count + one open settlement.
+  // Pending expenses awaiting approval + approved expense awaiting payment + open count + open settlement.
   await createExpense(fdb, "5", {
     requestId: randomUUID(), branchId: "2", categoryId: "2", amount: "420", expenseDate: today,
     description: "مستلزمات تعقيم وبطاريات (بانتظار الاعتماد)", beneficiary: "مورد مستلزمات تجريبي", documentNumber: "", taxAmount: "",
+  });
+  await createExpense(fdb, "6", {
+    requestId: randomUUID(), branchId: "3", categoryId: "3", amount: "185", expenseDate: today,
+    description: "توصيل قوالب أذن من المعمل (بانتظار الاعتماد)", beneficiary: "مندوب توصيل تجريبي", documentNumber: "", taxAmount: "",
   });
   const approvedPendingPay = await createExpense(fdb, "1", {
     requestId: randomUUID(), branchId: "1", categoryId: "1", amount: "1250", expenseDate: today,

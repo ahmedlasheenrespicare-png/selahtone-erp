@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { AppIcon, type AppIconName } from "@/components/app-icon";
 // عميلٌ لا خادم: فإنّ التمريرَ تفاعل، والصفحةُ نفسها تُبنى على الخادم.
-import DashboardWallet from "./dashboard-wallet";
+import DashboardWallet, { type WalletPocketItem } from "./dashboard-wallet";
 import { prisma } from "@/lib/prisma";
 import { requireSession, branchScope, canSeeAllBranches } from "@/lib/auth";
 import { formatInventoryDecimal, stockValueScaled } from "@/lib/inventory-math";
@@ -75,13 +75,43 @@ export default async function DashboardPage() {
   // والاستدعاء محمي: فاللوحة تعرض النقد والمهام والفروع، ولا يجوز أن تعطّلها
   // كلها إحصائية مبيعات تعذّر حسابها. والخطأ يُسجَّل ليُرى، لا يُخفى بالصمت.
   let sales: Awaited<ReturnType<typeof loadSalesStats>> | null = null;
-  if (session.role === "MANAGER") {
-    try {
-      sales = await loadSalesStats(prisma, scope.branchId ?? null, "month");
-    } catch (error) {
-      console.error("dashboard: sales stats failed", error);
+  let todaySales: Awaited<ReturnType<typeof loadSalesStats>> | null = null;
+  try {
+    if (session.role === "MANAGER") {
+      [sales, todaySales] = await Promise.all([
+        loadSalesStats(prisma, scope.branchId ?? null, "month"),
+        loadSalesStats(prisma, scope.branchId ?? null, "today"),
+      ]);
+    } else {
+      todaySales = await loadSalesStats(prisma, scope.branchId ?? null, "today");
     }
+  } catch (error) {
+    console.error("dashboard: sales stats failed", error);
   }
+
+  const expectedBalanceValue = cash
+    ? `${nf.format(Number(cash.expected))} ج.م`
+    : summary
+      ? `${nf.format(Number(summary.totalExpected))} ج.م`
+      : "—";
+  const todayNetSalesValue = todaySales
+    ? `${nf.format(Number(todaySales.total))} ج.م`
+    : cash
+      ? `${nf.format(Number(cash.todaySales))} ج.م`
+      : "—";
+  const unapprovedSettlements = cash ? (cash.openSettlementId ? 1 : 0) : (summary?.pendingSettlements ?? 0);
+  const unapprovedExpenses = cash ? cash.pendingExpenses : (summary?.pendingExpenses ?? 0);
+
+  const pocketItems: WalletPocketItem[] = [
+    { key: "expected", label: "المستحق للخزنة", value: expectedBalanceValue, kind: "money" },
+    { key: "today-sales", label: "مبيعات اليوم", value: todayNetSalesValue, kind: "money" },
+    ...(unapprovedSettlements > 0
+      ? [{ key: "settlements", label: "تسويات", value: nf.format(unapprovedSettlements), kind: "count" as const }]
+      : []),
+    ...(unapprovedExpenses > 0
+      ? [{ key: "expenses", label: "مصروفات", value: nf.format(unapprovedExpenses), kind: "count" as const }]
+      : []),
+  ];
   const cashActions = cash
     ? [
         cash.settlementStale
@@ -164,14 +194,9 @@ export default async function DashboardPage() {
           كل كرتٍ شريحةٌ مباشرة في مسار السحب الأفقي، وتعلوها طبقتا التراكب،
           ويحفظ الجيبُ الأمامي المنحني «المستحق للخزنة» مستورًا بنجوم حتى يُمرَّ عليه أو يُلمس. */}
       <DashboardWallet
-        balanceValue={
-          cash
-            ? `${nf.format(Number(cash.expected))} ج.م`
-            : summary
-              ? `${nf.format(Number(summary.totalExpected))} ج.م`
-              : "—"
-        }
+        balanceValue={expectedBalanceValue}
         balanceLabel="المستحق للخزنة"
+        pocketItems={pocketItems}
       >
       {cash ? (
           <article className="stat-card is-custody" aria-labelledby="cash-title">

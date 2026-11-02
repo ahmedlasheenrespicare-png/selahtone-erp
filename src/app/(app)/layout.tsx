@@ -1,11 +1,14 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppIcon } from "@/components/app-icon";
 import { getSession, canSeeAllBranches } from "@/lib/auth";
 import { financeEnabled } from "@/lib/finance/db";
 import { inventoryEnabled } from "@/lib/feature-flags";
+import { resolveWorkspaceTheme, WORKSPACE_THEME_COOKIE } from "@/lib/workspace-theme";
 import { AppNavigation } from "./app-navigation";
 import LogoutButton from "./logout-button";
+import { WorkspaceThemeProvider } from "./workspace-theme-provider";
 import "./workspace.css";
 import "./design.css"; // طبقة التصميم الجديد — فوق أنماط الشاشات القائمة، بلا تغيير في بنيتها
 
@@ -20,8 +23,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!session) redirect("/login");
   if (session.mustChangePassword) redirect("/change-password");
 
+  const cookieStore = await cookies();
+  const initialTheme = resolveWorkspaceTheme(cookieStore.get(WORKSPACE_THEME_COOKIE)?.value);
+
   return (
-    <div className="workspace-shell">
+    <WorkspaceThemeProvider initialTheme={initialTheme}>
       <a className="workspace-skip" href="#workspace-content">تخطي إلى المحتوى</a>
       <AppNavigation canViewAllBranches={canSeeAllBranches(session)} financeEnabled={financeEnabled()} menuScope={session.menuScope} inventoryEnabled={inventoryEnabled()} />
 
@@ -50,6 +56,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {children}
         </main>
       </div>
-    </div>
+    </WorkspaceThemeProvider>
   );
 }
