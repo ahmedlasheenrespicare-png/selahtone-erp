@@ -1,7 +1,6 @@
 /* Internal workspace: scoped so the sign-in and password pages keep their own design. */
 .workspace-shell {
   --ws-ink: #182b4c;
-  --metric-ink: #0a2135; /* حبر بطاقات «نظرة عامة»: الحدّ والظلّ. بدّله إلى #000 للنمط الحرفي » */
   --ws-muted: #667690;
   --ws-blue: #3156a3;
   --ws-border: #e7ecf4;
@@ -165,13 +164,18 @@
 .dashboard-scope { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid #e3eaf5; border-radius: 8px; background: #fff; color: #536983; font-size: 11px; font-weight: 600; white-space: nowrap; }
 .dashboard-scope span { width: 6px; height: 6px; border-radius: 50%; background: #60a3d4; }
 .dashboard-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
-.dashboard-metric { min-width: 0; padding: 18px; border: 4px solid var(--metric-ink, #0a2135); border-radius: 16px; background: #fff; box-shadow: 8px 8px 0 var(--metric-ink, #0a2135); transition: transform .18s ease, box-shadow .18s ease; }
-.dashboard-metric:hover { transform: translate(-2px, -2px); box-shadow: 10px 10px 0 var(--metric-ink, #0a2135); }
-[dir="rtl"] .dashboard-metric { box-shadow: -8px 8px 0 var(--metric-ink, #0a2135); }
-[dir="rtl"] .dashboard-metric:hover { transform: translate(2px, -2px); box-shadow: -10px 10px 0 var(--metric-ink, #0a2135); }
-@media (max-width: 480px) {
-  .dashboard-metric { border-width: 3px; box-shadow: 6px 6px 0 var(--metric-ink, #0a2135); }
-  [dir="rtl"] .dashboard-metric { box-shadow: -6px 6px 0 var(--metric-ink, #0a2135); }
+/* بطاقات «نظرة عامة» — نمط الزجاج: حدّ رقيق شفاف، وتدرّج أبيض، وتمويهٌ لما خلفه.
+   والزجاج لا يُرى إلا على خلفية، فجُعل للشبكة تدرّجٌ خفيف يحمله. */
+.dashboard-metrics { background: linear-gradient(120deg, #eef3fb 0%, #e7f2ef 55%, #f2f6fc 100%); border-radius: 18px; padding: 16px; }
+.dashboard-metric { min-width: 0; padding: 18px; border: 1px solid rgba(255, 255, 255, .65); border-radius: 14px; background: linear-gradient(135deg, rgba(255, 255, 255, .78), rgba(255, 255, 255, .38)); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: 0 18px 30px rgba(33, 57, 92, .13); transition: transform .35s ease, box-shadow .35s ease; }
+.dashboard-metric:hover { transform: translateY(-4px); box-shadow: 0 26px 42px rgba(33, 57, 92, .19); }
+/* متصفحٌ لا يعرف التمويه: نعود إلى بطاقةٍ مصمتة، فلا يضيع النصّ في شفافية. */
+@supports not ((backdrop-filter: blur(10px)) or (-webkit-backdrop-filter: blur(10px))) {
+  .dashboard-metric { background: #fff; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-metric { transition: none; }
+  .dashboard-metric:hover { transform: none; }
 }
 .dashboard-metric__top { display: flex; align-items: flex-start; justify-content: space-between; }
 .dashboard-metric__icon { width: 43px; height: 43px; display: grid; place-items: center; border-radius: 12px; }
@@ -183,8 +187,8 @@
 .dashboard-metric__label { margin: 18px 0 4px; color: #60708a; font-size: 12.5px; font-weight: 600; }
 .dashboard-metric__value { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; color: #233958; line-height: 1.3; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .dashboard-metric__value strong { font-size: clamp(23px, 2vw, 28px); font-weight: 700; }
-.dashboard-metric__value span { color: #63738b; font-size: 11px; font-weight: 600; }
-.dashboard-metric__detail { margin: 8px 0 0; color: #62728a; font-size: 11.5px; }
+.dashboard-metric__value span { color: #5f6f87; font-size: 11px; font-weight: 600; }
+.dashboard-metric__detail { margin: 8px 0 0; color: #607088; font-size: 11.5px; }
 .dashboard-grid { display: grid; grid-template-columns: minmax(0, 1fr) 305px; align-items: start; gap: 16px; margin-top: 23px; }
 .dashboard-panel { min-width: 0; border: 1px solid #e8edf5; border-radius: 15px; background: #fff; box-shadow: 0 3px 14px rgba(33, 57, 92, .035); overflow: hidden; }
 .dashboard-panel__heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 21px 21px 19px; }
