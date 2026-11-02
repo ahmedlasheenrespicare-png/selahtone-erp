@@ -163,42 +163,23 @@
 .dashboard-section-heading p { margin: 3px 0 0; color: #60708a; font-size: 12px; }
 .dashboard-scope { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid #e3eaf5; border-radius: 8px; background: #fff; color: #536983; font-size: 11px; font-weight: 600; white-space: nowrap; }
 .dashboard-scope span { width: 6px; height: 6px; border-radius: 50%; background: #60a3d4; }
-.dashboard-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
 /* بطاقات «نظرة عامة» — النمط الحرفي بلون الموقع:
    رأسٌ تركوازيّ يحمل الأيقونة والتسمية، وجسمٌ كحليّ يركب فوقه (margin-top: -10px)،
    فإن مُرّ على البطاقة نزل الرأسُ من تحت الجسم (translateY(1em)) فظهر ما كان
    مستورًا. هذا هو المكوّن بحذافيره، غير أنّ لونه صار لونَ الموقع. */
-.dashboard-metrics { background: linear-gradient(120deg, #eef3fb 0%, #e7f2ef 55%, #f2f6fc 100%); border-radius: 18px; padding: 20px; }
-.dashboard-metric { --metric-accent: #12655c; /* تركوازي العلامة — رأس البطاقة */ --metric-primary: #0a2135; /* كحلي العلامة — جسمها */ --metric-dot: #7fd8c8; min-width: 0; display: grid; grid-template-rows: 50px 1fr; border-radius: 10px; color: #fff; box-shadow: 0 12px 24px rgba(10, 33, 53, .16); transition: box-shadow .25s ease, transform .25s ease; }
-.dashboard-metric:hover { transform: translateY(-3px); box-shadow: 0 20px 36px rgba(10, 33, 53, .24); }
 
 /* الرأس: الأيقونة والتسمية والنقاط — ينزل عند المرور فينكشف ما فوقه. */
-.dashboard-metric__top { grid-row: 1; display: flex; align-items: center; gap: 10px; padding: 0 14px; border-radius: 10px 10px 0 0; background: var(--metric-accent); transition: transform .2s cubic-bezier(.25, .46, .45, .94); }
-.dashboard-metric:hover .dashboard-metric__top { transform: translateY(1em); }
 
 /* الجسم الكحلي: مرفوعٌ 10px فيركب أسفلَ الرأس، وفوقه في الترتيب فيستره. */
-.dashboard-metric__desc { grid-row: 2; position: relative; margin-top: -10px; display: grid; gap: 8px; align-content: start; padding: 14px 14px 16px; border-radius: 10px; background: var(--metric-primary); }
 
 @media (prefers-reduced-motion: reduce) {
-  .dashboard-metric { transition: none; }
-  .dashboard-metric:hover { transform: none; }
-  .dashboard-metric:hover .dashboard-metric__top { transform: none; }
 }
 /* الرأس موحّد اللون (تركوازي)، فالأيقونة كبسولةٌ بيضاء شفافة تغني عن أربعة ألوان
    كانت تُفرّقها على خلفيةٍ فاتحة، ولا معنى لها على رأسٍ ملوّن. */
-.dashboard-metric__icon { flex: none; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 9px; background: rgba(255, 255, 255, .22); color: #fff; }
-.dashboard-metric__icon svg { width: 17px; height: 17px; }
 /* على خلفيةٍ داكنة تنعكس الآية: الأيقونة كبسولةٌ زجاجية بلونها، لا لوحٌ فاتح. */
 /* النقاط الثلاث — زخرفية، تحاكي المكوّن ولا تدّعي أنها زرّ قائمة. */
-.dashboard-metric__dots { flex: none; display: flex; gap: 4px; }
-.dashboard-metric__dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--metric-dot); }
 /* والتمييز بين القيمة والتسمية بالحجم والوزن لا باللون: فكلّ نصّ أبيض،
    لأنّ تخفيفَ البياض على هذا التدرّج يُسقط التباين دون معيار القراءة. */
-.dashboard-metric__label { flex: 1; min-width: 0; margin: 0; color: #fff; font-size: 12.5px; font-weight: 600; }
-.dashboard-metric__value { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; color: #fff; line-height: 1.3; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.dashboard-metric__value strong { font-size: clamp(23px, 2vw, 28px); font-weight: 700; }
-.dashboard-metric__value span { color: rgba(255, 255, 255, .82); font-size: 11px; font-weight: 600; }
-.dashboard-metric__detail { margin: 8px 0 0; color: rgba(255, 255, 255, .82); font-size: 11.5px; }
 .dashboard-grid { display: grid; grid-template-columns: minmax(0, 1fr) 305px; align-items: start; gap: 16px; margin-top: 23px; }
 .dashboard-panel { min-width: 0; border: 1px solid #e8edf5; border-radius: 15px; background: #fff; box-shadow: 0 3px 14px rgba(33, 57, 92, .035); overflow: hidden; }
 .dashboard-panel__heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 21px 21px 19px; }
@@ -266,7 +247,6 @@
 @media (max-width: 1100px) {
   .workspace-topbar { padding-inline: 24px; }
   .workspace-content { padding-inline: 24px; }
-  .dashboard-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 820px) {
   .workspace-shell { display: block; }
@@ -299,14 +279,115 @@
   .dashboard-heading h1 { font-size: 24px; }
   .dashboard-date { padding: 7px 10px; }
   .dashboard-date > span { width: 30px; height: 30px; }
-  .dashboard-metrics { gap: 10px; }
-  .dashboard-metric__desc { padding: 12px 12px 14px; }
   .dashboard-grid { margin-top: 16px; }
   .dashboard-side { grid-template-columns: 1fr; }
   .dashboard-panel__heading { padding: 18px 16px; }
   .dashboard-panel__footer { padding-inline: 16px; }
 }
 @media (max-width: 350px) {
-  .dashboard-metrics { grid-template-columns: 1fr; }
   .dashboard-section-heading { align-items: flex-start; flex-direction: column; }
+}
+
+/* ══ كرت الإحصاءات — مشترك بين لوحة القيادة وإحصاءات المبيعات: المبيعات، والفواتير ═════════════════════════
+   تسعةُ أرقامٍ كانت مفرَّقة في تسعة كروت، فصارت مجموعتين في كرتين.
+   والترتيبُ داخل الكرت يتبع المعادلة لا الترتيبَ الذي جاءت به من
+   المحرك: الإجمالي، ثم الخصم، ثم الصافي — فيقرأها الناظرُ كما تُحسب.
+   والناتجُ (is-primary) ممتدٌّ عرضًا وفوقه فاصل، فيُعلم أنه حصيلةُ ما
+   فوقه لا رقمٌ آخرُ بين الأرقام. */
+.stat-cards { margin-bottom: 18px; }
+.stat-card {
+  --card-accent: #12655c;
+  position: relative;
+  margin-bottom: -20px;            /* التراكب: كرت الفواتير يدخل في كرت المبيعات */
+  border-radius: 16px;
+  color: #fff;
+  background: #0a2135;
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, .28),
+    0 -4px 15px rgba(10, 33, 53, .10);
+  transition: transform .6s cubic-bezier(.34, 1.56, .64, 1), box-shadow .4s ease;
+}
+.stat-card:last-child { margin-bottom: 0; }
+.stat-card:nth-child(1) { z-index: 1; transform: rotate(-.5deg); }
+.stat-card:nth-child(2) { z-index: 2; transform: rotate(.7deg); }
+.stat-card.is-invoices { --card-accent: #3156a3; }
+
+.stat-card__head {
+  padding: 13px 16px 14px;
+  border-radius: 16px 16px 0 0;
+  background: var(--card-accent);
+}
+.stat-card__head h2 { margin: 0; font-size: 16px; font-weight: 700; color: #fff; }
+.stat-card__head p {
+  margin: 4px 0 0; font-size: 11.5px; line-height: 1.6;
+  color: rgba(255, 255, 255, .88);
+}
+
+.stat-card__body { padding: 14px 16px 18px; }
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 11px 16px;
+}
+.stat-grid__item { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.stat-grid__label { font-size: 11.5px; font-weight: 600; color: rgba(255, 255, 255, .85); }
+.stat-grid__value {
+  font-size: 17px; font-weight: 700; color: #fff;
+  font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+}
+
+/* الناتج: ممتدٌّ عرضًا، وفوقه فاصل، وأكبرُ حجمًا. */
+.stat-grid__item.is-primary {
+  grid-column: 1 / -1;
+  padding-top: 11px;
+  border-top: 1px solid rgba(255, 255, 255, .24);
+}
+.stat-grid__item.is-primary .stat-grid__label { font-size: 12.5px; color: #fff; }
+.stat-grid__item.is-primary .stat-grid__value { font-size: clamp(24px, 2.6vw, 31px); }
+
+/* ملاحظةٌ لا رقمًا: الضريبة متضمنة، فجاءت أصغرَ وأخفتَ لئلا تُجمع. */
+.stat-grid__item.is-note { grid-column: 1 / -1; }
+.stat-grid__item.is-note .stat-grid__label { font-size: 11px; font-weight: 500; color: rgba(255, 255, 255, .8); }
+.stat-grid__item.is-note .stat-grid__value { font-size: 14px; color: rgba(255, 255, 255, .88); }
+
+/* مُرّ على المجموعة: يتفرّق الكرتان صعودًا ويستقيمان. */
+.stat-cards:hover .stat-card { box-shadow: inset 0 1px 1px rgba(255, 255, 255, .28), 0 16px 30px rgba(10, 33, 53, .28); }
+.stat-cards:hover .stat-card:nth-child(1) { transform: translateY(-32px) rotate(0deg); }
+.stat-cards:hover .stat-card:nth-child(2) { transform: translateY(-8px)  rotate(0deg); }
+
+@media (max-width: 560px) {
+  .stat-grid { grid-template-columns: 1fr; }
+}
+
+/* مَن كره الحركة: يبقى الكرتان متراكبَين مائلَين ثابتَين. */
+@media (prefers-reduced-motion: reduce) {
+  .stat-card { transition: none; }
+  .stat-cards:hover .stat-card { transform: none; }
+}
+
+
+/* ══ ما يلزم كروت لوحة القيادة ═══════════════════════════════════
+   أربعةُ عناصرَ لم تكن في كروت المبيعات، اقتضاها نقلُها إلى اللوحة:
+   أيقونةٌ في التسمية، وتفصيلٌ تحت الرقم، وملاحظةٌ صغيرة، وكرتٌ بلا رأس
+   (لأنّ قسم «نظرة عامة» عنوانُه قائمٌ فوقه، فلو كُتب مرتين لكان لغوًا). */
+.stat-card.is-custody  { --card-accent: #12655c; }   /* عهدة الموظف */
+.stat-card.is-sales    { --card-accent: #3156a3; }   /* المبيعات */
+.stat-card.is-invoices { --card-accent: #2f5f7a; }   /* الفواتير */
+
+/* كرتٌ بلا رأس: جسمُه يأخذ الزوايا كلّها. */
+.stat-card > .stat-card__body:first-child { border-radius: 16px; padding: 16px 16px 18px; }
+
+.stat-grid__label { display: flex; align-items: center; gap: 6px; }
+.stat-grid__icon { display: inline-grid; place-items: center; flex: none; width: 20px; height: 20px; border-radius: 6px; background: rgba(255, 255, 255, .18); }
+.stat-grid__icon svg { width: 12px; height: 12px; }
+
+.stat-grid__detail { font-size: 11px; line-height: 1.5; color: rgba(255, 255, 255, .78); }
+
+.stat-grid__value small { font-size: 11px; font-weight: 500; color: rgba(255, 255, 255, .78); }
+
+.stat-grid__item.is-wide { grid-column: 1 / -1; }
+.stat-grid__item.is-note:empty { display: none; }
+
+@media (max-width: 560px) {
+  .stat-grid { grid-template-columns: 1fr; }
 }
