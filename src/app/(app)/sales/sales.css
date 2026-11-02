@@ -53,3 +53,74 @@
 .sale-line-input { width: 92px; max-width: 100%; }
 .sale-note--error { color: #9f3636; margin: 0; font-size: 11.5px; }
 .sale-catalog-row + .sale-catalog-row { margin-top: 10px; }
+
+/* ══ كروت إحصاءات المبيعات بنمط «بطاقة المحفظة» ═══════════════════
+   لمعةُ حافةٍ علوية (inset)، وصعودٌ وميلٌ عند المرور، ودخولٌ من فوق
+   عند فتح الصفحة. وخُصّصت بصفة --stat ليقع أثرُها على الكروت التسعة
+   وحدها: فصنف inv-field تشترك فيه حقولُ النماذج في إحدى عشرة صفحةً
+   أخرى، ولولا التخصيص لانطبق عليها كلِّها. */
+.inv-field--stat {
+  position: relative;
+  min-height: 122px;
+  padding: 16px 16px 15px;
+  justify-content: space-between;
+  border-radius: 16px;
+  color: #fff;
+  background: var(--stat-clr, #0a2135);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, .30),
+    0 -4px 15px rgba(10, 33, 53, .10);
+  transition: transform .6s cubic-bezier(.34, 1.56, .64, 1), box-shadow .4s ease;
+  animation: stat-slide-in .8s cubic-bezier(.2, .8, .2, 1) backwards;
+}
+@keyframes stat-slide-in {
+  from { transform: translateY(-26px); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
+}
+.inv-field--stat:hover {
+  transform: translateY(-6px) rotate(-1.5deg);
+  z-index: 2;
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, .30),
+    0 16px 30px rgba(10, 33, 53, .30);
+}
+
+/* الألوان تتناوب كبطاقات المحفظة الثلاث — بلوحة الموقع لا بلوحة المكوّن. */
+.inv-field--stat:nth-child(3n + 1) { --stat-clr: #0a2135; }  /* كحلي */
+.inv-field--stat:nth-child(3n + 2) { --stat-clr: #12655c; }  /* تركوازي */
+.inv-field--stat:nth-child(3n + 3) { --stat-clr: #3156a3; }  /* أزرق */
+
+/* شريحة البطاقة (chip) — من المكوّن، بلا وظيفةٍ تُدعّى. */
+.inv-field--stat::before {
+  content: ""; flex: none; display: block;
+  width: 32px; height: 14px; margin-bottom: 12px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, .22);
+  border: 1px solid rgba(255, 255, 255, .16);
+}
+
+/* الرقمُ هو ما جئنا نقرأه: فصار كبيرًا أبيض، والتسميةُ تحته شفافة. */
+.inv-field--stat .inv-field__label {
+  color: rgba(255, 255, 255, .85);
+  font-size: 11.5px; font-weight: 600;
+}
+.inv-field--stat .inv-field__hint {
+  margin: 4px 0 0;
+  color: #fff;
+  font-size: clamp(19px, 2.1vw, 25px);
+  font-weight: 700; line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+/* دخولٌ متتابع: كرتٌ إثر كرت، كبطاقاتٍ تُلقى في المحفظة. */
+.inv-field--stat:nth-child(1) { animation-delay: .04s; }
+.inv-field--stat:nth-child(2) { animation-delay: .10s; }
+.inv-field--stat:nth-child(3) { animation-delay: .16s; }
+.inv-field--stat:nth-child(4) { animation-delay: .22s; }
+.inv-field--stat:nth-child(5) { animation-delay: .28s; }
+.inv-field--stat:nth-child(6) { animation-delay: .34s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .inv-field--stat { animation: none; }
+  .inv-field--stat:hover { transform: none; }
+}
