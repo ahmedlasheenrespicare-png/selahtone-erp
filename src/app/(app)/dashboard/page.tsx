@@ -250,11 +250,15 @@ export default async function DashboardPage() {
             <span className="dashboard-count">{nf.format(summary.custodyCount)} عهدة</span>
           </div>
           <div className="cash-summary__body">
-            {/* الفروعُ مكوّنات، و«المتوقَّع في كل العهد» مجموعها. فجاء
-                الترتيبُ: الفروع أولًا، ثم الناتج (is-primary) تحته بفاصل،
-                فيُقرأ مجموعًا لا رقمًا قائمًا برأسه. والعنوانُ الأصليّ
-                للقسم قائمٌ فوقه، فجاء الكرتُ بلا رأس. */}
+            {/* كرتان لا كرتٌ واحد: لأنّ الفروعَ تتكاثر، فإن ضُمّت إلى الناتج
+                في كرتٍ واحد طغت عليه وصار هو التائه. فالفروعُ مكوّناتٌ في
+                كرت، والمستحقُّ للخزنة ناتجٌ في كرت — يليه كما يلي المجموع
+                مكوّناته. والتراكب بينهما قائم، كسائر الكروت. */}
             <article className="stat-card is-custody">
+              <div className="stat-card__head">
+                <h3>عهدة كل فرع</h3>
+                <p>ما بيد كل فرعٍ الآن — مكوّناتُ المستحق.</p>
+              </div>
               <div className="stat-card__body">
                 <div className="stat-grid">
                   {summary.custodies.map((custody) => (
@@ -273,8 +277,16 @@ export default async function DashboardPage() {
                       {nf.format(Math.round(Number(summary.totalExpected) / Math.max(summary.custodyCount, 1)))} ج.م
                     </span>
                   </div>
+                </div>
+              </div>
+            </article>
+
+            {/* الناتج: وحده في كرت، مبرزًا، لا ينازعه عددُ الفروع. */}
+            <article className="stat-card is-custody">
+              <div className="stat-card__body">
+                <div className="stat-grid">
                   <div className="stat-grid__item is-primary">
-                    <span className="stat-grid__label">المتوقَّع في كل العهد</span>
+                    <span className="stat-grid__label">المستحق للخزنة — المتوقَّع في كل العهد</span>
                     <span className="stat-grid__value">{nf.format(Number(summary.totalExpected))} ج.م</span>
                   </div>
                   <div className="stat-grid__item is-note">
