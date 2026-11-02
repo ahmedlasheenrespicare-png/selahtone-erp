@@ -457,144 +457,687 @@
 .stat-card .dashboard-table td small { color: rgba(255, 255, 255, .75); }
 
 
-/* ══ الحافظة — عن تصميم «rude-bat-50» (MIT) حرفيًّا، بلون الموقع ════════
-   ظهرٌ داكن، وبطاقاتٌ متراكبة، وجيبٌ أماميٌّ يخبّئ الرصيد. هذه هي
-   الهيئةُ كما أُرسلت: زواياها وظلالها وحركتها. والذي زِدناه شيئان
-   اثنان طلبهما صاحبُها: تمريرٌ أفقيٌّ باللمس، وسهمان.
-
-   وما كان أخضرَ فيه صار كحليًّا هنا (لون الموقع):
-     #1e341e ظهر المحفظة ⟶ #0a2135
-     #839e7b نجوم الرصيد ⟶ #a9c6de
-     #a7c59e الرصيد      ⟶ #cfe6c4
-   وكُبّرت عن 280×230، فإنّها لوحةٌ تُقرأ لا بطاقةٌ تُحمل. */
+/* ══ الحافظة — مطابقة لتصميم «rude-bat-50» لـbyllzz (MIT) ═══════════════
+   ١. ظهر الحافظة الأخضر الداكن (#1e341e) بزوايا 22/22/60/60 وظلال داخلة عميقة.
+   ٢. ثلاث طبقات بطاقات متراكبة بألوان التصميم الأصلية:
+      - الأبيض (#ffffff مع حبر #003087) — مثل PayPal في الأصل
+      - الأخضر الفاتح (#9bd86a مع حبر #132613 المقروء) — مثل Wise في الأصل
+      - البنفسجي (#635bff مع حبر #ffffff) — مثل Stripe في الأصل
+      مع شريحة البطاقة (.chip)، وحركة الدخول slideIntoPocket، والميلان عند التمرير.
+   ٣. الجيب الجلدي الأمامي المنحني بتجويف المنتصف والغرز المتقطعة وأيقونة العين
+      الخضراء (#3be60b) ونجوم الرصيد (#8ea986 ⟶ #a7c59e)، مع أسهم التقليب والسحب الأفقي. */
 
 .dashboard-wallet {
   position: relative;
-  height: 360px;
+  width: min(100%, 580px);
+  height: 540px;
+  margin: 40px auto 52px;
   perspective: 1000px;
-  cursor: pointer;
-  margin-top: 16px;
+  transition: transform 0.4s ease;
 }
 
-/* ظهر الحافظة — الزوايا 22/22/60/60 والظلال الداخلة، كما وردت. */
-.dashboard-wallet::before {
-  content: "";
+.dashboard-wallet:hover {
+  transform: translateY(-5px);
+}
+
+.dashboard-wallet__hint {
   position: absolute;
-  inset-inline: 0; bottom: 0;
-  height: 200px;
-  border-radius: 22px 22px 60px 60px;
-  background: #0a2135;
-  z-index: 5;
-  box-shadow: inset 0 25px 35px rgba(0, 0, 0, .4), inset 0 5px 15px rgba(0, 0, 0, .5);
+  bottom: -32px;
+  inset-inline: 0;
+  margin: 0;
+  text-align: center;
+  font-style: italic;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #003087;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
-/* الحاوياتُ الوسيطة تذوب: فتصير الأقسامُ بطاقاتٍ بلا وسيط. */
-.dashboard-wallet .stat-cards { display: contents; }
+@keyframes slideIntoPocket {
+  0% {
+    transform: translateY(-100px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
 
-/* مجالُ البطاقات: فوق الظهر، وتحت الجيب. */
+/* ظهر الحافظة (.wallet-back) */
+.dashboard-wallet__back {
+  position: absolute;
+  bottom: 0;
+  inset-inline: 0;
+  height: 492px;
+  background: #1e341e;
+  border-radius: 22px 22px 60px 60px;
+  z-index: 5;
+  box-shadow:
+    inset 0 25px 35px rgba(0, 0, 0, 0.4),
+    inset 0 5px 15px rgba(0, 0, 0, 0.5);
+}
+
+/* متغيّرات ألوان البطاقات الثلاث كما في rude-bat-50 مع تباين WCAG >= 4.5:1 */
+.dashboard-wallet__peek.is-tone-paypal,
+.dashboard-wallet__track > .stat-card:nth-child(3n + 1) {
+  --wc-bg: #ffffff;
+  --wc-ink: #003087;
+  --wc-muted: #344d73;
+  --wc-line: rgba(0, 48, 135, 0.15);
+  --wc-surface: rgba(0, 48, 135, 0.06);
+  --wc-surface-hover: rgba(0, 48, 135, 0.12);
+  --wc-chip-bg: rgba(0, 48, 135, 0.06);
+  --wc-chip-border: rgba(0, 48, 135, 0.15);
+}
+
+.dashboard-wallet__peek.is-tone-wise,
+.dashboard-wallet__track > .stat-card:nth-child(3n + 2) {
+  --wc-bg: #9bd86a;
+  --wc-ink: #132613;
+  --wc-muted: #1e381e;
+  --wc-line: rgba(19, 38, 19, 0.18);
+  --wc-surface: rgba(19, 38, 19, 0.09);
+  --wc-surface-hover: rgba(19, 38, 19, 0.16);
+  --wc-chip-bg: rgba(255, 255, 255, 0.34);
+  --wc-chip-border: rgba(19, 38, 19, 0.18);
+}
+
+.dashboard-wallet__peek.is-tone-stripe,
+.dashboard-wallet__track > .stat-card:nth-child(3n) {
+  --wc-bg: #635bff;
+  --wc-ink: #ffffff;
+  --wc-muted: #ffffff;
+  --wc-line: rgba(255, 255, 255, 0.24);
+  --wc-surface: rgba(16, 12, 64, 0.22);
+  --wc-surface-hover: rgba(16, 12, 64, 0.34);
+  --wc-chip-bg: rgba(255, 255, 255, 0.22);
+  --wc-chip-border: rgba(255, 255, 255, 0.28);
+}
+
+/* البطاقتان المتراكبتان خلف البطاقة المعروضة */
+.dashboard-wallet__peek {
+  position: absolute;
+  border: 0;
+  border-radius: 16px;
+  padding: 12px 18px;
+  background: var(--wc-bg);
+  color: var(--wc-ink);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.32),
+    0 -4px 15px rgba(0, 0, 0, 0.12);
+  transition:
+    transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
+    background-color 0.3s ease,
+    color 0.3s ease;
+  animation: slideIntoPocket 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+.dashboard-wallet__peek.is-back {
+  inset-inline: 24px;
+  bottom: 212px;
+  height: 328px;
+  z-index: 10;
+  animation-delay: 0.1s;
+}
+
+.dashboard-wallet__peek.is-mid {
+  inset-inline: 20px;
+  bottom: 182px;
+  height: 328px;
+  z-index: 20;
+  animation-delay: 0.2s;
+}
+
+.dashboard-wallet__peek-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.dashboard-wallet__peek-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--wc-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-wallet__chip {
+  flex: none;
+  width: 32px;
+  height: 22px;
+  border-radius: 4px;
+  background: var(--wc-chip-bg);
+  border: 1px solid var(--wc-chip-border);
+}
+
+/* البطاقة الأمامية المعروضة ومسار السحب الأفقي */
 .dashboard-wallet__viewport {
   position: absolute;
-  inset: 0 0 60px;
-  z-index: 10;
+  inset-inline: 16px;
+  bottom: 152px;
+  height: 328px;
+  z-index: 30;
+  border-radius: 16px;
   overflow: hidden;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.16);
+  transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: slideIntoPocket 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) 0.3s backwards;
 }
+
+/* حركات التمرير على الحافظة والبطاقات كما في rude-bat-50 */
+.dashboard-wallet:hover .dashboard-wallet__peek.is-back {
+  transform: translateY(-28px) rotate(-3deg);
+}
+
+.dashboard-wallet:hover .dashboard-wallet__peek.is-mid {
+  transform: translateY(-16px) rotate(2deg);
+}
+
+.dashboard-wallet:hover .dashboard-wallet__viewport {
+  transform: translateY(-8px);
+}
+
+.dashboard-wallet:hover .dashboard-wallet__peek.is-back:hover {
+  transform: translateY(-36px) scale(1.02) rotate(0deg);
+}
+
+.dashboard-wallet:hover .dashboard-wallet__peek.is-mid:hover {
+  transform: translateY(-24px) scale(1.02) rotate(0deg);
+}
+
 .dashboard-wallet__track {
-  display: flex; align-items: flex-end;
+  display: flex;
+  gap: 14px;
   height: 100%;
-  overflow-x: auto; overflow-y: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
   scroll-snap-type: x mandatory;
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
-.dashboard-wallet__track::-webkit-scrollbar { display: none; }
 
-/* البطاقة 88% لا 100%: فيبدو طرفُ التي تليها، وهو أثرُ التراكب في
-   التصميم الأصلي (ثلاث بطاقات يظهر من كلٍّ أعلاه). */
-.dashboard-wallet__track > * {
-  flex: 0 0 88%;
-  scroll-snap-align: center;
-  min-width: 0;
-  margin-inline-end: 12px;
+.dashboard-wallet__track::-webkit-scrollbar {
+  display: none;
 }
-.dashboard-wallet .stat-card {
+
+.dashboard-wallet__track > .stat-card {
+  flex: 0 0 100%;
+  width: 100%;
   height: 100%;
-  margin-bottom: 0;
+  min-width: 0;
+  margin: 0;
   transform: none;
-  overflow-y: auto;              /* بعضُ الأقسام أطولُ من البطاقة */
-  animation: slideIntoPocket .8s cubic-bezier(.2, .8, .2, 1) backwards;
-}
-/* تتابعُ الدخول، كتتابع البطاقات في التصميم (.1s/.2s/.3s). */
-.dashboard-wallet__track > *:nth-child(1)   { animation-delay: .10s; }
-.dashboard-wallet__track > *:nth-child(2)   { animation-delay: .16s; }
-.dashboard-wallet__track > *:nth-child(n+3) { animation-delay: .22s; }
-
-@keyframes slideIntoPocket {
-  from { transform: translateY(-100px); opacity: 0; }
-  to   { transform: translateY(0); opacity: 1; }
+  border-radius: 16px;
+  background: var(--wc-bg);
+  color: var(--wc-ink);
+  overflow-y: auto;
+  scroll-snap-align: center;
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.35),
+    0 -4px 15px rgba(0, 0, 0, 0.1);
 }
 
-/* البطاقةُ التي يُشار إليها تعلو على سائرها، كما في التصميم (z-index 100). */
-.dashboard-wallet .stat-card:hover,
-.dashboard-wallet .stat-card:focus-within { z-index: 100; }
+/* تنسيق محتوى البطاقات داخل الحافظة ليتكيّف مع الألوان الثلاثة (#ffffff / #9bd86a / #635bff) */
+.dashboard .dashboard-wallet .stat-card__head {
+  position: relative;
+  padding: 14px 18px 12px;
+  padding-inline-end: 118px;
+  border-radius: 16px 16px 0 0;
+  background: transparent;
+  border-bottom: 1px solid var(--wc-line);
+}
 
-/* الجيب — z-index 40 فوق البطاقات، وظلٌّ نازل 15/25، كما ورد. */
-.dashboard-pocket {
+/* شريحة البطاقة (.chip) في الزاوية كما في rude-bat-50 */
+.dashboard .dashboard-wallet .stat-card__head::after {
+  content: "";
   position: absolute;
-  bottom: 0; inset-inline: 0;
-  height: 160px;
-  z-index: 40;
-  border-radius: 22px 22px 60px 60px;
-  background: #0f2c45;
-  filter: drop-shadow(0 15px 25px rgba(10, 33, 53, .4));
+  inset-inline-end: 16px;
+  top: 14px;
+  width: 32px;
+  height: 24px;
+  border-radius: 4px;
+  background: var(--wc-chip-bg);
+  border: 1px solid var(--wc-chip-border);
 }
-.dashboard-pocket__content {
-  position: absolute; top: 45px; inset-inline: 0;
-  display: flex; flex-direction: column; align-items: center; gap: 8px;
-}
-/* النجوم ⟶ الرصيد: يظهر بلمسةٍ لا بمرور فأرة، فإنّ لا فأرةَ في الجوال. */
-.dashboard-pocket__stars { color: #a9c6de; font-size: 24px; letter-spacing: 4px; transition: .3s; }
-.dashboard-pocket__value {
-  position: absolute; top: 0; left: 50%;
-  transform: translate(-50%, 10px);
-  color: #cfe6c4; font-size: 22px; font-weight: 600;
-  opacity: 0; transition: .3s; white-space: nowrap;
-}
-.dashboard-pocket__label {
-  margin-top: 34px; font-size: 11px; font-weight: 600;
-  color: rgba(255, 255, 255, .82);
-}
-.dashboard-pocket:hover .dashboard-pocket__stars,
-.dashboard-pocket:focus-within .dashboard-pocket__stars { opacity: 0; }
-.dashboard-pocket:hover .dashboard-pocket__value,
-.dashboard-pocket:focus-within .dashboard-pocket__value { opacity: 1; transform: translate(-50%, 0); }
 
-/* السهمان: لم يكونا في التصميم، وبهما طُلبا. */
-.dashboard-wallet__controls {
-  position: absolute; bottom: 168px; inset-inline: 0;
-  z-index: 60;
-  display: flex; align-items: center; justify-content: center; gap: 14px;
+.dashboard .dashboard-wallet .stat-card__head h2,
+.dashboard .dashboard-wallet .stat-card__head h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.dashboard .dashboard-wallet .stat-card__head p {
+  margin: 3px 0 0;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--wc-muted);
+}
+
+.dashboard .dashboard-wallet .stat-card__badge {
+  inset-inline-end: 56px;
+  top: 15px;
+  background: var(--wc-surface);
+  border: 1px solid var(--wc-line);
+  color: var(--wc-ink);
+}
+
+.dashboard .dashboard-wallet .stat-card__body {
+  padding: 13px 18px 46px;
+}
+
+.dashboard .dashboard-wallet .stat-grid__label {
+  color: var(--wc-muted);
+}
+
+.dashboard .dashboard-wallet .stat-grid__value {
+  color: var(--wc-ink);
+}
+
+.dashboard .dashboard-wallet .stat-grid__value small,
+.dashboard .dashboard-wallet .stat-grid__detail {
+  color: var(--wc-muted);
+}
+
+.dashboard .dashboard-wallet .stat-grid__item.is-primary {
+  border-top-color: var(--wc-line);
+}
+
+.dashboard .dashboard-wallet .stat-grid__item.is-primary .stat-grid__label {
+  color: var(--wc-ink);
+}
+
+.dashboard .dashboard-wallet .stat-grid__item.is-note .stat-grid__label {
+  color: var(--wc-muted);
+}
+
+.dashboard .dashboard-wallet .stat-grid__icon {
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+}
+
+.dashboard .dashboard-wallet .stat-grid__item.is-link {
+  background: var(--wc-surface);
+  border: 1px solid var(--wc-line);
+  color: var(--wc-ink);
+}
+
+.dashboard .dashboard-wallet .stat-grid__item.is-link:hover,
+.dashboard .dashboard-wallet .stat-grid__item.is-link:focus-visible {
+  background: var(--wc-surface-hover);
+}
+
+.dashboard .dashboard-wallet .stat-grid__arrow {
+  color: var(--wc-muted);
+}
+
+.dashboard .dashboard-wallet .stat-grid__link {
+  color: var(--wc-ink);
+}
+
+.dashboard .dashboard-wallet .cash-tallies {
+  background: var(--wc-surface);
+  border-color: var(--wc-line);
+}
+
+.dashboard .dashboard-wallet .cash-tally,
+.dashboard .dashboard-wallet .cash-tallies__empty {
+  color: var(--wc-muted);
+}
+
+.dashboard .dashboard-wallet .cash-tally strong,
+.dashboard .dashboard-wallet .cash-tally.is-amber strong,
+.dashboard .dashboard-wallet .cash-tally.is-warning strong {
+  color: var(--wc-ink);
+}
+
+.dashboard .dashboard-wallet .stat-card .dashboard-table {
+  min-width: 420px;
+  color: var(--wc-ink);
+}
+
+.dashboard .dashboard-wallet .stat-card .dashboard-table th {
+  background: transparent;
+  color: var(--wc-muted);
+  border-bottom: 1px solid var(--wc-line);
+}
+
+.dashboard .dashboard-wallet .stat-card .dashboard-table td {
+  background: transparent;
+  color: var(--wc-ink);
+  border-bottom: 1px solid var(--wc-line);
+}
+
+.dashboard .dashboard-wallet .stat-card .dashboard-table tbody tr:hover {
+  background: var(--wc-surface);
+}
+
+.dashboard .dashboard-wallet .stat-card .dashboard-branch-name__icon {
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+}
+
+.dashboard .dashboard-wallet .stat-card .dashboard-branch-name strong {
+  color: var(--wc-ink);
+}
+
+.dashboard .dashboard-wallet .stat-card .dashboard-branch-name small,
+.dashboard .dashboard-wallet .stat-card .dashboard-table td small,
+.dashboard .dashboard-wallet .stat-card .dashboard-table-hint,
+.dashboard .dashboard-wallet .stat-card .dashboard-warehouse-list__empty,
+.dashboard .dashboard-wallet .stat-card .dashboard-empty,
+.dashboard .dashboard-wallet .stat-card .dashboard-panel__footer {
+  color: var(--wc-muted);
+}
+
+.dashboard .dashboard-wallet .stat-card .dashboard-panel__footer {
+  border-top-color: var(--wc-line);
+}
+
+.dashboard .dashboard-wallet .stat-card .dashboard-warehouse-list span:not(.dashboard-warehouse-list__empty) {
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+  border: 1px solid var(--wc-line);
+}
+
+.dashboard .dashboard-wallet .stat-card .dashboard-status {
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+  border: 1px solid var(--wc-line);
+}
+
+/* الجيب الجلدي الأمامي المنحني (.pocket) */
+.dashboard-pocket-wrap {
+  position: absolute;
+  bottom: 0;
+  inset-inline: 0;
+  height: 188px;
+  z-index: 40;
+  filter: drop-shadow(0 15px 25px rgba(20, 40, 20, 0.42));
+}
+
+.dashboard-pocket {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 22px 22px 60px 60px;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+/* امتداد غرز الخياطة المتقطعة على جانبي الجيب وأسفله */
+.dashboard-pocket::after {
+  content: "";
+  position: absolute;
+  inset: 9px 10px 10px;
+  border-radius: 16px 16px 50px 50px;
+  border: 1.5px dashed rgba(167, 197, 158, 0.3);
+  border-top: 0;
+  pointer-events: none;
+  z-index: 45;
+}
+
+.dashboard-pocket__svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
   pointer-events: none;
 }
-.dashboard-wallet__nav {
-  pointer-events: auto;
-  width: 38px; height: 38px; display: grid; place-items: center;
-  border: 1px solid rgba(255, 255, 255, .32); border-radius: 50%;
-  background: rgba(10, 33, 53, .72);
-  color: #fff; cursor: pointer;
-  backdrop-filter: blur(3px);
-  transition: background .2s ease, opacity .2s ease;
-}
-.dashboard-wallet__nav:hover:not(:disabled) { background: rgba(10, 33, 53, .92); }
-.dashboard-wallet__nav:focus-visible { outline: 2px solid #7fd0be; outline-offset: 2px; }
-.dashboard-wallet__nav:disabled { opacity: .40; cursor: default; }
-.dashboard-wallet__nav svg { width: 16px; height: 16px; }
-/* الاتجاه عربيّ: فالسابق يمينًا، فينعكس سهمُه. */
-.dashboard-wallet__nav.is-prev svg { transform: scaleX(-1); }
 
-.dashboard-wallet__dots { display: flex; gap: 6px; pointer-events: auto; }
-.dashboard-wallet__dots span {
-  width: 7px; height: 7px; border-radius: 50%;
-  background: rgba(255, 255, 255, .38); transition: .2s;
+.dashboard-pocket__content {
+  position: absolute;
+  top: 42px;
+  inset-inline: 16px;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  text-align: center;
+  pointer-events: none;
 }
-.dashboard-wallet__dots span.is-active { background: #fff; transform: scale(1.35); }
+
+.dashboard-pocket__balance {
+  position: relative;
+  width: 100%;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dashboard-pocket__stars {
+  color: #93b08b;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: 4px;
+  transition: opacity 0.3s ease;
+}
+
+.dashboard-pocket__value {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, 10px);
+  color: #a7c59e;
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.dashboard-pocket__label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #d6e7d0;
+}
+
+/* أيقونة العين كما في rude-bat-50 (#3be60b) */
+.dashboard-pocket__eye-wrap {
+  margin-top: 2px;
+  width: 20px;
+  height: 20px;
+  position: relative;
+  opacity: 0.35;
+  transition: opacity 0.3s ease;
+}
+
+.dashboard-pocket__eye {
+  position: absolute;
+  inset: 0;
+  width: 20px;
+  height: 20px;
+  stroke: #3be60b;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.dashboard-pocket__eye.is-open {
+  opacity: 0;
+  transform: scale(0.75);
+}
+
+/* إظهار الرصيد وتبديل العين عند التمرير على الحافظة أو لمس الجيب */
+.dashboard-wallet:hover .dashboard-pocket__stars,
+.dashboard-wallet.is-revealed .dashboard-pocket__stars,
+.dashboard-pocket:focus-visible .dashboard-pocket__stars {
+  opacity: 0;
+}
+
+.dashboard-wallet:hover .dashboard-pocket__value,
+.dashboard-wallet.is-revealed .dashboard-pocket__value,
+.dashboard-pocket:focus-visible .dashboard-pocket__value {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.dashboard-wallet:hover .dashboard-pocket__eye-wrap,
+.dashboard-wallet.is-revealed .dashboard-pocket__eye-wrap,
+.dashboard-pocket:focus-visible .dashboard-pocket__eye-wrap {
+  opacity: 1;
+}
+
+.dashboard-wallet:hover .dashboard-pocket__eye.is-slash,
+.dashboard-wallet.is-revealed .dashboard-pocket__eye.is-slash,
+.dashboard-pocket:focus-visible .dashboard-pocket__eye.is-slash {
+  opacity: 0;
+  transform: scale(0.5);
+}
+
+.dashboard-wallet:hover .dashboard-pocket__eye.is-open,
+.dashboard-wallet.is-revealed .dashboard-pocket__eye.is-open,
+.dashboard-pocket:focus-visible .dashboard-pocket__eye.is-open {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+/* أزرار التقليب الأفقي والمؤشرات داخل الجيب */
+.dashboard-wallet__controls {
+  position: absolute;
+  bottom: 14px;
+  inset-inline: 22px;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.dashboard-wallet__nav {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(167, 197, 158, 0.38);
+  border-radius: 50%;
+  background: rgba(14, 28, 14, 0.56);
+  color: #eef7eb;
+  cursor: pointer;
+  transition: background 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
+}
+
+.dashboard-wallet__nav:hover:not(:disabled) {
+  background: rgba(14, 28, 14, 0.85);
+  transform: scale(1.06);
+}
+
+.dashboard-wallet__nav:focus-visible {
+  outline: 2px solid #9bd86a;
+  outline-offset: 2px;
+}
+
+.dashboard-wallet__nav:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+.dashboard-wallet__nav svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* الاتجاه عربيّ: فالسابق يمينًا، فينعكس سهمُه */
+.dashboard-wallet__nav.is-prev svg {
+  transform: scaleX(-1);
+}
+
+.dashboard-wallet__dots {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.dashboard-wallet__dots button {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(167, 197, 158, 0.36);
+  cursor: pointer;
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.dashboard-wallet__dots button:hover {
+  background: rgba(214, 231, 208, 0.72);
+}
+
+.dashboard-wallet__dots button.is-active {
+  background: #9bd86a;
+  transform: scale(1.35);
+}
+
+@media (max-width: 560px) {
+  .dashboard-wallet {
+    height: 560px;
+    margin-top: 28px;
+  }
+  .dashboard-wallet__back {
+    height: 514px;
+  }
+  .dashboard-wallet__peek.is-back {
+    inset-inline: 18px;
+    bottom: 206px;
+    height: 354px;
+  }
+  .dashboard-wallet__peek.is-mid {
+    inset-inline: 14px;
+    bottom: 180px;
+    height: 354px;
+  }
+  .dashboard-wallet__viewport {
+    inset-inline: 10px;
+    bottom: 152px;
+    height: 354px;
+  }
+  .dashboard .dashboard-wallet .stat-card__head {
+    padding-inline-end: 98px;
+  }
+  .dashboard .dashboard-wallet .stat-card__head::after {
+    inset-inline-end: 12px;
+    width: 28px;
+    height: 20px;
+  }
+  .dashboard .dashboard-wallet .stat-card__badge {
+    inset-inline-end: 46px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-wallet,
+  .dashboard-wallet__peek,
+  .dashboard-wallet__viewport,
+  .dashboard-pocket__stars,
+  .dashboard-pocket__value,
+  .dashboard-pocket__eye-wrap,
+  .dashboard-pocket__eye {
+    transition: none;
+    animation: none;
+  }
+  .dashboard-wallet:hover,
+  .dashboard-wallet:hover .dashboard-wallet__peek.is-back,
+  .dashboard-wallet:hover .dashboard-wallet__peek.is-mid,
+  .dashboard-wallet:hover .dashboard-wallet__viewport {
+    transform: none;
+  }
+}
