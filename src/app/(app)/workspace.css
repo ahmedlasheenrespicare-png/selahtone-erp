@@ -164,43 +164,37 @@
 .dashboard-scope { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid #e3eaf5; border-radius: 8px; background: #fff; color: #536983; font-size: 11px; font-weight: 600; white-space: nowrap; }
 .dashboard-scope span { width: 6px; height: 6px; border-radius: 50%; background: #60a3d4; }
 .dashboard-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
-/* بطاقات «نظرة عامة» — النمط الحرفي (زجاجٌ متراكبٌ مائل) بلون الموقع:
-   خلفيةٌ كحلية تركوازية تحمل الزجاج، فصار النصّ الأبيض مقروءًا كما أُريد له. */
-.dashboard-metrics { background: linear-gradient(120deg, #08202f 0%, #0c3547 52%, #0e5049 100%); border-radius: 18px; padding: 26px 24px; }
-.dashboard-metric { position: relative; min-width: 0; padding: 18px; border: 1px solid rgba(255, 255, 255, .18); border-radius: 10px; background: linear-gradient(rgba(255, 255, 255, .13), rgba(255, 255, 255, .02)); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: 0 25px 25px rgba(0, 0, 0, .25); /* تراكبٌ بمقدار 12px: يغطّي الحاشية (18px) فلا يمسّ حرفًا من المحتوى. */ margin: 0 -12px; transform: rotate(calc(var(--r, 0) * 1deg)); transition: margin .5s ease, transform .5s ease, box-shadow .5s ease; }
-/* كل بطاقةٍ ميلها، كأوراقٍ مُلقاة — فإن مُرّ على المجموعة استقامت وتفرّقت. */
-.dashboard-metric:nth-child(1) { --r: -9; }
-.dashboard-metric:nth-child(2) { --r: -3; }
-.dashboard-metric:nth-child(3) { --r: 5; }
-.dashboard-metric:nth-child(4) { --r: 11; }
-.dashboard-metric:hover { z-index: 2; }
-.dashboard-metrics:hover .dashboard-metric { margin: 0 8px; transform: rotate(0deg); }
-.dashboard-metrics:hover .dashboard-metric:hover { box-shadow: 0 30px 34px rgba(0, 0, 0, .34); }
-/* متصفحٌ لا يعرف التمويه: بطاقةٌ داكنة مصمتة، فلا يضيع النصّ في شفافية. */
-@supports not ((backdrop-filter: blur(10px)) or (-webkit-backdrop-filter: blur(10px))) {
-  .dashboard-metric { background: rgba(13, 45, 62, .72); }
-}
+/* بطاقات «نظرة عامة» — النمط الحرفي بلون الموقع:
+   رأسٌ تركوازيّ يحمل الأيقونة والتسمية، وجسمٌ كحليّ يركب فوقه (margin-top: -10px)،
+   فإن مُرّ على البطاقة نزل الرأسُ من تحت الجسم (translateY(1em)) فظهر ما كان
+   مستورًا. هذا هو المكوّن بحذافيره، غير أنّ لونه صار لونَ الموقع. */
+.dashboard-metrics { background: linear-gradient(120deg, #eef3fb 0%, #e7f2ef 55%, #f2f6fc 100%); border-radius: 18px; padding: 20px; }
+.dashboard-metric { --metric-accent: #12655c; /* تركوازي العلامة — رأس البطاقة */ --metric-primary: #0a2135; /* كحلي العلامة — جسمها */ --metric-dot: #7fd8c8; min-width: 0; display: grid; grid-template-rows: 50px 1fr; border-radius: 10px; color: #fff; box-shadow: 0 12px 24px rgba(10, 33, 53, .16); transition: box-shadow .25s ease, transform .25s ease; }
+.dashboard-metric:hover { transform: translateY(-3px); box-shadow: 0 20px 36px rgba(10, 33, 53, .24); }
+
+/* الرأس: الأيقونة والتسمية والنقاط — ينزل عند المرور فينكشف ما فوقه. */
+.dashboard-metric__top { grid-row: 1; display: flex; align-items: center; gap: 10px; padding: 0 14px; border-radius: 10px 10px 0 0; background: var(--metric-accent); transition: transform .2s cubic-bezier(.25, .46, .45, .94); }
+.dashboard-metric:hover .dashboard-metric__top { transform: translateY(1em); }
+
+/* الجسم الكحلي: مرفوعٌ 10px فيركب أسفلَ الرأس، وفوقه في الترتيب فيستره. */
+.dashboard-metric__desc { grid-row: 2; position: relative; margin-top: -10px; display: grid; gap: 8px; align-content: start; padding: 14px 14px 16px; border-radius: 10px; background: var(--metric-primary); }
+
 @media (prefers-reduced-motion: reduce) {
   .dashboard-metric { transition: none; }
-  .dashboard-metrics:hover .dashboard-metric { transform: rotate(calc(var(--r, 0) * 1deg)); }
+  .dashboard-metric:hover { transform: none; }
+  .dashboard-metric:hover .dashboard-metric__top { transform: none; }
 }
-/* على الجوال تتفرّق البطاقات عمودًا واحدًا، فلا معنى للتراكب ولا للميل. */
-@media (max-width: 700px) {
-  .dashboard-metrics { padding: 18px 14px; }
-  .dashboard-metric, .dashboard-metrics:hover .dashboard-metric { margin: 0; transform: rotate(0deg); }
-}
-.dashboard-metric__top { display: flex; align-items: flex-start; justify-content: space-between; }
-.dashboard-metric__icon { width: 43px; height: 43px; display: grid; place-items: center; border-radius: 12px; }
-.dashboard-metric__icon svg { width: 21px; height: 21px; }
+/* الرأس موحّد اللون (تركوازي)، فالأيقونة كبسولةٌ بيضاء شفافة تغني عن أربعة ألوان
+   كانت تُفرّقها على خلفيةٍ فاتحة، ولا معنى لها على رأسٍ ملوّن. */
+.dashboard-metric__icon { flex: none; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 9px; background: rgba(255, 255, 255, .22); color: #fff; }
+.dashboard-metric__icon svg { width: 17px; height: 17px; }
 /* على خلفيةٍ داكنة تنعكس الآية: الأيقونة كبسولةٌ زجاجية بلونها، لا لوحٌ فاتح. */
-.dashboard-metric__icon { background: rgba(255, 255, 255, .14); color: #fff; }
-.dashboard-metric__icon.is-blue { background: rgba(122, 162, 255, .24); color: #c3d6ff; }
-.dashboard-metric__icon.is-cyan { background: rgba(93, 214, 214, .24); color: #a7ecf0; }
-.dashboard-metric__icon.is-violet { background: rgba(178, 158, 255, .24); color: #d8ccff; }
-.dashboard-metric__icon.is-amber { background: rgba(255, 199, 102, .24); color: #ffdca3; }
+/* النقاط الثلاث — زخرفية، تحاكي المكوّن ولا تدّعي أنها زرّ قائمة. */
+.dashboard-metric__dots { flex: none; display: flex; gap: 4px; }
+.dashboard-metric__dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--metric-dot); }
 /* والتمييز بين القيمة والتسمية بالحجم والوزن لا باللون: فكلّ نصّ أبيض،
    لأنّ تخفيفَ البياض على هذا التدرّج يُسقط التباين دون معيار القراءة. */
-.dashboard-metric__label { margin: 18px 0 4px; color: rgba(255, 255, 255, .88); font-size: 12.5px; font-weight: 600; }
+.dashboard-metric__label { flex: 1; min-width: 0; margin: 0; color: #fff; font-size: 12.5px; font-weight: 600; }
 .dashboard-metric__value { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; color: #fff; line-height: 1.3; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .dashboard-metric__value strong { font-size: clamp(23px, 2vw, 28px); font-weight: 700; }
 .dashboard-metric__value span { color: rgba(255, 255, 255, .82); font-size: 11px; font-weight: 600; }
@@ -306,8 +300,7 @@
   .dashboard-date { padding: 7px 10px; }
   .dashboard-date > span { width: 30px; height: 30px; }
   .dashboard-metrics { gap: 10px; }
-  .dashboard-metric { padding: 15px; }
-  .dashboard-metric__label { margin-top: 14px; }
+  .dashboard-metric__desc { padding: 12px 12px 14px; }
   .dashboard-grid { margin-top: 16px; }
   .dashboard-side { grid-template-columns: 1fr; }
   .dashboard-panel__heading { padding: 18px 16px; }
