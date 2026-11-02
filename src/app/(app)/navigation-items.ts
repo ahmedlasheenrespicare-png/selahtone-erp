@@ -56,6 +56,10 @@ export function navigationGroups(
         ? [{
             label: "المالية",
             items: [
+              /* عهدة نقدي: بابُ الميزتين — طلبِ العهدةِ والجردِ الموجَّه.
+                 كانت غائبةً عن قائمة الموظف، في حين لوحتُه تُحيل إليها؛
+                 فكان يصلُها من الداشبورد ولا يجدُها في القائمة. */
+              { label: "عهدة نقدي", icon: "cash" as const, href: "/finance/mine" },
               { label: "المصروفات", icon: "expenses" as const, href: "/finance/expenses" },
               { label: "تسجيل مصروف", icon: "expenses" as const, href: "/finance/expenses/new" },
             ],
