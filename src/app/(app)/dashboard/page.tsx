@@ -163,28 +163,46 @@ export default async function DashboardPage() {
             </div>
             <span className="dashboard-panel__heading-icon"><AppIcon name="receipt" /></span>
           </div>
-          <div className="dashboard-metrics">
-            <article className="dashboard-metric">
-              <p className="dashboard-metric__label">المتوقَّع بيدك</p>
-              <div className="dashboard-metric__value"><strong>{nf.format(Number(cash.expected))}</strong><span>ج.م</span></div>
-              <p className="dashboard-metric__detail">
-                رصيد العهدة {nf.format(Number(cash.balance))} + مبيعات الفترة {nf.format(Number(cash.sales))} − مصروفاتها من نقدك {nf.format(Number(cash.expenses))}
-              </p>
-            </article>
-            <article className="dashboard-metric">
-              <p className="dashboard-metric__label">مبيعات اليوم نقدًا</p>
-              <div className="dashboard-metric__value"><strong>{nf.format(Number(cash.todaySales))}</strong><span>ج.م</span></div>
-              <p className="dashboard-metric__detail">{nf.format(cash.todaySalesCount)} فاتورة</p>
-            </article>
-            <article className="dashboard-metric">
-              <p className="dashboard-metric__label">مصروفات اليوم من نقدك</p>
-              <div className="dashboard-metric__value"><strong>{nf.format(Number(cash.todayExpenses))}</strong><span>ج.م</span></div>
-              <p className="dashboard-metric__detail">مما صرفته من العهدة اليوم</p>
-            </article>
-            <article className="dashboard-metric">
-              <p className="dashboard-metric__label">باقٍ على العملاء</p>
-              <div className="dashboard-metric__value"><strong>{nf.format(Number(cash.outstanding))}</strong><span>ج.م</span></div>
-              <p className="dashboard-metric__detail">{nf.format(cash.outstandingCount)} فاتورة آجلة</p>
+          {/* كرتٌ واحد بترتيب المعادلة: الرصيد، ثم المبيعات، ثم المصروفات،
+              ثم الناتج — فيُقرأ «المتوقَّع بيدك» حصيلةً لا رقمًا بين أرقام. */}
+          <div className="stat-cards">
+            <article className="stat-card is-custody">
+              <div className="stat-card__head">
+                <h3>عهدة الموظف</h3>
+                <p>الرصيد، زائدًا مبيعات الفترة، ناقصًا مصروفاتها من نقدك.</p>
+              </div>
+              <div className="stat-card__body">
+                <div className="stat-grid">
+                  <div className="stat-grid__item">
+                    <span className="stat-grid__label">رصيد العهدة</span>
+                    <span className="stat-grid__value">{nf.format(Number(cash.balance))} ج.م</span>
+                  </div>
+                  <div className="stat-grid__item">
+                    <span className="stat-grid__label">مبيعات الفترة</span>
+                    <span className="stat-grid__value">{nf.format(Number(cash.sales))} ج.م</span>
+                  </div>
+                  <div className="stat-grid__item">
+                    <span className="stat-grid__label">مصروفاتها من نقدك</span>
+                    <span className="stat-grid__value">{nf.format(Number(cash.expenses))} ج.م</span>
+                  </div>
+                  <div className="stat-grid__item is-primary">
+                    <span className="stat-grid__label">المتوقَّع بيدك</span>
+                    <span className="stat-grid__value">{nf.format(Number(cash.expected))} ج.م</span>
+                  </div>
+                  <div className="stat-grid__item">
+                    <span className="stat-grid__label">مبيعات اليوم نقدًا</span>
+                    <span className="stat-grid__value">{nf.format(Number(cash.todaySales))} ج.م</span>
+                  </div>
+                  <div className="stat-grid__item">
+                    <span className="stat-grid__label">مصروفات اليوم من نقدك</span>
+                    <span className="stat-grid__value">{nf.format(Number(cash.todayExpenses))} ج.م</span>
+                  </div>
+                  <div className="stat-grid__item is-wide">
+                    <span className="stat-grid__label">باقٍ على العملاء</span>
+                    <span className="stat-grid__value">{nf.format(Number(cash.outstanding))} ج.م <small>{nf.format(cash.outstandingCount)} فاتورة آجلة</small></span>
+                  </div>
+                </div>
+              </div>
             </article>
           </div>
           <div className="dashboard-panel__footer">
@@ -326,21 +344,32 @@ export default async function DashboardPage() {
             </div>
             <Link className="dashboard-text-link" href="/sales/stats">التفاصيل <AppIcon name="arrow" /></Link>
           </div>
-          <div className="dashboard-metrics">
-            <article className="dashboard-metric">
-              <p className="dashboard-metric__label">عدد الفواتير</p>
-              <div className="dashboard-metric__value"><strong>{nf.format(sales.invoiceCount)}</strong></div>
-              <p className="dashboard-metric__detail">منها {nf.format(sales.cancelledCount)} ملغاة</p>
-            </article>
-            <article className="dashboard-metric">
-              <p className="dashboard-metric__label">صافي المبيعات</p>
-              <div className="dashboard-metric__value"><strong>{nf.format(Number(sales.total))}</strong><span>ج.م</span></div>
-              <p className="dashboard-metric__detail">بعد الخصم، والضريبة متضمنة في السعر</p>
-            </article>
-            <article className="dashboard-metric">
-              <p className="dashboard-metric__label">باقٍ على العملاء</p>
-              <div className="dashboard-metric__value"><strong>{nf.format(Number(sales.outstandingTotal))}</strong><span>ج.م</span></div>
-              <p className="dashboard-metric__detail">{nf.format(sales.outstandingCount)} فاتورة لم تُسدَّد بالكامل</p>
+          <div className="stat-cards">
+            <article className="stat-card is-sales">
+              <div className="stat-card__head">
+                <h3>المبيعات</h3>
+                <p>الفواتير غير الملغاة هذا الشهر، وما بقي على العملاء.</p>
+              </div>
+              <div className="stat-card__body">
+                <div className="stat-grid">
+                  <div className="stat-grid__item">
+                    <span className="stat-grid__label">عدد الفواتير</span>
+                    <span className="stat-grid__value">{nf.format(sales.invoiceCount)} <small>منها {nf.format(sales.cancelledCount)} ملغاة</small></span>
+                  </div>
+                  <div className="stat-grid__item">
+                    <span className="stat-grid__label">باقٍ على العملاء</span>
+                    <span className="stat-grid__value">{nf.format(Number(sales.outstandingTotal))} ج.م <small>{nf.format(sales.outstandingCount)} فاتورة لم تُسدَّد</small></span>
+                  </div>
+                  {/* الناتج: هو الرقم الذي يُفتح هذا القسم لأجله. */}
+                  <div className="stat-grid__item is-primary">
+                    <span className="stat-grid__label">صافي المبيعات</span>
+                    <span className="stat-grid__value">{nf.format(Number(sales.total))} ج.م</span>
+                  </div>
+                  <div className="stat-grid__item is-note">
+                    <span className="stat-grid__label">بعد الخصم — والضريبة متضمنة في السعر لا مضافة إليه</span>
+                  </div>
+                </div>
+              </div>
             </article>
           </div>
         </section>
@@ -351,20 +380,26 @@ export default async function DashboardPage() {
           <div><h2 id="overview-title">نظرة عامة</h2><p>{isEmployee ? "مبيعاتك ونطاق فرعك" : isAccountant ? "ما يتحرّك تحت يدك" : "صورة الشركة"}</p></div>
           <span className="dashboard-scope"><span /> {canViewAllBranches ? "كل الفروع" : (session.branchName ?? "فرعك")}</span>
         </div>
-        <div className="dashboard-metrics">
-          {metrics.map((metric) => (
-            <article className="dashboard-metric" key={metric.label}>
-              <div className="dashboard-metric__top">
-                <span className={`dashboard-metric__icon is-${metric.tone}`}><AppIcon name={metric.icon} /></span>
-                <p className="dashboard-metric__label">{metric.label}</p>
-                <span className="dashboard-metric__dots" aria-hidden="true"><i /><i /><i /></span>
+        {/* العنوانُ الأصليّ للقسم (مع شارة النطاق) قائمٌ فوق، فجاء الكرتُ
+            بلا رأسٍ لئلا يُكتب العنوانُ مرتين. والناتجُ هنا هو المبلغُ وحده:
+            فكل رقمٍ له وحدة (ج.م) نال is-primary، أيًّا كان دور الناظر. */}
+        <div className="stat-cards">
+          <article className="stat-card is-overview">
+            <div className="stat-card__body">
+              <div className="stat-grid">
+                {metrics.map((metric) => (
+                  <div className={`stat-grid__item${metric.unit ? " is-primary" : ""}`} key={metric.label}>
+                    <span className="stat-grid__label">
+                      <span className={`stat-grid__icon is-${metric.tone}`} aria-hidden="true"><AppIcon name={metric.icon} /></span>
+                      {metric.label}
+                    </span>
+                    <span className="stat-grid__value">{metric.value}{metric.unit ? ` ${metric.unit}` : ""}</span>
+                    <span className="stat-grid__detail">{metric.detail}</span>
+                  </div>
+                ))}
               </div>
-              <div className="dashboard-metric__desc">
-                <div className="dashboard-metric__value"><strong>{metric.value}</strong>{metric.unit && <span>{metric.unit}</span>}</div>
-                <p className="dashboard-metric__detail">{metric.detail}</p>
-              </div>
-            </article>
-          ))}
+            </div>
+          </article>
         </div>
       </section>
 

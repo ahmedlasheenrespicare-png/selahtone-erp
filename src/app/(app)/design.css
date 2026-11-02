@@ -35,27 +35,11 @@
 .dashboard .dashboard-date time{color:#dbe7f7}
 
 /* البطاقة القائدة — أول مقياس في أول لوحة («المتوقَّع في كل العهد») */
-.dashboard .dashboard-panel:first-of-type .dashboard-metric:first-child{
-  /* البطاقة القائدة في النمط الجديد: رأسٌ تركوازيّ أفتح يُميّزها —
-     لا «أفتح» في جسمها الكحليّ، بل في رأسها، لأنّ الرأس هو ما يُرى أوّلًا. */
-  --metric-accent: #14705f;
-  box-shadow: 0 18px 32px rgba(10, 33, 53, .26);
-}
 
 /* الأرقام القائدة أكبر وأثقل — والقائد يقفز فوقها */
-.dashboard .dashboard-metric__value strong{
-  font-size: clamp(28px, 3.2vw, 36px);
-  letter-spacing: -.035em;
-  color: #fff; /* كان كحليًّا — ولا يُقرأ الكحليّ على خلفيةٍ داكنة. */
-}
-.dashboard .dashboard-panel:first-of-type .dashboard-metric:first-child .dashboard-metric__value strong{
-  font-size: clamp(36px, 4.2vw, 50px);
-}
 
 /* سُلَّم موحّد: ١٠ · ١١ · ١٢ · ١٤ · ١٦ · ١٧ (كان فيها ١٠.٥ و١٢.٥ و١٣) */
-.dashboard .dashboard-metric__label{font-size:12px}
 .dashboard .dashboard-count{font-size:11px}
-.dashboard .dashboard-metric__detail{font-size:11px}
 
 /* هواء أوضح بين الأقسام لا داخلها — الكثافة محفوظة */
 .dashboard .dashboard-panel{margin-bottom:22px !important}
