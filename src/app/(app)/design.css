@@ -36,16 +36,17 @@
 
 /* البطاقة القائدة — أول مقياس في أول لوحة («المتوقَّع في كل العهد») */
 .dashboard .dashboard-panel:first-of-type .dashboard-metric:first-child{
-  background: linear-gradient(180deg, #eef4ff, #ffffff 44%);
-  border-color: #d3e3f8;
-  box-shadow: inset 0 3px 0 var(--navy), 0 12px 28px rgba(22,39,63,.07);
+  /* البطاقة القائدة في النمط الداكن: زجاجٌ أفتح يُميّزها، لا لوحٌ أبيض ينبت وحيدًا. */
+  background: linear-gradient(180deg, rgba(255, 255, 255, .22), rgba(255, 255, 255, .05) 44%);
+  border-color: rgba(255, 255, 255, .32);
+  box-shadow: inset 0 3px 0 rgba(255, 255, 255, .55), 0 12px 28px rgba(0, 0, 0, .28);
 }
 
 /* الأرقام القائدة أكبر وأثقل — والقائد يقفز فوقها */
 .dashboard .dashboard-metric__value strong{
   font-size: clamp(28px, 3.2vw, 36px);
   letter-spacing: -.035em;
-  color: var(--navy);
+  color: #fff; /* كان كحليًّا — ولا يُقرأ الكحليّ على خلفيةٍ داكنة. */
 }
 .dashboard .dashboard-panel:first-of-type .dashboard-metric:first-child .dashboard-metric__value strong{
   font-size: clamp(36px, 4.2vw, 50px);

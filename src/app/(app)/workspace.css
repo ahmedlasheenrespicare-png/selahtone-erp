@@ -164,31 +164,47 @@
 .dashboard-scope { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid #e3eaf5; border-radius: 8px; background: #fff; color: #536983; font-size: 11px; font-weight: 600; white-space: nowrap; }
 .dashboard-scope span { width: 6px; height: 6px; border-radius: 50%; background: #60a3d4; }
 .dashboard-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
-/* بطاقات «نظرة عامة» — نمط الزجاج: حدّ رقيق شفاف، وتدرّج أبيض، وتمويهٌ لما خلفه.
-   والزجاج لا يُرى إلا على خلفية، فجُعل للشبكة تدرّجٌ خفيف يحمله. */
-.dashboard-metrics { background: linear-gradient(120deg, #eef3fb 0%, #e7f2ef 55%, #f2f6fc 100%); border-radius: 18px; padding: 16px; }
-.dashboard-metric { min-width: 0; padding: 18px; border: 1px solid rgba(255, 255, 255, .65); border-radius: 14px; background: linear-gradient(135deg, rgba(255, 255, 255, .78), rgba(255, 255, 255, .38)); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: 0 18px 30px rgba(33, 57, 92, .13); transition: transform .35s ease, box-shadow .35s ease; }
-.dashboard-metric:hover { transform: translateY(-4px); box-shadow: 0 26px 42px rgba(33, 57, 92, .19); }
-/* متصفحٌ لا يعرف التمويه: نعود إلى بطاقةٍ مصمتة، فلا يضيع النصّ في شفافية. */
+/* بطاقات «نظرة عامة» — النمط الحرفي (زجاجٌ متراكبٌ مائل) بلون الموقع:
+   خلفيةٌ كحلية تركوازية تحمل الزجاج، فصار النصّ الأبيض مقروءًا كما أُريد له. */
+.dashboard-metrics { background: linear-gradient(120deg, #08202f 0%, #0c3547 52%, #0e5049 100%); border-radius: 18px; padding: 26px 24px; }
+.dashboard-metric { position: relative; min-width: 0; padding: 18px; border: 1px solid rgba(255, 255, 255, .18); border-radius: 10px; background: linear-gradient(rgba(255, 255, 255, .13), rgba(255, 255, 255, .02)); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: 0 25px 25px rgba(0, 0, 0, .25); /* تراكبٌ بمقدار 12px: يغطّي الحاشية (18px) فلا يمسّ حرفًا من المحتوى. */ margin: 0 -12px; transform: rotate(calc(var(--r, 0) * 1deg)); transition: margin .5s ease, transform .5s ease, box-shadow .5s ease; }
+/* كل بطاقةٍ ميلها، كأوراقٍ مُلقاة — فإن مُرّ على المجموعة استقامت وتفرّقت. */
+.dashboard-metric:nth-child(1) { --r: -9; }
+.dashboard-metric:nth-child(2) { --r: -3; }
+.dashboard-metric:nth-child(3) { --r: 5; }
+.dashboard-metric:nth-child(4) { --r: 11; }
+.dashboard-metric:hover { z-index: 2; }
+.dashboard-metrics:hover .dashboard-metric { margin: 0 8px; transform: rotate(0deg); }
+.dashboard-metrics:hover .dashboard-metric:hover { box-shadow: 0 30px 34px rgba(0, 0, 0, .34); }
+/* متصفحٌ لا يعرف التمويه: بطاقةٌ داكنة مصمتة، فلا يضيع النصّ في شفافية. */
 @supports not ((backdrop-filter: blur(10px)) or (-webkit-backdrop-filter: blur(10px))) {
-  .dashboard-metric { background: #fff; }
+  .dashboard-metric { background: rgba(13, 45, 62, .72); }
 }
 @media (prefers-reduced-motion: reduce) {
   .dashboard-metric { transition: none; }
-  .dashboard-metric:hover { transform: none; }
+  .dashboard-metrics:hover .dashboard-metric { transform: rotate(calc(var(--r, 0) * 1deg)); }
+}
+/* على الجوال تتفرّق البطاقات عمودًا واحدًا، فلا معنى للتراكب ولا للميل. */
+@media (max-width: 700px) {
+  .dashboard-metrics { padding: 18px 14px; }
+  .dashboard-metric, .dashboard-metrics:hover .dashboard-metric { margin: 0; transform: rotate(0deg); }
 }
 .dashboard-metric__top { display: flex; align-items: flex-start; justify-content: space-between; }
 .dashboard-metric__icon { width: 43px; height: 43px; display: grid; place-items: center; border-radius: 12px; }
 .dashboard-metric__icon svg { width: 21px; height: 21px; }
-.dashboard-metric__icon.is-blue, .dashboard-setup__item-icon.is-blue { background: #ebf1ff; color: #466bc1; }
-.dashboard-metric__icon.is-cyan { background: #e8f7fa; color: #258aa4; }
-.dashboard-metric__icon.is-violet, .dashboard-setup__item-icon.is-violet { background: #f1effe; color: #7664bd; }
-.dashboard-metric__icon.is-amber { background: #fff6e7; color: #b17b24; }
-.dashboard-metric__label { margin: 18px 0 4px; color: #60708a; font-size: 12.5px; font-weight: 600; }
-.dashboard-metric__value { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; color: #233958; line-height: 1.3; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+/* على خلفيةٍ داكنة تنعكس الآية: الأيقونة كبسولةٌ زجاجية بلونها، لا لوحٌ فاتح. */
+.dashboard-metric__icon { background: rgba(255, 255, 255, .14); color: #fff; }
+.dashboard-metric__icon.is-blue { background: rgba(122, 162, 255, .24); color: #c3d6ff; }
+.dashboard-metric__icon.is-cyan { background: rgba(93, 214, 214, .24); color: #a7ecf0; }
+.dashboard-metric__icon.is-violet { background: rgba(178, 158, 255, .24); color: #d8ccff; }
+.dashboard-metric__icon.is-amber { background: rgba(255, 199, 102, .24); color: #ffdca3; }
+/* والتمييز بين القيمة والتسمية بالحجم والوزن لا باللون: فكلّ نصّ أبيض،
+   لأنّ تخفيفَ البياض على هذا التدرّج يُسقط التباين دون معيار القراءة. */
+.dashboard-metric__label { margin: 18px 0 4px; color: rgba(255, 255, 255, .88); font-size: 12.5px; font-weight: 600; }
+.dashboard-metric__value { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; color: #fff; line-height: 1.3; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .dashboard-metric__value strong { font-size: clamp(23px, 2vw, 28px); font-weight: 700; }
-.dashboard-metric__value span { color: #5f6f87; font-size: 11px; font-weight: 600; }
-.dashboard-metric__detail { margin: 8px 0 0; color: #607088; font-size: 11.5px; }
+.dashboard-metric__value span { color: rgba(255, 255, 255, .82); font-size: 11px; font-weight: 600; }
+.dashboard-metric__detail { margin: 8px 0 0; color: rgba(255, 255, 255, .82); font-size: 11.5px; }
 .dashboard-grid { display: grid; grid-template-columns: minmax(0, 1fr) 305px; align-items: start; gap: 16px; margin-top: 23px; }
 .dashboard-panel { min-width: 0; border: 1px solid #e8edf5; border-radius: 15px; background: #fff; box-shadow: 0 3px 14px rgba(33, 57, 92, .035); overflow: hidden; }
 .dashboard-panel__heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 21px 21px 19px; }
