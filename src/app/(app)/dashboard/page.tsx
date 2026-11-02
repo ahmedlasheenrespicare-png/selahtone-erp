@@ -418,15 +418,13 @@ export default async function DashboardPage() {
       </section>
 
       <div className="dashboard-grid">
-        <section className="dashboard-panel dashboard-branches" aria-labelledby="branches-title">
-          <div className="dashboard-panel__heading">
-            <div>
-              <p className="dashboard-panel__eyebrow">متابعة الفروع</p>
-              <h2 id="branches-title">الفروع والمستودعات</h2>
-              <p>تفاصيل الفروع النشطة المتاحة لحسابك</p>
-            </div>
-            <span className="dashboard-count">{nf.format(branches.length)} فرع</span>
+        <article className="stat-card is-branches" aria-labelledby="branches-title">
+          <div className="stat-card__head">
+            <h3 id="branches-title">متابعة الفروع</h3>
+            <p>الفروع والمستودعات — تفاصيل الفروع النشطة المتاحة لحسابك</p>
+            <span className="stat-card__badge">{nf.format(branches.length)} فرع</span>
           </div>
+          <div className="stat-card__body">
           {branches.length > 0 ? (
             <>
               <p className="dashboard-table-hint">مرّر الجدول أفقيًا لعرض باقي التفاصيل</p>
@@ -469,63 +467,93 @@ export default async function DashboardPage() {
             <div className="dashboard-empty"><AppIcon name="branch" /><strong>لا توجد فروع نشطة متاحة</strong><p>ستظهر هنا الفروع المتاحة لحسابك عند إضافتها.</p></div>
           )}
           <div className="dashboard-panel__footer"><span>عرض الفروع حسب نطاق صلاحية حسابك</span></div>
-        </section>
+          </div>
+        </article>
 
         <div className="dashboard-side">
           {!isEmployee && !isAccountant ? (
-          <section className="dashboard-panel dashboard-setup" aria-labelledby="setup-title">
-            <div className="dashboard-panel__heading">
-              <div><p className="dashboard-panel__eyebrow">معلومات أساسية</p><h2 id="setup-title">ملخص الإعداد</h2><p>بيانات النظام المسجّلة</p></div>
-              <span className="dashboard-panel__heading-icon"><AppIcon name="settings" /></span>
+          <article className="stat-card is-setup" aria-labelledby="setup-title">
+            <div className="stat-card__head">
+              <h3 id="setup-title">معلومات أساسية</h3>
+              <p>بيانات النظام المسجّلة</p>
             </div>
-            <div className="dashboard-setup__items">
-              <div className="dashboard-setup__item">
-                <span className="dashboard-setup__item-icon is-blue"><AppIcon name="receipt" /></span>
-                <span><strong>معدلات الضريبة</strong><small>المعدلات النشطة</small></span>
-                <b>{nf.format(taxCount)}</b>
-              </div>
-              <div className="dashboard-setup__item">
-                <span className="dashboard-setup__item-icon is-violet"><AppIcon name="expenses" /></span>
-                <span><strong>بنود المصروفات</strong><small>البنود المسجّلة</small></span>
-                <b>{nf.format(expenseCategories)}</b>
+            <div className="stat-card__body">
+              <div className="stat-grid">
+                <div className="stat-grid__item">
+                  <span className="stat-grid__label">
+                    <span className="stat-grid__icon is-blue" aria-hidden="true"><AppIcon name="receipt" /></span>
+                    معدلات الضريبة
+                  </span>
+                  <span className="stat-grid__value">{nf.format(taxCount)}</span>
+                  <span className="stat-grid__detail">المعدلات النشطة</span>
+                </div>
+                <div className="stat-grid__item">
+                  <span className="stat-grid__label">
+                    <span className="stat-grid__icon is-violet" aria-hidden="true"><AppIcon name="expenses" /></span>
+                    بنود المصروفات
+                  </span>
+                  <span className="stat-grid__value">{nf.format(expenseCategories)}</span>
+                  <span className="stat-grid__detail">البنود المسجّلة</span>
+                </div>
+                {canViewAllBranches ? (
+                  <Link className="stat-grid__link" href="/setup">عرض تفاصيل الإعداد <AppIcon name="arrow" /></Link>
+                ) : null}
               </div>
             </div>
-            {canViewAllBranches && <Link className="dashboard-text-link" href="/setup">عرض تفاصيل الإعداد <AppIcon name="arrow" /></Link>}
-          </section>
+          </article>
           ) : null}
 
-          <section className="dashboard-panel dashboard-shortcuts" aria-labelledby="shortcuts-title">
-            <div className="dashboard-panel__heading">
-              <div><p className="dashboard-panel__eyebrow">ابدأ من هنا</p><h2 id="shortcuts-title">وصول سريع</h2></div>
+          {/* روابطٌ لا أرقام: فجاءت عناصرَ شبكةٍ بنقرة، لا بطاقاتِ قيم.
+              والمساران محفوظان — للموظف غيرهما لغيره. */}
+          <article className="stat-card is-shortcuts" aria-labelledby="shortcuts-title">
+            <div className="stat-card__head">
+              <h3 id="shortcuts-title">ابدأ من هنا</h3>
+              <p>وصولٌ سريع إلى ما تفعله أولًا.</p>
             </div>
-            {isEmployee ? (
-              <>
-                <Link className="dashboard-shortcut" href="/sales/new">
-                  <span className="dashboard-shortcut__icon"><AppIcon name="sales" /></span>
-                  <span><strong>فاتورة جديدة</strong><small>ابدأ بيعًا الآن</small></span>
-                  <AppIcon className="dashboard-shortcut__arrow" name="arrow" />
-                </Link>
-                <Link className="dashboard-shortcut" href="/finance/mine">
-                  <span className="dashboard-shortcut__icon is-cyan"><AppIcon name="cash" /></span>
-                  <span><strong>عهدة نقدي</strong><small>جرد العهدة وطلب التسوية</small></span>
-                  <AppIcon className="dashboard-shortcut__arrow" name="arrow" />
-                </Link>
-              </>
-            ) : (
-              <>
-                <Link className="dashboard-shortcut" href="/finance/settlements">
-                  <span className="dashboard-shortcut__icon"><AppIcon name="cash" /></span>
-                  <span><strong>التسويات</strong><small>طلبات العهد بانتظار الإجراء</small></span>
-                  <AppIcon className="dashboard-shortcut__arrow" name="arrow" />
-                </Link>
-                <Link className="dashboard-shortcut" href="/finance/expenses">
-                  <span className="dashboard-shortcut__icon is-cyan"><AppIcon name="expenses" /></span>
-                  <span><strong>المصروفات</strong><small>{isAccountant ? "صرف ما اعتمد" : "اعتماد المصروفات"}</small></span>
-                  <AppIcon className="dashboard-shortcut__arrow" name="arrow" />
-                </Link>
-              </>
-            )}
-          </section>
+            <div className="stat-card__body">
+              <div className="stat-grid">
+                {isEmployee ? (
+                  <>
+                    <Link className="stat-grid__item is-link" href="/sales/new">
+                      <span className="stat-grid__label">
+                        <span className="stat-grid__icon is-blue" aria-hidden="true"><AppIcon name="sales" /></span>
+                        فاتورة جديدة
+                      </span>
+                      <span className="stat-grid__detail">ابدأ بيعًا الآن</span>
+                      <AppIcon className="stat-grid__arrow" name="arrow" />
+                    </Link>
+                    <Link className="stat-grid__item is-link" href="/finance/mine">
+                      <span className="stat-grid__label">
+                        <span className="stat-grid__icon is-cyan" aria-hidden="true"><AppIcon name="cash" /></span>
+                        عهدة نقدي
+                      </span>
+                      <span className="stat-grid__detail">جرد العهدة وطلب التسوية</span>
+                      <AppIcon className="stat-grid__arrow" name="arrow" />
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <Link className="stat-grid__item is-link" href="/finance/settlements">
+                      <span className="stat-grid__label">
+                        <span className="stat-grid__icon is-blue" aria-hidden="true"><AppIcon name="cash" /></span>
+                        التسويات
+                      </span>
+                      <span className="stat-grid__detail">طلبات العهد بانتظار الإجراء</span>
+                      <AppIcon className="stat-grid__arrow" name="arrow" />
+                    </Link>
+                    <Link className="stat-grid__item is-link" href="/finance/expenses">
+                      <span className="stat-grid__label">
+                        <span className="stat-grid__icon is-cyan" aria-hidden="true"><AppIcon name="expenses" /></span>
+                        المصروفات
+                      </span>
+                      <span className="stat-grid__detail">{isAccountant ? "صرف ما اعتمد" : "اعتماد المصروفات"}</span>
+                      <AppIcon className="stat-grid__arrow" name="arrow" />
+                    </Link>
+                  </>
+                )}
+              </div>
+            </div>
+          </article>
         </div>
       </div>
 

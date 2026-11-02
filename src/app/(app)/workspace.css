@@ -391,3 +391,76 @@
 @media (max-width: 560px) {
   .stat-grid { grid-template-columns: 1fr; }
 }
+
+/* ══ كروتٌ ثلاثة: الفروع، ومعلومات أساسية، وابدأ من هنا ════════════
+   والجدولُ هو الخطر: فإن أُحيط بكرتٍ كحليّ وبقي نصّه داكنًا كما كان،
+   صار أبيضَ على أبيض — وهو الكسرُ ذاته الذي وقع في #46. فجُعل نصّه
+   فاتحًا وحدودُه شفافة، وقِيس تباينُه بعد ذلك لا قبله. */
+.stat-card.is-branches  { --card-accent: #2f5f7a; }
+.stat-card.is-setup     { --card-accent: #3156a3; }
+.stat-card.is-shortcuts { --card-accent: #12655c; }
+
+/* شارةٌ في الرأس: عدد الفروع، ونحوها. */
+.stat-card__badge {
+  position: absolute; inset-inline-end: 14px; top: 12px;
+  padding: 3px 9px; border-radius: 999px;
+  background: rgba(255, 255, 255, .20);
+  font-size: 11px; font-weight: 600; color: #fff;
+}
+.stat-card__head { position: relative; padding-inline-end: 74px; }
+
+/* عنصر شبكة قابل للنقر — رابطٌ لا رقم. */
+.stat-grid__item.is-link {
+  position: relative; gap: 2px;
+  padding: 11px 30px 11px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .07);
+  text-decoration: none;
+  transition: background .2s ease, transform .2s ease;
+}
+.stat-grid__item.is-link:hover,
+.stat-grid__item.is-link:focus-visible {
+  background: rgba(255, 255, 255, .16);
+  transform: translateY(-2px);
+}
+.stat-grid__arrow {
+  position: absolute; inset-inline-end: 10px; top: 50%;
+  transform: translateY(-50%); width: 13px; height: 13px;
+  color: rgba(255, 255, 255, .75);
+}
+
+.stat-grid__link {
+  grid-column: 1 / -1; margin-top: 2px;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 600;
+  color: rgba(255, 255, 255, .92); text-decoration: none;
+}
+.stat-grid__link:hover { text-decoration: underline; }
+.stat-grid__link svg { width: 12px; height: 12px; }
+
+/* الجدول داخل الكرت: نصّ فاتح، وحدود شفافة، ورأسٌ أخفت. */
+.stat-card .dashboard-table { width: 100%; border-collapse: collapse; color: #fff; }
+.stat-card .dashboard-table th {
+  text-align: start; padding: 7px 8px;
+  font-size: 11px; font-weight: 600;
+  color: rgba(255, 255, 255, .82);
+  border-bottom: 1px solid rgba(255, 255, 255, .22);
+  white-space: nowrap;
+}
+.stat-card .dashboard-table td {
+  padding: 8px; font-size: 12px; color: #fff;
+  border-bottom: 1px solid rgba(255, 255, 255, .10);
+}
+.stat-card .dashboard-table tbody tr:last-child td { border-bottom: 0; }
+.stat-card .dashboard-table-wrap { overflow-x: auto; }
+.stat-card .dashboard-table-hint { margin: 0 0 8px; font-size: 11px; color: rgba(255, 255, 255, .72); }
+.stat-card .dashboard-warehouse-list__empty,
+.stat-card .dashboard-empty { color: rgba(255, 255, 255, .8); }
+.stat-card .dashboard-panel__footer {
+  margin: 10px 0 0; padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, .16);
+  font-size: 11px; color: rgba(255, 255, 255, .75);
+}
+.stat-card .dashboard-status { color: #fff; }
+.stat-card .dashboard-branch-name small,
+.stat-card .dashboard-table td small { color: rgba(255, 255, 255, .75); }
