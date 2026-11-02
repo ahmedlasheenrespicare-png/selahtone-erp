@@ -250,36 +250,38 @@ export default async function DashboardPage() {
             <span className="dashboard-count">{nf.format(summary.custodyCount)} عهدة</span>
           </div>
           <div className="cash-summary__body">
-            <article className="cash-hero">
-              <div className="cash-hero__head">
-                <div>
-                  <p className="cash-hero__label">المتوقَّع في كل العهد</p>
-                  <div className="cash-hero__value">
-                    <strong>{nf.format(Number(summary.totalExpected))}</strong>
-                    <span>ج.م</span>
-                  </div>
-                </div>
-                <span className="cash-hero__badge">{nf.format(summary.custodyCount)} عهد</span>
-              </div>
-              {summary.custodies.length > 0 ? (
-                <div className="cash-hero__branches">
+            {/* الفروعُ مكوّنات، و«المتوقَّع في كل العهد» مجموعها. فجاء
+                الترتيبُ: الفروع أولًا، ثم الناتج (is-primary) تحته بفاصل،
+                فيُقرأ مجموعًا لا رقمًا قائمًا برأسه. والعنوانُ الأصليّ
+                للقسم قائمٌ فوقه، فجاء الكرتُ بلا رأس. */}
+            <article className="stat-card is-custody">
+              <div className="stat-card__body">
+                <div className="stat-grid">
                   {summary.custodies.map((custody) => (
-                    <div className="cash-branch" key={custody.branchName}>
-                      <span className="cash-branch__name">{custody.branchName}</span>
-                      <strong className="cash-branch__amount">
-                        {nf.format(Number(custody.expected))}
-                      </strong>
+                    <div className="stat-grid__item" key={custody.branchName}>
+                      <span className="stat-grid__label">{custody.branchName}</span>
+                      <span className="stat-grid__value">{nf.format(Number(custody.expected))} ج.م</span>
                     </div>
                   ))}
+                  <div className="stat-grid__item">
+                    <span className="stat-grid__label">عدد العهد</span>
+                    <span className="stat-grid__value">{nf.format(summary.custodyCount)}</span>
+                  </div>
+                  <div className="stat-grid__item">
+                    <span className="stat-grid__label">متوسط العهدة</span>
+                    <span className="stat-grid__value">
+                      {nf.format(Math.round(Number(summary.totalExpected) / Math.max(summary.custodyCount, 1)))} ج.م
+                    </span>
+                  </div>
+                  <div className="stat-grid__item is-primary">
+                    <span className="stat-grid__label">المتوقَّع في كل العهد</span>
+                    <span className="stat-grid__value">{nf.format(Number(summary.totalExpected))} ج.م</span>
+                  </div>
+                  <div className="stat-grid__item is-note">
+                    <span className="stat-grid__label">مجمَّع «المتوقَّع بيده» لكل عهدة — لا أرصدتها الدفترية. وهو ما سيُسلَّم للخزنة عند التسويات.</span>
+                  </div>
                 </div>
-              ) : null}
-              <p className="cash-hero__math">
-                بمتوسط{" "}
-                {nf.format(
-                  Math.round(Number(summary.totalExpected) / Math.max(summary.custodyCount, 1)),
-                )}{" "}
-                ج.م للعهدة — وهو ما سيُسلَّم للخزنة عند التسويات
-              </p>
+              </div>
             </article>
             {summary.pendingSettlements + summary.pendingExpenses + summary.approvedUnpaid > 0 ? (
               <div className="cash-tallies">
