@@ -6,7 +6,9 @@ import { useRef, useState } from "react";
 import { AppIcon } from "@/components/app-icon";
 import { BrandMark } from "@/components/brand-mark";
 import type { MenuScope } from "@/lib/menu-scope";
+import { WORKSPACE_THEMES } from "@/lib/workspace-theme";
 import { isCurrentPath, navigationGroups } from "./navigation-items";
+import { useWorkspaceTheme } from "./workspace-theme-provider";
 
 type AppNavigationProps = {
   canViewAllBranches: boolean;
@@ -17,7 +19,9 @@ type AppNavigationProps = {
 
 export function AppNavigation({ canViewAllBranches, financeEnabled = false, menuScope = "FULL", inventoryEnabled = false }: AppNavigationProps) {
   const pathname = usePathname();
+  const { theme, setTheme } = useWorkspaceTheme();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [themeOpen, setThemeOpen] = useState(true);
   const toggleRef = useRef<HTMLButtonElement>(null);
   // يُفتح الأب منسدلًا إن كان المسار الحالي داخل أحد أبنائه، فلا يضيع موضع
   // الموظف حين ينتقل بين شاشات البيع.
@@ -126,6 +130,49 @@ export function AppNavigation({ canViewAllBranches, financeEnabled = false, menu
             </ul>
           </div>
         ))}
+
+        <div className="workspace-nav-group">
+          <p className="workspace-nav-group__label" dir="ltr">Theme</p>
+          <ul>
+            <li>
+              <button
+                type="button"
+                className="workspace-nav-item workspace-nav-parent"
+                aria-expanded={themeOpen}
+                aria-controls="subnav-theme"
+                onClick={() => setThemeOpen((open) => !open)}
+              >
+                <AppIcon name="theme" />
+                <span dir="ltr">Theme</span>
+                <AppIcon name="arrow" className={`workspace-nav-chevron${themeOpen ? " is-open" : ""}`} />
+              </button>
+              {themeOpen ? (
+                <ul id="subnav-theme" className="workspace-nav-sublist">
+                  {WORKSPACE_THEMES.map((option) => {
+                    const active = theme === option.id;
+                    return (
+                      <li key={option.id}>
+                        <button
+                          type="button"
+                          className={`workspace-nav-item workspace-nav-subitem workspace-theme-btn${active ? " is-active" : ""}`}
+                          aria-pressed={active}
+                          onClick={() => {
+                            setTheme(option.id);
+                            setMenuOpen(false);
+                          }}
+                        >
+                          <AppIcon name="cash" />
+                          <span>{option.label}</span>
+                          {active && <span className="workspace-nav-item__indicator" aria-hidden="true" />}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+            </li>
+          </ul>
+        </div>
       </nav>
 
       <div className="workspace-sidebar__foot">

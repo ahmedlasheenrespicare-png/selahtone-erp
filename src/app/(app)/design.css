@@ -15,24 +15,131 @@
 
 /* ======================= لوحة القيادة ======================= */
 
-/* الترويسة الملوّنة — بدرجات --navy الموجودة في الموقع نفسه */
-.dashboard .dashboard-heading{
+/* تذكرة الترحيب أعلى الحافظة — في مظهر «الحافظة» (wallet) الافتراضي */
+.workspace-shell[data-theme="wallet"] .dashboard .dashboard-heading{
+  position: relative;
+  width: min(100%, 580px);
+  margin: 0 auto 36px;
+  align-items: stretch;
+  gap: 18px;
+  padding: 18px 22px;
+  border-radius: 22px;
+  border: 1px solid rgba(195, 226, 187, .22);
+  background: linear-gradient(125deg, #223a22 0%, #1c321c 55%, #162816 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(214, 235, 208, .24),
+    inset 0 -10px 24px rgba(0, 0, 0, .22),
+    0 16px 30px -14px rgba(20, 40, 20, .48);
+}
+.workspace-shell[data-theme="wallet"] .dashboard .dashboard-heading::before{
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border-radius: 15px;
+  border: 1.5px dashed rgba(167, 197, 158, .3);
+  pointer-events: none;
+}
+.workspace-shell[data-theme="wallet"] .dashboard .dashboard-heading > div:first-child{
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.workspace-shell[data-theme="wallet"] .dashboard .dashboard-eyebrow{
+  color: #c8e2bf;
+  font-size: 11.5px;
+  margin-bottom: 5px;
+}
+.workspace-shell[data-theme="wallet"] .dashboard .dashboard-eyebrow span{
+  background: #9bd86a;
+  box-shadow: 0 0 0 3px rgba(155, 216, 106, .2);
+}
+.workspace-shell[data-theme="wallet"] .dashboard .dashboard-heading h1{
+  color: #ffffff;
+  font-size: clamp(19px, 2vw, 23px);
+  line-height: 1.3;
+}
+.workspace-shell[data-theme="wallet"] .dashboard .dashboard-heading__description{
+  color: #d6e7d0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  margin-top: 4px;
+}
+.workspace-shell[data-theme="wallet"] .dashboard .dashboard-date{
+  position: relative;
+  z-index: 1;
+  flex: none;
+  align-self: stretch;
+  display: flex;
   align-items: center;
-  padding: 15px 18px;
-  border-radius: 14px;
-  background: linear-gradient(115deg, #0f2f4d 0%, #14395e 55%, #1d5a8f 100%);
-  box-shadow: 0 16px 32px -16px rgba(15, 47, 77, .55);
+  gap: 10px;
+  padding: 6px 4px 6px 18px;
+  padding-inline-start: 18px;
+  padding-inline-end: 4px;
+  background: transparent;
+  border: 0;
+  border-inline-start: 1.5px dashed rgba(167, 197, 158, .34);
+  border-radius: 0;
 }
-.dashboard .dashboard-eyebrow{color:#cfe0f7}
-.dashboard .dashboard-eyebrow span{background:#eaf2ff}
-.dashboard .dashboard-heading h1{color:#fff; font-size:clamp(21px,2.2vw,27px)}
-.dashboard .dashboard-heading__description{color:#c9dcf5; font-size:14px}
-.dashboard .dashboard-date{
-  background: rgba(255,255,255,.14);
-  border-color: rgba(255,255,255,.28);
+.workspace-shell[data-theme="wallet"] .dashboard .dashboard-date::before,
+.workspace-shell[data-theme="wallet"] .dashboard .dashboard-date::after{
+  content: "";
+  position: absolute;
+  inset-inline-start: -8px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--ws-canvas, #f3f6f2);
+  box-shadow: inset 0 0 0 1px rgba(30, 52, 30, .18);
+  pointer-events: none;
 }
-.dashboard .dashboard-date small,
-.dashboard .dashboard-date time{color:#dbe7f7}
+.workspace-shell[data-theme="wallet"] .dashboard .dashboard-date::before{ top: -26px; }
+.workspace-shell[data-theme="wallet"] .dashboard .dashboard-date::after{ bottom: -26px; }
+.workspace-shell[data-theme="wallet"] .dashboard .dashboard-date > span{
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(155, 216, 106, .16);
+  border: 1px solid rgba(155, 216, 106, .3);
+  color: #9bd86a;
+}
+.workspace-shell[data-theme="wallet"] .dashboard .dashboard-date small{ color: #bdd6b5; }
+.workspace-shell[data-theme="wallet"] .dashboard .dashboard-date time{ color: #eef7eb; }
+.workspace-shell[data-theme="wallet"] .dashboard .dashboard-account-note{
+  width: min(100%, 580px);
+  margin: 8px auto 0;
+  justify-content: center;
+}
+@media (max-width: 620px){
+  .workspace-shell[data-theme="wallet"] .dashboard .dashboard-heading{
+    padding: 16px 18px;
+    gap: 13px;
+    margin-bottom: 28px;
+  }
+  .workspace-shell[data-theme="wallet"] .dashboard .dashboard-date{
+    width: 100%;
+    padding-inline-start: 2px;
+    padding-inline-end: 2px;
+    padding-top: 12px;
+    padding-bottom: 2px;
+    border-inline-start: 0;
+    border-top: 1.5px dashed rgba(167, 197, 158, .32);
+  }
+  .workspace-shell[data-theme="wallet"] .dashboard .dashboard-date::before{
+    top: -8px;
+    bottom: auto;
+    inset-inline-start: -26px;
+  }
+  .workspace-shell[data-theme="wallet"] .dashboard .dashboard-date::after{
+    top: -8px;
+    bottom: auto;
+    inset-inline-start: auto;
+    inset-inline-end: -26px;
+  }
+}
 
 /* البطاقة القائدة — أول مقياس في أول لوحة («المتوقَّع في كل العهد») */
 
