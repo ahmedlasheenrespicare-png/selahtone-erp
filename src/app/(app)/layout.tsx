@@ -7,19 +7,21 @@ import { getSession, canSeeAllBranches } from "@/lib/auth";
 import { financeEnabled } from "@/lib/finance/db";
 import { inventoryEnabled } from "@/lib/feature-flags";
 import {
-  resolveWorkspaceColorMode,
+  getWorkspaceClockSnapshot,
+  resolveWorkspaceColorModeState,
   resolveWorkspaceDashboardBg,
   resolveWorkspaceTheme,
   WORKSPACE_COLOR_MODE_COOKIE,
   WORKSPACE_DASHBOARD_BG_COOKIE,
   WORKSPACE_THEME_COOKIE,
+  WORKSPACE_TIMEZONE,
 } from "@/lib/workspace-theme";
 import { AppNavigation } from "./app-navigation";
 import LogoutButton from "./logout-button";
 import { WorkspaceThemeProvider } from "./workspace-theme-provider";
 import "./workspace.css";
 import "./design.css"; // طبقة التصميم الجديد — فوق أنماط الشاشات القائمة، بلا تغيير في بنيتها
-import "./dark-mode.css"; // طبقة الوضع الليلي والنهاري المتجاوبة مع إعداد الجهاز واختيار المستخدم
+import "./dark-mode.css"; // طبقة الوضع النهاري والليلي المتزامنة مع شروق النهار وحلول الليل
 
 const ROLE_LABEL: Record<string, string> = {
   MANAGER: "مدير الشركة",
@@ -33,28 +35,37 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (session.mustChangePassword) redirect("/change-password");
 
   const cookieStore = await cookies();
+  const now = new Date();
   const initialTheme = resolveWorkspaceTheme(cookieStore.get(WORKSPACE_THEME_COOKIE)?.value);
   const initialDashboardBg = resolveWorkspaceDashboardBg(
     cookieStore.get(WORKSPACE_DASHBOARD_BG_COOKIE)?.value,
   );
-  const initialColorMode = resolveWorkspaceColorMode(
+  const initialClock = getWorkspaceClockSnapshot(now, WORKSPACE_TIMEZONE);
+  const colorState = resolveWorkspaceColorModeState(
     cookieStore.get(WORKSPACE_COLOR_MODE_COOKIE)?.value,
+    now,
+    WORKSPACE_TIMEZONE,
   );
 
   return (
     <WorkspaceThemeProvider
       initialTheme={initialTheme}
       initialDashboardBg={initialDashboardBg}
-      initialColorMode={initialColorMode}
+      initialColorMode={colorState.colorMode}
+      initialIsAutoTimeMode={colorState.isAutoTimeMode}
+      initialClock={initialClock}
     >
       <a className="workspace-skip" href="#workspace-content">تخطي إلى المحتوى</a>
       <AppNavigation canViewAllBranches={canSeeAllBranches(session)} financeEnabled={financeEnabled()} menuScope={session.menuScope} inventoryEnabled={inventoryEnabled()} />
 
       <div className="workspace-main">
         <header className="workspace-topbar">
-          <div className="workspace-topbar__title">
-            <span className="workspace-topbar__title-icon"><AppIcon name="dashboard" /></span>
-            <span><small>نظام إدارة صلة تون</small><strong>مساحة العمل</strong></span>
+          <div className="workspace-topbar__start">
+            <div className="workspace-topbar__title">
+              <span className="workspace-topbar__title-icon"><AppIcon name="dashboard" /></span>
+              <span><small>نظام إدارة صلة تون</small><strong>مساحة العمل</strong></span>
+            </div>
+            <ColorModeToggle />
           </div>
           <div className="workspace-topbar__actions">
             <div className="workspace-user">
@@ -64,7 +75,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 <small>{ROLE_LABEL[session.role] ?? session.role} <span aria-hidden="true">·</span> {session.branchName ?? "كل الفروع"}</small>
               </span>
             </div>
-            <ColorModeToggle />
             <Link href="/change-password" className="workspace-account-link" title="تغيير كلمة المرور" aria-label="تغيير كلمة المرور">
               <AppIcon name="lock" /><span>كلمة المرور</span>
             </Link>

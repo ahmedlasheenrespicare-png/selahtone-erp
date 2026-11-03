@@ -1,53 +1,598 @@
 /* =========================================================================
-   الوضع النهاري والليلي لمساحة العمل (.workspace-shell)
-   - الوضع الافتراضي ("system"): يتبع إعداد جهاز المستخدم تلقائيًا (prefers-color-scheme).
-   - عند النقر على زر الشريط العلوي: ينتقل بين النهاري ("light") والليلي ("dark") ويحفظ الاختيار.
-   - يحافظ على هوية الثيمَين «الافتراضي» (الأخضر) و«صلة تون» (السماوي/الكحلي) وخلفية 3D الخافتة.
+   منظومة الوضع النهاري («light») والوضع الليلي («dark») لمساحة العمل
+   - تتزامن تلقائيًا مع شروق النهار (06:00) وحلول الليل (18:00)، دون أي تبعية لوضع الجهاز التلقائي.
+   - مصمّمة يدويًا بكامل تفاصيلها للنهار والليل في ثيمَي «الافتراضي» و«صلة تون» وخلفية 3D.
    ========================================================================= */
 
-.workspace-color-mode-btn svg {
-  transition: transform 0.28s ease, color 0.2s ease;
+/* -------------------------------------------------------------------------
+   ١. شريط تاريخ اليوم وبطاقة دورة السماء التفاعلية في الشريط العلوي
+      (مزيج مستوحى من dangerous-moose-2 لمدار السماء وlovely-husky-84 للتمدد التفاعلي)
+   ------------------------------------------------------------------------- */
+.workspace-topbar__start {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  flex-wrap: wrap;
 }
 
-.workspace-color-mode-btn:hover svg {
-  transform: rotate(-14deg) scale(1.06);
+.workspace-topbar__skydate {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding-inline-start: 16px;
+  border-inline-start: var(--ws-stitch-rule);
+  min-width: 0;
+}
+
+.workspace-topbar__date {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 46px;
+  padding: 5px 12px 5px 10px;
+  border-radius: 15px;
+  background: var(--ws-action-bg);
+  border: 1px solid var(--ws-action-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.workspace-topbar__date-icon {
+  width: 31px;
+  height: 31px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--ws-foot-icon-bg);
+  border: 1px solid var(--ws-foot-icon-border);
+  color: var(--ws-foot-icon-ink);
+}
+
+.workspace-topbar__date-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.workspace-topbar__date-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.workspace-topbar__date-copy small {
+  color: var(--ws-topbar-title-sub);
+  font-size: 10px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.workspace-topbar__date-copy time {
+  color: var(--ws-topbar-title-ink);
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.sky-cycle-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+}
+
+.sky-cycle-card {
+  position: relative;
+  width: 162px;
+  height: 48px;
+  padding: 5px 12px 5px 10px;
+  border: 0;
+  border-radius: 17px;
+  box-sizing: border-box;
+  overflow: hidden;
+  cursor: pointer;
+  color: #ffffff;
+  font: inherit;
+  text-align: start;
+  box-shadow:
+    0 10px 24px -10px rgba(6, 15, 30, 0.55),
+    0 2px 6px rgba(0, 0, 0, 0.22);
+  transition:
+    width 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.24s ease,
+    box-shadow 0.3s ease;
+}
+
+.sky-cycle-card:hover,
+.sky-cycle-card:focus-visible {
+  width: 252px;
+  transform: translateY(-1px);
+  box-shadow:
+    0 14px 28px -10px rgba(6, 15, 30, 0.68),
+    0 4px 10px rgba(0, 0, 0, 0.28);
+}
+
+.sky-cycle-card:focus-visible {
+  outline: 2px solid var(--ws-focus);
+  outline-offset: 2px;
+}
+
+/* الإطار الأبيض الداخلي المميز لتصميم dangerous-moose-2 */
+.sky-cycle-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 2.5px rgba(255, 255, 255, 0.74);
+  pointer-events: none;
+  z-index: 12;
+  transition: box-shadow 0.45s ease;
+}
+
+.sky-cycle-card.is-night::after {
+  box-shadow: inset 0 0 0 2px rgba(226, 232, 240, 0.34);
+}
+
+/* طبقات السماء البيئية المتعاقبة */
+.sky-cycle-card__bg {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.65s ease;
+}
+
+.sky-cycle-card__bg--dawn {
+  background: linear-gradient(180deg, #6f4291 0%, #c85862 50%, #eb9b4f 100%);
+}
+
+.sky-cycle-card__bg--day {
+  background: linear-gradient(180deg, #1b6ea8 0%, #2f8ed0 50%, #7bc4f0 100%);
+}
+
+.sky-cycle-card__bg--dusk {
+  background: linear-gradient(180deg, #4b326c 0%, #b84c5c 50%, #e58b45 100%);
+}
+
+.sky-cycle-card__bg--night {
+  background: radial-gradient(circle at 50% -15%, #2f3b59 0%, #10182b 62%, #060913 100%);
+}
+
+.sky-cycle-card.is-dawn .sky-cycle-card__bg--dawn,
+.sky-cycle-card.is-day .sky-cycle-card__bg--day,
+.sky-cycle-card.is-dusk .sky-cycle-card__bg--dusk,
+.sky-cycle-card.is-night .sky-cycle-card__bg--night {
+  opacity: 1;
+}
+
+/* نجوم الليل الهادئة */
+.sky-cycle-card__stars {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  opacity: 0;
+  background-image:
+    radial-gradient(1.2px 1.2px at 18% 26%, rgba(255, 255, 255, 0.9), transparent),
+    radial-gradient(1px 1px at 42% 18%, rgba(224, 242, 254, 0.8), transparent),
+    radial-gradient(1.3px 1.3px at 68% 28%, rgba(254, 240, 138, 0.85), transparent),
+    radial-gradient(1px 1px at 84% 20%, rgba(255, 255, 255, 0.75), transparent),
+    radial-gradient(1px 1px at 55% 36%, rgba(255, 255, 255, 0.65), transparent);
+  transition: opacity 0.6s ease;
+  pointer-events: none;
+}
+
+.sky-cycle-card.is-night .sky-cycle-card__stars {
+  opacity: 0.95;
+}
+
+.sky-cycle-card.is-dusk .sky-cycle-card__stars {
+  opacity: 0.35;
+}
+
+/* نظام القوس المداري والجرم السماوي — dangerous-moose-2 */
+.sky-cycle-card__orbit {
+  position: absolute;
+  top: 21px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 216px;
+  height: 216px;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.sky-cycle-card__orbit-path {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.28);
+  box-sizing: border-box;
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 12%,
+    #000 38%,
+    #000 62%,
+    transparent 88%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 12%,
+    #000 38%,
+    #000 62%,
+    transparent 88%
+  );
+}
+
+.sky-cycle-card__pivot {
+  position: absolute;
+  inset: 0;
+  transform-origin: center center;
+  transform: rotate(var(--sky-orbit-deg, 0deg));
+  transition: transform 0.75s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sky-cycle-card__orb {
+  position: absolute;
+  top: -4.5px;
+  left: 50%;
+  margin-left: -5.5px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow:
+    0 0 10px 4px rgba(255, 255, 255, 0.92),
+    0 0 24px 10px rgba(255, 232, 128, 0.68);
+  transition: box-shadow 0.55s ease, background-color 0.55s ease;
+}
+
+.sky-cycle-card.is-dawn .sky-cycle-card__orb,
+.sky-cycle-card.is-dusk .sky-cycle-card__orb {
+  box-shadow:
+    0 0 10px 4px rgba(255, 245, 230, 0.86),
+    0 0 24px 11px rgba(254, 176, 98, 0.68);
+}
+
+.sky-cycle-card.is-night .sky-cycle-card__orb {
+  background: #f1f5f9;
+  box-shadow:
+    0 0 9px 3px rgba(241, 245, 249, 0.85),
+    0 0 20px 8px rgba(186, 214, 255, 0.42);
+}
+
+/* طبقة الأيقونة المتحركة والنص القابل للتمدد — lovely-husky-84 */
+.sky-cycle-card__content {
+  position: relative;
+  z-index: 8;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sky-cycle-card__scene {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sky-cycle-card:hover .sky-cycle-card__scene,
+.sky-cycle-card:focus-visible .sky-cycle-card__scene {
+  transform: scale(1.12) translateY(-1px);
+}
+
+.sky-cycle-card__svg {
+  width: 38px;
+  height: 38px;
+  overflow: visible;
+  filter: drop-shadow(0 2px 5px rgba(8, 20, 40, 0.32));
+}
+
+.sky-cycle-card__sun-rays {
+  transform-origin: 21px 24px;
+  animation: skyRaysSpin 34s linear infinite;
+}
+
+.sky-cycle-card__twinkle {
+  animation: skyStarPulse 2.8s ease-in-out infinite alternate;
+}
+
+.sky-cycle-card__twinkle--alt {
+  animation-delay: 1.1s;
+}
+
+@keyframes skyRaysSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes skyStarPulse {
+  from {
+    opacity: 0.4;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+.sky-cycle-card__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+  text-shadow: 0 1px 3px rgba(6, 16, 34, 0.45);
+}
+
+.sky-cycle-card__status {
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.sky-cycle-card__subtitle {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.sky-cycle-card__extra {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  transform: translateX(-8px);
+  transition:
+    max-width 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.26s ease,
+    transform 0.3s ease;
+}
+
+.sky-cycle-card:hover .sky-cycle-card__extra,
+.sky-cycle-card:focus-visible .sky-cycle-card__extra {
+  max-width: 86px;
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.sky-cycle-card__clock {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+
+.sky-cycle-card__mode-tag {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(10, 20, 38, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #ffffff;
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.sky-cycle-reset {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 4px 8px;
+  border-radius: 10px;
+  background: var(--ws-action-bg);
+  border: 1px solid var(--ws-action-border);
+  color: var(--ws-action-ink);
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.sky-cycle-reset:hover {
+  background: var(--ws-action-hover-bg);
+  border-color: var(--ws-action-hover-border);
+  color: var(--ws-action-hover-ink);
+}
+
+@media (max-width: 1180px) {
+  .workspace-topbar {
+    flex-wrap: wrap;
+    row-gap: 12px;
+  }
+  .workspace-topbar__start {
+    flex: 1 1 auto;
+  }
+}
+
+@media (max-width: 720px) {
+  .workspace-topbar__skydate {
+    padding-inline-start: 0;
+    border-inline-start: 0;
+    width: 100%;
+    justify-content: space-between;
+  }
+  .workspace-topbar__date {
+    flex: 1 1 auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .workspace-topbar__skydate {
+    flex-wrap: wrap;
+  }
+  .sky-cycle-card,
+  .sky-cycle-card:hover,
+  .sky-cycle-card:focus-visible {
+    width: 196px;
+  }
+  .sky-cycle-card__extra {
+    max-width: 72px;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sky-cycle-card,
+  .sky-cycle-card__bg,
+  .sky-cycle-card__pivot,
+  .sky-cycle-card__scene,
+  .sky-cycle-card__extra {
+    transition: none;
+  }
+  .sky-cycle-card__sun-rays,
+  .sky-cycle-card__twinkle {
+    animation: none;
+  }
+}
+
+.workspace-shell[data-theme="wallet-selahtone"] .workspace-daynight.is-dark .workspace-daynight__btn.is-active {
+  color: #040b5b;
+  box-shadow: 0 0 12px rgba(129, 205, 229, 0.36);
+}
+
+.workspace-shell[data-theme="wallet-selahtone"] .workspace-daynight.is-dark .workspace-daynight__btn.is-active svg {
+  color: #040b5b;
 }
 
 @media (max-width: 620px) {
-  .workspace-color-mode-btn {
-    width: 38px;
-    padding: 7px;
+  .workspace-daynight__btn {
+    padding: 4px 8px;
   }
-  .workspace-color-mode-btn span {
+  .workspace-daynight__btn span {
     display: none;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .workspace-color-mode-btn svg,
-  .workspace-color-mode-btn:hover svg {
+  .workspace-daynight__btn,
+  .workspace-daynight__btn svg,
+  .workspace-daynight.is-light .workspace-daynight__btn.is-active svg,
+  .workspace-daynight.is-dark .workspace-daynight__btn.is-active svg {
     transition: none;
     transform: none;
   }
 }
 
 /* -------------------------------------------------------------------------
-   ١. متغيّرات الوضع الليلي — ثيم «الافتراضي» وثيم «صلة تون»
-   تُفعّل عند الاختيار الصريح (data-color-mode="dark") أو تلقائيًا من الجهاز ("system")
+   ٢. الوضع النهاري المصمّم («data-color-mode="light"»)
+   يمنح بطاقات المؤشرات التفاعلية (.monthly-panther) مظهرًا نهاريًا ناصعًا ومتناسقًا
+   مع إبقاء القراءة والتباين (WCAG AA+) في أعلى درجات الوضوح.
+   ------------------------------------------------------------------------- */
+.workspace-shell[data-color-mode="light"] {
+  color-scheme: light;
+}
+
+.workspace-shell[data-color-mode="light"] .monthly-panther {
+  --mp-bg: linear-gradient(180deg, #ffffff 0%, #f5faf3 100%);
+  --mp-node-bg: #ffffff;
+  --mp-tab-bg: #f1f7ef;
+  --mp-hud-bg: #eef5eb;
+  --mp-card-border: #cde0c8;
+  --mp-divider: #dde9da;
+  --mp-glow: rgba(74, 148, 34, 0.11);
+  --mp-glow-hover: rgba(74, 148, 34, 0.19);
+  --mp-accent: #266319;
+  --mp-accent-soft: rgba(38, 99, 25, 0.10);
+  --mp-accent-border: rgba(38, 99, 25, 0.40);
+  --mp-dot-halo: rgba(65, 148, 38, 0.28);
+  --mp-btn-hover-ink: #ffffff;
+  --mp-title: #152815;
+  --mp-value: #0d1d0d;
+  --mp-muted: #465f46;
+  --mp-danger: #b42a2a;
+
+  box-shadow:
+    0 18px 38px -18px rgba(22, 48, 22, 0.16),
+    0 4px 14px -6px rgba(22, 48, 22, 0.08);
+}
+
+.workspace-shell[data-color-mode="light"] .monthly-panther__icon {
+  border-color: var(--mp-card-border);
+}
+
+.workspace-shell[data-color-mode="light"][data-theme="wallet-selahtone"] .monthly-panther {
+  --mp-bg: linear-gradient(180deg, #ffffff 0%, #f1f9fd 100%);
+  --mp-node-bg: #ffffff;
+  --mp-tab-bg: #edf6fb;
+  --mp-hud-bg: #e9f4fa;
+  --mp-card-border: #c2dfee;
+  --mp-divider: #d8ecf6;
+  --mp-glow: rgba(18, 104, 138, 0.11);
+  --mp-glow-hover: rgba(18, 104, 138, 0.19);
+  --mp-accent: #0c5b7a;
+  --mp-accent-soft: rgba(12, 91, 122, 0.10);
+  --mp-accent-border: rgba(12, 91, 122, 0.40);
+  --mp-dot-halo: rgba(51, 159, 193, 0.28);
+  --mp-btn-hover-ink: #ffffff;
+  --mp-title: #071d42;
+  --mp-value: #04122e;
+  --mp-muted: #345772;
+  --mp-danger: #b42a2a;
+
+  box-shadow:
+    0 18px 38px -18px rgba(8, 32, 68, 0.15),
+    0 4px 14px -6px rgba(8, 32, 68, 0.08);
+}
+
+.workspace-shell[data-color-mode="light"][data-dashboard-bg="on"] .dashboard .monthly-panther {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.85),
+    0 20px 42px -16px rgba(18, 42, 24, 0.20),
+    0 6px 16px -8px rgba(18, 42, 24, 0.10);
+}
+
+/* -------------------------------------------------------------------------
+   ٣. الوضع الليلي المصمّم («data-color-mode="dark"»)
+   يعمّق الشريط الجانبي والعلوي والتذاكر والحافظة ويضيء المؤشرات والبطاقات
    ------------------------------------------------------------------------- */
 .workspace-shell[data-color-mode="dark"] {
   color-scheme: dark;
 
   --ws-ink: #eaf3ea;
   --ws-muted: #9eb8a0;
-  --ws-border: #263d29;
-  --ws-canvas: #0d150e;
+  --ws-border: #253b28;
+  --ws-canvas: #0b120c;
+  --ws-sidebar-bg: linear-gradient(180deg, #111f13 0%, #0c170e 56%, #081009 100%);
+  --ws-sidebar-border: rgba(163, 230, 53, 0.14);
+  --ws-sidebar-shadow: inset -1px 0 0 rgba(163, 230, 53, 0.12), 10px 0 28px -14px rgba(0, 0, 0, 0.65);
+  --ws-stitch-rule: 1.5px dashed rgba(163, 230, 53, 0.22);
+  --ws-topbar-bg: linear-gradient(90deg, #0c170e 0%, #122014 52%, #0d180f 100%);
+  --ws-topbar-border: rgba(163, 230, 53, 0.16);
+  --ws-topbar-shadow: inset 0 1px 0 rgba(163, 230, 53, 0.10), 0 14px 28px -16px rgba(0, 0, 0, 0.65);
+  --ws-foot-bg: rgba(6, 12, 7, 0.55);
+  --ws-action-bg: rgba(7, 14, 8, 0.62);
+  --ws-action-border: rgba(163, 230, 53, 0.28);
 
-  --dm-surface: #131f15;
-  --dm-surface-soft: #18271b;
-  --dm-surface-tint: #1f3323;
-  --dm-border: #283f2b;
-  --dm-border-strong: #39583d;
+  --dm-surface: #121e14;
+  --dm-surface-soft: #17261a;
+  --dm-surface-tint: #1e3222;
+  --dm-border: #273e2a;
+  --dm-border-strong: #38573c;
   --dm-ink: #eef6ee;
   --dm-ink-soft: #d5e7d5;
   --dm-muted: #9eb8a0;
@@ -58,15 +603,17 @@
   --dm-code-ink: #c2ec9e;
   --dm-row-hover: #1a2b1d;
   --dm-wallet-hint: #b8d5b0;
+  --dm-leather-bg: linear-gradient(125deg, #142516 0%, #0f1d11 55%, #0a140b 100%);
+  --dm-leather-border: rgba(163, 230, 53, 0.24);
 
   /* خلفية cold-lizard-87 الخافتة الداكنة لثيم «الافتراضي» */
-  --cl-1: #162318;
-  --cl-2: #131f15;
-  --cl-3: #101b12;
-  --cl-4: #0d170f;
-  --cl-5: #0b130c;
-  --cl-notch: #101b12;
-  --cl-pill-bg: rgba(18, 31, 20, 0.88);
+  --cl-1: #152217;
+  --cl-2: #121e14;
+  --cl-3: #0f1a11;
+  --cl-4: #0c160e;
+  --cl-5: #0a120b;
+  --cl-notch: #0f1a11;
+  --cl-pill-bg: rgba(17, 30, 19, 0.90);
   --cl-pill-border: rgba(163, 230, 53, 0.24);
   --cl-pill-ink: #cbe2c4;
   --cl-pill-strong: #f0f8ee;
@@ -77,7 +624,17 @@
   --ws-ink: #ecf7fc;
   --ws-muted: #98c2da;
   --ws-border: #1d3968;
-  --ws-canvas: #061024;
+  --ws-canvas: #050d1e;
+  --ws-sidebar-bg: linear-gradient(180deg, #0a1f38 0%, #07172b 56%, #040f1e 100%);
+  --ws-sidebar-border: rgba(129, 205, 229, 0.18);
+  --ws-sidebar-shadow: inset -1px 0 0 rgba(129, 205, 229, 0.15), 10px 0 28px -14px rgba(0, 0, 0, 0.70);
+  --ws-stitch-rule: 1.5px dashed rgba(129, 205, 229, 0.26);
+  --ws-topbar-bg: linear-gradient(90deg, #07172b 0%, #0b223d 52%, #08192f 100%);
+  --ws-topbar-border: rgba(129, 205, 229, 0.18);
+  --ws-topbar-shadow: inset 0 1px 0 rgba(129, 205, 229, 0.12), 0 14px 28px -16px rgba(0, 0, 0, 0.70);
+  --ws-foot-bg: rgba(4, 14, 28, 0.56);
+  --ws-action-bg: rgba(5, 16, 34, 0.62);
+  --ws-action-border: rgba(129, 205, 229, 0.30);
 
   --dm-surface: #0b1933;
   --dm-surface-soft: #0f2244;
@@ -94,6 +651,8 @@
   --dm-code-ink: #9ee0f5;
   --dm-row-hover: #112548;
   --dm-wallet-hint: #9fd7eb;
+  --dm-leather-bg: linear-gradient(125deg, #0c2847 0%, #091e38 55%, #061428 100%);
+  --dm-leather-border: rgba(129, 205, 229, 0.28);
 
   /* خلفية cold-lizard-87 الخافتة الداكنة لثيم «صلة تون» */
   --cl-1: #0c1f3f;
@@ -102,92 +661,38 @@
   --cl-4: #061226;
   --cl-5: #050e1e;
   --cl-notch: #08162e;
-  --cl-pill-bg: rgba(9, 24, 52, 0.88);
+  --cl-pill-bg: rgba(9, 24, 52, 0.90);
   --cl-pill-border: rgba(129, 205, 229, 0.28);
   --cl-pill-ink: #cdeaf7;
   --cl-pill-strong: #f2fafe;
   --cl-card-rim: rgba(129, 205, 229, 0.28);
 }
 
-@media (prefers-color-scheme: dark) {
-  .workspace-shell[data-color-mode="system"] {
-    color-scheme: dark;
-
-    --ws-ink: #eaf3ea;
-    --ws-muted: #9eb8a0;
-    --ws-border: #263d29;
-    --ws-canvas: #0d150e;
-
-    --dm-surface: #131f15;
-    --dm-surface-soft: #18271b;
-    --dm-surface-tint: #1f3323;
-    --dm-border: #283f2b;
-    --dm-border-strong: #39583d;
-    --dm-ink: #eef6ee;
-    --dm-ink-soft: #d5e7d5;
-    --dm-muted: #9eb8a0;
-    --dm-accent: #a3e635;
-    --dm-primary-btn: #2b6939;
-    --dm-primary-btn-hover: #357e45;
-    --dm-code-bg: #1c2f1f;
-    --dm-code-ink: #c2ec9e;
-    --dm-row-hover: #1a2b1d;
-    --dm-wallet-hint: #b8d5b0;
-
-    --cl-1: #162318;
-    --cl-2: #131f15;
-    --cl-3: #101b12;
-    --cl-4: #0d170f;
-    --cl-5: #0b130c;
-    --cl-notch: #101b12;
-    --cl-pill-bg: rgba(18, 31, 20, 0.88);
-    --cl-pill-border: rgba(163, 230, 53, 0.24);
-    --cl-pill-ink: #cbe2c4;
-    --cl-pill-strong: #f0f8ee;
-    --cl-card-rim: rgba(163, 230, 53, 0.24);
-  }
-
-  .workspace-shell[data-color-mode="system"][data-theme="wallet-selahtone"] {
-    --ws-ink: #ecf7fc;
-    --ws-muted: #98c2da;
-    --ws-border: #1d3968;
-    --ws-canvas: #061024;
-
-    --dm-surface: #0b1933;
-    --dm-surface-soft: #0f2244;
-    --dm-surface-tint: #152d57;
-    --dm-border: #1d3968;
-    --dm-border-strong: #2b528e;
-    --dm-ink: #ecf7fc;
-    --dm-ink-soft: #d2ecf8;
-    --dm-muted: #98c2da;
-    --dm-accent: #81cde5;
-    --dm-primary-btn: #16688a;
-    --dm-primary-btn-hover: #1c7da4;
-    --dm-code-bg: #132a50;
-    --dm-code-ink: #9ee0f5;
-    --dm-row-hover: #112548;
-    --dm-wallet-hint: #9fd7eb;
-
-    --cl-1: #0c1f3f;
-    --cl-2: #0a1a36;
-    --cl-3: #08162e;
-    --cl-4: #061226;
-    --cl-5: #050e1e;
-    --cl-notch: #08162e;
-    --cl-pill-bg: rgba(9, 24, 52, 0.88);
-    --cl-pill-border: rgba(129, 205, 229, 0.28);
-    --cl-pill-ink: #cdeaf7;
-    --cl-pill-strong: #f2fafe;
-    --cl-card-rim: rgba(129, 205, 229, 0.28);
-  }
+/* تعميق التذاكر الجلدية والحافظة في الوضع الليلي */
+.workspace-shell[data-color-mode="dark"] .dashboard {
+  --wt-bg: var(--dm-leather-bg);
+  --wt-border: var(--dm-leather-border);
 }
 
-/* -------------------------------------------------------------------------
-   ٢. ربط أقسام المالية والمبيعات والمخزون ولوحات الإدارة بمتغيّرات الوضع الليلي
-   ------------------------------------------------------------------------- */
+.workspace-shell[data-color-mode="dark"] .dashboard-wallet {
+  --wallet-back-bg: #132315;
+  --wallet-pocket-top: #172b19;
+  --wallet-pocket-bottom: #0f1c10;
+  --wallet-hint-ink: var(--dm-wallet-hint);
+}
+
+.workspace-shell[data-color-mode="dark"][data-theme="wallet-selahtone"] .dashboard-wallet {
+  --wallet-back-bg: #082638;
+  --wallet-pocket-top: #0d3750;
+  --wallet-pocket-bottom: #061e2d;
+  --wallet-hint-ink: var(--dm-wallet-hint);
+}
+
+/* ربط أقسام المالية والمبيعات والمخزون بمتغيّرات الوضع الليلي */
 .workspace-shell[data-color-mode="dark"] .finance-suite,
 .workspace-shell[data-color-mode="dark"][data-theme="wallet-selahtone"] .finance-suite {
+  --fn-leather-bg: var(--dm-leather-bg);
+  --fn-leather-border: var(--dm-leather-border);
   --fn-ink: var(--dm-ink);
   --fn-ink-soft: var(--dm-ink-soft);
   --fn-muted: var(--dm-muted);
@@ -205,6 +710,8 @@
 
 .workspace-shell[data-color-mode="dark"] .sales-suite,
 .workspace-shell[data-color-mode="dark"][data-theme="wallet-selahtone"] .sales-suite {
+  --sl-leather-bg: var(--dm-leather-bg);
+  --sl-header-border: var(--dm-leather-border);
   --sl-ink: var(--dm-ink);
   --sl-muted: var(--dm-muted);
   --sl-surface: var(--dm-surface);
@@ -218,6 +725,8 @@
 
 .workspace-shell[data-color-mode="dark"] .inventory-suite,
 .workspace-shell[data-color-mode="dark"][data-theme="wallet-selahtone"] .inventory-suite {
+  --iv-leather-bg: var(--dm-leather-bg);
+  --iv-leather-border: var(--dm-leather-border);
   --iv-ink: var(--dm-ink);
   --iv-ink-soft: var(--dm-ink-soft);
   --iv-muted: var(--dm-muted);
@@ -233,11 +742,7 @@
   --iv-row-hover: var(--dm-row-hover);
 }
 
-.workspace-shell[data-color-mode="dark"] .dashboard-wallet,
-.workspace-shell[data-color-mode="dark"][data-theme="wallet-selahtone"] .dashboard-wallet {
-  --wallet-hint-ink: var(--dm-wallet-hint);
-}
-
+/* ألواح الإدارة والجداول والبطاقات العامة في الوضع الليلي */
 .workspace-shell[data-color-mode="dark"] .dashboard-section-heading h2,
 .workspace-shell[data-color-mode="dark"] .dashboard-panel__heading h2,
 .workspace-shell[data-color-mode="dark"] .dashboard-branch-name strong,
@@ -324,7 +829,7 @@
   color: var(--dm-ink);
 }
 
-/* تنبيهات وشارات الحالات بتباين ليلي مريح وواضح */
+/* تنبيهات وشارات الحالات في الوضع الليلي */
 .workspace-shell[data-color-mode="dark"] .fin-kpi-card.is-alert,
 .workspace-shell[data-color-mode="dark"] .sales-kpi-card.is-alert,
 .workspace-shell[data-color-mode="dark"] .finance-suite .fin-alert--warning,
@@ -390,212 +895,4 @@
   background: rgba(148, 163, 184, 0.14);
   border-color: rgba(148, 163, 184, 0.30);
   color: #cbd5e1;
-}
-
-/* تفعيل القواعد نفسها تلقائيًا عند ضبط الوضع على "system" وكان جهاز المستخدم في الوضع الليلي */
-@media (prefers-color-scheme: dark) {
-  .workspace-shell[data-color-mode="system"] .finance-suite,
-  .workspace-shell[data-color-mode="system"][data-theme="wallet-selahtone"] .finance-suite {
-    --fn-ink: var(--dm-ink);
-    --fn-ink-soft: var(--dm-ink-soft);
-    --fn-muted: var(--dm-muted);
-    --fn-surface: var(--dm-surface);
-    --fn-surface-soft: var(--dm-surface-soft);
-    --fn-surface-tint: var(--dm-surface-tint);
-    --fn-border: var(--dm-border);
-    --fn-border-strong: var(--dm-border-strong);
-    --fn-primary-btn: var(--dm-primary-btn);
-    --fn-primary-btn-hover: var(--dm-primary-btn-hover);
-    --fn-code-bg: var(--dm-code-bg);
-    --fn-code-ink: var(--dm-code-ink);
-    --fn-row-hover: var(--dm-row-hover);
-  }
-
-  .workspace-shell[data-color-mode="system"] .sales-suite,
-  .workspace-shell[data-color-mode="system"][data-theme="wallet-selahtone"] .sales-suite {
-    --sl-ink: var(--dm-ink);
-    --sl-muted: var(--dm-muted);
-    --sl-surface: var(--dm-surface);
-    --sl-surface-soft: var(--dm-surface-soft);
-    --sl-surface-tint: var(--dm-surface-tint);
-    --sl-border: var(--dm-border);
-    --sl-border-strong: var(--dm-border-strong);
-    --sl-primary-btn: var(--dm-primary-btn);
-    --sl-primary-btn-hover: var(--dm-primary-btn-hover);
-  }
-
-  .workspace-shell[data-color-mode="system"] .inventory-suite,
-  .workspace-shell[data-color-mode="system"][data-theme="wallet-selahtone"] .inventory-suite {
-    --iv-ink: var(--dm-ink);
-    --iv-ink-soft: var(--dm-ink-soft);
-    --iv-muted: var(--dm-muted);
-    --iv-surface: var(--dm-surface);
-    --iv-surface-soft: var(--dm-surface-soft);
-    --iv-surface-tint: var(--dm-surface-tint);
-    --iv-border: var(--dm-border);
-    --iv-border-strong: var(--dm-border-strong);
-    --iv-primary-btn: var(--dm-primary-btn);
-    --iv-primary-btn-hover: var(--dm-primary-btn-hover);
-    --iv-code-bg: var(--dm-code-bg);
-    --iv-code-ink: var(--dm-code-ink);
-    --iv-row-hover: var(--dm-row-hover);
-  }
-
-  .workspace-shell[data-color-mode="system"] .dashboard-wallet,
-  .workspace-shell[data-color-mode="system"][data-theme="wallet-selahtone"] .dashboard-wallet {
-    --wallet-hint-ink: var(--dm-wallet-hint);
-  }
-
-  .workspace-shell[data-color-mode="system"] .dashboard-section-heading h2,
-  .workspace-shell[data-color-mode="system"] .dashboard-panel__heading h2,
-  .workspace-shell[data-color-mode="system"] .dashboard-branch-name strong,
-  .workspace-shell[data-color-mode="system"] .card h2,
-  .workspace-shell[data-color-mode="system"] .kpi b {
-    color: var(--dm-ink);
-  }
-
-  .workspace-shell[data-color-mode="system"] .dashboard-section-heading p,
-  .workspace-shell[data-color-mode="system"] .dashboard-panel__heading p:not(.dashboard-panel__eyebrow),
-  .workspace-shell[data-color-mode="system"] .dashboard-panel__footer,
-  .workspace-shell[data-color-mode="system"] .dashboard-branch-name small,
-  .workspace-shell[data-color-mode="system"] .dashboard-account-note,
-  .workspace-shell[data-color-mode="system"] .field-hint,
-  .workspace-shell[data-color-mode="system"] .kpi small,
-  .workspace-shell[data-color-mode="system"] .kpi span,
-  .workspace-shell[data-color-mode="system"] .muted {
-    color: var(--dm-muted);
-  }
-
-  .workspace-shell[data-color-mode="system"] .dashboard-account-note strong {
-    color: var(--dm-ink);
-  }
-
-  .workspace-shell[data-color-mode="system"] .dashboard-panel__eyebrow,
-  .workspace-shell[data-color-mode="system"] .dashboard-text-link,
-  .workspace-shell[data-color-mode="system"] .sales-suite .inv-button--text,
-  .workspace-shell[data-color-mode="system"] .sales-kpi-card__icon,
-  .workspace-shell[data-color-mode="system"] .sales-tax-banner svg,
-  .workspace-shell[data-color-mode="system"] .sales-branch-select svg,
-  .workspace-shell[data-color-mode="system"] .sales-invoice-badge svg,
-  .workspace-shell[data-color-mode="system"] .sales-empty-state__icon {
-    color: var(--dm-accent);
-  }
-
-  .workspace-shell[data-color-mode="system"] .dashboard-panel,
-  .workspace-shell[data-color-mode="system"] .dashboard-scope,
-  .workspace-shell[data-color-mode="system"] .card,
-  .workspace-shell[data-color-mode="system"] .kpi,
-  .workspace-shell[data-color-mode="system"] .inv-panel {
-    background: var(--dm-surface);
-    border-color: var(--dm-border);
-    color: var(--dm-ink);
-  }
-
-  .workspace-shell[data-color-mode="system"] .dashboard-panel__heading-icon,
-  .workspace-shell[data-color-mode="system"] .dashboard-branch-name__icon,
-  .workspace-shell[data-color-mode="system"] .dashboard-warehouse-list span {
-    background: var(--dm-surface-tint);
-    color: var(--dm-accent);
-  }
-
-  .workspace-shell[data-color-mode="system"] .dashboard-table th,
-  .workspace-shell[data-color-mode="system"] thead th,
-  .workspace-shell[data-color-mode="system"] .fin-page .fin-table th {
-    background: var(--dm-surface-soft);
-    color: var(--dm-ink-soft);
-    border-bottom-color: var(--dm-border);
-  }
-
-  .workspace-shell[data-color-mode="system"] .dashboard-table td,
-  .workspace-shell[data-color-mode="system"] td,
-  .workspace-shell[data-color-mode="system"] .dashboard-setup__item {
-    color: var(--dm-ink-soft);
-    border-color: var(--dm-border);
-  }
-
-  .workspace-shell[data-color-mode="system"] .dashboard-table tbody tr:hover,
-  .workspace-shell[data-color-mode="system"] tbody tr:hover,
-  .workspace-shell[data-color-mode="system"] .fin-page .fin-table tbody tr:hover {
-    background: var(--dm-row-hover);
-  }
-
-  .workspace-shell[data-color-mode="system"] .field label {
-    color: var(--dm-ink-soft);
-  }
-
-  .workspace-shell[data-color-mode="system"] .field input,
-  .workspace-shell[data-color-mode="system"] .field select,
-  .workspace-shell[data-color-mode="system"] .field textarea,
-  .workspace-shell[data-color-mode="system"] .btn.secondary {
-    background: var(--dm-surface-soft);
-    border-color: var(--dm-border-strong);
-    color: var(--dm-ink);
-  }
-
-  .workspace-shell[data-color-mode="system"] .fin-kpi-card.is-alert,
-  .workspace-shell[data-color-mode="system"] .sales-kpi-card.is-alert,
-  .workspace-shell[data-color-mode="system"] .finance-suite .fin-alert--warning,
-  .workspace-shell[data-color-mode="system"] .sales-suite .inv-alert--warning,
-  .workspace-shell[data-color-mode="system"] .inv-alert--warning,
-  .workspace-shell[data-color-mode="system"] .fin-badge--pending,
-  .workspace-shell[data-color-mode="system"] .sale-chip--warning,
-  .workspace-shell[data-color-mode="system"] .b-warn {
-    background: rgba(245, 158, 11, 0.14);
-    border-color: rgba(245, 158, 11, 0.36);
-    color: #fcd34d;
-  }
-
-  .workspace-shell[data-color-mode="system"] .fin-kpi-card.is-alert .fin-kpi-card__icon,
-  .workspace-shell[data-color-mode="system"] .sales-kpi-card.is-alert .sales-kpi-card__icon {
-    background: rgba(245, 158, 11, 0.20);
-    border-color: rgba(245, 158, 11, 0.38);
-    color: #fcd34d;
-  }
-
-  .workspace-shell[data-color-mode="system"] .finance-suite .fin-alert--error,
-  .workspace-shell[data-color-mode="system"] .sales-suite .inv-alert--error,
-  .workspace-shell[data-color-mode="system"] .inv-alert--error,
-  .workspace-shell[data-color-mode="system"] .alert-err,
-  .workspace-shell[data-color-mode="system"] .fin-badge--danger,
-  .workspace-shell[data-color-mode="system"] .sale-product__remove {
-    background: rgba(239, 68, 68, 0.15);
-    border-color: rgba(239, 68, 68, 0.38);
-    color: #fca5a5;
-  }
-
-  .workspace-shell[data-color-mode="system"] .finance-suite .fin-success,
-  .workspace-shell[data-color-mode="system"] .finance-suite .fin-alert--success,
-  .workspace-shell[data-color-mode="system"] .inv-alert--success,
-  .workspace-shell[data-color-mode="system"] .alert-ok,
-  .workspace-shell[data-color-mode="system"] .fin-badge--paid,
-  .workspace-shell[data-color-mode="system"] .sale-chip--paid,
-  .workspace-shell[data-color-mode="system"] .dashboard-status,
-  .workspace-shell[data-color-mode="system"] .b-ok {
-    background: rgba(34, 197, 94, 0.14);
-    border-color: rgba(34, 197, 94, 0.36);
-    color: #86efac;
-  }
-
-  .workspace-shell[data-color-mode="system"] .finance-suite .fin-success h2,
-  .workspace-shell[data-color-mode="system"] .finance-suite .fin-success p {
-    color: #bbf7d0;
-  }
-
-  .workspace-shell[data-color-mode="system"] .fin-badge--approved,
-  .workspace-shell[data-color-mode="system"] .fin-badge--vault,
-  .workspace-shell[data-color-mode="system"] .alert-info {
-    background: rgba(56, 189, 248, 0.14);
-    border-color: rgba(56, 189, 248, 0.36);
-    color: #7dd3fc;
-  }
-
-  .workspace-shell[data-color-mode="system"] .fin-badge--custody,
-  .workspace-shell[data-color-mode="system"] .fin-badge--neutral,
-  .workspace-shell[data-color-mode="system"] .sale-chip--cancelled,
-  .workspace-shell[data-color-mode="system"] .dashboard-status.is-inactive,
-  .workspace-shell[data-color-mode="system"] .b-gray {
-    background: rgba(148, 163, 184, 0.14);
-    border-color: rgba(148, 163, 184, 0.30);
-    color: #cbd5e1;
-  }
 }
