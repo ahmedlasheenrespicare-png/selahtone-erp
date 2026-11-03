@@ -313,6 +313,42 @@ test("الشبكة المتجاوبة للمحفظة والمؤشرات موحّ
   assert.ok(!salesStatsTs.includes("-infinity"), "يجب عدم استخدام -infinity غير المتوافق مع Date");
 });
 
+test("تباين وبنية لوحة القيادة التنفيذية (نبض اليوم · السجل الحيّ · صحّة الفروع) يحقق ٤.٥:١", () => {
+  // التحقق من تباين ألوان البطاقات النهارية في الثيم الافتراضي وثيم صلة تون
+  assert.ok(contrast("#132515", "#ffffff") >= MIN);
+  assert.ok(contrast("#476049", "#ffffff") >= MIN);
+  assert.ok(contrast("#476049", "#f5f9f4") >= MIN);
+  assert.ok(contrast("#ffffff", "#1f5c2e") >= MIN);
+  assert.ok(contrast("#6e4504", "#fff8eb") >= MIN);
+
+  assert.ok(contrast("#0a203e", "#ffffff") >= MIN);
+  assert.ok(contrast("#395875", "#ffffff") >= MIN);
+  assert.ok(contrast("#395875", "#f2f8fc") >= MIN);
+  assert.ok(contrast("#ffffff", "#0d5a78") >= MIN);
+
+  const dashSrc = readFileSync(
+    new URL("../src/app/(app)/dashboard/page.tsx", import.meta.url),
+    "utf8",
+  );
+  for (const token of [
+    "dashboard-quick-actions",
+    "dashboard-pulse-strip",
+    "dashboard-lower-grid",
+    "آخر العمليات الحيّة",
+    "صحّة الفروع وتنبيهات المخزون",
+  ]) {
+    assert.ok(dashSrc.includes(token), `لوحة القيادة تفتقد ${token}`);
+  }
+
+  // التأكد من بقاء «تاريخ اليوم» في الشريط العلوي دون مساس
+  const topbarSkySrc = readFileSync(
+    new URL("../src/components/color-mode-toggle.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.ok(topbarSkySrc.includes("تاريخ اليوم"), "يجب الإبقاء على تاريخ اليوم في الشريط العلوي");
+});
+
+
 
 
 
