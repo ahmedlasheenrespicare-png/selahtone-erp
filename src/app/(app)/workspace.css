@@ -2517,7 +2517,7 @@
   padding: 4px 11px;
   border-radius: 999px;
   border: 1px solid var(--mp-divider);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--mp-tab-bg, rgba(255, 255, 255, 0.03));
   color: var(--mp-muted);
   font: inherit;
   font-size: 11px;
@@ -2547,7 +2547,7 @@
   gap: 12px;
   padding: 9px 12px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.035);
+  background: var(--mp-hud-bg, rgba(255, 255, 255, 0.035));
   border: 1px solid var(--mp-divider);
 }
 
@@ -2673,7 +2673,7 @@
   width: 6px;
   height: 6px;
   border-radius: 999px;
-  background: var(--mp-bg);
+  background: var(--mp-node-bg, var(--mp-bg));
   border: 1.6px solid var(--mp-accent);
   transform: translate(-50%, -50%);
   pointer-events: none;
@@ -2691,7 +2691,7 @@
   height: 8px;
   border-radius: 999px;
   background: var(--mp-danger);
-  border: 1.5px solid var(--mp-bg);
+  border: 1.5px solid var(--mp-node-bg, var(--mp-bg));
   box-shadow: 0 0 8px var(--mp-danger);
   transform: translate(-50%, -50%);
   pointer-events: none;

@@ -124,20 +124,56 @@ test("تباين نص ترويسة المالية في طبقة التصميم (
   assert.ok(buttonRatio >= MIN, `زر الترويسة: ${button[1]} على أبيض = ${buttonRatio.toFixed(2)}`);
 });
 
-test("تباين الوضع الليلي (dark-mode.css) يحقق ٤.٥:١ على الأقل في الثيمَين", () => {
+test("تباين الوضع النهاري والليلي (dark-mode.css) يحقق ٤.٥:١ ولا يتبع وضع الجهاز التلقائي", () => {
   const darkCss = readFileSync(new URL("../src/app/(app)/dark-mode.css", import.meta.url), "utf8");
+  assert.ok(!darkCss.includes("prefers-color-scheme"), "يجب ألا يتبع الوضع اللوني إعداد الجهاز تلقائيًا");
+
+  const readVar = (block, name) => {
+    const m = block[1].match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})`));
+    assert.ok(m, `المتغيّر --${name} غير معرَّف`);
+    return m[1];
+  };
+
+  // ١. فحص بطاقات المؤشرات في الوضع النهاري («light»)
+  const lightDefault = darkCss.match(
+    /\.workspace-shell\[data-color-mode="light"\]\s+\.monthly-panther\s*\{([\s\S]*?)\n\}/,
+  );
+  const lightSelatone = darkCss.match(
+    /\.workspace-shell\[data-color-mode="light"\]\[data-theme="wallet-selahtone"\]\s+\.monthly-panther\s*\{([\s\S]*?)\n\}/,
+  );
+  assert.ok(lightDefault, "كتلة المؤشر النهاري الافتراضي غير موجودة");
+  assert.ok(lightSelatone, "كتلة المؤشر النهاري لصلة تون غير موجودة");
+
+  for (const [label, block] of [
+    ["المؤشر النهاري الافتراضي", lightDefault],
+    ["المؤشر النهاري لصلة تون", lightSelatone],
+  ]) {
+    const bgs = [
+      ["node-bg", readVar(block, "mp-node-bg")],
+      ["tab-bg", readVar(block, "mp-tab-bg")],
+      ["hud-bg", readVar(block, "mp-hud-bg")],
+    ];
+    const fgs = ["mp-title", "mp-value", "mp-muted", "mp-accent", "mp-danger"].map((n) => [
+      n,
+      readVar(block, n),
+    ]);
+    const failures = [];
+    for (const [fgName, fg] of fgs) {
+      for (const [bgName, bg] of bgs) {
+        const r = contrast(fg, bg);
+        if (r < MIN) failures.push(`${label}: --${fgName} (${fg}) على ${bgName} (${bg}) = ${r.toFixed(2)}`);
+      }
+    }
+    assert.deepEqual(failures, [], `أزواج نهارية تحت ${MIN}:1:\n  ${failures.join("\n  ")}`);
+  }
+
+  // ٢. فحص الوضع الليلي («dark»)
   const defaultBlock = darkCss.match(/\.workspace-shell\[data-color-mode="dark"\]\s*\{([\s\S]*?)\n\}/);
   const selatoneBlock = darkCss.match(
     /\.workspace-shell\[data-color-mode="dark"\]\[data-theme="wallet-selahtone"\]\s*\{([\s\S]*?)\n\}/,
   );
   assert.ok(defaultBlock, "كتلة الوضع الليلي الافتراضي غير موجودة");
   assert.ok(selatoneBlock, "كتلة الوضع الليلي لصلة تون غير موجودة");
-
-  const readVar = (block, name) => {
-    const m = block[1].match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})`));
-    assert.ok(m, `المتغيّر --${name} غير معرَّف في الوضع الليلي`);
-    return m[1];
-  };
 
   for (const [label, block] of [
     ["الافتراضي الليلي", defaultBlock],
@@ -159,7 +195,61 @@ test("تباين الوضع الليلي (dark-mode.css) يحقق ٤.٥:١ عل�
     }
     const btnRatio = contrast("#ffffff", readVar(block, "dm-primary-btn"));
     if (btnRatio < MIN) failures.push(`${label}: زر أساسي أبيض على --dm-primary-btn = ${btnRatio.toFixed(2)}`);
-    assert.deepEqual(failures, [], `أزواج تحت ${MIN}:1:\n  ${failures.join("\n  ")}`);
+    assert.deepEqual(failures, [], `أزواج ليلية تحت ${MIN}:1:\n  ${failures.join("\n  ")}`);
   }
 });
+
+test("التحول التلقائي بين النهاري والليلي يتبع وقت النهار والليل (Africa/Cairo)", async () => {
+  const {
+    getWorkspaceClockSnapshot,
+    resolveWorkspaceColorModeState,
+    serializeWorkspaceColorModeCookie,
+    WORKSPACE_TIMEZONE,
+  } = await import("../src/lib/workspace-theme.ts");
+
+  // 07:00 صباحًا بتوقيت القاهرة (05:00 UTC في الشتاء UTC+2) -> شروق النهار (light + dawn)
+  const dawn = getWorkspaceClockSnapshot(new Date("2026-11-03T05:00:00Z"), WORKSPACE_TIMEZONE);
+  assert.equal(dawn.skyPhase, "dawn");
+  assert.equal(dawn.autoColorMode, "light");
+  assert.equal(dawn.periodKey, "2026-11-03-day");
+
+  // 13:00 ظهرًا بتوقيت القاهرة (11:00 UTC) -> نهار صافي (light + day)
+  const noon = getWorkspaceClockSnapshot(new Date("2026-11-03T11:00:00Z"), WORKSPACE_TIMEZONE);
+  assert.equal(noon.skyPhase, "day");
+  assert.equal(noon.autoColorMode, "light");
+  assert.equal(resolveWorkspaceColorModeState(undefined, new Date("2026-11-03T11:00:00Z"), WORKSPACE_TIMEZONE).colorMode, "light");
+
+  // 17:00 عصرًا بتوقيت القاهرة (15:00 UTC) -> شفق الغروب (light + dusk)
+  const dusk = getWorkspaceClockSnapshot(new Date("2026-11-03T15:00:00Z"), WORKSPACE_TIMEZONE);
+  assert.equal(dusk.skyPhase, "dusk");
+  assert.equal(dusk.autoColorMode, "light");
+
+  // 18:05 مساءً بتوقيت القاهرة (16:05 UTC) -> حلول الليل تلقائيًا (dark + night)
+  const night = getWorkspaceClockSnapshot(new Date("2026-11-03T16:05:00Z"), WORKSPACE_TIMEZONE);
+  assert.equal(night.skyPhase, "night");
+  assert.equal(night.autoColorMode, "dark");
+  assert.equal(night.periodKey, "2026-11-03-night");
+  assert.equal(resolveWorkspaceColorModeState("auto", new Date("2026-11-03T16:05:00Z"), WORKSPACE_TIMEZONE).colorMode, "dark");
+
+  // 02:30 فجر اليوم التالي (00:30 UTC) -> لا يزال في نفس دورة الليل حتى شروق 06:00
+  const postMidnight = getWorkspaceClockSnapshot(new Date("2026-11-04T00:30:00Z"), WORKSPACE_TIMEZONE);
+  assert.equal(postMidnight.periodKey, "2026-11-03-night");
+  assert.equal(postMidnight.autoColorMode, "dark");
+
+  // تبديل يدوي نهارًا إلى الليلي يستمر خلال النهار، ثم يعود للنهاري تلقائيًا مع شروق اليوم التالي
+  const manualNightCookie = serializeWorkspaceColorModeCookie("dark", noon);
+  assert.equal(manualNightCookie, "manual:dark:2026-11-03-day");
+  assert.equal(
+    resolveWorkspaceColorModeState(manualNightCookie, new Date("2026-11-03T13:00:00Z"), WORKSPACE_TIMEZONE).colorMode,
+    "dark",
+  );
+  const nextMorningState = resolveWorkspaceColorModeState(
+    manualNightCookie,
+    new Date("2026-11-04T04:10:00Z"), // 06:10 صباحًا بالقاهرة
+    WORKSPACE_TIMEZONE,
+  );
+  assert.equal(nextMorningState.colorMode, "light");
+  assert.equal(nextMorningState.isAutoTimeMode, true);
+});
+
 
