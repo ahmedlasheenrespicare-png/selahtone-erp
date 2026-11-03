@@ -123,3 +123,43 @@ test("تباين نص ترويسة المالية في طبقة التصميم (
   const buttonRatio = contrast(normalize(button[1]), "#ffffff");
   assert.ok(buttonRatio >= MIN, `زر الترويسة: ${button[1]} على أبيض = ${buttonRatio.toFixed(2)}`);
 });
+
+test("تباين الوضع الليلي (dark-mode.css) يحقق ٤.٥:١ على الأقل في الثيمَين", () => {
+  const darkCss = readFileSync(new URL("../src/app/(app)/dark-mode.css", import.meta.url), "utf8");
+  const defaultBlock = darkCss.match(/\.workspace-shell\[data-color-mode="dark"\]\s*\{([\s\S]*?)\n\}/);
+  const selatoneBlock = darkCss.match(
+    /\.workspace-shell\[data-color-mode="dark"\]\[data-theme="wallet-selahtone"\]\s*\{([\s\S]*?)\n\}/,
+  );
+  assert.ok(defaultBlock, "كتلة الوضع الليلي الافتراضي غير موجودة");
+  assert.ok(selatoneBlock, "كتلة الوضع الليلي لصلة تون غير موجودة");
+
+  const readVar = (block, name) => {
+    const m = block[1].match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})`));
+    assert.ok(m, `المتغيّر --${name} غير معرَّف في الوضع الليلي`);
+    return m[1];
+  };
+
+  for (const [label, block] of [
+    ["الافتراضي الليلي", defaultBlock],
+    ["صلة تون الليلي", selatoneBlock],
+  ]) {
+    const bgs = ["ws-canvas", "dm-surface", "dm-surface-soft", "dm-surface-tint"].map((n) => [
+      n,
+      readVar(block, n),
+    ]);
+    const fgs = ["dm-ink", "dm-ink-soft", "dm-muted", "dm-accent", "dm-code-ink", "dm-wallet-hint"].map(
+      (n) => [n, readVar(block, n)],
+    );
+    const failures = [];
+    for (const [fgName, fg] of fgs) {
+      for (const [bgName, bg] of bgs) {
+        const r = contrast(fg, bg);
+        if (r < MIN) failures.push(`${label}: --${fgName} (${fg}) على --${bgName} (${bg}) = ${r.toFixed(2)}`);
+      }
+    }
+    const btnRatio = contrast("#ffffff", readVar(block, "dm-primary-btn"));
+    if (btnRatio < MIN) failures.push(`${label}: زر أساسي أبيض على --dm-primary-btn = ${btnRatio.toFixed(2)}`);
+    assert.deepEqual(failures, [], `أزواج تحت ${MIN}:1:\n  ${failures.join("\n  ")}`);
+  }
+});
+

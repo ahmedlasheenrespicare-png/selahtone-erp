@@ -1,9 +1,13 @@
 export type WorkspaceThemeId = "wallet" | "wallet-selahtone";
+export type WorkspaceColorModePreference = "system" | "light" | "dark";
+export type WorkspaceResolvedColorMode = "light" | "dark";
 
 export const DEFAULT_WORKSPACE_THEME: WorkspaceThemeId = "wallet";
+export const DEFAULT_WORKSPACE_COLOR_MODE: WorkspaceColorModePreference = "system";
 
 export const WORKSPACE_THEME_COOKIE = "selahtone_theme";
 export const WORKSPACE_DASHBOARD_BG_COOKIE = "selahtone_dashboard_bg";
+export const WORKSPACE_COLOR_MODE_COOKIE = "selahtone_color_mode";
 
 export type WorkspaceThemeVariant = {
   id: WorkspaceThemeId;
@@ -65,4 +69,13 @@ export function resolveWorkspaceDashboardBg(
 export function serializeWorkspaceDashboardBg(map: WorkspaceDashboardBgMap): string {
   const enabled = WORKSPACE_THEMES.map((item) => item.id).filter((id) => map[id]);
   return enabled.length > 0 ? enabled.join(",") : "none";
+}
+
+export function resolveWorkspaceColorMode(
+  value: string | undefined | null,
+): WorkspaceColorModePreference {
+  if (value === "light" || value === "dark" || value === "system") {
+    return value;
+  }
+  return DEFAULT_WORKSPACE_COLOR_MODE;
 }

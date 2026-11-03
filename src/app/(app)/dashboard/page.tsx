@@ -226,11 +226,13 @@ export default async function DashboardPage() {
       {/* الحافظة — على تصميم byllzz «rude-bat-50» (MIT) بألوانه الأصلية:
           كل كرتٍ شريحةٌ مباشرة في مسار السحب الأفقي، وتعلوها طبقتا التراكب،
           ويحفظ الجيبُ الأمامي المنحني «المستحق للخزنة» مستورًا بنجوم حتى يُمرَّ عليه أو يُلمس. */}
-      <DashboardWallet
-        balanceValue={expectedBalanceValue}
-        balanceLabel="المستحق للخزنة"
-        pocketItems={pocketItems}
-      >
+      <div className="dashboard-cards-grid">
+        <div className="dashboard-cards-grid__wallet">
+          <DashboardWallet
+            balanceValue={expectedBalanceValue}
+            balanceLabel="المستحق للخزنة"
+            pocketItems={pocketItems}
+          >
       {cash ? (
           <article className="stat-card is-custody" aria-labelledby="cash-title">
             <div className="stat-card__head">
@@ -619,11 +621,11 @@ export default async function DashboardPage() {
             </div>
           </article>
 
-      </DashboardWallet>
+          </DashboardWallet>
+        </div>
 
-      {monthSales || financeSpotlights?.cashBalance || financeSpotlights?.monthlyExpenses ? (
-        <div className="dashboard-panther-stack">
-          {monthSales ? (
+        {monthSales ? (
+          <div className="dashboard-cards-grid__item">
             <MonthlySalesPanther
               monthLabel={currentMonthLabel}
               totalFormatted={nf.format(Number(monthSales.total))}
@@ -639,9 +641,11 @@ export default async function DashboardPage() {
               reportHref={session.role === "MANAGER" ? "/sales/stats?period=month" : "/sales"}
               reportLabel={session.role === "MANAGER" ? "عرض التقرير الكامل لمبيعات الشهر" : "عرض سجل فواتير الشهر"}
             />
-          ) : null}
+          </div>
+        ) : null}
 
-          {financeSpotlights?.cashBalance ? (
+        {financeSpotlights?.cashBalance ? (
+          <div className="dashboard-cards-grid__item">
             <PantherSpotlightCard
               layout="wallet"
               title={financeSpotlights.cashBalance.title}
@@ -653,9 +657,11 @@ export default async function DashboardPage() {
               actionHref={financeSpotlights.cashBalance.actionHref}
               actionLabel={financeSpotlights.cashBalance.actionLabel}
             />
-          ) : null}
+          </div>
+        ) : null}
 
-          {financeSpotlights?.monthlyExpenses ? (
+        {financeSpotlights?.monthlyExpenses ? (
+          <div className="dashboard-cards-grid__item">
             <PantherSpotlightCard
               layout="wallet"
               title={financeSpotlights.monthlyExpenses.title}
@@ -667,9 +673,9 @@ export default async function DashboardPage() {
               actionHref={financeSpotlights.monthlyExpenses.actionHref}
               actionLabel={financeSpotlights.monthlyExpenses.actionLabel}
             />
-          ) : null}
-        </div>
-      ) : null}
+          </div>
+        ) : null}
+      </div>
 
       <div className="dashboard-account-note"><span>حسابك: <strong>{ROLE_LABEL[session.role] ?? session.role}</strong></span><span aria-hidden="true">·</span><span dir="ltr">{session.email}</span></div>
     </div>

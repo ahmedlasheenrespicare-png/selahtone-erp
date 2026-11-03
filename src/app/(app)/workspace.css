@@ -757,6 +757,7 @@
 }
 .workspace-account-link:hover svg, .workspace-logout:hover svg { color: var(--ws-brand-accent); }
 .workspace-content { width: 100%; max-width: 1600px; min-width: 0; flex: 1 1 auto; margin: 0 auto; padding: 31px 34px 48px; }
+.workspace-content:has(> .dashboard) { max-width: 1880px; }
 .workspace-content:focus { outline: none; }
 
 /* خلفية صفحات النظام كافة — FColombati «cold-lizard-87» (MIT، الأصل: Josetxu)
@@ -878,7 +879,6 @@
 }
 
 .workspace-shell[data-dashboard-bg="on"] .dashboard .monthly-panther {
-  margin-top: 66px;
   box-shadow:
     0 0 0 1px var(--cl-card-rim),
     0 26px 52px -14px rgba(4, 12, 10, 0.62),
@@ -2137,17 +2137,190 @@
   overflow: hidden;
 }
 
-.dashboard-panther-stack {
-  width: min(100%, 560px);
-  margin: 56px auto 14px;
-  display: flex;
-  flex-direction: column;
+/* شبكة لوحة القيادة المتجاوبة: المحفظة والنماذج جنبًا إلى جنب، وتنزل أسفل بعضها كلما ضاقت الشاشة */
+.dashboard-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
   gap: 22px;
+  align-items: stretch;
+  margin: 26px 0 24px;
 }
 
-.dashboard-panther-stack > .monthly-panther {
+.dashboard-cards-grid__wallet {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  container-type: inline-size;
+}
+
+.dashboard-cards-grid__wallet > .dashboard-wallet {
   width: 100%;
+  max-width: 100%;
+  margin: 0 auto 38px;
+}
+
+.workspace-shell[data-dashboard-bg="on"] .dashboard-cards-grid__wallet > .dashboard-wallet {
+  margin-bottom: 44px;
+}
+
+.dashboard-cards-grid__item {
+  min-width: 0;
+  display: flex;
+  container-type: inline-size;
+}
+
+.dashboard-cards-grid__item > .monthly-panther {
+  width: 100%;
+  max-width: none;
   margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-cards-grid__item > .monthly-panther > .monthly-panther__inner {
+  flex: 1 1 auto;
+}
+
+.dashboard-cards-grid__item > .monthly-panther .monthly-panther__chart-block {
+  flex: 1 1 auto;
+  justify-content: flex-end;
+}
+
+.dashboard-cards-grid__item > .monthly-panther .monthly-panther__foot {
+  margin-top: auto;
+}
+
+/* تكيّف جيب المحفظة عند ضيق عمود الشبكة حتى على الشاشات الكبيرة */
+@container (max-width: 470px) {
+  .dashboard-wallet {
+    height: 568px;
+  }
+  .dashboard-wallet__back {
+    height: 522px;
+  }
+  .dashboard-wallet__peek.is-back {
+    inset-inline: 18px;
+    bottom: 214px;
+    height: 354px;
+  }
+  .dashboard-wallet__peek.is-mid {
+    inset-inline: 14px;
+    bottom: 188px;
+    height: 354px;
+  }
+  .dashboard-wallet__viewport {
+    inset-inline: 10px;
+    bottom: 160px;
+    height: 354px;
+  }
+  .dashboard-wallet.has-extra-pocket {
+    height: 604px;
+  }
+  .dashboard-wallet.has-extra-pocket .dashboard-wallet__back {
+    height: 558px;
+  }
+  .dashboard-wallet.has-extra-pocket .dashboard-wallet__peek.is-back {
+    bottom: 250px;
+  }
+  .dashboard-wallet.has-extra-pocket .dashboard-wallet__peek.is-mid {
+    bottom: 224px;
+  }
+  .dashboard-wallet.has-extra-pocket .dashboard-wallet__viewport {
+    bottom: 196px;
+  }
+  .dashboard-wallet.has-extra-pocket .dashboard-pocket-wrap {
+    height: 232px;
+  }
+  .dashboard-pocket__content {
+    top: 38px;
+    inset-inline: 14px;
+    gap: 5px;
+  }
+  .dashboard-pocket__metrics[data-count="3"],
+  .dashboard-pocket__metrics[data-count="4"] {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 6px;
+  }
+  .dashboard-pocket__metrics[data-count="3"] .dashboard-pocket__metric,
+  .dashboard-pocket__metrics[data-count="4"] .dashboard-pocket__metric {
+    border-inline-start: 0;
+  }
+  .dashboard-pocket__metrics[data-count="3"] .dashboard-pocket__metric:nth-child(2),
+  .dashboard-pocket__metrics[data-count="4"] .dashboard-pocket__metric:nth-child(even) {
+    border-inline-start: 1px solid var(--wallet-pocket-divider);
+  }
+  .dashboard-pocket__metrics[data-count="3"] .dashboard-pocket__metric:nth-child(n + 3),
+  .dashboard-pocket__metrics[data-count="4"] .dashboard-pocket__metric:nth-child(n + 3) {
+    border-top: 1px dashed var(--wallet-pocket-divider);
+    padding-top: 5px;
+  }
+  .dashboard-pocket__metrics[data-count="3"] .dashboard-pocket__metric:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+  .dashboard-pocket__value {
+    font-size: 16.5px;
+  }
+  .dashboard-pocket__metrics[data-count="1"] .dashboard-pocket__value,
+  .dashboard-pocket__metrics[data-count="2"] .dashboard-pocket__value {
+    font-size: 18px;
+  }
+  .dashboard-wallet .stat-card__head {
+    padding-inline-end: 98px;
+  }
+  .dashboard-wallet .stat-card__head::after {
+    inset-inline-end: 12px;
+    width: 28px;
+    height: 20px;
+  }
+  .dashboard-wallet .stat-card__badge {
+    inset-inline-end: 46px;
+  }
+}
+
+/* تكيّف بطاقات المؤشر عند وجود ٣ أو ٤ أعمدة متجاورة */
+@container (max-width: 410px) {
+  .monthly-panther {
+    padding: 18px;
+  }
+  .monthly-panther__head {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-bottom: 14px;
+  }
+  .monthly-panther__metric:first-child {
+    padding-inline-end: 12px;
+  }
+  .monthly-panther__metric:last-child {
+    padding-inline-start: 12px;
+  }
+  .monthly-panther__metric-value {
+    font-size: 19px;
+  }
+  .monthly-panther__hud {
+    flex-direction: column;
+    gap: 6px;
+  }
+  .monthly-panther__hud-values {
+    align-items: flex-start;
+    text-align: start;
+  }
+}
+
+@container (max-width: 345px) {
+  .monthly-panther__metrics {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .monthly-panther__metric:first-child {
+    padding-inline-end: 0;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--mp-divider);
+  }
+  .monthly-panther__metric:last-child {
+    padding-inline-start: 0;
+    border-inline-start: 0;
+  }
 }
 
 .monthly-panther.is-section {
@@ -2628,15 +2801,15 @@
 }
 
 @media (max-width: 560px) {
-  .dashboard-panther-stack {
-    margin-top: 50px;
+  .dashboard-cards-grid {
     gap: 18px;
+    margin-top: 20px;
   }
   .monthly-panther {
     padding: 18px;
     margin-top: 50px;
   }
-  .dashboard-panther-stack > .monthly-panther {
+  .dashboard-cards-grid__item > .monthly-panther {
     margin: 0;
   }
   .monthly-panther__metrics {

@@ -1,0 +1,601 @@
+/* =========================================================================
+   الوضع النهاري والليلي لمساحة العمل (.workspace-shell)
+   - الوضع الافتراضي ("system"): يتبع إعداد جهاز المستخدم تلقائيًا (prefers-color-scheme).
+   - عند النقر على زر الشريط العلوي: ينتقل بين النهاري ("light") والليلي ("dark") ويحفظ الاختيار.
+   - يحافظ على هوية الثيمَين «الافتراضي» (الأخضر) و«صلة تون» (السماوي/الكحلي) وخلفية 3D الخافتة.
+   ========================================================================= */
+
+.workspace-color-mode-btn svg {
+  transition: transform 0.28s ease, color 0.2s ease;
+}
+
+.workspace-color-mode-btn:hover svg {
+  transform: rotate(-14deg) scale(1.06);
+}
+
+@media (max-width: 620px) {
+  .workspace-color-mode-btn {
+    width: 38px;
+    padding: 7px;
+  }
+  .workspace-color-mode-btn span {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-color-mode-btn svg,
+  .workspace-color-mode-btn:hover svg {
+    transition: none;
+    transform: none;
+  }
+}
+
+/* -------------------------------------------------------------------------
+   ١. متغيّرات الوضع الليلي — ثيم «الافتراضي» وثيم «صلة تون»
+   تُفعّل عند الاختيار الصريح (data-color-mode="dark") أو تلقائيًا من الجهاز ("system")
+   ------------------------------------------------------------------------- */
+.workspace-shell[data-color-mode="dark"] {
+  color-scheme: dark;
+
+  --ws-ink: #eaf3ea;
+  --ws-muted: #9eb8a0;
+  --ws-border: #263d29;
+  --ws-canvas: #0d150e;
+
+  --dm-surface: #131f15;
+  --dm-surface-soft: #18271b;
+  --dm-surface-tint: #1f3323;
+  --dm-border: #283f2b;
+  --dm-border-strong: #39583d;
+  --dm-ink: #eef6ee;
+  --dm-ink-soft: #d5e7d5;
+  --dm-muted: #9eb8a0;
+  --dm-accent: #a3e635;
+  --dm-primary-btn: #2b6939;
+  --dm-primary-btn-hover: #357e45;
+  --dm-code-bg: #1c2f1f;
+  --dm-code-ink: #c2ec9e;
+  --dm-row-hover: #1a2b1d;
+  --dm-wallet-hint: #b8d5b0;
+
+  /* خلفية cold-lizard-87 الخافتة الداكنة لثيم «الافتراضي» */
+  --cl-1: #162318;
+  --cl-2: #131f15;
+  --cl-3: #101b12;
+  --cl-4: #0d170f;
+  --cl-5: #0b130c;
+  --cl-notch: #101b12;
+  --cl-pill-bg: rgba(18, 31, 20, 0.88);
+  --cl-pill-border: rgba(163, 230, 53, 0.24);
+  --cl-pill-ink: #cbe2c4;
+  --cl-pill-strong: #f0f8ee;
+  --cl-card-rim: rgba(163, 230, 53, 0.24);
+}
+
+.workspace-shell[data-color-mode="dark"][data-theme="wallet-selahtone"] {
+  --ws-ink: #ecf7fc;
+  --ws-muted: #98c2da;
+  --ws-border: #1d3968;
+  --ws-canvas: #061024;
+
+  --dm-surface: #0b1933;
+  --dm-surface-soft: #0f2244;
+  --dm-surface-tint: #152d57;
+  --dm-border: #1d3968;
+  --dm-border-strong: #2b528e;
+  --dm-ink: #ecf7fc;
+  --dm-ink-soft: #d2ecf8;
+  --dm-muted: #98c2da;
+  --dm-accent: #81cde5;
+  --dm-primary-btn: #16688a;
+  --dm-primary-btn-hover: #1c7da4;
+  --dm-code-bg: #132a50;
+  --dm-code-ink: #9ee0f5;
+  --dm-row-hover: #112548;
+  --dm-wallet-hint: #9fd7eb;
+
+  /* خلفية cold-lizard-87 الخافتة الداكنة لثيم «صلة تون» */
+  --cl-1: #0c1f3f;
+  --cl-2: #0a1a36;
+  --cl-3: #08162e;
+  --cl-4: #061226;
+  --cl-5: #050e1e;
+  --cl-notch: #08162e;
+  --cl-pill-bg: rgba(9, 24, 52, 0.88);
+  --cl-pill-border: rgba(129, 205, 229, 0.28);
+  --cl-pill-ink: #cdeaf7;
+  --cl-pill-strong: #f2fafe;
+  --cl-card-rim: rgba(129, 205, 229, 0.28);
+}
+
+@media (prefers-color-scheme: dark) {
+  .workspace-shell[data-color-mode="system"] {
+    color-scheme: dark;
+
+    --ws-ink: #eaf3ea;
+    --ws-muted: #9eb8a0;
+    --ws-border: #263d29;
+    --ws-canvas: #0d150e;
+
+    --dm-surface: #131f15;
+    --dm-surface-soft: #18271b;
+    --dm-surface-tint: #1f3323;
+    --dm-border: #283f2b;
+    --dm-border-strong: #39583d;
+    --dm-ink: #eef6ee;
+    --dm-ink-soft: #d5e7d5;
+    --dm-muted: #9eb8a0;
+    --dm-accent: #a3e635;
+    --dm-primary-btn: #2b6939;
+    --dm-primary-btn-hover: #357e45;
+    --dm-code-bg: #1c2f1f;
+    --dm-code-ink: #c2ec9e;
+    --dm-row-hover: #1a2b1d;
+    --dm-wallet-hint: #b8d5b0;
+
+    --cl-1: #162318;
+    --cl-2: #131f15;
+    --cl-3: #101b12;
+    --cl-4: #0d170f;
+    --cl-5: #0b130c;
+    --cl-notch: #101b12;
+    --cl-pill-bg: rgba(18, 31, 20, 0.88);
+    --cl-pill-border: rgba(163, 230, 53, 0.24);
+    --cl-pill-ink: #cbe2c4;
+    --cl-pill-strong: #f0f8ee;
+    --cl-card-rim: rgba(163, 230, 53, 0.24);
+  }
+
+  .workspace-shell[data-color-mode="system"][data-theme="wallet-selahtone"] {
+    --ws-ink: #ecf7fc;
+    --ws-muted: #98c2da;
+    --ws-border: #1d3968;
+    --ws-canvas: #061024;
+
+    --dm-surface: #0b1933;
+    --dm-surface-soft: #0f2244;
+    --dm-surface-tint: #152d57;
+    --dm-border: #1d3968;
+    --dm-border-strong: #2b528e;
+    --dm-ink: #ecf7fc;
+    --dm-ink-soft: #d2ecf8;
+    --dm-muted: #98c2da;
+    --dm-accent: #81cde5;
+    --dm-primary-btn: #16688a;
+    --dm-primary-btn-hover: #1c7da4;
+    --dm-code-bg: #132a50;
+    --dm-code-ink: #9ee0f5;
+    --dm-row-hover: #112548;
+    --dm-wallet-hint: #9fd7eb;
+
+    --cl-1: #0c1f3f;
+    --cl-2: #0a1a36;
+    --cl-3: #08162e;
+    --cl-4: #061226;
+    --cl-5: #050e1e;
+    --cl-notch: #08162e;
+    --cl-pill-bg: rgba(9, 24, 52, 0.88);
+    --cl-pill-border: rgba(129, 205, 229, 0.28);
+    --cl-pill-ink: #cdeaf7;
+    --cl-pill-strong: #f2fafe;
+    --cl-card-rim: rgba(129, 205, 229, 0.28);
+  }
+}
+
+/* -------------------------------------------------------------------------
+   ٢. ربط أقسام المالية والمبيعات والمخزون ولوحات الإدارة بمتغيّرات الوضع الليلي
+   ------------------------------------------------------------------------- */
+.workspace-shell[data-color-mode="dark"] .finance-suite,
+.workspace-shell[data-color-mode="dark"][data-theme="wallet-selahtone"] .finance-suite {
+  --fn-ink: var(--dm-ink);
+  --fn-ink-soft: var(--dm-ink-soft);
+  --fn-muted: var(--dm-muted);
+  --fn-surface: var(--dm-surface);
+  --fn-surface-soft: var(--dm-surface-soft);
+  --fn-surface-tint: var(--dm-surface-tint);
+  --fn-border: var(--dm-border);
+  --fn-border-strong: var(--dm-border-strong);
+  --fn-primary-btn: var(--dm-primary-btn);
+  --fn-primary-btn-hover: var(--dm-primary-btn-hover);
+  --fn-code-bg: var(--dm-code-bg);
+  --fn-code-ink: var(--dm-code-ink);
+  --fn-row-hover: var(--dm-row-hover);
+}
+
+.workspace-shell[data-color-mode="dark"] .sales-suite,
+.workspace-shell[data-color-mode="dark"][data-theme="wallet-selahtone"] .sales-suite {
+  --sl-ink: var(--dm-ink);
+  --sl-muted: var(--dm-muted);
+  --sl-surface: var(--dm-surface);
+  --sl-surface-soft: var(--dm-surface-soft);
+  --sl-surface-tint: var(--dm-surface-tint);
+  --sl-border: var(--dm-border);
+  --sl-border-strong: var(--dm-border-strong);
+  --sl-primary-btn: var(--dm-primary-btn);
+  --sl-primary-btn-hover: var(--dm-primary-btn-hover);
+}
+
+.workspace-shell[data-color-mode="dark"] .inventory-suite,
+.workspace-shell[data-color-mode="dark"][data-theme="wallet-selahtone"] .inventory-suite {
+  --iv-ink: var(--dm-ink);
+  --iv-ink-soft: var(--dm-ink-soft);
+  --iv-muted: var(--dm-muted);
+  --iv-surface: var(--dm-surface);
+  --iv-surface-soft: var(--dm-surface-soft);
+  --iv-surface-tint: var(--dm-surface-tint);
+  --iv-border: var(--dm-border);
+  --iv-border-strong: var(--dm-border-strong);
+  --iv-primary-btn: var(--dm-primary-btn);
+  --iv-primary-btn-hover: var(--dm-primary-btn-hover);
+  --iv-code-bg: var(--dm-code-bg);
+  --iv-code-ink: var(--dm-code-ink);
+  --iv-row-hover: var(--dm-row-hover);
+}
+
+.workspace-shell[data-color-mode="dark"] .dashboard-wallet,
+.workspace-shell[data-color-mode="dark"][data-theme="wallet-selahtone"] .dashboard-wallet {
+  --wallet-hint-ink: var(--dm-wallet-hint);
+}
+
+.workspace-shell[data-color-mode="dark"] .dashboard-section-heading h2,
+.workspace-shell[data-color-mode="dark"] .dashboard-panel__heading h2,
+.workspace-shell[data-color-mode="dark"] .dashboard-branch-name strong,
+.workspace-shell[data-color-mode="dark"] .card h2,
+.workspace-shell[data-color-mode="dark"] .kpi b {
+  color: var(--dm-ink);
+}
+
+.workspace-shell[data-color-mode="dark"] .dashboard-section-heading p,
+.workspace-shell[data-color-mode="dark"] .dashboard-panel__heading p:not(.dashboard-panel__eyebrow),
+.workspace-shell[data-color-mode="dark"] .dashboard-panel__footer,
+.workspace-shell[data-color-mode="dark"] .dashboard-branch-name small,
+.workspace-shell[data-color-mode="dark"] .dashboard-account-note,
+.workspace-shell[data-color-mode="dark"] .field-hint,
+.workspace-shell[data-color-mode="dark"] .kpi small,
+.workspace-shell[data-color-mode="dark"] .kpi span,
+.workspace-shell[data-color-mode="dark"] .muted {
+  color: var(--dm-muted);
+}
+
+.workspace-shell[data-color-mode="dark"] .dashboard-account-note strong {
+  color: var(--dm-ink);
+}
+
+.workspace-shell[data-color-mode="dark"] .dashboard-panel__eyebrow,
+.workspace-shell[data-color-mode="dark"] .dashboard-text-link,
+.workspace-shell[data-color-mode="dark"] .sales-suite .inv-button--text,
+.workspace-shell[data-color-mode="dark"] .sales-kpi-card__icon,
+.workspace-shell[data-color-mode="dark"] .sales-tax-banner svg,
+.workspace-shell[data-color-mode="dark"] .sales-branch-select svg,
+.workspace-shell[data-color-mode="dark"] .sales-invoice-badge svg,
+.workspace-shell[data-color-mode="dark"] .sales-empty-state__icon {
+  color: var(--dm-accent);
+}
+
+.workspace-shell[data-color-mode="dark"] .dashboard-panel,
+.workspace-shell[data-color-mode="dark"] .dashboard-scope,
+.workspace-shell[data-color-mode="dark"] .card,
+.workspace-shell[data-color-mode="dark"] .kpi,
+.workspace-shell[data-color-mode="dark"] .inv-panel {
+  background: var(--dm-surface);
+  border-color: var(--dm-border);
+  color: var(--dm-ink);
+}
+
+.workspace-shell[data-color-mode="dark"] .dashboard-panel__heading-icon,
+.workspace-shell[data-color-mode="dark"] .dashboard-branch-name__icon,
+.workspace-shell[data-color-mode="dark"] .dashboard-warehouse-list span {
+  background: var(--dm-surface-tint);
+  color: var(--dm-accent);
+}
+
+.workspace-shell[data-color-mode="dark"] .dashboard-table th,
+.workspace-shell[data-color-mode="dark"] thead th,
+.workspace-shell[data-color-mode="dark"] .fin-page .fin-table th {
+  background: var(--dm-surface-soft);
+  color: var(--dm-ink-soft);
+  border-bottom-color: var(--dm-border);
+}
+
+.workspace-shell[data-color-mode="dark"] .dashboard-table td,
+.workspace-shell[data-color-mode="dark"] td,
+.workspace-shell[data-color-mode="dark"] .dashboard-setup__item {
+  color: var(--dm-ink-soft);
+  border-color: var(--dm-border);
+}
+
+.workspace-shell[data-color-mode="dark"] .dashboard-table tbody tr:hover,
+.workspace-shell[data-color-mode="dark"] tbody tr:hover,
+.workspace-shell[data-color-mode="dark"] .fin-page .fin-table tbody tr:hover {
+  background: var(--dm-row-hover);
+}
+
+.workspace-shell[data-color-mode="dark"] .field label {
+  color: var(--dm-ink-soft);
+}
+
+.workspace-shell[data-color-mode="dark"] .field input,
+.workspace-shell[data-color-mode="dark"] .field select,
+.workspace-shell[data-color-mode="dark"] .field textarea,
+.workspace-shell[data-color-mode="dark"] .btn.secondary {
+  background: var(--dm-surface-soft);
+  border-color: var(--dm-border-strong);
+  color: var(--dm-ink);
+}
+
+/* تنبيهات وشارات الحالات بتباين ليلي مريح وواضح */
+.workspace-shell[data-color-mode="dark"] .fin-kpi-card.is-alert,
+.workspace-shell[data-color-mode="dark"] .sales-kpi-card.is-alert,
+.workspace-shell[data-color-mode="dark"] .finance-suite .fin-alert--warning,
+.workspace-shell[data-color-mode="dark"] .sales-suite .inv-alert--warning,
+.workspace-shell[data-color-mode="dark"] .inv-alert--warning,
+.workspace-shell[data-color-mode="dark"] .fin-badge--pending,
+.workspace-shell[data-color-mode="dark"] .sale-chip--warning,
+.workspace-shell[data-color-mode="dark"] .b-warn {
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.36);
+  color: #fcd34d;
+}
+
+.workspace-shell[data-color-mode="dark"] .fin-kpi-card.is-alert .fin-kpi-card__icon,
+.workspace-shell[data-color-mode="dark"] .sales-kpi-card.is-alert .sales-kpi-card__icon {
+  background: rgba(245, 158, 11, 0.20);
+  border-color: rgba(245, 158, 11, 0.38);
+  color: #fcd34d;
+}
+
+.workspace-shell[data-color-mode="dark"] .finance-suite .fin-alert--error,
+.workspace-shell[data-color-mode="dark"] .sales-suite .inv-alert--error,
+.workspace-shell[data-color-mode="dark"] .inv-alert--error,
+.workspace-shell[data-color-mode="dark"] .alert-err,
+.workspace-shell[data-color-mode="dark"] .fin-badge--danger,
+.workspace-shell[data-color-mode="dark"] .sale-product__remove {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.38);
+  color: #fca5a5;
+}
+
+.workspace-shell[data-color-mode="dark"] .finance-suite .fin-success,
+.workspace-shell[data-color-mode="dark"] .finance-suite .fin-alert--success,
+.workspace-shell[data-color-mode="dark"] .inv-alert--success,
+.workspace-shell[data-color-mode="dark"] .alert-ok,
+.workspace-shell[data-color-mode="dark"] .fin-badge--paid,
+.workspace-shell[data-color-mode="dark"] .sale-chip--paid,
+.workspace-shell[data-color-mode="dark"] .dashboard-status,
+.workspace-shell[data-color-mode="dark"] .b-ok {
+  background: rgba(34, 197, 94, 0.14);
+  border-color: rgba(34, 197, 94, 0.36);
+  color: #86efac;
+}
+
+.workspace-shell[data-color-mode="dark"] .finance-suite .fin-success h2,
+.workspace-shell[data-color-mode="dark"] .finance-suite .fin-success p {
+  color: #bbf7d0;
+}
+
+.workspace-shell[data-color-mode="dark"] .fin-badge--approved,
+.workspace-shell[data-color-mode="dark"] .fin-badge--vault,
+.workspace-shell[data-color-mode="dark"] .alert-info {
+  background: rgba(56, 189, 248, 0.14);
+  border-color: rgba(56, 189, 248, 0.36);
+  color: #7dd3fc;
+}
+
+.workspace-shell[data-color-mode="dark"] .fin-badge--custody,
+.workspace-shell[data-color-mode="dark"] .fin-badge--neutral,
+.workspace-shell[data-color-mode="dark"] .sale-chip--cancelled,
+.workspace-shell[data-color-mode="dark"] .dashboard-status.is-inactive,
+.workspace-shell[data-color-mode="dark"] .b-gray {
+  background: rgba(148, 163, 184, 0.14);
+  border-color: rgba(148, 163, 184, 0.30);
+  color: #cbd5e1;
+}
+
+/* تفعيل القواعد نفسها تلقائيًا عند ضبط الوضع على "system" وكان جهاز المستخدم في الوضع الليلي */
+@media (prefers-color-scheme: dark) {
+  .workspace-shell[data-color-mode="system"] .finance-suite,
+  .workspace-shell[data-color-mode="system"][data-theme="wallet-selahtone"] .finance-suite {
+    --fn-ink: var(--dm-ink);
+    --fn-ink-soft: var(--dm-ink-soft);
+    --fn-muted: var(--dm-muted);
+    --fn-surface: var(--dm-surface);
+    --fn-surface-soft: var(--dm-surface-soft);
+    --fn-surface-tint: var(--dm-surface-tint);
+    --fn-border: var(--dm-border);
+    --fn-border-strong: var(--dm-border-strong);
+    --fn-primary-btn: var(--dm-primary-btn);
+    --fn-primary-btn-hover: var(--dm-primary-btn-hover);
+    --fn-code-bg: var(--dm-code-bg);
+    --fn-code-ink: var(--dm-code-ink);
+    --fn-row-hover: var(--dm-row-hover);
+  }
+
+  .workspace-shell[data-color-mode="system"] .sales-suite,
+  .workspace-shell[data-color-mode="system"][data-theme="wallet-selahtone"] .sales-suite {
+    --sl-ink: var(--dm-ink);
+    --sl-muted: var(--dm-muted);
+    --sl-surface: var(--dm-surface);
+    --sl-surface-soft: var(--dm-surface-soft);
+    --sl-surface-tint: var(--dm-surface-tint);
+    --sl-border: var(--dm-border);
+    --sl-border-strong: var(--dm-border-strong);
+    --sl-primary-btn: var(--dm-primary-btn);
+    --sl-primary-btn-hover: var(--dm-primary-btn-hover);
+  }
+
+  .workspace-shell[data-color-mode="system"] .inventory-suite,
+  .workspace-shell[data-color-mode="system"][data-theme="wallet-selahtone"] .inventory-suite {
+    --iv-ink: var(--dm-ink);
+    --iv-ink-soft: var(--dm-ink-soft);
+    --iv-muted: var(--dm-muted);
+    --iv-surface: var(--dm-surface);
+    --iv-surface-soft: var(--dm-surface-soft);
+    --iv-surface-tint: var(--dm-surface-tint);
+    --iv-border: var(--dm-border);
+    --iv-border-strong: var(--dm-border-strong);
+    --iv-primary-btn: var(--dm-primary-btn);
+    --iv-primary-btn-hover: var(--dm-primary-btn-hover);
+    --iv-code-bg: var(--dm-code-bg);
+    --iv-code-ink: var(--dm-code-ink);
+    --iv-row-hover: var(--dm-row-hover);
+  }
+
+  .workspace-shell[data-color-mode="system"] .dashboard-wallet,
+  .workspace-shell[data-color-mode="system"][data-theme="wallet-selahtone"] .dashboard-wallet {
+    --wallet-hint-ink: var(--dm-wallet-hint);
+  }
+
+  .workspace-shell[data-color-mode="system"] .dashboard-section-heading h2,
+  .workspace-shell[data-color-mode="system"] .dashboard-panel__heading h2,
+  .workspace-shell[data-color-mode="system"] .dashboard-branch-name strong,
+  .workspace-shell[data-color-mode="system"] .card h2,
+  .workspace-shell[data-color-mode="system"] .kpi b {
+    color: var(--dm-ink);
+  }
+
+  .workspace-shell[data-color-mode="system"] .dashboard-section-heading p,
+  .workspace-shell[data-color-mode="system"] .dashboard-panel__heading p:not(.dashboard-panel__eyebrow),
+  .workspace-shell[data-color-mode="system"] .dashboard-panel__footer,
+  .workspace-shell[data-color-mode="system"] .dashboard-branch-name small,
+  .workspace-shell[data-color-mode="system"] .dashboard-account-note,
+  .workspace-shell[data-color-mode="system"] .field-hint,
+  .workspace-shell[data-color-mode="system"] .kpi small,
+  .workspace-shell[data-color-mode="system"] .kpi span,
+  .workspace-shell[data-color-mode="system"] .muted {
+    color: var(--dm-muted);
+  }
+
+  .workspace-shell[data-color-mode="system"] .dashboard-account-note strong {
+    color: var(--dm-ink);
+  }
+
+  .workspace-shell[data-color-mode="system"] .dashboard-panel__eyebrow,
+  .workspace-shell[data-color-mode="system"] .dashboard-text-link,
+  .workspace-shell[data-color-mode="system"] .sales-suite .inv-button--text,
+  .workspace-shell[data-color-mode="system"] .sales-kpi-card__icon,
+  .workspace-shell[data-color-mode="system"] .sales-tax-banner svg,
+  .workspace-shell[data-color-mode="system"] .sales-branch-select svg,
+  .workspace-shell[data-color-mode="system"] .sales-invoice-badge svg,
+  .workspace-shell[data-color-mode="system"] .sales-empty-state__icon {
+    color: var(--dm-accent);
+  }
+
+  .workspace-shell[data-color-mode="system"] .dashboard-panel,
+  .workspace-shell[data-color-mode="system"] .dashboard-scope,
+  .workspace-shell[data-color-mode="system"] .card,
+  .workspace-shell[data-color-mode="system"] .kpi,
+  .workspace-shell[data-color-mode="system"] .inv-panel {
+    background: var(--dm-surface);
+    border-color: var(--dm-border);
+    color: var(--dm-ink);
+  }
+
+  .workspace-shell[data-color-mode="system"] .dashboard-panel__heading-icon,
+  .workspace-shell[data-color-mode="system"] .dashboard-branch-name__icon,
+  .workspace-shell[data-color-mode="system"] .dashboard-warehouse-list span {
+    background: var(--dm-surface-tint);
+    color: var(--dm-accent);
+  }
+
+  .workspace-shell[data-color-mode="system"] .dashboard-table th,
+  .workspace-shell[data-color-mode="system"] thead th,
+  .workspace-shell[data-color-mode="system"] .fin-page .fin-table th {
+    background: var(--dm-surface-soft);
+    color: var(--dm-ink-soft);
+    border-bottom-color: var(--dm-border);
+  }
+
+  .workspace-shell[data-color-mode="system"] .dashboard-table td,
+  .workspace-shell[data-color-mode="system"] td,
+  .workspace-shell[data-color-mode="system"] .dashboard-setup__item {
+    color: var(--dm-ink-soft);
+    border-color: var(--dm-border);
+  }
+
+  .workspace-shell[data-color-mode="system"] .dashboard-table tbody tr:hover,
+  .workspace-shell[data-color-mode="system"] tbody tr:hover,
+  .workspace-shell[data-color-mode="system"] .fin-page .fin-table tbody tr:hover {
+    background: var(--dm-row-hover);
+  }
+
+  .workspace-shell[data-color-mode="system"] .field label {
+    color: var(--dm-ink-soft);
+  }
+
+  .workspace-shell[data-color-mode="system"] .field input,
+  .workspace-shell[data-color-mode="system"] .field select,
+  .workspace-shell[data-color-mode="system"] .field textarea,
+  .workspace-shell[data-color-mode="system"] .btn.secondary {
+    background: var(--dm-surface-soft);
+    border-color: var(--dm-border-strong);
+    color: var(--dm-ink);
+  }
+
+  .workspace-shell[data-color-mode="system"] .fin-kpi-card.is-alert,
+  .workspace-shell[data-color-mode="system"] .sales-kpi-card.is-alert,
+  .workspace-shell[data-color-mode="system"] .finance-suite .fin-alert--warning,
+  .workspace-shell[data-color-mode="system"] .sales-suite .inv-alert--warning,
+  .workspace-shell[data-color-mode="system"] .inv-alert--warning,
+  .workspace-shell[data-color-mode="system"] .fin-badge--pending,
+  .workspace-shell[data-color-mode="system"] .sale-chip--warning,
+  .workspace-shell[data-color-mode="system"] .b-warn {
+    background: rgba(245, 158, 11, 0.14);
+    border-color: rgba(245, 158, 11, 0.36);
+    color: #fcd34d;
+  }
+
+  .workspace-shell[data-color-mode="system"] .fin-kpi-card.is-alert .fin-kpi-card__icon,
+  .workspace-shell[data-color-mode="system"] .sales-kpi-card.is-alert .sales-kpi-card__icon {
+    background: rgba(245, 158, 11, 0.20);
+    border-color: rgba(245, 158, 11, 0.38);
+    color: #fcd34d;
+  }
+
+  .workspace-shell[data-color-mode="system"] .finance-suite .fin-alert--error,
+  .workspace-shell[data-color-mode="system"] .sales-suite .inv-alert--error,
+  .workspace-shell[data-color-mode="system"] .inv-alert--error,
+  .workspace-shell[data-color-mode="system"] .alert-err,
+  .workspace-shell[data-color-mode="system"] .fin-badge--danger,
+  .workspace-shell[data-color-mode="system"] .sale-product__remove {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.38);
+    color: #fca5a5;
+  }
+
+  .workspace-shell[data-color-mode="system"] .finance-suite .fin-success,
+  .workspace-shell[data-color-mode="system"] .finance-suite .fin-alert--success,
+  .workspace-shell[data-color-mode="system"] .inv-alert--success,
+  .workspace-shell[data-color-mode="system"] .alert-ok,
+  .workspace-shell[data-color-mode="system"] .fin-badge--paid,
+  .workspace-shell[data-color-mode="system"] .sale-chip--paid,
+  .workspace-shell[data-color-mode="system"] .dashboard-status,
+  .workspace-shell[data-color-mode="system"] .b-ok {
+    background: rgba(34, 197, 94, 0.14);
+    border-color: rgba(34, 197, 94, 0.36);
+    color: #86efac;
+  }
+
+  .workspace-shell[data-color-mode="system"] .finance-suite .fin-success h2,
+  .workspace-shell[data-color-mode="system"] .finance-suite .fin-success p {
+    color: #bbf7d0;
+  }
+
+  .workspace-shell[data-color-mode="system"] .fin-badge--approved,
+  .workspace-shell[data-color-mode="system"] .fin-badge--vault,
+  .workspace-shell[data-color-mode="system"] .alert-info {
+    background: rgba(56, 189, 248, 0.14);
+    border-color: rgba(56, 189, 248, 0.36);
+    color: #7dd3fc;
+  }
+
+  .workspace-shell[data-color-mode="system"] .fin-badge--custody,
+  .workspace-shell[data-color-mode="system"] .fin-badge--neutral,
+  .workspace-shell[data-color-mode="system"] .sale-chip--cancelled,
+  .workspace-shell[data-color-mode="system"] .dashboard-status.is-inactive,
+  .workspace-shell[data-color-mode="system"] .b-gray {
+    background: rgba(148, 163, 184, 0.14);
+    border-color: rgba(148, 163, 184, 0.30);
+    color: #cbd5e1;
+  }
+}
