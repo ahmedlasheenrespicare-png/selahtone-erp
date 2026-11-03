@@ -3,7 +3,12 @@ import { redirect } from "next/navigation";
 import PantherSpotlightCard from "@/components/panther-spotlight-card";
 import { branchScope, requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isPeriod, loadSalesStats, type Period } from "@/lib/sales-stats";
+import {
+  isPeriod,
+  loadSalesChartSeries,
+  loadSalesStats,
+  type Period,
+} from "@/lib/sales-stats";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +37,10 @@ export default async function SalesStatsPage({ searchParams }: { searchParams: P
   const params = await searchParams;
   const period: Period = isPeriod(params.period) ? params.period : "month";
   const scope = branchScope(session);
-  const stats = await loadSalesStats(prisma, scope.branchId ?? null, period);
+  const [stats, salesSeries] = await Promise.all([
+    loadSalesStats(prisma, scope.branchId ?? null, period),
+    loadSalesChartSeries(prisma, scope.branchId ?? null, period),
+  ]);
 
   return (
     <div className="inv-page">
@@ -83,6 +91,7 @@ export default async function SalesStatsPage({ searchParams }: { searchParams: P
               : "0 متأخرات · فواتير الفترة مسدّدة بالكامل",
           tone: Number(stats.outstandingTotal) > 0 ? "negative" : "positive",
         }}
+        series={salesSeries}
         actionHref="/sales"
         actionLabel="عرض سجل الفواتير والتحصيلات"
       />

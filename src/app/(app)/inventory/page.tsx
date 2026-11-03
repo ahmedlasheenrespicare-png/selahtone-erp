@@ -47,6 +47,63 @@ export default async function InventoryPage() {
   const zeroStockCount = Math.max(0, stockableProducts.length - inStockCount);
   const canReceive = session.role === "MANAGER" || session.role === "CS_AGENT";
 
+  const topStockItems = stockableProducts
+    .slice()
+    .sort((a, b) => {
+      const va = stockByProduct.get(a.id.toString())?.value ?? 0n;
+      const vb = stockByProduct.get(b.id.toString())?.value ?? 0n;
+      if (va !== vb) return va < vb ? -1 : 1;
+      const qa = stockByProduct.get(a.id.toString())?.qty ?? 0n;
+      const qb = stockByProduct.get(b.id.toString())?.qty ?? 0n;
+      if (qa !== qb) return qa < qb ? -1 : 1;
+      return a.sku.localeCompare(b.sku);
+    })
+    .slice(-12);
+  const inventorySeries =
+    topStockItems.length > 0
+      ? [
+          {
+            id: "stock-value",
+            label: "قيمة الأصناف",
+            points: topStockItems.map((p) => {
+              const st = stockByProduct.get(p.id.toString()) ?? {
+                qty: 0n,
+                value: 0n,
+                where: [],
+              };
+              const valFormatted = formatInventoryDecimal(st.value, 6);
+              const qtyFormatted = formatInventoryDecimal(st.qty, 2);
+              return {
+                label: `${p.nameAr} (${p.sku})`,
+                shortLabel: p.sku,
+                value: Number(st.value) / 1_000_000,
+                formattedValue: `${valFormatted} ج.م`,
+                detail: `الكمية المتاحة: ${qtyFormatted} · ${CATEGORY_LABEL[p.category] ?? p.category}`,
+              };
+            }),
+          },
+          {
+            id: "stock-qty",
+            label: "الكميات بالمستودع",
+            points: topStockItems.map((p) => {
+              const st = stockByProduct.get(p.id.toString()) ?? {
+                qty: 0n,
+                value: 0n,
+                where: [],
+              };
+              const qtyFormatted = formatInventoryDecimal(st.qty, 2);
+              return {
+                label: `${p.nameAr} (${p.sku})`,
+                shortLabel: p.sku,
+                value: Number(st.qty) / 100,
+                formattedValue: `${qtyFormatted} وحدة`,
+                detail: st.where.join(" · ") || "رصيد صفر (يحتاج توريدًا)",
+              };
+            }),
+          },
+        ]
+      : undefined;
+
   return (
     <div className="inv-page">
       <div className="inv-heading">
@@ -87,6 +144,7 @@ export default async function InventoryPage() {
               : "0 نواقص · كل الأصناف المخزنية متوفّرة",
           tone: zeroStockCount > 0 ? "negative" : "positive",
         }}
+        series={inventorySeries}
         actionHref={canReceive ? "/inventory/receipts/new" : "/inventory/receipts"}
         actionLabel={canReceive ? "تسجيل توريد بضاعة جديد" : "عرض سجل التوريدات"}
       />

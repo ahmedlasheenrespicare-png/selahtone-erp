@@ -1,8 +1,13 @@
 import Link from "next/link";
 import DashboardWallet, { type WalletPocketItem } from "@/app/(app)/dashboard/dashboard-wallet";
 import { AppIcon } from "@/components/app-icon";
+import PantherSpotlightCard, {
+  type PantherChartPoint,
+  type PantherChartSeries,
+} from "@/components/panther-spotlight-card";
 import { displayMoney } from "@/lib/commerce-display";
 import { listExpenses } from "@/lib/finance/engine";
+import { cairoDate } from "@/lib/finance/validation";
 import { prisma } from "@/lib/prisma";
 import { financePage, financeRead } from "../page-context";
 import { formatMoney } from "../format";
@@ -65,6 +70,191 @@ export default async function ExpensesPage() {
   });
 
   const latestExpenses = rows.slice(0, 12);
+  const currentMonthPrefix = cairoDate().slice(0, 7);
+
+  let monthTotalCents = 0n;
+  let monthPaidCents = 0n;
+  let monthApprovedCents = 0n;
+  let monthPendingCents = 0n;
+  let monthCount = 0;
+  let monthUnpaidCount = 0;
+
+  const monthExpensesChrono = expenses
+    .filter((exp) => String(exp.expenseDate).startsWith(currentMonthPrefix))
+    .slice()
+    .sort((a, b) => {
+      const cmp = String(a.expenseDate).localeCompare(String(b.expenseDate));
+      return cmp !== 0 ? cmp : Number(a.id) - Number(b.id);
+    });
+
+  for (const exp of monthExpensesChrono) {
+    const amt = moneyToCents(exp.amount);
+    monthTotalCents += amt;
+    monthCount += 1;
+    if (exp.status === "PAID") {
+      monthPaidCents += amt;
+    } else if (exp.status === "APPROVED") {
+      monthApprovedCents += amt;
+      monthUnpaidCount += 1;
+    } else {
+      monthPendingCents += amt;
+      monthUnpaidCount += 1;
+    }
+  }
+
+  const monthPendingAndApprovedCents = monthPendingCents + monthApprovedCents;
+
+  const expensesSeries: PantherChartSeries[] = [];
+  if (monthExpensesChrono.length === 0) {
+    expensesSeries.push({
+      id: "month-cum",
+      label: "مسار مصروفات الشهر",
+      points: [
+        {
+          label: "بداية الشهر",
+          shortLabel: "البداية",
+          value: 0,
+          formattedValue: "0 ج.م",
+          secondaryValue: 0,
+          secondaryLabel: "المدفوع",
+          secondaryFormatted: "0 ج.م",
+        },
+        {
+          label: "الآن — لا مصروفات هذا الشهر",
+          shortLabel: "الآن",
+          value: 0,
+          formattedValue: "0 ج.م",
+          secondaryValue: 0,
+          secondaryLabel: "المدفوع",
+          secondaryFormatted: "0 ج.م",
+        },
+      ],
+    });
+  } else if (monthExpensesChrono.length <= 14) {
+    let cumAll = 0n;
+    let cumPaid = 0n;
+    const cumPoints: PantherChartPoint[] = [
+      {
+        label: "بداية الشهر",
+        shortLabel: "٠",
+        value: 0,
+        formattedValue: "0 ج.م",
+        secondaryValue: 0,
+        secondaryLabel: "المدفوع",
+        secondaryFormatted: "0 ج.م",
+      },
+    ];
+    const itemPoints: PantherChartPoint[] = [];
+
+    for (const exp of monthExpensesChrono) {
+      const amt = moneyToCents(exp.amount);
+      const bName = branchNames.get(exp.branchId) ?? "الفرع";
+      const stLabel = STATUS_LABEL[exp.status] ?? exp.status;
+      cumAll += amt;
+      if (exp.status === "PAID") cumPaid += amt;
+
+      cumPoints.push({
+        label: `${exp.categorySnapshot} · ${bName}`,
+        shortLabel: `#${exp.id}`,
+        value: Number(cumAll) / 100,
+        formattedValue: `${displayMoney(cumAll)} ج.م`,
+        secondaryValue: Number(cumPaid) / 100,
+        secondaryLabel: "المدفوع فعليًا",
+        secondaryFormatted: `${displayMoney(cumPaid)} ج.م`,
+        detail: `${displayMoney(amt)} ج.م (${stLabel}) — ${exp.description}`,
+      });
+
+      itemPoints.push({
+        label: exp.description,
+        shortLabel: `#${exp.id}`,
+        value: Number(amt) / 100,
+        formattedValue: `${displayMoney(amt)} ج.م`,
+        detail: `${exp.categorySnapshot} · ${bName} · ${stLabel}`,
+      });
+    }
+
+    expensesSeries.push({
+      id: "month-cum",
+      label: "مسار مصروفات الشهر",
+      points: cumPoints,
+    });
+    expensesSeries.push({
+      id: "month-items",
+      label: "كل مصروف",
+      points: itemPoints,
+    });
+  } else {
+    const byDay = new Map<string, { all: bigint; paid: bigint; count: number }>();
+    for (const exp of monthExpensesChrono) {
+      const dKey = String(exp.expenseDate);
+      const cur = byDay.get(dKey) ?? { all: 0n, paid: 0n, count: 0 };
+      const amt = moneyToCents(exp.amount);
+      cur.all += amt;
+      if (exp.status === "PAID") cur.paid += amt;
+      cur.count += 1;
+      byDay.set(dKey, cur);
+    }
+    let cumAll = 0n;
+    let cumPaid = 0n;
+    const cumPoints: PantherChartPoint[] = [
+      {
+        label: "بداية الشهر",
+        shortLabel: "٠",
+        value: 0,
+        formattedValue: "0 ج.م",
+        secondaryValue: 0,
+        secondaryLabel: "المدفوع",
+        secondaryFormatted: "0 ج.م",
+      },
+    ];
+    for (const [dKey, info] of byDay.entries()) {
+      cumAll += info.all;
+      cumPaid += info.paid;
+      cumPoints.push({
+        label: `يوم ${dKey}`,
+        shortLabel: dKey.slice(5),
+        value: Number(cumAll) / 100,
+        formattedValue: `${displayMoney(cumAll)} ج.م`,
+        secondaryValue: Number(cumPaid) / 100,
+        secondaryLabel: "المدفوع",
+        secondaryFormatted: `${displayMoney(cumPaid)} ج.م`,
+        detail: `مصروفات اليوم ${displayMoney(info.all)} ج.م (${info.count} بند)`,
+      });
+    }
+    expensesSeries.push({
+      id: "month-cum",
+      label: "مسار مصروفات الشهر",
+      points: cumPoints,
+    });
+  }
+
+  expensesSeries.push({
+    id: "status-breakdown",
+    label: "حسب حالة الصرف",
+    points: [
+      {
+        label: "مدفوع فعليًا (الشهر الحالي)",
+        shortLabel: "مدفوع",
+        value: Number(monthPaidCents) / 100,
+        formattedValue: `${displayMoney(monthPaidCents)} ج.م`,
+        detail: "مصروفات اعتُمدت وسُجّل صرفها الفعلي هذا الشهر",
+      },
+      {
+        label: "معتمد بانتظار الصرف",
+        shortLabel: "للصرف",
+        value: Number(monthApprovedCents) / 100,
+        formattedValue: `${displayMoney(monthApprovedCents)} ج.م`,
+        detail: "مصروفات معتمدة وجاهزة لتسجيل الدفع الفعلي",
+      },
+      {
+        label: "بانتظار الاعتماد",
+        shortLabel: "للاعتماد",
+        value: Number(monthPendingCents) / 100,
+        formattedValue: `${displayMoney(monthPendingCents)} ج.م`,
+        detail: "مصروفات مسجّلة بانتظار مراجعة واعتماد الإدارة",
+      },
+    ],
+  });
 
   const pocketItems: WalletPocketItem[] = [
     {
@@ -208,6 +398,32 @@ export default async function ExpensesPage() {
           </DashboardWallet>
         </section>
       )}
+
+      <PantherSpotlightCard
+        title="مصروفات الشهر وحالة الصرف"
+        subtitle={`محدّث الآن · شهر ${currentMonthPrefix}`}
+        pill={`${monthCount} مصروف هذا الشهر`}
+        primary={{
+          label: "مصروفات الشهر الحالي",
+          value: displayMoney(monthTotalCents),
+          unit: "ج.م",
+          delta: `مدفوع منها فعليًا: ${displayMoney(monthPaidCents)} ج.م`,
+          tone: "positive",
+        }}
+        secondary={{
+          label: "معلّق للاعتماد أو الصرف",
+          value: displayMoney(monthPendingAndApprovedCents),
+          unit: "ج.م",
+          delta:
+            monthUnpaidCount > 0
+              ? `${monthUnpaidCount} مصروف بانتظار إجراء في الشهر الحالي`
+              : "0 معلقات · جميع مصروفات الشهر مسدّدة",
+          tone: monthUnpaidCount > 0 ? "negative" : "positive",
+        }}
+        series={expensesSeries}
+        actionHref="/finance/expenses/new"
+        actionLabel="تسجيل بند مصروف جديد"
+      />
 
       <section className="fin-kpi-strip" aria-label="ملخص المصروفات">
         <article className="fin-kpi-card is-accent">
