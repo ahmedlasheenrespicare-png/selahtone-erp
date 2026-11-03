@@ -6,7 +6,7 @@ import type {
 } from "@/components/panther-spotlight-card";
 import { displayMoney } from "@/lib/commerce-display";
 import { assertFinanceActor, financeDb, financeEnabled } from "@/lib/finance/db";
-import { listAccounts, listExpenses } from "@/lib/finance/engine";
+import { listAccounts, listExpenses, listSettlements } from "@/lib/finance/engine";
 import type { FinanceTransaction } from "@/lib/finance/types";
 import { cairoDate } from "@/lib/finance/validation";
 
@@ -167,9 +167,15 @@ export async function loadEmployeeCash(session: SessionUser): Promise<EmployeeCa
   });
 }
 
-export async function loadCashSummary(session: SessionUser): Promise<CashSummary | null> {
+export async function loadCashSummary(
+  session: SessionUser,
+  branchFilterId?: string | null,
+): Promise<CashSummary | null> {
   if (!financeEnabled()) return null;
-  const branchId = session.branchId === null || session.branchId === undefined ? null : String(session.branchId);
+  const branchId =
+    session.branchId !== null && session.branchId !== undefined
+      ? String(session.branchId)
+      : branchFilterId ?? null;
   return read(session, async (tx) => {
     const totals = await tx.query<{ total: string; n: number }>(
       `SELECT COALESCE(SUM(x.bal + x.period_sales - x.period_expenses),0)::text AS total,
@@ -198,9 +204,21 @@ export async function loadCashSummary(session: SessionUser): Promise<CashSummary
       console.error("[dashboard] تعذّر حساب العهدة فرعًا فرعًا", error);
     }
 
-    const pendingSettlements = await tx.query<{ n: number }>(`SELECT count(*)::int AS n FROM finance.settlements WHERE status='OPEN'`);
-    const pendingExpenses = await tx.query<{ n: number }>(`SELECT count(*)::int AS n FROM finance.expenses WHERE status='PENDING'`);
-    const approvedUnpaid = await tx.query<{ n: number }>(`SELECT count(*)::int AS n FROM finance.expenses WHERE status='APPROVED'`);
+    const pendingSettlements = await tx.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM finance.settlements
+       WHERE status='OPEN' AND ($1::bigint IS NULL OR branch_id=$1::bigint)`,
+      [branchId],
+    );
+    const pendingExpenses = await tx.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM finance.expenses
+       WHERE status='PENDING' AND ($1::bigint IS NULL OR branch_id=$1::bigint)`,
+      [branchId],
+    );
+    const approvedUnpaid = await tx.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM finance.expenses
+       WHERE status='APPROVED' AND ($1::bigint IS NULL OR branch_id=$1::bigint)`,
+      [branchId],
+    );
 
     return {
       custodyCount: Number(totals.rows[0].n),
@@ -224,15 +242,36 @@ export type DashboardSpotlightData = {
   actionLabel: string;
 };
 
+export type DashboardFinanceActivity = {
+  key: string;
+  kind: "expense" | "settlement";
+  title: string;
+  subtitle: string;
+  amountFormatted: string;
+  statusLabel: string;
+  tone: "positive" | "warning" | "neutral";
+  timestampMs: number;
+  timestampIso: string;
+  href: string;
+};
+
 export type DashboardFinanceSpotlights = {
   cashBalance: DashboardSpotlightData | null;
   monthlyExpenses: DashboardSpotlightData | null;
+  recentActivities: DashboardFinanceActivity[];
 };
 
 const EXPENSE_STATUS_AR: Record<string, string> = {
   PENDING: "بانتظار الاعتماد",
   APPROVED: "معتمد للصرف",
   PAID: "مدفوع فعليًا",
+};
+
+const SETTLEMENT_STATUS_AR: Record<string, string> = {
+  OPEN: "معلّق للاعتماد",
+  CONFIRMED: "تسوية مؤكّدة",
+  REJECTED: "مرفوض",
+  CANCELLED: "ملغى",
 };
 
 /**
@@ -246,6 +285,7 @@ export async function loadDashboardFinanceSpotlights(
     monthLabel: string;
     cash: EmployeeCash | null;
     summary: CashSummary | null;
+    branchFilterId?: string | null;
   },
 ): Promise<DashboardFinanceSpotlights | null> {
   if (!financeEnabled()) return null;
@@ -254,13 +294,31 @@ export async function loadDashboardFinanceSpotlights(
   const canReadOwnExpenses = session.role === "CS_AGENT" && Boolean(session.branchId);
   if (!canManage && !canReadOwnExpenses) return null;
 
-  const { accounts, expenses } = await read(session, async (tx) => {
-    const inlineDb = { serializable: <R>(work: (inner: FinanceTransaction) => Promise<R>) => work(tx) };
-    const loadedAccounts = await listAccounts(inlineDb, session.id);
-    const loadedExpenses =
-      canManage || canReadOwnExpenses ? await listExpenses(inlineDb, session.id) : [];
-    return { accounts: loadedAccounts, expenses: loadedExpenses };
-  });
+  const { accounts: rawAccounts, expenses: rawExpenses, settlements: rawSettlements } =
+    await read(session, async (tx) => {
+      const inlineDb = { serializable: <R>(work: (inner: FinanceTransaction) => Promise<R>) => work(tx) };
+      const loadedAccounts = await listAccounts(inlineDb, session.id);
+      const loadedExpenses =
+        canManage || canReadOwnExpenses ? await listExpenses(inlineDb, session.id) : [];
+      const loadedSettlements = await listSettlements(inlineDb, session.id);
+      return {
+        accounts: loadedAccounts,
+        expenses: loadedExpenses,
+        settlements: loadedSettlements,
+      };
+    });
+
+  const activeBranchFilter =
+    session.branchId ? String(session.branchId) : opts.branchFilterId ?? null;
+  const accounts = activeBranchFilter
+    ? rawAccounts.filter((a) => String(a.branchId) === activeBranchFilter)
+    : rawAccounts;
+  const expenses = activeBranchFilter
+    ? rawExpenses.filter((e) => String(e.branchId) === activeBranchFilter)
+    : rawExpenses;
+  const settlements = activeBranchFilter
+    ? rawSettlements.filter((s) => String(s.branchId) === activeBranchFilter)
+    : rawSettlements;
 
   const branchNames = new Map(opts.branches.map((b) => [b.id, b.nameAr]));
   const currentMonthPrefix = cairoDate().slice(0, 7);
@@ -540,25 +598,34 @@ export async function loadDashboardFinanceSpotlights(
     const cashSeries: PantherChartSeries[] = [];
 
     if (opts.branches.length > 0) {
+      const branchPoints: PantherChartPoint[] = opts.branches.map((b) => {
+        const vCents = vaultByBranch.get(b.nameAr) ?? 0n;
+        const cCents = custodyByBranch.get(b.nameAr) ?? 0n;
+        const liqCents = vCents + cCents;
+        const eCents = monthExpByBranch.get(b.nameAr) ?? 0n;
+        return {
+          label: b.nameAr,
+          shortLabel: b.nameAr.replace(/^فرع\s+/, ""),
+          value: Number(liqCents) / 100,
+          formattedValue: `${displayMoney(liqCents)} ج.م`,
+          secondaryValue: Number(eCents) / 100,
+          secondaryLabel: "مصروفات الشهر",
+          secondaryFormatted: `${displayMoney(eCents)} ج.م`,
+          detail: `خزنة ${displayMoney(vCents)} + عهدة متوقعة ${displayMoney(cCents)} ج.م`,
+        };
+      });
+      if (branchPoints.length === 1) {
+        branchPoints.unshift({
+          label: "نقطة الأساس",
+          shortLabel: "٠",
+          value: 0,
+          formattedValue: "0.00 ج.م",
+        });
+      }
       cashSeries.push({
         id: "branch-balance",
         label: "ميزان الفروع",
-        points: opts.branches.map((b) => {
-          const vCents = vaultByBranch.get(b.nameAr) ?? 0n;
-          const cCents = custodyByBranch.get(b.nameAr) ?? 0n;
-          const liqCents = vCents + cCents;
-          const eCents = monthExpByBranch.get(b.nameAr) ?? 0n;
-          return {
-            label: b.nameAr,
-            shortLabel: b.nameAr.replace(/^فرع\s+/, ""),
-            value: Number(liqCents) / 100,
-            formattedValue: `${displayMoney(liqCents)} ج.م`,
-            secondaryValue: Number(eCents) / 100,
-            secondaryLabel: "مصروفات الشهر",
-            secondaryFormatted: `${displayMoney(eCents)} ج.م`,
-            detail: `خزنة ${displayMoney(vCents)} + عهدة متوقعة ${displayMoney(cCents)} ج.م`,
-          };
-        }),
+        points: branchPoints,
       });
     }
 
@@ -731,8 +798,63 @@ export async function loadDashboardFinanceSpotlights(
     };
   }
 
+  const recentActivities: DashboardFinanceActivity[] = [];
+
+  for (const exp of expenses.slice(0, 6)) {
+    const tsStr = String(exp.paymentRecordedAt ?? exp.createdAt ?? exp.expenseDate);
+    const tsDate = new Date(tsStr);
+    const tsMs = Number.isNaN(tsDate.getTime()) ? Date.now() : tsDate.getTime();
+    const bName = branchNames.get(String(exp.branchId)) ?? "الفرع";
+    const statusLabel = EXPENSE_STATUS_AR[exp.status] ?? exp.status;
+    const tone: DashboardFinanceActivity["tone"] =
+      exp.status === "PAID"
+        ? "positive"
+        : exp.status === "APPROVED"
+          ? "warning"
+          : "neutral";
+    recentActivities.push({
+      key: `fin-exp-${exp.id}`,
+      kind: "expense",
+      title: `مصروف #${exp.id} — ${exp.categorySnapshot}`,
+      subtitle: `${bName}${exp.beneficiary ? ` · ${exp.beneficiary}` : exp.description ? ` · ${exp.description.slice(0, 36)}` : ""}`,
+      amountFormatted: `${displayMoney(toCents(exp.amount))} ج.م`,
+      statusLabel,
+      tone,
+      timestampMs: tsMs,
+      timestampIso: new Date(tsMs).toISOString(),
+      href: `/finance/expenses/${exp.id}`,
+    });
+  }
+
+  for (const st of settlements.slice(0, 4)) {
+    const tsStr = String(st.resolvedAt ?? st.createdAt);
+    const tsDate = new Date(tsStr);
+    const tsMs = Number.isNaN(tsDate.getTime()) ? Date.now() : tsDate.getTime();
+    const bName = branchNames.get(String(st.branchId)) ?? "الفرع";
+    const statusLabel = SETTLEMENT_STATUS_AR[st.status] ?? st.status;
+    const tone: DashboardFinanceActivity["tone"] =
+      st.status === "CONFIRMED"
+        ? "positive"
+        : st.status === "OPEN"
+          ? "warning"
+          : "neutral";
+    recentActivities.push({
+      key: `fin-st-${st.id}`,
+      kind: "settlement",
+      title: `طلب تسوية عهدة #${st.id}`,
+      subtitle: `${bName} · المعدود ${displayMoney(toCents(st.countedAmount))} ج.م`,
+      amountFormatted: `${displayMoney(toCents(st.expectedAmount))} ج.م`,
+      statusLabel,
+      tone,
+      timestampMs: tsMs,
+      timestampIso: new Date(tsMs).toISOString(),
+      href: canManage ? "/finance/settlements" : "/finance/mine",
+    });
+  }
+
   return {
     cashBalance: cashBalanceSpotlight,
     monthlyExpenses: monthlyExpensesSpotlight,
+    recentActivities,
   };
 }
