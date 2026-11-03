@@ -1,15 +1,33 @@
 import Link from "next/link";
 import DashboardWallet, { type WalletPocketItem } from "@/app/(app)/dashboard/dashboard-wallet";
+import MonthlySalesPanther from "@/app/(app)/dashboard/monthly-sales-panther";
 import { AppIcon } from "@/components/app-icon";
+import PantherSpotlightCard from "@/components/panther-spotlight-card";
 import { branchScope, requireSession } from "@/lib/auth";
 import { customerPosition } from "@/lib/commerce-math";
 import { displayMoney } from "@/lib/commerce-display";
 import { scaledInteger } from "@/lib/inventory-math";
 import { prisma } from "@/lib/prisma";
+import {
+  loadCollectionsSpotlight,
+  loadSalesChartSeries,
+  loadSalesStats,
+} from "@/lib/sales-stats";
 import SalesInvoicesView, { type SalesInvoiceRow, type SalesInvoiceStatusKind } from "./sales-invoices-view";
 
 export const dynamic = "force-dynamic";
-const dateFormatter = new Intl.DateTimeFormat("ar-EG-u-nu-latn", { dateStyle: "medium", timeStyle: "short", timeZone: "Africa/Cairo" });
+
+const dateFormatter = new Intl.DateTimeFormat("ar-EG-u-nu-latn", {
+  dateStyle: "medium",
+  timeStyle: "short",
+  timeZone: "Africa/Cairo",
+});
+const monthFormatter = new Intl.DateTimeFormat("ar-EG-u-nu-latn", {
+  month: "long",
+  year: "numeric",
+  timeZone: "Africa/Cairo",
+});
+const nf = new Intl.NumberFormat("ar-EG-u-nu-latn", { maximumFractionDigits: 2 });
 
 type WalletInvoiceCard = SalesInvoiceRow & {
   netCollectedFormatted: string;
@@ -24,20 +42,44 @@ function formatLineQty(raw: string): string {
 export default async function SalesPage() {
   const session = await requireSession();
   const scope = branchScope(session);
-  const sales = await prisma.commerceSale.findMany({
-    where: scope.branchId ? { branchId: BigInt(scope.branchId) } : {},
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    take: 100,
-    include: {
-      branch: { select: { nameAr: true } },
-      collections: { select: { amount: true } },
-      refunds: { select: { amount: true } },
-      returns: { select: { lines: { select: { total: true } } } },
-      lines: { select: { nameSnapshot: true, quantity: true, returnLines: { select: { quantity: true } } } },
-    },
-  });
-
   const canSell = session.role === "MANAGER" || session.role === "CS_AGENT";
+
+  const [sales, monthSalesData] = await Promise.all([
+    prisma.commerceSale.findMany({
+      where: scope.branchId ? { branchId: BigInt(scope.branchId) } : {},
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: 100,
+      include: {
+        branch: { select: { nameAr: true } },
+        collections: { select: { amount: true } },
+        refunds: { select: { amount: true } },
+        returns: { select: { lines: { select: { total: true } } } },
+        lines: { select: { nameSnapshot: true, quantity: true, returnLines: { select: { quantity: true } } } },
+      },
+    }),
+    Promise.all([
+      loadSalesStats(prisma, scope.branchId ?? null, "month"),
+      loadSalesChartSeries(prisma, scope.branchId ?? null, "month"),
+      loadCollectionsSpotlight(prisma, scope.branchId ?? null, {
+        canSell,
+        context: "sales",
+      }),
+    ]).catch((error) => {
+      console.error("sales: monthly stats failed", error);
+      return [null, [], null] as const;
+    }),
+  ]);
+
+  const [monthSales, monthSalesSeries, collectionsSpotlight] = monthSalesData;
+  const currentMonthLabel = monthFormatter.format(new Date());
+  const monthTotalNum = monthSales ? Number(monthSales.total) : 0;
+  const monthOutstandingNum = monthSales ? Number(monthSales.outstandingTotal) : 0;
+  const monthOutstandingPct =
+    monthTotalNum > 0
+      ? Math.min(100, Math.round((monthOutstandingNum / monthTotalNum) * 1000) / 10)
+      : 0;
+  const monthCollectedPct =
+    monthTotalNum > 0 ? Math.max(0, Math.round((100 - monthOutstandingPct) * 10) / 10) : 0;
 
   let activeInvoicesCount = 0;
   let netInvoicedCents = 0n;
@@ -55,6 +97,7 @@ export default async function SalesPage() {
     const refunded = sale.refunds.reduce((sum, entry) => sum + scaledInteger(entry.amount.toFixed(2), 2), 0n);
     const netCollected = collected - refunded;
     const original = scaledInteger(sale.total.toFixed(2), 2);
+    const netInvoice = original - returned;
     const balance = customerPosition({
       originalTotalCents: original,
       returnedCents: returned,
@@ -89,8 +132,9 @@ export default async function SalesPage() {
 
     if (!sale.cancelledAt) {
       activeInvoicesCount += 1;
-      netInvoicedCents += original - returned;
+      netInvoicedCents += netInvoice;
     }
+
     netCollectedCents += netCollected;
     totalDueFromCustomerCents += balance.dueFromCustomerCents;
     totalDueToCustomerCents += balance.dueToCustomerCents;
@@ -198,126 +242,165 @@ export default async function SalesPage() {
         </div>
       </div>
 
-      {latestWalletInvoices.length > 0 && (
-        <section className="sales-wallet-section" aria-label="حافظة أحدث الفواتير">
-          <div className="sales-wallet-header">
-            <div className="sales-wallet-header__title">
-              <span className="sales-wallet-header__icon" aria-hidden="true">
-                <AppIcon name="receipt" />
-              </span>
-              <h2>حافظة أحدث الفواتير</h2>
-            </div>
-            <span className="sales-wallet-header__pill">
-              أحدث {latestWalletInvoices.length}{" "}
-              {latestWalletInvoices.length === 1 ? "فاتورة" : "فواتير"} · تقليب أفقي
-            </span>
-          </div>
+      {(latestWalletInvoices.length > 0 || monthSales) && (
+        <div className="dashboard-cards-grid" aria-label="حافظة الفواتير ومؤشرات المبيعات والتحصيل">
+          {latestWalletInvoices.length > 0 ? (
+            <div className="dashboard-cards-grid__wallet">
+              <DashboardWallet
+                balanceValue={`${displayMoney(netInvoicedCents)} ج.م`}
+                balanceLabel="صافي الفواتير"
+                pocketItems={pocketItems}
+                hint="اسحب البطاقات أفقيًا أو استخدم الأسهم لتقليب أحدث الفواتير، ومرّر على الجيب لإظهار الملخص"
+              >
+                {latestWalletInvoices.map((invoice) => {
+                  const settlementNote = invoice.hasDueFromCustomer
+                    ? "متبقٍ على العميل"
+                    : invoice.hasDueToCustomer
+                      ? "مستحق رد للعميل"
+                      : invoice.statusKind === "cancelled"
+                        ? "فاتورة ملغاة"
+                        : "مسددة بالكامل";
 
-          <DashboardWallet
-            balanceValue={`${displayMoney(netInvoicedCents)} ج.م`}
-            balanceLabel="صافي الفواتير"
-            pocketItems={pocketItems}
-            hint="اسحب البطاقات أفقيًا أو استخدم الأسهم لتقليب أحدث الفواتير، ومرّر على الجيب لإظهار الملخص"
-          >
-            {latestWalletInvoices.map((invoice) => {
-              const settlementNote = invoice.hasDueFromCustomer
-                ? "متبقٍ على العميل"
-                : invoice.hasDueToCustomer
-                  ? "مستحق رد للعميل"
-                  : invoice.statusKind === "cancelled"
-                    ? "فاتورة ملغاة"
-                    : "مسددة بالكامل";
+                  return (
+                    <article key={invoice.id} className="stat-card">
+                      <div className="stat-card__head">
+                        <h3>
+                          <bdi dir="ltr">{invoice.code}</bdi> — {invoice.customerName}
+                        </h3>
+                        <p>
+                          {invoice.branchName} · {invoice.createdAtFormatted}
+                          {invoice.customerPhone ? (
+                            <>
+                              {" "}
+                              · <bdi dir="ltr">{invoice.customerPhone}</bdi>
+                            </>
+                          ) : null}
+                        </p>
+                        <span className="stat-card__badge">{invoice.statusLabel}</span>
+                      </div>
 
-              return (
-                <article key={invoice.id} className="stat-card">
-                  <div className="stat-card__head">
-                    <h3>
-                      <bdi dir="ltr">{invoice.code}</bdi> — {invoice.customerName}
-                    </h3>
-                    <p>
-                      {invoice.branchName} · {invoice.createdAtFormatted}
-                      {invoice.customerPhone ? (
-                        <>
-                          {" "}
-                          · <bdi dir="ltr">{invoice.customerPhone}</bdi>
-                        </>
-                      ) : null}
-                    </p>
-                    <span className="stat-card__badge">{invoice.statusLabel}</span>
-                  </div>
-
-                  <div className="stat-card__body">
-                    {invoice.itemPills.length > 0 && (
-                      <div className="sales-wallet-items" aria-label="بنود الفاتورة">
-                        {invoice.itemPills.map((pill, idx) => (
-                          <span key={`${invoice.id}-pill-${idx}`} className="sales-wallet-item-pill">
-                            <span>{pill.name}</span>
-                            <strong>×{pill.qty}</strong>
-                          </span>
-                        ))}
-                        {invoice.extraItemsCount > 0 && (
-                          <span className="sales-wallet-item-pill">
-                            +{invoice.extraItemsCount} بنود أخرى
-                          </span>
+                      <div className="stat-card__body">
+                        {invoice.itemPills.length > 0 && (
+                          <div className="sales-wallet-items" aria-label="بنود الفاتورة">
+                            {invoice.itemPills.map((pill, idx) => (
+                              <span key={`${invoice.id}-pill-${idx}`} className="sales-wallet-item-pill">
+                                <span>{pill.name}</span>
+                                <strong>×{pill.qty}</strong>
+                              </span>
+                            ))}
+                            {invoice.extraItemsCount > 0 && (
+                              <span className="sales-wallet-item-pill">
+                                +{invoice.extraItemsCount} بنود أخرى
+                              </span>
+                            )}
+                          </div>
                         )}
-                      </div>
-                    )}
 
-                    <div className="stat-grid">
-                      <div className="stat-grid__item">
-                        <span className="stat-grid__label">إجمالي الفاتورة</span>
-                        <strong className="stat-grid__value">
-                          <bdi dir="ltr">{invoice.originalFormatted}</bdi> <small>ج.م</small>
-                        </strong>
-                      </div>
+                        <div className="stat-grid">
+                          <div className="stat-grid__item">
+                            <span className="stat-grid__label">إجمالي الفاتورة</span>
+                            <strong className="stat-grid__value">
+                              <bdi dir="ltr">{invoice.originalFormatted}</bdi> <small>ج.م</small>
+                            </strong>
+                          </div>
 
-                      <div className="stat-grid__item">
-                        <span className="stat-grid__label">صافي المحصّل</span>
-                        <strong className="stat-grid__value">
-                          <bdi dir="ltr">{invoice.netCollectedFormatted}</bdi> <small>ج.م</small>
-                        </strong>
-                      </div>
+                          <div className="stat-grid__item">
+                            <span className="stat-grid__label">صافي المحصّل</span>
+                            <strong className="stat-grid__value">
+                              <bdi dir="ltr">{invoice.netCollectedFormatted}</bdi> <small>ج.م</small>
+                            </strong>
+                          </div>
 
-                      <div className="stat-grid__item">
-                        <span className="stat-grid__label">
-                          {invoice.hasDueToCustomer ? "مستحق للعميل" : "المتبقي على العميل"}
-                        </span>
-                        <strong className="stat-grid__value">
-                          <bdi dir="ltr">
-                            {invoice.hasDueToCustomer
-                              ? invoice.dueToCustomerFormatted
-                              : invoice.dueFromCustomerFormatted}
-                          </bdi>{" "}
-                          <small>ج.م</small>
-                        </strong>
-                      </div>
+                          <div className="stat-grid__item">
+                            <span className="stat-grid__label">
+                              {invoice.hasDueToCustomer ? "مستحق للعميل" : "المتبقي على العميل"}
+                            </span>
+                            <strong className="stat-grid__value">
+                              <bdi dir="ltr">
+                                {invoice.hasDueToCustomer
+                                  ? invoice.dueToCustomerFormatted
+                                  : invoice.dueFromCustomerFormatted}
+                              </bdi>{" "}
+                              <small>ج.م</small>
+                            </strong>
+                          </div>
 
-                      <div className="stat-grid__item">
-                        <span className="stat-grid__label">موقف السداد</span>
-                        <strong className="stat-grid__value">
-                          <small>{settlementNote}</small>
-                        </strong>
-                      </div>
+                          <div className="stat-grid__item">
+                            <span className="stat-grid__label">موقف السداد</span>
+                            <strong className="stat-grid__value">
+                              <small>{settlementNote}</small>
+                            </strong>
+                          </div>
 
-                      <Link
-                        href={`/sales/${invoice.id}`}
-                        className="stat-grid__item is-link sales-wallet-action-link"
-                      >
-                        <span className="stat-grid__label">
-                          عرض تفاصيل الفاتورة والطباعة أو تسجيل التحصيل والمرتجع
-                        </span>
-                        <strong className="stat-grid__value">
-                          فتح الفاتورة <bdi dir="ltr">{invoice.code}</bdi>
-                        </strong>
-                        <AppIcon name="arrow" className="stat-grid__arrow" />
-                      </Link>
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
-          </DashboardWallet>
-        </section>
+                          <Link
+                            href={`/sales/${invoice.id}`}
+                            className="stat-grid__item is-link sales-wallet-action-link"
+                          >
+                            <span className="stat-grid__label">
+                              عرض تفاصيل الفاتورة والطباعة أو تسجيل التحصيل والمرتجع
+                            </span>
+                            <strong className="stat-grid__value">
+                              فتح الفاتورة <bdi dir="ltr">{invoice.code}</bdi>
+                            </strong>
+                            <AppIcon name="arrow" className="stat-grid__arrow" />
+                          </Link>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </DashboardWallet>
+            </div>
+          ) : null}
+
+          {monthSales ? (
+            <div className="dashboard-cards-grid__item">
+              <MonthlySalesPanther
+                monthLabel={currentMonthLabel}
+                totalFormatted={nf.format(Number(monthSales.total))}
+                outstandingFormatted={nf.format(Number(monthSales.outstandingTotal))}
+                averageFormatted={nf.format(Number(monthSales.averageInvoice))}
+                invoiceCount={nf.format(monthSales.invoiceCount)}
+                outstandingCount={nf.format(monthSales.outstandingCount)}
+                hasOutstanding={monthOutstandingNum > 0}
+                collectedPercent={monthCollectedPct}
+                outstandingPercent={monthOutstandingPct}
+                hasSales={monthSales.invoiceCount > 0}
+                series={monthSalesSeries}
+                reportHref={
+                  session.role === "MANAGER"
+                    ? "/sales/stats?period=month"
+                    : canSell
+                      ? "/sales/new"
+                      : "/sales"
+                }
+                reportLabel={
+                  session.role === "MANAGER"
+                    ? "عرض التقرير الكامل لمبيعات الشهر"
+                    : canSell
+                      ? "تسجيل فاتورة بيع جديدة"
+                      : "تحديث سجل الفواتير"
+                }
+              />
+            </div>
+          ) : null}
+
+          {collectionsSpotlight ? (
+            <div className="dashboard-cards-grid__item">
+              <PantherSpotlightCard
+                layout="wallet"
+                title={collectionsSpotlight.title}
+                subtitle={collectionsSpotlight.subtitle}
+                pill={collectionsSpotlight.pill}
+                primary={collectionsSpotlight.primary}
+                secondary={collectionsSpotlight.secondary}
+                series={collectionsSpotlight.series}
+                actionHref={collectionsSpotlight.actionHref}
+                actionLabel={collectionsSpotlight.actionLabel}
+              />
+            </div>
+          ) : null}
+        </div>
       )}
 
       <section className="sales-kpi-strip" aria-label="ملخص الفواتير المعروضة">
@@ -397,7 +480,7 @@ export default async function SalesPage() {
         </div>
       ) : (
         <>
-          <div className="sales-directory-heading">
+          <div id="sales-directory" className="sales-directory-heading">
             <h2>جدول الفواتير الكامل</h2>
             <span>بحث فوري برقم الفاتورة أو اسم العميل أو الهاتف وتصفية بالفرع والحالة</span>
           </div>

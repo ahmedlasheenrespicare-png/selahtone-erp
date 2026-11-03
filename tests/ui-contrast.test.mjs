@@ -252,4 +252,67 @@ test("التحول التلقائي بين النهاري والليلي يتب�
   assert.equal(nextMorningState.isAutoTimeMode, true);
 });
 
+test("خلفية النجوم الليلية (red-duck-82) مقيّدة حصريًا بثيم الافتراضي وتفعيل الخلفية والوضع الليلي فقط", () => {
+  const starCss = readFileSync(
+    new URL("../src/app/(app)/red-duck-starfield.css", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(starCss, /\.workspace-starfield\s*\{\s*display:\s*none;\s*\}/);
+  assert.ok(
+    !starCss.includes("wallet-selahtone"),
+    "يجب ألا تطبق خلفية red-duck-82 على ثيم صلة تون",
+  );
+  assert.ok(
+    !starCss.includes('data-color-mode="light"'),
+    "يجب ألا تطبق خلفية red-duck-82 في الوضع النهاري",
+  );
+  assert.match(
+    starCss,
+    /\.workspace-shell\[data-theme="wallet"\]\[data-dashboard-bg="on"\]\[data-color-mode="dark"\]\s+\.workspace-starfield\s*\{[\s\S]*?display:\s*block;/,
+  );
+  assert.ok(
+    starCss.includes("radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%)"),
+    "تدرّج الخلفية الأصلي لـ red-duck-82 مفقود",
+  );
+  for (const token of ["--rd82-stars-sm", "--rd82-stars-md", "--rd82-stars-lg", "50s", "100s", "150s"]) {
+    assert.ok(starCss.includes(token), `عنصر حقل النجوم ${token} مفقود`);
+  }
+
+  // التحقق من تباين النصوص العائمة فوق سماء red-duck-82 (#1b2735 و#0d131c)
+  assert.ok(contrast("#d4e8ce", "#1b2735") >= MIN, "تباين --cl-pill-ink غير كافٍ فوق #1b2735");
+  assert.ok(contrast("#f2faef", "#1b2735") >= MIN, "تباين --cl-pill-strong غير كافٍ فوق #1b2735");
+});
+
+test("الشبكة المتجاوبة للمحفظة والمؤشرات موحّدة في لوحة القيادة والمبيعات وإحصائياتها والمصروفات", () => {
+  const wsCss = readFileSync(
+    new URL("../src/app/(app)/workspace.css", import.meta.url),
+    "utf8",
+  );
+  for (const bp of ["min-width: 1640px", "max-width: 1279px", "max-width: 991px", "max-width: 680px"]) {
+    assert.ok(wsCss.includes(bp), `نقطة الاستجابة ${bp} مفقودة في workspace.css`);
+  }
+
+  for (const relPath of [
+    "../src/app/(app)/dashboard/page.tsx",
+    "../src/app/(app)/sales/page.tsx",
+    "../src/app/(app)/sales/stats/page.tsx",
+    "../src/app/(app)/finance/expenses/page.tsx",
+    "../src/app/(app)/finance/page.tsx",
+  ]) {
+    const src = readFileSync(new URL(relPath, import.meta.url), "utf8");
+    assert.ok(src.includes("dashboard-cards-grid"), `${relPath} يفتقد الشبكة المتجاوبة الموحّدة`);
+    assert.ok(src.includes("DashboardWallet"), `${relPath} يفتقد المحفظة داخل الشبكة`);
+  }
+
+  const salesStatsTs = readFileSync(
+    new URL("../src/lib/sales-stats.ts", import.meta.url),
+    "utf8",
+  );
+  assert.ok(salesStatsTs.includes('title: "التحصيل والعملاء"'));
+  assert.ok(!salesStatsTs.includes("-infinity"), "يجب عدم استخدام -infinity غير المتوافق مع Date");
+});
+
+
+
 

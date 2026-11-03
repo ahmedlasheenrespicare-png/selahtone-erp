@@ -12,7 +12,11 @@ import {
   loadDashboardFinanceSpotlights,
   loadEmployeeCash,
 } from "@/lib/finance/dashboard";
-import { loadSalesChartSeries, loadSalesStats } from "@/lib/sales-stats";
+import {
+  loadCollectionsSpotlight,
+  loadSalesChartSeries,
+  loadSalesStats,
+} from "@/lib/sales-stats";
 
 export const dynamic = "force-dynamic";
 
@@ -101,11 +105,16 @@ export default async function DashboardPage() {
   let monthSales: Awaited<ReturnType<typeof loadSalesStats>> | null = null;
   let todaySales: Awaited<ReturnType<typeof loadSalesStats>> | null = null;
   let monthSalesSeries: Awaited<ReturnType<typeof loadSalesChartSeries>> = [];
+  let collectionsSpotlight: Awaited<ReturnType<typeof loadCollectionsSpotlight>> | null = null;
   try {
-    [monthSales, todaySales, monthSalesSeries] = await Promise.all([
+    [monthSales, todaySales, monthSalesSeries, collectionsSpotlight] = await Promise.all([
       loadSalesStats(prisma, scope.branchId ?? null, "month"),
       loadSalesStats(prisma, scope.branchId ?? null, "today"),
       loadSalesChartSeries(prisma, scope.branchId ?? null, "month"),
+      loadCollectionsSpotlight(prisma, scope.branchId ?? null, {
+        canSell: session.role === "MANAGER" || session.role === "CS_AGENT",
+        context: "dashboard",
+      }),
     ]);
     if (session.role === "MANAGER") {
       sales = monthSales;
@@ -640,6 +649,22 @@ export default async function DashboardPage() {
               series={monthSalesSeries}
               reportHref={session.role === "MANAGER" ? "/sales/stats?period=month" : "/sales"}
               reportLabel={session.role === "MANAGER" ? "عرض التقرير الكامل لمبيعات الشهر" : "عرض سجل فواتير الشهر"}
+            />
+          </div>
+        ) : null}
+
+        {collectionsSpotlight ? (
+          <div className="dashboard-cards-grid__item">
+            <PantherSpotlightCard
+              layout="wallet"
+              title={collectionsSpotlight.title}
+              subtitle={collectionsSpotlight.subtitle}
+              pill={collectionsSpotlight.pill}
+              primary={collectionsSpotlight.primary}
+              secondary={collectionsSpotlight.secondary}
+              series={collectionsSpotlight.series}
+              actionHref={collectionsSpotlight.actionHref}
+              actionLabel={collectionsSpotlight.actionLabel}
             />
           </div>
         ) : null}
