@@ -1,5 +1,5 @@
 import "./finance.css";
 
 export default function FinanceLayout({ children }: { children: React.ReactNode }) {
-  return children;
+  return <div className="finance-suite">{children}</div>;
 }

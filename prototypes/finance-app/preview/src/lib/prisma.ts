@@ -207,6 +207,16 @@ async function initialize(): Promise<PrismaClient> {
       method: "CASH",
       lines: [{ typeId: moldType.id, quantity: "1", unitPrice: "945", details: moldType.fields.map((f) => ({ key: f.key, value: "قالب أذن يمنى" })) }],
     });
+    await createCatalogSale(client, 3n, {
+      requestId: randomUUID(),
+      branchId: "1",
+      customerName: "محمود عبد الرحمن — العريش",
+      customerPhone: "01009988776",
+      discount: "0",
+      initialPayment: "4000",
+      method: "CARD",
+      lines: [{ typeId: moldType.id, quantity: "2", unitPrice: "3250", details: moldType.fields.map((f) => ({ key: f.key, value: "قالب مخصص ثنائي" })) }],
+    });
   }
 
   // Employee cash expense (deducted from expected cash on hand), plus pending items for Manager review.

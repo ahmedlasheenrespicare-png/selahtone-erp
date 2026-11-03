@@ -26,11 +26,10 @@ export default async function SalesCatalogPage() {
     listCatalogAudit(prisma, BigInt(session.id), 40),
   ]);
   return <div className="inv-page">
-    <Link href="/sales" className="inv-back">← العودة إلى الفواتير</Link>
     <div className="inv-heading"><div>
-      <p className="inv-heading__eyebrow">إعداد البيع</p><h1>أصناف البيع</h1>
+      <p className="inv-heading__eyebrow"><span className="sales-eyebrow-dot" aria-hidden="true" />إعداد البيع</p><h1>أصناف البيع</h1>
       <p>التصنيفات والأنواع والحقول التي يراها الموظف في شاشة البيع. لا حذف أبدًا: الإيقاف فقط، وكل تغيير يُسجَّل بسببه.</p>
-    </div></div>
+    </div><div className="inv-actions"><Link href="/sales" className="inv-button inv-button--secondary">← العودة إلى الفواتير</Link></div></div>
     <div className="inv-alert">إيقاف تصنيف يوقف كل أنواعه، وإيقاف نوع يوقف اختياره في البيع الجديد. الفواتير القديمة تبقى كما سُجّلت.</div>
 
     {!catalog.length ? <div className="inv-panel inv-empty">لا توجد أصناف بعد. أضف التصنيف الأول من النموذج أدناه.</div> : <div className="sale-stack">

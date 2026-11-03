@@ -5,8 +5,9 @@ import { usePathname } from "next/navigation";
 import { useRef, useState } from "react";
 import { AppIcon } from "@/components/app-icon";
 import { BrandMark } from "@/components/brand-mark";
+import { SelatoneFacebookLogo, SelatoneFacebookMark } from "@/components/selatone-facebook-logo";
 import type { MenuScope } from "@/lib/menu-scope";
-import { WORKSPACE_THEMES } from "@/lib/workspace-theme";
+import { WORKSPACE_THEME_GROUPS } from "@/lib/workspace-theme";
 import { isCurrentPath, navigationGroups } from "./navigation-items";
 import { useWorkspaceTheme } from "./workspace-theme-provider";
 
@@ -22,6 +23,9 @@ export function AppNavigation({ canViewAllBranches, financeEnabled = false, menu
   const { theme, setTheme } = useWorkspaceTheme();
   const [menuOpen, setMenuOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(true);
+  const [openThemeGroups, setOpenThemeGroups] = useState<string[]>(() =>
+    WORKSPACE_THEME_GROUPS.map((group) => group.id),
+  );
   const toggleRef = useRef<HTMLButtonElement>(null);
   // يُفتح الأب منسدلًا إن كان المسار الحالي داخل أحد أبنائه، فلا يضيع موضع
   // الموظف حين ينتقل بين شاشات البيع.
@@ -34,6 +38,13 @@ export function AppNavigation({ canViewAllBranches, financeEnabled = false, menu
   function toggleParent(label: string): void {
     setOpenParents((open) => (open.includes(label) ? open.filter((entry) => entry !== label) : [...open, label]));
   }
+  function toggleThemeGroup(groupId: string): void {
+    setOpenThemeGroups((open) =>
+      open.includes(groupId) ? open.filter((entry) => entry !== groupId) : [...open, groupId],
+    );
+  }
+
+  const isSelatoneBrand = theme === "wallet-selahtone";
 
   return (
     <aside
@@ -45,14 +56,32 @@ export function AppNavigation({ canViewAllBranches, financeEnabled = false, menu
         }
       }}
     >
-      <div className="workspace-sidebar__brand-row">
-        <Link href="/dashboard" className="workspace-brand" onClick={() => setMenuOpen(false)} aria-label="صلة تون، لوحة القيادة">
-          <BrandMark className="workspace-brand__mark" />
-          <span className="workspace-brand__text">
-            <strong>صله <span>تون</span></strong>
-            <small dir="ltr">SELATONE HEARING</small>
-          </span>
-        </Link>
+      <div className={`workspace-sidebar__brand-row${isSelatoneBrand ? " is-selahtone-brand" : ""}`}>
+        {isSelatoneBrand ? (
+          <Link
+            href="/dashboard"
+            className="workspace-brand workspace-brand--selahtone"
+            onClick={() => setMenuOpen(false)}
+            aria-label="صلة تون للخدمات السمعية، لوحة القيادة"
+          >
+            <SelatoneFacebookLogo className="workspace-brand__fb-card" />
+            <span className="workspace-brand__fb-mobile">
+              <SelatoneFacebookMark className="workspace-brand__fb-mark" />
+              <span className="workspace-brand__text">
+                <strong>صلة <span>تون</span></strong>
+                <small>للخدمات السمعية</small>
+              </span>
+            </span>
+          </Link>
+        ) : (
+          <Link href="/dashboard" className="workspace-brand" onClick={() => setMenuOpen(false)} aria-label="صلة تون، لوحة القيادة">
+            <BrandMark className="workspace-brand__mark" />
+            <span className="workspace-brand__text">
+              <strong>صله <span>تون</span></strong>
+              <small dir="ltr">SELATONE HEARING</small>
+            </span>
+          </Link>
+        )}
         <button
           ref={toggleRef}
           className="workspace-nav-toggle"
@@ -148,23 +177,53 @@ export function AppNavigation({ canViewAllBranches, financeEnabled = false, menu
               </button>
               {themeOpen ? (
                 <ul id="subnav-theme" className="workspace-nav-sublist">
-                  {WORKSPACE_THEMES.map((option) => {
-                    const active = theme === option.id;
+                  {WORKSPACE_THEME_GROUPS.map((group) => {
+                    const groupOpen = openThemeGroups.includes(group.id);
+                    const groupHasActive = group.variants.some((v) => v.id === theme);
                     return (
-                      <li key={option.id}>
+                      <li key={group.id}>
                         <button
                           type="button"
-                          className={`workspace-nav-item workspace-nav-subitem workspace-theme-btn${active ? " is-active" : ""}`}
-                          aria-pressed={active}
-                          onClick={() => {
-                            setTheme(option.id);
-                            setMenuOpen(false);
-                          }}
+                          className={`workspace-nav-item workspace-nav-subitem workspace-nav-parent${groupHasActive && !groupOpen ? " is-active" : ""}`}
+                          aria-expanded={groupOpen}
+                          aria-controls={`subnav-${group.id}`}
+                          onClick={() => toggleThemeGroup(group.id)}
                         >
                           <AppIcon name="cash" />
-                          <span>{option.label}</span>
-                          {active && <span className="workspace-nav-item__indicator" aria-hidden="true" />}
+                          <span>{group.label}</span>
+                          <AppIcon name="arrow" className={`workspace-nav-chevron${groupOpen ? " is-open" : ""}`} />
                         </button>
+                        {groupOpen ? (
+                          <ul id={`subnav-${group.id}`} className="workspace-nav-sublist workspace-nav-sublist--nested">
+                            {group.variants.map((option) => {
+                              const active = theme === option.id;
+                              return (
+                                <li key={option.id}>
+                                  <button
+                                    type="button"
+                                    className={`workspace-nav-item workspace-nav-subitem workspace-theme-btn${active ? " is-active" : ""}`}
+                                    aria-pressed={active}
+                                    onClick={() => {
+                                      setTheme(option.id);
+                                      setMenuOpen(false);
+                                    }}
+                                  >
+                                    <span
+                                      className="workspace-theme-swatch"
+                                      style={{
+                                        backgroundColor: option.swatch,
+                                        boxShadow: `inset 0 0 0 2px ${option.ring}`,
+                                      }}
+                                      aria-hidden="true"
+                                    />
+                                    <span>{option.label}</span>
+                                    {active && <span className="workspace-nav-item__indicator" aria-hidden="true" />}
+                                  </button>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        ) : null}
                       </li>
                     );
                   })}

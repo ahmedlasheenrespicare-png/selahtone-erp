@@ -61,33 +61,33 @@ export function SettlementDecisionCard({ item }: { item: SettlementDecisionItem 
       </div>
       <div className="fin-panel__body">
         <div className="fin-fields">
-          <div className="field fin-field">
+          <div className="field fin-field fin-metric-tile">
             <span className="fin-field__label">الرصيد النظامي</span>
-            <span className="fin-field__hint">{formatMoney(item.systemBalance)}</span>
+            <span className="fin-field__hint">{formatMoney(item.systemBalance)} ج.م</span>
           </div>
-          <div className="field fin-field">
+          <div className="field fin-field fin-metric-tile">
             <span className="fin-field__label">مبيعات الفترة</span>
-            <span className="fin-field__hint">{formatMoney(item.salesTotal)}</span>
+            <span className="fin-field__hint">{formatMoney(item.salesTotal)} ج.م</span>
           </div>
-          <div className="field fin-field">
+          <div className="field fin-field fin-metric-tile">
             <span className="fin-field__label">مصروفات الفترة</span>
-            <span className="fin-field__hint">{formatMoney(item.expensesTotal)}</span>
+            <span className="fin-field__hint">{formatMoney(item.expensesTotal)} ج.م</span>
           </div>
-          <div className="field fin-field">
+          <div className="field fin-field fin-metric-tile is-highlight">
             <span className="fin-field__label">المتوقع بيده</span>
-            <span className="fin-field__hint">{formatMoney(item.expectedAmount)}</span>
+            <span className="fin-field__hint">{formatMoney(item.expectedAmount)} ج.م</span>
           </div>
-          <div className="field fin-field">
+          <div className="field fin-field fin-metric-tile is-highlight">
             <span className="fin-field__label">المعدود فعليًا</span>
-            <span className="fin-field__hint">{formatMoney(item.countedAmount)}</span>
+            <span className="fin-field__hint">{formatMoney(item.countedAmount)} ج.م</span>
           </div>
-          <div className="field fin-field">
+          <div className="field fin-field fin-metric-tile">
             <span className="fin-field__label">الفرق</span>
             <span className="fin-field__hint">
               {formatMoney(item.adjustment)} — {adjustmentNumber > 0 ? "زيادة: من العهدة إلى الخزنة" : adjustmentNumber < 0 ? "عجز: من الخزنة إلى العهدة" : "مطابق"}
             </span>
           </div>
-          <div className="field fin-field fin-field--wide">
+          <div className="field fin-field fin-field--wide fin-metric-tile">
             <span className="fin-field__label">انحراف عن المتوقع</span>
             <span className="fin-field__hint">{formatMoney(item.deviation)}{Number(item.deviation) !== 0 ? " — راجعه قبل الاعتماد" : ""}</span>
           </div>

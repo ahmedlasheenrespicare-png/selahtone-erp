@@ -65,10 +65,20 @@ export default async function SaleDetailPage({ params }: Props) {
   const canRefund = session.role === "MANAGER" || session.role === "ACCOUNTANT";
 
   return <div className="inv-page sale-stack">
-    <div className="inv-actions"><Link href="/sales" className="inv-button inv-button--text">العودة إلى الفواتير</Link><PrintButton /></div>
+    <div className="inv-heading">
+      <div>
+        <p className="inv-heading__eyebrow"><span className="sales-eyebrow-dot" aria-hidden="true" />تفاصيل ومراجعة الإيصال</p>
+        <h1>فاتورة ST-{sale.id.toString()}</h1>
+        <p>{dateFormatter.format(sale.createdAt)} · سجّلها {sale.createdBy.fullName}</p>
+      </div>
+      <div className="inv-actions">
+        <Link href="/sales" className="inv-button inv-button--secondary">← العودة إلى الفواتير</Link>
+        <PrintButton />
+      </div>
+    </div>
     <article className="inv-panel inv-panel__body sale-print" aria-labelledby="invoice-title">
       <p className="sale-print-watermark">إيصال داخلي للمراجعة — ليس فاتورة ضريبية إلكترونية رسمية.</p>
-      <div className="sale-detail-head"><div><h2 id="invoice-title">فاتورة ST-{sale.id.toString()}</h2><p>{dateFormatter.format(sale.createdAt)} · سجّلها {sale.createdBy.fullName}</p></div><span className={`sale-chip ${sale.cancelledAt ? "sale-chip--neutral" : hasReturns ? "sale-chip--warning" : ""}`}>{status}</span></div>
+      <div className="sale-detail-head"><div><h2 id="invoice-title">فاتورة ST-{sale.id.toString()}</h2><p>{dateFormatter.format(sale.createdAt)} · سجّلها {sale.createdBy.fullName}</p></div><span className={`sale-chip ${sale.cancelledAt ? "sale-chip--neutral" : hasReturns ? "sale-chip--warning" : "sale-chip--confirmed"}`}><span className="sale-chip__dot" aria-hidden="true" />{status}</span></div>
       <dl className="sale-meta"><div><dt>العميل</dt><dd>{sale.customerName}</dd></div><div><dt>الهاتف</dt><dd><bdi dir="ltr">{sale.customerPhone}</bdi></dd></div><div><dt>الفرع</dt><dd>{sale.warehouse ? `${sale.branch.nameAr} — ${sale.warehouse.nameAr}` : sale.branch.nameAr}</dd></div></dl>
       <div className="inv-table-wrap table-wrap" role="region" aria-label="بنود الفاتورة" tabIndex={0}><table className="inv-table"><thead><tr><th>الصنف</th><th>الكمية</th><th>سعر الوحدة</th><th>الخصم</th><th>الضريبة المضمنة</th><th>الإجمالي</th></tr></thead><tbody>
         {sale.lines.map((line) => <tr key={line.id.toString()}><td><strong>{line.nameSnapshot}</strong><br /><span className="muted">{line.taxCodeSnapshot ? `${line.skuSnapshot ?? "—"} · ${line.taxCodeSnapshot} (${line.taxRateSnapshot?.toFixed(3) ?? "0.000"}%)` : "الضريبة غير محددة"}</span>{detailEntries(line.details).length > 0 && <div className="sale-note">{detailEntries(line.details).map((entry) => `${entry.label}: ${entry.value}`).join(" · ")}</div>}{line.serialLinks.length > 0 && <div className="sale-note">{line.serialLinks.map((link) => `${link.serial.serialNumber}${link.returnSerial ? " (مرتجع)" : ""}`).join(" · ")}</div>}</td>

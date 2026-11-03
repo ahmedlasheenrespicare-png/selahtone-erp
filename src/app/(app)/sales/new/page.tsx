@@ -34,8 +34,10 @@ export default async function NewSalePage({ searchParams }: Props) {
     return <div className="inv-page"><div className="inv-alert inv-alert--error">لا توجد أصناف بيع نشطة. أضف الأصناف من شاشة «أصناف البيع» أولًا.</div><Link href="/sales" className="inv-back">العودة إلى الفواتير</Link></div>;
   }
   return <div className="inv-page">
-    <Link href="/sales" className="inv-back">← العودة إلى الفواتير</Link>
-    <div className="inv-heading"><div><p className="inv-heading__eyebrow">كاونتر البيع</p><h1>بيع جديد</h1><p>اختر التصنيف والنوع، واكتب السعر الذي اتفقت عليه مع العميل.</p></div></div>
+    <div className="inv-heading">
+      <div><p className="inv-heading__eyebrow"><span className="sales-eyebrow-dot" aria-hidden="true" />كاونتر البيع</p><h1>بيع جديد</h1><p>اختر التصنيف والنوع، واكتب السعر الذي اتفقت عليه مع العميل.</p></div>
+      <div className="inv-actions"><Link href="/sales" className="inv-button inv-button--secondary">← العودة إلى الفواتير</Link></div>
+    </div>
     <div className="inv-alert inv-alert--warning">السعر الذي تكتبه نهائي، والضريبة تُسجَّل «غير محددة» ولا يحسبها النظام. الإيصال داخلي وليس فاتورة ضريبية إلكترونية؛ راجع المعالجة الضريبية مع المحاسب.</div>
     <CatalogSaleForm
       requestId={randomUUID()}

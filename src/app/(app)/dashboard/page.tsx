@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AppIcon, type AppIconName } from "@/components/app-icon";
 // عميلٌ لا خادم: فإنّ التمريرَ تفاعل، والصفحةُ نفسها تُبنى على الخادم.
 import DashboardWallet, { type WalletPocketItem } from "./dashboard-wallet";
+import MonthlySalesPanther from "./monthly-sales-panther";
 import { prisma } from "@/lib/prisma";
 import { requireSession, branchScope, canSeeAllBranches } from "@/lib/auth";
 import { formatInventoryDecimal, stockValueScaled } from "@/lib/inventory-math";
@@ -20,6 +21,11 @@ const nf = new Intl.NumberFormat("ar-EG-u-nu-latn", { maximumFractionDigits: 2 }
 const dateFormatter = new Intl.DateTimeFormat("ar-EG-u-nu-latn", {
   weekday: "long",
   day: "numeric",
+  month: "long",
+  year: "numeric",
+  timeZone: "Africa/Cairo",
+});
+const monthFormatter = new Intl.DateTimeFormat("ar-EG-u-nu-latn", {
   month: "long",
   year: "numeric",
   timeZone: "Africa/Cairo",
@@ -75,19 +81,27 @@ export default async function DashboardPage() {
   // والاستدعاء محمي: فاللوحة تعرض النقد والمهام والفروع، ولا يجوز أن تعطّلها
   // كلها إحصائية مبيعات تعذّر حسابها. والخطأ يُسجَّل ليُرى، لا يُخفى بالصمت.
   let sales: Awaited<ReturnType<typeof loadSalesStats>> | null = null;
+  let monthSales: Awaited<ReturnType<typeof loadSalesStats>> | null = null;
   let todaySales: Awaited<ReturnType<typeof loadSalesStats>> | null = null;
   try {
+    [monthSales, todaySales] = await Promise.all([
+      loadSalesStats(prisma, scope.branchId ?? null, "month"),
+      loadSalesStats(prisma, scope.branchId ?? null, "today"),
+    ]);
     if (session.role === "MANAGER") {
-      [sales, todaySales] = await Promise.all([
-        loadSalesStats(prisma, scope.branchId ?? null, "month"),
-        loadSalesStats(prisma, scope.branchId ?? null, "today"),
-      ]);
-    } else {
-      todaySales = await loadSalesStats(prisma, scope.branchId ?? null, "today");
+      sales = monthSales;
     }
   } catch (error) {
     console.error("dashboard: sales stats failed", error);
   }
+
+  const monthTotalNum = monthSales ? Number(monthSales.total) : 0;
+  const monthOutstandingNum = monthSales ? Number(monthSales.outstandingTotal) : 0;
+  const monthOutstandingPct =
+    monthTotalNum > 0
+      ? Math.min(100, Math.round((monthOutstandingNum / monthTotalNum) * 1000) / 10)
+      : 0;
+  const monthCollectedPct = monthTotalNum > 0 ? Math.max(0, Math.round((100 - monthOutstandingPct) * 10) / 10) : 0;
 
   const expectedBalanceValue = cash
     ? `${nf.format(Number(cash.expected))} ج.م`
@@ -587,6 +601,23 @@ export default async function DashboardPage() {
           </article>
 
       </DashboardWallet>
+
+      {monthSales ? (
+        <MonthlySalesPanther
+          monthLabel={monthFormatter.format(now)}
+          totalFormatted={nf.format(Number(monthSales.total))}
+          outstandingFormatted={nf.format(Number(monthSales.outstandingTotal))}
+          averageFormatted={nf.format(Number(monthSales.averageInvoice))}
+          invoiceCount={nf.format(monthSales.invoiceCount)}
+          outstandingCount={nf.format(monthSales.outstandingCount)}
+          hasOutstanding={monthOutstandingNum > 0}
+          collectedPercent={monthCollectedPct}
+          outstandingPercent={monthOutstandingPct}
+          hasSales={monthSales.invoiceCount > 0}
+          reportHref={session.role === "MANAGER" ? "/sales/stats?period=month" : "/sales"}
+          reportLabel={session.role === "MANAGER" ? "عرض التقرير الكامل لمبيعات الشهر" : "عرض سجل فواتير الشهر"}
+        />
+      ) : null}
 
       <div className="dashboard-account-note"><span>حسابك: <strong>{ROLE_LABEL[session.role] ?? session.role}</strong></span><span aria-hidden="true">·</span><span dir="ltr">{session.email}</span></div>
     </div>

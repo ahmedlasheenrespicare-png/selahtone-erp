@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AppIcon } from "@/components/app-icon";
 import { getSession } from "@/lib/auth";
 import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
 import { assertFinanceActor, financeDb, financeEnabled } from "@/lib/finance/db";
@@ -98,10 +99,16 @@ export default async function FinanceTransfersPage() {
 
   return (
     <div className="fin-page">
-      <Link href="/finance" className="fin-back">العودة إلى المالية</Link>
+      <Link href={canManage ? "/finance" : "/finance/mine"} className="fin-back">
+        <AppIcon name="arrow" />
+        <span>{canManage ? "العودة إلى المالية" : "العودة إلى عهدتي"}</span>
+      </Link>
       <div className="fin-heading">
         <div>
-          <p className="fin-heading__eyebrow">تسليم فعلي</p>
+          <p className="fin-heading__eyebrow">
+            <span className="fin-eyebrow-dot" aria-hidden="true" />
+            تسليم فعلي
+          </p>
           <h1>تسليم نقد بين الحسابات</h1>
           <p>خطوة واحدة بين خزنة الفرع وعهدة موظف في الفرع نفسه. التسليم بين فرعين غير مسموح.</p>
         </div>
@@ -123,9 +130,17 @@ export default async function FinanceTransfersPage() {
         <div className="fin-page__section">
           <div className="fin-heading">
             <div>
-              <p className="fin-heading__eyebrow">عهدة الموظف</p>
+              <p className="fin-heading__eyebrow">
+                <span className="fin-eyebrow-dot" aria-hidden="true" />
+                عهدة الموظف
+              </p>
               <h2>طلبات التسوية المعلقة</h2>
               <p>اعتماد التسوية يسجّل حركتين في خطوة واحدة: مطابقة الدفتر مع الواقع، ثم تحويل الفرق كاملًا.</p>
+            </div>
+            <div className="fin-actions">
+              <span className="fin-badge fin-badge--pending">
+                {pendingSettlements.length} بانتظار القرار
+              </span>
             </div>
           </div>
           {pendingSettlements.map((item) => (

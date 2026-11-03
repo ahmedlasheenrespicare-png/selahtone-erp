@@ -15,8 +15,46 @@
 
 /* ======================= لوحة القيادة ======================= */
 
-/* تذكرة الترحيب أعلى الحافظة — في مظهر «الحافظة» (wallet) الافتراضي */
-.workspace-shell[data-theme="wallet"] .dashboard .dashboard-heading{
+/* تذكرة الترحيب أعلى الحافظة — مشتركة لثيمي الحافظة («الافتراضي» و«صلة تون») */
+.workspace-shell[data-theme^="wallet"] .dashboard{
+  --wt-bg: linear-gradient(125deg, #223a22 0%, #1c321c 55%, #162816 100%);
+  --wt-border: rgba(195, 226, 187, .22);
+  --wt-shadow:
+    inset 0 1px 0 rgba(214, 235, 208, .24),
+    inset 0 -10px 24px rgba(0, 0, 0, .22),
+    0 16px 30px -14px rgba(20, 40, 20, .48);
+  --wt-stitch: rgba(167, 197, 158, .32);
+  --wt-eyebrow: #c8e2bf;
+  --wt-dot: #9bd86a;
+  --wt-dot-ring: rgba(155, 216, 106, .2);
+  --wt-desc: #d6e7d0;
+  --wt-notch-ring: rgba(30, 52, 30, .18);
+  --wt-icon-bg: rgba(155, 216, 106, .16);
+  --wt-icon-border: rgba(155, 216, 106, .3);
+  --wt-icon-ink: #9bd86a;
+  --wt-date-label: #bdd6b5;
+  --wt-date-value: #eef7eb;
+}
+.workspace-shell[data-theme="wallet-selahtone"] .dashboard{
+  --wt-bg: linear-gradient(125deg, #176885 0%, #125873 55%, #0d465d 100%);
+  --wt-border: rgba(198, 238, 250, .28);
+  --wt-shadow:
+    inset 0 1px 0 rgba(214, 243, 252, .26),
+    inset 0 -10px 24px rgba(4, 15, 45, .24),
+    0 16px 30px -14px rgba(4, 24, 54, .42);
+  --wt-stitch: rgba(168, 222, 240, .38);
+  --wt-eyebrow: #d6eff8;
+  --wt-dot: #81cde5;
+  --wt-dot-ring: rgba(129, 205, 229, .24);
+  --wt-desc: #eaf7fc;
+  --wt-notch-ring: rgba(13, 70, 93, .18);
+  --wt-icon-bg: rgba(129, 205, 229, .2);
+  --wt-icon-border: rgba(152, 216, 236, .38);
+  --wt-icon-ink: #98d8ec;
+  --wt-date-label: #d6eff8;
+  --wt-date-value: #f2fafe;
+}
+.workspace-shell[data-theme^="wallet"] .dashboard .dashboard-heading{
   position: relative;
   width: min(100%, 580px);
   margin: 0 auto 36px;
@@ -24,22 +62,19 @@
   gap: 18px;
   padding: 18px 22px;
   border-radius: 22px;
-  border: 1px solid rgba(195, 226, 187, .22);
-  background: linear-gradient(125deg, #223a22 0%, #1c321c 55%, #162816 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(214, 235, 208, .24),
-    inset 0 -10px 24px rgba(0, 0, 0, .22),
-    0 16px 30px -14px rgba(20, 40, 20, .48);
+  border: 1px solid var(--wt-border);
+  background: var(--wt-bg);
+  box-shadow: var(--wt-shadow);
 }
-.workspace-shell[data-theme="wallet"] .dashboard .dashboard-heading::before{
+.workspace-shell[data-theme^="wallet"] .dashboard .dashboard-heading::before{
   content: "";
   position: absolute;
   inset: 8px;
   border-radius: 15px;
-  border: 1.5px dashed rgba(167, 197, 158, .3);
+  border: 1.5px dashed var(--wt-stitch);
   pointer-events: none;
 }
-.workspace-shell[data-theme="wallet"] .dashboard .dashboard-heading > div:first-child{
+.workspace-shell[data-theme^="wallet"] .dashboard .dashboard-heading > div:first-child{
   position: relative;
   z-index: 1;
   flex: 1 1 auto;
@@ -48,27 +83,27 @@
   flex-direction: column;
   justify-content: center;
 }
-.workspace-shell[data-theme="wallet"] .dashboard .dashboard-eyebrow{
-  color: #c8e2bf;
+.workspace-shell[data-theme^="wallet"] .dashboard .dashboard-eyebrow{
+  color: var(--wt-eyebrow);
   font-size: 11.5px;
   margin-bottom: 5px;
 }
-.workspace-shell[data-theme="wallet"] .dashboard .dashboard-eyebrow span{
-  background: #9bd86a;
-  box-shadow: 0 0 0 3px rgba(155, 216, 106, .2);
+.workspace-shell[data-theme^="wallet"] .dashboard .dashboard-eyebrow span{
+  background: var(--wt-dot);
+  box-shadow: 0 0 0 3px var(--wt-dot-ring);
 }
-.workspace-shell[data-theme="wallet"] .dashboard .dashboard-heading h1{
+.workspace-shell[data-theme^="wallet"] .dashboard .dashboard-heading h1{
   color: #ffffff;
   font-size: clamp(19px, 2vw, 23px);
   line-height: 1.3;
 }
-.workspace-shell[data-theme="wallet"] .dashboard .dashboard-heading__description{
-  color: #d6e7d0;
+.workspace-shell[data-theme^="wallet"] .dashboard .dashboard-heading__description{
+  color: var(--wt-desc);
   font-size: 12.5px;
   line-height: 1.5;
   margin-top: 4px;
 }
-.workspace-shell[data-theme="wallet"] .dashboard .dashboard-date{
+.workspace-shell[data-theme^="wallet"] .dashboard .dashboard-date{
   position: relative;
   z-index: 1;
   flex: none;
@@ -81,11 +116,11 @@
   padding-inline-end: 4px;
   background: transparent;
   border: 0;
-  border-inline-start: 1.5px dashed rgba(167, 197, 158, .34);
+  border-inline-start: 1.5px dashed var(--wt-stitch);
   border-radius: 0;
 }
-.workspace-shell[data-theme="wallet"] .dashboard .dashboard-date::before,
-.workspace-shell[data-theme="wallet"] .dashboard .dashboard-date::after{
+.workspace-shell[data-theme^="wallet"] .dashboard .dashboard-date::before,
+.workspace-shell[data-theme^="wallet"] .dashboard .dashboard-date::after{
   content: "";
   position: absolute;
   inset-inline-start: -8px;
@@ -93,47 +128,47 @@
   height: 15px;
   border-radius: 50%;
   background: var(--ws-canvas, #f3f6f2);
-  box-shadow: inset 0 0 0 1px rgba(30, 52, 30, .18);
+  box-shadow: inset 0 0 0 1px var(--wt-notch-ring);
   pointer-events: none;
 }
-.workspace-shell[data-theme="wallet"] .dashboard .dashboard-date::before{ top: -26px; }
-.workspace-shell[data-theme="wallet"] .dashboard .dashboard-date::after{ bottom: -26px; }
-.workspace-shell[data-theme="wallet"] .dashboard .dashboard-date > span{
+.workspace-shell[data-theme^="wallet"] .dashboard .dashboard-date::before{ top: -26px; }
+.workspace-shell[data-theme^="wallet"] .dashboard .dashboard-date::after{ bottom: -26px; }
+.workspace-shell[data-theme^="wallet"] .dashboard .dashboard-date > span{
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  background: rgba(155, 216, 106, .16);
-  border: 1px solid rgba(155, 216, 106, .3);
-  color: #9bd86a;
+  background: var(--wt-icon-bg);
+  border: 1px solid var(--wt-icon-border);
+  color: var(--wt-icon-ink);
 }
-.workspace-shell[data-theme="wallet"] .dashboard .dashboard-date small{ color: #bdd6b5; }
-.workspace-shell[data-theme="wallet"] .dashboard .dashboard-date time{ color: #eef7eb; }
-.workspace-shell[data-theme="wallet"] .dashboard .dashboard-account-note{
+.workspace-shell[data-theme^="wallet"] .dashboard .dashboard-date small{ color: var(--wt-date-label); }
+.workspace-shell[data-theme^="wallet"] .dashboard .dashboard-date time{ color: var(--wt-date-value); }
+.workspace-shell[data-theme^="wallet"] .dashboard .dashboard-account-note{
   width: min(100%, 580px);
   margin: 8px auto 0;
   justify-content: center;
 }
 @media (max-width: 620px){
-  .workspace-shell[data-theme="wallet"] .dashboard .dashboard-heading{
+  .workspace-shell[data-theme^="wallet"] .dashboard .dashboard-heading{
     padding: 16px 18px;
     gap: 13px;
     margin-bottom: 28px;
   }
-  .workspace-shell[data-theme="wallet"] .dashboard .dashboard-date{
+  .workspace-shell[data-theme^="wallet"] .dashboard .dashboard-date{
     width: 100%;
     padding-inline-start: 2px;
     padding-inline-end: 2px;
     padding-top: 12px;
     padding-bottom: 2px;
     border-inline-start: 0;
-    border-top: 1.5px dashed rgba(167, 197, 158, .32);
+    border-top: 1.5px dashed var(--wt-stitch);
   }
-  .workspace-shell[data-theme="wallet"] .dashboard .dashboard-date::before{
+  .workspace-shell[data-theme^="wallet"] .dashboard .dashboard-date::before{
     top: -8px;
     bottom: auto;
     inset-inline-start: -26px;
   }
-  .workspace-shell[data-theme="wallet"] .dashboard .dashboard-date::after{
+  .workspace-shell[data-theme^="wallet"] .dashboard .dashboard-date::after{
     top: -8px;
     bottom: auto;
     inset-inline-start: auto;

@@ -1,0 +1,295 @@
+/* =========================================================================
+   قسم المخزون والمستودعات — تصميم متوافق مع الحافظة (الافتراضي & صلة تون)
+   ========================================================================= */
+
+.inventory-suite {
+  --iv-leather-bg: linear-gradient(135deg, #223a22 0%, #1c321c 56%, #152715 100%);
+  --iv-leather-border: #315231;
+  --iv-leather-shadow: 0 22px 44px -26px rgba(15, 32, 15, 0.56);
+  --iv-stitch: rgba(155, 216, 106, 0.36);
+  --iv-accent: #9bd86a;
+  --iv-accent-hover: #abdf7e;
+  --iv-accent-ink: #132613;
+  --iv-header-sub: #d6e7d0;
+  --iv-header-btn-bg: rgba(255, 255, 255, 0.10);
+  --iv-header-btn-hover: rgba(255, 255, 255, 0.18);
+  --iv-header-btn-border: rgba(214, 231, 208, 0.30);
+
+  --iv-ink: #152815;
+  --iv-ink-soft: #264026;
+  --iv-muted: #455c45;
+  --iv-surface: #ffffff;
+  --iv-surface-soft: #f5f9f3;
+  --iv-surface-tint: #eaf3e5;
+  --iv-border: #d5e3cf;
+  --iv-border-strong: #b9cfaf;
+  --iv-primary-btn: #1f3a1f;
+  --iv-primary-btn-hover: #162b16;
+  --iv-focus: rgba(54, 114, 54, 0.28);
+  --iv-code-bg: #eef5ea;
+  --iv-code-ink: #1b381b;
+  --iv-row-hover: #f6faf4;
+}
+
+[data-theme="wallet-selahtone"] .inventory-suite {
+  --iv-leather-bg: linear-gradient(135deg, #176885 0%, #125873 56%, #0d465d 100%);
+  --iv-leather-border: rgba(129, 205, 229, 0.42);
+  --iv-leather-shadow: 0 22px 44px -26px rgba(4, 15, 65, 0.54);
+  --iv-stitch: rgba(214, 241, 250, 0.40);
+  --iv-accent: #81cde5;
+  --iv-accent-hover: #99d8ec;
+  --iv-accent-ink: #040b5b;
+  --iv-header-sub: #eaf7fc;
+  --iv-header-btn-bg: rgba(4, 11, 91, 0.28);
+  --iv-header-btn-hover: rgba(4, 11, 91, 0.42);
+  --iv-header-btn-border: rgba(214, 241, 250, 0.34);
+
+  --iv-ink: #071946;
+  --iv-ink-soft: #103260;
+  --iv-muted: #35526c;
+  --iv-surface: #ffffff;
+  --iv-surface-soft: #f2f9fc;
+  --iv-surface-tint: #e3f3f9;
+  --iv-border: #c9e3ee;
+  --iv-border-strong: #9ecadd;
+  --iv-primary-btn: #0c4d68;
+  --iv-primary-btn-hover: #083a4f;
+  --iv-focus: rgba(23, 104, 133, 0.28);
+  --iv-code-bg: #e6f4fa;
+  --iv-code-ink: #040b5b;
+  --iv-row-hover: #f2f9fc;
+}
+
+.inventory-suite .inv-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 14px;
+  padding: 6px 13px;
+  border-radius: 999px;
+  background: var(--iv-surface);
+  border: 1px solid var(--iv-border);
+  color: var(--iv-ink);
+  font-size: 12.5px;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 3px 10px rgba(12, 34, 42, 0.05);
+  transition: background-color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+
+.inventory-suite .inv-back:hover {
+  background: var(--iv-surface-tint);
+  border-color: var(--iv-border-strong);
+  transform: translateX(2px);
+}
+
+.inventory-suite .inv-heading {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px 22px;
+  margin-bottom: 20px;
+  padding: 22px 26px;
+  border-radius: 20px;
+  background: var(--iv-leather-bg);
+  border: 1px solid var(--iv-leather-border);
+  box-shadow: var(--iv-leather-shadow);
+  color: #ffffff;
+  overflow: hidden;
+}
+
+.inventory-suite .inv-heading::before {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border-radius: 14px;
+  border: 1.5px dashed var(--iv-stitch);
+  pointer-events: none;
+}
+
+.inventory-suite .inv-heading > * {
+  position: relative;
+  z-index: 1;
+}
+
+.inventory-suite .inv-heading__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 6px;
+  color: var(--iv-accent);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.inventory-suite .inv-heading h1 {
+  margin: 0;
+  color: #ffffff;
+  font-size: clamp(22px, 2.2vw, 28px);
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.inventory-suite .inv-heading p:not(.inv-heading__eyebrow) {
+  margin: 6px 0 0;
+  color: var(--iv-header-sub);
+  font-size: 13px;
+}
+
+.inventory-suite .inv-button {
+  border-radius: 12px;
+  background: var(--iv-primary-btn);
+  border-color: var(--iv-primary-btn);
+  color: #ffffff;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.inventory-suite .inv-button:hover:not(:disabled) {
+  background: var(--iv-primary-btn-hover);
+  border-color: var(--iv-primary-btn-hover);
+  color: #ffffff;
+}
+
+.inventory-suite .inv-button--secondary {
+  background: var(--iv-surface);
+  border-color: var(--iv-border-strong);
+  color: var(--iv-ink);
+}
+
+.inventory-suite .inv-button--secondary:hover:not(:disabled) {
+  background: var(--iv-surface-tint);
+  border-color: var(--iv-primary-btn);
+  color: var(--iv-ink);
+}
+
+.inventory-suite .inv-heading .inv-button:not(.inv-button--secondary):not(.inv-button--text) {
+  background: var(--iv-accent);
+  border-color: var(--iv-accent);
+  color: var(--iv-accent-ink);
+  font-weight: 800;
+}
+
+.inventory-suite .inv-heading .inv-button:not(.inv-button--secondary):not(.inv-button--text):hover {
+  background: var(--iv-accent-hover);
+  border-color: var(--iv-accent-hover);
+  color: var(--iv-accent-ink);
+}
+
+.inventory-suite .inv-heading .inv-button--secondary {
+  background: var(--iv-header-btn-bg);
+  border-color: var(--iv-header-btn-border);
+  color: #ffffff;
+}
+
+.inventory-suite .inv-heading .inv-button--secondary:hover {
+  background: var(--iv-header-btn-hover);
+  border-color: var(--iv-accent);
+  color: #ffffff;
+}
+
+.inventory-suite .kpis {
+  gap: 13px;
+  margin-bottom: 20px;
+}
+
+.inventory-suite .kpi {
+  border-radius: 16px;
+  border: 1px solid var(--iv-border);
+  background: linear-gradient(180deg, var(--iv-surface-soft) 0%, #ffffff 100%);
+  box-shadow: 0 8px 22px -16px rgba(12, 34, 42, 0.20);
+}
+
+.inventory-suite .kpi small,
+.inventory-suite .kpi span {
+  color: var(--iv-muted);
+}
+
+.inventory-suite .kpi b {
+  color: var(--iv-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.inventory-suite .card,
+.inventory-suite .inv-panel {
+  border-radius: 18px;
+  border: 1px solid var(--iv-border);
+  background: var(--iv-surface);
+  box-shadow: 0 10px 26px -18px rgba(12, 34, 42, 0.20);
+}
+
+.inventory-suite .inv-panel__heading {
+  background: linear-gradient(180deg, var(--iv-surface-soft) 0%, #ffffff 100%);
+  border-bottom: 1.5px dashed var(--iv-border-strong);
+}
+
+.inventory-suite .card h2,
+.inventory-suite .inv-panel__heading h2 {
+  color: var(--iv-ink);
+}
+
+.inventory-suite .pill,
+.inventory-suite code {
+  background: var(--iv-code-bg);
+  color: var(--iv-code-ink);
+  border-color: var(--iv-border);
+}
+
+.inventory-suite table th,
+.inventory-suite .inv-table th {
+  background: var(--iv-surface-soft);
+  color: var(--iv-ink);
+  border-bottom: 1.5px dashed var(--iv-border-strong);
+}
+
+.inventory-suite table td,
+.inventory-suite .inv-table td {
+  color: var(--iv-ink);
+  border-bottom-color: var(--iv-border);
+}
+
+.inventory-suite table tbody tr:hover td,
+.inventory-suite .inv-table tbody tr:hover td {
+  background: var(--iv-row-hover);
+}
+
+.inventory-suite .inv-field label,
+.inventory-suite .inv-field__label {
+  color: var(--iv-ink);
+}
+
+.inventory-suite .inv-field input:not([type="checkbox"]),
+.inventory-suite .inv-field select,
+.inventory-suite .inv-field textarea,
+.inventory-suite .inv-search input {
+  border-color: var(--iv-border-strong);
+  background: var(--iv-surface-soft);
+  color: var(--iv-ink);
+  border-radius: 11px;
+}
+
+.inventory-suite .inv-side,
+.inventory-suite .inv-review {
+  border: 1.5px dashed var(--iv-border-strong);
+  background: var(--iv-surface-soft);
+  border-radius: 16px;
+}
+
+.inventory-suite .inv-side h2,
+.inventory-suite .inv-review h2 {
+  color: var(--iv-ink);
+}
+
+.inventory-suite .inv-side p,
+.inventory-suite .inv-side li,
+.inventory-suite .inv-review > p {
+  color: var(--iv-ink-soft);
+}
+
+.inventory-suite .inv-alert {
+  border-color: var(--iv-border-strong);
+  background: var(--iv-surface-soft);
+  color: var(--iv-ink);
+  border-radius: 13px;
+}

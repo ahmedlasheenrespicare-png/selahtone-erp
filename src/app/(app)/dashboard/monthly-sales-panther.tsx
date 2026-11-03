@@ -1,0 +1,60 @@
+import PantherSpotlightCard from "@/components/panther-spotlight-card";
+
+export type MonthlySalesPantherProps = {
+  monthLabel: string;
+  totalFormatted: string;
+  outstandingFormatted: string;
+  averageFormatted: string;
+  invoiceCount: string;
+  outstandingCount: string;
+  hasOutstanding: boolean;
+  collectedPercent: number;
+  outstandingPercent: number;
+  hasSales: boolean;
+  reportHref: string;
+  reportLabel: string;
+};
+
+export default function MonthlySalesPanther({
+  monthLabel,
+  totalFormatted,
+  outstandingFormatted,
+  averageFormatted,
+  invoiceCount,
+  outstandingCount,
+  hasOutstanding,
+  collectedPercent,
+  outstandingPercent,
+  hasSales,
+  reportHref,
+  reportLabel,
+}: MonthlySalesPantherProps) {
+  return (
+    <PantherSpotlightCard
+      layout="wallet"
+      title="مبيعات الشهر"
+      subtitle={`محدّث الآن · ${monthLabel}`}
+      pill={`${invoiceCount} فاتورة`}
+      primary={{
+        label: "صافي المبيعات",
+        value: totalFormatted,
+        unit: "ج.م",
+        delta: hasSales
+          ? `${collectedPercent}% محصّل · متوسط ${averageFormatted} ج.م`
+          : "لا فواتير مؤكدة بعد هذا الشهر",
+        tone: "positive",
+      }}
+      secondary={{
+        label: "المتبقي على العملاء",
+        value: outstandingFormatted,
+        unit: "ج.م",
+        delta: hasOutstanding
+          ? `${outstandingPercent}% آجل · ${outstandingCount} فاتورة عليها باقٍ`
+          : "0% متأخرات · مسدّدة بالكامل",
+        tone: hasOutstanding ? "negative" : "positive",
+      }}
+      actionHref={reportHref}
+      actionLabel={reportLabel}
+    />
+  );
+}

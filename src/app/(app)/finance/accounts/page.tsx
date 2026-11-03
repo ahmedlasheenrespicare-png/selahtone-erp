@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AppIcon } from "@/components/app-icon";
 import { getSession } from "@/lib/auth";
 import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
 import { assertFinanceActor, financeDb, financeEnabled } from "@/lib/finance/db";
@@ -75,10 +76,16 @@ export default async function FinanceAccountsPage() {
         </div>
       ) : null}
 
-      <Link href="/finance" className="fin-back">العودة إلى المالية</Link>
+      <Link href="/finance" className="fin-back">
+        <AppIcon name="arrow" />
+        <span>العودة إلى المالية</span>
+      </Link>
       <div className="fin-heading">
         <div>
-          <p className="fin-heading__eyebrow">جرد فعلي</p>
+          <p className="fin-heading__eyebrow">
+            <span className="fin-eyebrow-dot" aria-hidden="true" />
+            جرد فعلي
+          </p>
           <h1>فتح حساب نقدي</h1>
           <p>الرصيد يُسجَّل بعد جرد فعلي فقط. الصفر مقبول إن كان هذا هو الواقع، ولا يُفترض رصيد تلقائيًا.</p>
         </div>

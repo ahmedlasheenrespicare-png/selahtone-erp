@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AppIcon } from "@/components/app-icon";
 
 import { settlementOverview } from "@/lib/finance/engine";
 import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
@@ -19,10 +20,16 @@ export default async function NewSettlementPage() {
 
   return (
     <div className="fin-page">
-      <Link href="/finance/settlements" className="fin-back">العودة إلى طلبات التسوية</Link>
+      <Link href="/finance/settlements" className="fin-back">
+        <AppIcon name="arrow" />
+        <span>العودة إلى طلبات التسوية</span>
+      </Link>
       <div className="fin-heading">
         <div>
-          <p className="fin-heading__eyebrow">عهدة الموظف</p>
+          <p className="fin-heading__eyebrow">
+            <span className="fin-eyebrow-dot" aria-hidden="true" />
+            عهدة الموظف
+          </p>
           <h1>طلب تسوية</h1>
           <p>عدد النقد بيدك الآن وأرسل الطلب. لا يخصم الطلب شيئًا ولا يضيف؛ المدير يعتمده ويسجّل التحويل الفعلي.</p>
         </div>

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
+import { AppIcon } from "@/components/app-icon";
 import { listSelectableCategories } from "@/lib/finance/engine";
 import { cairoDate } from "@/lib/finance/validation";
 import { prisma } from "@/lib/prisma";
@@ -41,10 +42,16 @@ export default async function NewExpensePage() {
 
   return (
     <div className="fin-page">
-      <Link href="/finance/expenses" className="fin-back">العودة إلى المصروفات</Link>
+      <Link href="/finance/expenses" className="fin-back">
+        <AppIcon name="arrow" />
+        <span>العودة إلى المصروفات</span>
+      </Link>
       <div className="fin-heading">
         <div>
-          <p className="fin-heading__eyebrow">مصروف جديد</p>
+          <p className="fin-heading__eyebrow">
+            <span className="fin-eyebrow-dot" aria-hidden="true" />
+            مصروف جديد
+          </p>
           <h1>تسجيل مصروف</h1>
           <p>التسجيل الآن لا يعتمد ولا يصرف. المبلغ الإجمالي يشمل الضريبة إن أُدخلت.</p>
         </div>
