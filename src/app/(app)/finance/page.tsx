@@ -447,116 +447,112 @@ export default async function FinancePage() {
         ) : null}
       </div>
 
-      {walletAccounts.length > 0 && (
-        <section className="fin-wallet-section" aria-label="حافظة الحسابات النقدية">
-          <div className="fin-wallet-header">
-            <div className="fin-wallet-header__title">
-              <span className="fin-wallet-header__icon" aria-hidden="true">
-                <AppIcon name="cash" />
-              </span>
-              <h2>حافظة الخزائن والعُهَد</h2>
-            </div>
-            <span className="fin-wallet-header__pill">
-              {walletAccounts.length} {walletAccounts.length === 1 ? "حساب نقدي" : "حسابات نقدية"} · تقليب أفقي
-            </span>
-          </div>
-
-          <DashboardWallet
-            balanceValue={`${displayMoney(vaultTotalCents)} ج.م`}
-            balanceLabel="إجمالي الخزائن"
-            pocketItems={pocketItems}
-            hint="اسحب البطاقات أفقيًا لتقليب الخزائن والعُهَد، ومرّر على الجيب لإظهار إجماليات المالية"
-          >
-            {walletAccounts.map((account) => (
-              <article key={account.id} className="stat-card">
-                <div className="stat-card__head">
-                  <h3>{account.title}</h3>
-                  <p>
-                    {account.branchName} · تاريخ الجرد <bdi dir="ltr">{account.openingDate}</bdi>
-                  </p>
-                  <span className="stat-card__badge">
-                    {account.isClosed ? "مقفلة" : account.kindLabel}
-                  </span>
-                </div>
-
-                <div className="stat-card__body">
-                  <div className="fin-wallet-pills">
-                    <span className="fin-wallet-pill">{account.branchName}</span>
-                    <span className="fin-wallet-pill">{account.kindLabel}</span>
-                    <span className="fin-wallet-pill">
-                      {account.isClosed
-                        ? "عهدة مقفلة"
-                        : account.isNegative
-                          ? "رصيد سالب — راجعه"
-                          : "مفتوح ونشط"}
-                    </span>
-                  </div>
-
-                  <div className="stat-grid">
-                    <div className="stat-grid__item">
-                      <span className="stat-grid__label">الرصيد الدفتري الحالي</span>
-                      <strong className="stat-grid__value">
-                        <bdi dir="ltr">{account.balanceFormatted}</bdi> <small>ج.م</small>
-                      </strong>
-                    </div>
-
-                    <div className="stat-grid__item">
-                      <span className="stat-grid__label">رصيد الجرد الافتتاحي</span>
-                      <strong className="stat-grid__value">
-                        <bdi dir="ltr">{account.recordedOpeningFormatted}</bdi> <small>ج.م</small>
-                      </strong>
-                    </div>
-
-                    <Link
-                      href={canManage ? "/finance/transfers" : "/finance/mine"}
-                      className="stat-grid__item is-link fin-wallet-action-link"
-                    >
-                      <span className="stat-grid__label">
-                        {canManage
-                          ? "تسليم نقد بين الخزنة والعهدة أو مراجعة التسويات المعلقة"
-                          : "عرض عهدتي النقدية وحركاتها وطلبات التسوية"}
+      {(walletAccounts.length > 0 || (canManage && summary)) && (
+        <div className="dashboard-cards-grid" aria-label="حافظة الخزائن والعُهَد والميزان النقدي">
+          {walletAccounts.length > 0 ? (
+            <div className="dashboard-cards-grid__wallet">
+              <DashboardWallet
+                balanceValue={`${displayMoney(vaultTotalCents)} ج.م`}
+                balanceLabel="إجمالي الخزائن"
+                pocketItems={pocketItems}
+                hint="اسحب البطاقات أفقيًا لتقليب الخزائن والعُهَد، ومرّر على الجيب لإظهار إجماليات المالية"
+              >
+                {walletAccounts.map((account) => (
+                  <article key={account.id} className="stat-card">
+                    <div className="stat-card__head">
+                      <h3>{account.title}</h3>
+                      <p>
+                        {account.branchName} · تاريخ الجرد <bdi dir="ltr">{account.openingDate}</bdi>
+                      </p>
+                      <span className="stat-card__badge">
+                        {account.isClosed ? "مقفلة" : account.kindLabel}
                       </span>
-                      <strong className="stat-grid__value">
-                        {canManage ? "تسليم نقد والتسويات" : "فتح عهدتي النقدية"}
-                      </strong>
-                      <AppIcon name="arrow" className="stat-grid__arrow" />
-                    </Link>
-                  </div>
-                </div>
-              </article>
-            ))}
-          </DashboardWallet>
-        </section>
+                    </div>
+
+                    <div className="stat-card__body">
+                      <div className="fin-wallet-pills">
+                        <span className="fin-wallet-pill">{account.branchName}</span>
+                        <span className="fin-wallet-pill">{account.kindLabel}</span>
+                        <span className="fin-wallet-pill">
+                          {account.isClosed
+                            ? "عهدة مقفلة"
+                            : account.isNegative
+                              ? "رصيد سالب — راجعه"
+                              : "مفتوح ونشط"}
+                        </span>
+                      </div>
+
+                      <div className="stat-grid">
+                        <div className="stat-grid__item">
+                          <span className="stat-grid__label">الرصيد الدفتري الحالي</span>
+                          <strong className="stat-grid__value">
+                            <bdi dir="ltr">{account.balanceFormatted}</bdi> <small>ج.م</small>
+                          </strong>
+                        </div>
+
+                        <div className="stat-grid__item">
+                          <span className="stat-grid__label">رصيد الجرد الافتتاحي</span>
+                          <strong className="stat-grid__value">
+                            <bdi dir="ltr">{account.recordedOpeningFormatted}</bdi> <small>ج.م</small>
+                          </strong>
+                        </div>
+
+                        <Link
+                          href={canManage ? "/finance/transfers" : "/finance/mine"}
+                          className="stat-grid__item is-link fin-wallet-action-link"
+                        >
+                          <span className="stat-grid__label">
+                            {canManage
+                              ? "تسليم نقد بين الخزنة والعهدة أو مراجعة التسويات المعلقة"
+                              : "عرض عهدتي النقدية وحركاتها وطلبات التسوية"}
+                          </span>
+                          <strong className="stat-grid__value">
+                            {canManage ? "تسليم نقد والتسويات" : "فتح عهدتي النقدية"}
+                          </strong>
+                          <AppIcon name="arrow" className="stat-grid__arrow" />
+                        </Link>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </DashboardWallet>
+            </div>
+          ) : null}
+
+          {canManage && summary ? (
+            <div className="dashboard-cards-grid__item">
+              <PantherSpotlightCard
+                layout="wallet"
+                title="الميزان النقدي ومصروفات الشهر"
+                subtitle="محدّث الآن · إجمالي السيولة مقابل مصروفات الشهر الحالي"
+                pill={`${openVaultCount + openCustodyCount} حساب نشط`}
+                primary={{
+                  label: "إجمالي السيولة بالخزائن والعُهَد",
+                  value: displayMoney(vaultTotalCents + moneyToCents(summary.totalExpected)),
+                  unit: "ج.م",
+                  delta: `خزائن ${displayMoney(vaultTotalCents)} · عُهَد متوقّعة ${formatMoney(summary.totalExpected)} ج.م`,
+                  tone: "positive",
+                }}
+                secondary={{
+                  label: "مصروفات الشهر الحالي",
+                  value: displayMoney(monthExpensesCents),
+                  unit: "ج.م",
+                  delta:
+                    pendingActionExpenses > 0
+                      ? `${pendingActionExpenses} مصروف بانتظار إجراء (${summary.pendingExpenses} اعتماد · ${summary.approvedUnpaid} صرف)`
+                      : `${monthExpensesCount} مصروف مسجّل هذا الشهر · لا معلقات`,
+                  tone: pendingActionExpenses > 0 ? "negative" : "positive",
+                }}
+                series={financeSpotlightSeries}
+                actionHref="/finance/expenses"
+                actionLabel="مراجعة المصروفات والاعتمادات"
+              />
+            </div>
+          ) : null}
+        </div>
       )}
 
       {canManage && summary ? (
-        <>
-          <PantherSpotlightCard
-            title="الميزان النقدي ومصروفات الشهر"
-            subtitle="محدّث الآن · إجمالي السيولة مقابل مصروفات الشهر الحالي"
-            pill={`${openVaultCount + openCustodyCount} حساب نشط`}
-            primary={{
-              label: "إجمالي السيولة بالخزائن والعُهَد",
-              value: displayMoney(vaultTotalCents + moneyToCents(summary.totalExpected)),
-              unit: "ج.م",
-              delta: `خزائن ${displayMoney(vaultTotalCents)} · عُهَد متوقّعة ${formatMoney(summary.totalExpected)} ج.م`,
-              tone: "positive",
-            }}
-            secondary={{
-              label: "مصروفات الشهر الحالي",
-              value: displayMoney(monthExpensesCents),
-              unit: "ج.م",
-              delta:
-                pendingActionExpenses > 0
-                  ? `${pendingActionExpenses} مصروف بانتظار إجراء (${summary.pendingExpenses} اعتماد · ${summary.approvedUnpaid} صرف)`
-                  : `${monthExpensesCount} مصروف مسجّل هذا الشهر · لا معلقات`,
-              tone: pendingActionExpenses > 0 ? "negative" : "positive",
-            }}
-            series={financeSpotlightSeries}
-            actionHref="/finance/expenses"
-            actionLabel="مراجعة المصروفات والاعتمادات"
-          />
-
         <section className="fin-kpi-strip" aria-label="ملخص السيولة والمعلقات">
           <article className="fin-kpi-card is-accent">
             <span className="fin-kpi-card__icon" aria-hidden="true">
@@ -620,7 +616,6 @@ export default async function FinancePage() {
             </div>
           </Link>
         </section>
-        </>
       ) : null}
 
       {rows.length === 0 ? (

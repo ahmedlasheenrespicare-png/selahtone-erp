@@ -559,7 +559,7 @@
     0 4px 14px -6px rgba(8, 32, 68, 0.08);
 }
 
-.workspace-shell[data-color-mode="light"][data-dashboard-bg="on"] .dashboard .monthly-panther {
+.workspace-shell[data-color-mode="light"][data-dashboard-bg="on"] .monthly-panther {
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.85),
     0 20px 42px -16px rgba(18, 42, 24, 0.20),

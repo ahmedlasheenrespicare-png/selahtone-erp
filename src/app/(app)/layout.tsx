@@ -22,6 +22,7 @@ import { WorkspaceThemeProvider } from "./workspace-theme-provider";
 import "./workspace.css";
 import "./design.css"; // طبقة التصميم الجديد — فوق أنماط الشاشات القائمة، بلا تغيير في بنيتها
 import "./dark-mode.css"; // طبقة الوضع النهاري والليلي المتزامنة مع شروق النهار وحلول الليل
+import "./red-duck-starfield.css"; // خلفية النجوم الليلية (red-duck-82) لثيم «الافتراضي» مع تفعيل الخلفية في الوضع الليلي فقط
 
 const ROLE_LABEL: Record<string, string> = {
   MANAGER: "مدير الشركة",
@@ -59,6 +60,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <AppNavigation canViewAllBranches={canSeeAllBranches(session)} financeEnabled={financeEnabled()} menuScope={session.menuScope} inventoryEnabled={inventoryEnabled()} />
 
       <div className="workspace-main">
+        <div className="workspace-starfield" aria-hidden="true">
+          <div className="workspace-starfield__stars workspace-starfield__stars--sm" />
+          <div className="workspace-starfield__stars workspace-starfield__stars--md" />
+          <div className="workspace-starfield__stars workspace-starfield__stars--lg" />
+        </div>
         <header className="workspace-topbar">
           <div className="workspace-topbar__start">
             <div className="workspace-topbar__title">

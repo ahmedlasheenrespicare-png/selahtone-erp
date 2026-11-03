@@ -40,22 +40,42 @@ export default async function ExpensesPage() {
 
   let totalCents = 0n;
   let paidCents = 0n;
+  let pendingTotalCents = 0n;
+  let approvedTotalCents = 0n;
   let pendingCount = 0;
   let approvedCount = 0;
   let paidCount = 0;
   const branchSet = new Set<string>();
+  const categoryTotals = new Map<string, { total: bigint; paid: bigint; count: number }>();
+  const branchTotals = new Map<string, { total: bigint; paid: bigint; count: number }>();
 
   const rows: FinanceExpenseRow[] = expenses.map((expense) => {
     const branchName = branchNames.get(expense.branchId) ?? "الفرع";
     const cents = moneyToCents(expense.amount);
     totalCents += cents;
-    if (expense.status === "PENDING") pendingCount += 1;
-    else if (expense.status === "APPROVED") approvedCount += 1;
-    else if (expense.status === "PAID") {
+    if (expense.status === "PENDING") {
+      pendingCount += 1;
+      pendingTotalCents += cents;
+    } else if (expense.status === "APPROVED") {
+      approvedCount += 1;
+      approvedTotalCents += cents;
+    } else if (expense.status === "PAID") {
       paidCount += 1;
       paidCents += cents;
     }
     branchSet.add(branchName);
+
+    const catStat = categoryTotals.get(expense.categorySnapshot) ?? { total: 0n, paid: 0n, count: 0 };
+    catStat.total += cents;
+    if (expense.status === "PAID") catStat.paid += cents;
+    catStat.count += 1;
+    categoryTotals.set(expense.categorySnapshot, catStat);
+
+    const brStat = branchTotals.get(branchName) ?? { total: 0n, paid: 0n, count: 0 };
+    brStat.total += cents;
+    if (expense.status === "PAID") brStat.paid += cents;
+    brStat.count += 1;
+    branchTotals.set(branchName, brStat);
 
     return {
       id: expense.id,
@@ -256,6 +276,94 @@ export default async function ExpensesPage() {
     ],
   });
 
+  const workflowSeries: PantherChartSeries[] = [
+    {
+      id: "ledger-stages",
+      label: "حسب المرحلة",
+      points: [
+        {
+          label: "مدفوع فعليًا بالسجل",
+          shortLabel: "مدفوع",
+          value: Number(paidCents) / 100,
+          formattedValue: `${displayMoney(paidCents)} ج.م`,
+          detail: `${paidCount} مصروف مكتمل الصرف الفعلي`,
+        },
+        {
+          label: "معتمد بانتظار الصرف",
+          shortLabel: "للصرف",
+          value: Number(approvedTotalCents) / 100,
+          formattedValue: `${displayMoney(approvedTotalCents)} ج.م`,
+          detail: `${approvedCount} مصروف معتمد بانتظار تسجيل الصرف`,
+        },
+        {
+          label: "بانتظار الاعتماد",
+          shortLabel: "للاعتماد",
+          value: Number(pendingTotalCents) / 100,
+          formattedValue: `${displayMoney(pendingTotalCents)} ج.م`,
+          detail: `${pendingCount} مصروف مسجّل بانتظار مراجعة الإدارة`,
+        },
+      ],
+    },
+  ];
+
+  if (categoryTotals.size > 0) {
+    const catPoints: PantherChartPoint[] = Array.from(categoryTotals.entries())
+      .sort((a, b) => (b[1].total > a[1].total ? 1 : b[1].total < a[1].total ? -1 : 0))
+      .slice(0, 6)
+      .map(([catName, stat], idx) => ({
+        label: catName,
+        shortLabel: catName.slice(0, 9) || `بند ${idx + 1}`,
+        value: Number(stat.total) / 100,
+        formattedValue: `${displayMoney(stat.total)} ج.م`,
+        secondaryValue: Number(stat.paid) / 100,
+        secondaryLabel: "المدفوع",
+        secondaryFormatted: `${displayMoney(stat.paid)} ج.م`,
+        detail: `${stat.count} مصروف مسجّل في هذا البند`,
+      }));
+    if (catPoints.length === 1) {
+      catPoints.unshift({
+        label: "نقطة الأساس",
+        shortLabel: "٠",
+        value: 0,
+        formattedValue: "0 ج.م",
+      });
+    }
+    workflowSeries.push({
+      id: "top-categories",
+      label: "أعلى البنود",
+      points: catPoints,
+    });
+  }
+
+  if (branchTotals.size > 0) {
+    const brPoints: PantherChartPoint[] = Array.from(branchTotals.entries()).map(([bName, stat], idx) => ({
+      label: bName,
+      shortLabel: bName.replace(/^فرع\s+/, "").slice(0, 10) || `#${idx + 1}`,
+      value: Number(stat.total) / 100,
+      formattedValue: `${displayMoney(stat.total)} ج.م`,
+      secondaryValue: Number(stat.paid) / 100,
+      secondaryLabel: "المدفوع",
+      secondaryFormatted: `${displayMoney(stat.paid)} ج.م`,
+      detail: `${stat.count} مصروف في ${bName}`,
+    }));
+    if (brPoints.length === 1) {
+      brPoints.unshift({
+        label: "نقطة الأساس",
+        shortLabel: "٠",
+        value: 0,
+        formattedValue: "0 ج.م",
+      });
+    }
+    workflowSeries.push({
+      id: "by-branch",
+      label: "حسب الفرع",
+      points: brPoints,
+    });
+  }
+
+  const unpaidLedgerCents = pendingTotalCents + approvedTotalCents;
+  const unpaidLedgerCount = pendingCount + approvedCount;
+
   const pocketItems: WalletPocketItem[] = [
     {
       key: "total-expenses",
@@ -319,111 +427,137 @@ export default async function ExpensesPage() {
         </div>
       </div>
 
-      {latestExpenses.length > 0 && (
-        <section className="fin-wallet-section" aria-label="حافظة أحدث المصروفات">
-          <div className="fin-wallet-header">
-            <div className="fin-wallet-header__title">
-              <span className="fin-wallet-header__icon" aria-hidden="true">
-                <AppIcon name="expenses" />
-              </span>
-              <h2>حافظة أحدث المصروفات</h2>
-            </div>
-            <span className="fin-wallet-header__pill">
-              أحدث {latestExpenses.length} {latestExpenses.length === 1 ? "مصروف" : "مصروفات"} · تقليب أفقي
-            </span>
+      <div className="dashboard-cards-grid" aria-label="حافظة المصروفات ومؤشرات الصرف والاعتماد">
+        {latestExpenses.length > 0 ? (
+          <div className="dashboard-cards-grid__wallet">
+            <DashboardWallet
+              balanceValue={`${displayMoney(totalCents)} ج.م`}
+              balanceLabel="إجمالي المصروفات"
+              pocketItems={pocketItems}
+              hint="اسحب البطاقات أفقيًا لتقليب أحدث المصروفات، ومرّر على الجيب لإظهار الإجماليات"
+            >
+              {latestExpenses.map((expense) => (
+                <article key={expense.id} className="stat-card">
+                  <div className="stat-card__head">
+                    <h3>{expense.description}</h3>
+                    <p>
+                      {expense.branchName} · <bdi dir="ltr">{expense.expenseDate}</bdi> · بند {expense.categorySnapshot}
+                    </p>
+                    <span className="stat-card__badge">{expense.statusLabel}</span>
+                  </div>
+
+                  <div className="stat-card__body">
+                    <div className="fin-wallet-pills">
+                      <span className="fin-wallet-pill">{expense.categorySnapshot}</span>
+                      <span className="fin-wallet-pill">{expense.branchName}</span>
+                    </div>
+
+                    <div className="stat-grid">
+                      <div className="stat-grid__item">
+                        <span className="stat-grid__label">المبلغ الفعال</span>
+                        <strong className="stat-grid__value">
+                          <bdi dir="ltr">{expense.amountFormatted}</bdi> <small>ج.م</small>
+                        </strong>
+                      </div>
+
+                      <div className="stat-grid__item">
+                        <span className="stat-grid__label">الحالة الحالية</span>
+                        <strong className="stat-grid__value">
+                          <small>{expense.statusLabel}</small>
+                        </strong>
+                      </div>
+
+                      {canManage ? (
+                        <Link
+                          href={`/finance/expenses/${expense.id}`}
+                          className="stat-grid__item is-link fin-wallet-action-link"
+                        >
+                          <span className="stat-grid__label">
+                            مراجعة بيانات المصروف أو الاعتماد وتسجيل الصرف الفعلي
+                          </span>
+                          <strong className="stat-grid__value">فتح تفاصيل المصروف</strong>
+                          <AppIcon name="arrow" className="stat-grid__arrow" />
+                        </Link>
+                      ) : (
+                        <Link
+                          href="/finance/expenses/new"
+                          className="stat-grid__item is-link fin-wallet-action-link"
+                        >
+                          <span className="stat-grid__label">إضافة بند مصروف جديد بانتظار الاعتماد</span>
+                          <strong className="stat-grid__value">تسجيل مصروف جديد</strong>
+                          <AppIcon name="arrow" className="stat-grid__arrow" />
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </DashboardWallet>
           </div>
+        ) : null}
 
-          <DashboardWallet
-            balanceValue={`${displayMoney(totalCents)} ج.م`}
-            balanceLabel="إجمالي المصروفات"
-            pocketItems={pocketItems}
-            hint="اسحب البطاقات أفقيًا لتقليب أحدث المصروفات، ومرّر على الجيب لإظهار الإجماليات"
-          >
-            {latestExpenses.map((expense) => (
-              <article key={expense.id} className="stat-card">
-                <div className="stat-card__head">
-                  <h3>{expense.description}</h3>
-                  <p>
-                    {expense.branchName} · <bdi dir="ltr">{expense.expenseDate}</bdi> · بند {expense.categorySnapshot}
-                  </p>
-                  <span className="stat-card__badge">{expense.statusLabel}</span>
-                </div>
+        <div className="dashboard-cards-grid__item">
+          <PantherSpotlightCard
+            layout="wallet"
+            title="مصروفات الشهر وحالة الصرف"
+            subtitle={`محدّث الآن · شهر ${currentMonthPrefix}`}
+            pill={`${monthCount} مصروف هذا الشهر`}
+            primary={{
+              label: "مصروفات الشهر الحالي",
+              value: displayMoney(monthTotalCents),
+              unit: "ج.م",
+              delta: `مدفوع منها فعليًا: ${displayMoney(monthPaidCents)} ج.م`,
+              tone: "positive",
+            }}
+            secondary={{
+              label: "معلّق للاعتماد أو الصرف",
+              value: displayMoney(monthPendingAndApprovedCents),
+              unit: "ج.م",
+              delta:
+                monthUnpaidCount > 0
+                  ? `${monthUnpaidCount} مصروف بانتظار إجراء في الشهر الحالي`
+                  : "0 معلقات · جميع مصروفات الشهر مسدّدة",
+              tone: monthUnpaidCount > 0 ? "negative" : "positive",
+            }}
+            series={expensesSeries}
+            actionHref="/finance/expenses/new"
+            actionLabel="تسجيل بند مصروف جديد"
+          />
+        </div>
 
-                <div className="stat-card__body">
-                  <div className="fin-wallet-pills">
-                    <span className="fin-wallet-pill">{expense.categorySnapshot}</span>
-                    <span className="fin-wallet-pill">{expense.branchName}</span>
-                  </div>
-
-                  <div className="stat-grid">
-                    <div className="stat-grid__item">
-                      <span className="stat-grid__label">المبلغ الفعال</span>
-                      <strong className="stat-grid__value">
-                        <bdi dir="ltr">{expense.amountFormatted}</bdi> <small>ج.م</small>
-                      </strong>
-                    </div>
-
-                    <div className="stat-grid__item">
-                      <span className="stat-grid__label">الحالة الحالية</span>
-                      <strong className="stat-grid__value">
-                        <small>{expense.statusLabel}</small>
-                      </strong>
-                    </div>
-
-                    {canManage ? (
-                      <Link
-                        href={`/finance/expenses/${expense.id}`}
-                        className="stat-grid__item is-link fin-wallet-action-link"
-                      >
-                        <span className="stat-grid__label">
-                          مراجعة بيانات المصروف أو الاعتماد وتسجيل الصرف الفعلي
-                        </span>
-                        <strong className="stat-grid__value">فتح تفاصيل المصروف</strong>
-                        <AppIcon name="arrow" className="stat-grid__arrow" />
-                      </Link>
-                    ) : (
-                      <Link
-                        href="/finance/expenses/new"
-                        className="stat-grid__item is-link fin-wallet-action-link"
-                      >
-                        <span className="stat-grid__label">إضافة بند مصروف جديد بانتظار الاعتماد</span>
-                        <strong className="stat-grid__value">تسجيل مصروف جديد</strong>
-                        <AppIcon name="arrow" className="stat-grid__arrow" />
-                      </Link>
-                    )}
-                  </div>
-                </div>
-              </article>
-            ))}
-          </DashboardWallet>
-        </section>
-      )}
-
-      <PantherSpotlightCard
-        title="مصروفات الشهر وحالة الصرف"
-        subtitle={`محدّث الآن · شهر ${currentMonthPrefix}`}
-        pill={`${monthCount} مصروف هذا الشهر`}
-        primary={{
-          label: "مصروفات الشهر الحالي",
-          value: displayMoney(monthTotalCents),
-          unit: "ج.م",
-          delta: `مدفوع منها فعليًا: ${displayMoney(monthPaidCents)} ج.م`,
-          tone: "positive",
-        }}
-        secondary={{
-          label: "معلّق للاعتماد أو الصرف",
-          value: displayMoney(monthPendingAndApprovedCents),
-          unit: "ج.م",
-          delta:
-            monthUnpaidCount > 0
-              ? `${monthUnpaidCount} مصروف بانتظار إجراء في الشهر الحالي`
-              : "0 معلقات · جميع مصروفات الشهر مسدّدة",
-          tone: monthUnpaidCount > 0 ? "negative" : "positive",
-        }}
-        series={expensesSeries}
-        actionHref="/finance/expenses/new"
-        actionLabel="تسجيل بند مصروف جديد"
-      />
+        <div className="dashboard-cards-grid__item">
+          <PantherSpotlightCard
+            layout="wallet"
+            title="مراحل الاعتماد وبنود الصرف"
+            subtitle={
+              canManage
+                ? "محدّث الآن · توزيع سجل المصروفات حسب المرحلة والبند والفرع"
+                : "محدّث الآن · مصروفاتك المسجّلة وحالة اعتمادها وصرفها"
+            }
+            pill={`${rows.length} مصروف بالسجل`}
+            primary={{
+              label: "المدفوع فعليًا بالسجل",
+              value: displayMoney(paidCents),
+              unit: "ج.م",
+              delta: `${paidCount} مصروف مكتمل الصرف من أصل ${rows.length}`,
+              tone: "positive",
+            }}
+            secondary={{
+              label: "بانتظار اعتماد أو صرف",
+              value: displayMoney(unpaidLedgerCents),
+              unit: "ج.م",
+              delta:
+                unpaidLedgerCount > 0
+                  ? `${pendingCount} بانتظار الاعتماد · ${approvedCount} معتمد بانتظار الصرف`
+                  : "0 معلقات · كافة مصروفات السجل مسدّدة",
+              tone: unpaidLedgerCount > 0 ? "negative" : "positive",
+            }}
+            series={workflowSeries}
+            actionHref={rows.length > 0 ? "#expenses-directory" : "/finance/expenses/new"}
+            actionLabel={rows.length > 0 ? "مراجعة جدول المصروفات" : "تسجيل مصروف جديد"}
+          />
+        </div>
+      </div>
 
       <section className="fin-kpi-strip" aria-label="ملخص المصروفات">
         <article className="fin-kpi-card is-accent">
@@ -489,7 +623,7 @@ export default async function ExpensesPage() {
         </div>
       ) : (
         <>
-          <div className="fin-directory-heading">
+          <div id="expenses-directory" className="fin-directory-heading">
             <h2>سجل المصروفات الكامل</h2>
             <span>بحث فوري بالوصف أو البند وتصفية بحالة الاعتماد والصرف والفرع</span>
           </div>
