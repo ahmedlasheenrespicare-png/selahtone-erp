@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useRef, useState } from "react";
 import { AppIcon } from "@/components/app-icon";
 import { BrandMark } from "@/components/brand-mark";
+import { LuckyPantherSwitch } from "@/components/lucky-panther-switch";
 import { SelatoneFacebookLogo, SelatoneFacebookMark } from "@/components/selatone-facebook-logo";
 import type { MenuScope } from "@/lib/menu-scope";
 import { WORKSPACE_THEME_GROUPS } from "@/lib/workspace-theme";
@@ -20,7 +21,7 @@ type AppNavigationProps = {
 
 export function AppNavigation({ canViewAllBranches, financeEnabled = false, menuScope = "FULL", inventoryEnabled = false }: AppNavigationProps) {
   const pathname = usePathname();
-  const { theme, setTheme } = useWorkspaceTheme();
+  const { theme, setTheme, dashboardBgByTheme, setThemeDashboardBg } = useWorkspaceTheme();
   const [menuOpen, setMenuOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(true);
   const [openThemeGroups, setOpenThemeGroups] = useState<string[]>(() =>
@@ -197,28 +198,40 @@ export function AppNavigation({ canViewAllBranches, financeEnabled = false, menu
                           <ul id={`subnav-${group.id}`} className="workspace-nav-sublist workspace-nav-sublist--nested">
                             {group.variants.map((option) => {
                               const active = theme === option.id;
+                              const bgEnabled = Boolean(dashboardBgByTheme[option.id]);
                               return (
                                 <li key={option.id}>
-                                  <button
-                                    type="button"
-                                    className={`workspace-nav-item workspace-nav-subitem workspace-theme-btn${active ? " is-active" : ""}`}
-                                    aria-pressed={active}
-                                    onClick={() => {
-                                      setTheme(option.id);
-                                      setMenuOpen(false);
-                                    }}
+                                  <div
+                                    className={`workspace-nav-item workspace-nav-subitem workspace-theme-row${active ? " is-active" : ""}`}
                                   >
-                                    <span
-                                      className="workspace-theme-swatch"
-                                      style={{
-                                        backgroundColor: option.swatch,
-                                        boxShadow: `inset 0 0 0 2px ${option.ring}`,
+                                    <button
+                                      type="button"
+                                      className="workspace-theme-btn"
+                                      aria-pressed={active}
+                                      onClick={() => {
+                                        setTheme(option.id);
+                                        setMenuOpen(false);
                                       }}
-                                      aria-hidden="true"
+                                    >
+                                      <span
+                                        className="workspace-theme-swatch"
+                                        style={{
+                                          backgroundColor: option.swatch,
+                                          boxShadow: `inset 0 0 0 2px ${option.ring}`,
+                                        }}
+                                        aria-hidden="true"
+                                      />
+                                      <span className="workspace-theme-btn__label">{option.label}</span>
+                                    </button>
+                                    <LuckyPantherSwitch
+                                      checked={bgEnabled}
+                                      variant={option.id}
+                                      ariaLabel={`تشغيل خلفية الصفحات لثيم ${option.label}`}
+                                      onChange={(nextChecked) =>
+                                        setThemeDashboardBg(option.id, nextChecked)
+                                      }
                                     />
-                                    <span>{option.label}</span>
-                                    {active && <span className="workspace-nav-item__indicator" aria-hidden="true" />}
-                                  </button>
+                                  </div>
                                 </li>
                               );
                             })}
