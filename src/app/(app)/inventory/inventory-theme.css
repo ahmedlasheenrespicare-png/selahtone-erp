@@ -197,7 +197,7 @@
 .inventory-suite .kpi {
   border-radius: 16px;
   border: 1px solid var(--iv-border);
-  background: linear-gradient(180deg, var(--iv-surface-soft) 0%, #ffffff 100%);
+  background: linear-gradient(180deg, var(--iv-surface-soft) 0%, var(--iv-surface) 100%);
   box-shadow: 0 8px 22px -16px rgba(12, 34, 42, 0.20);
 }
 
@@ -220,7 +220,7 @@
 }
 
 .inventory-suite .inv-panel__heading {
-  background: linear-gradient(180deg, var(--iv-surface-soft) 0%, #ffffff 100%);
+  background: linear-gradient(180deg, var(--iv-surface-soft) 0%, var(--iv-surface) 100%);
   border-bottom: 1.5px dashed var(--iv-border-strong);
 }
 

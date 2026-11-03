@@ -20,7 +20,9 @@ export type AppIconName =
   | "menu"
   | "close"
   | "check"
-  | "theme";
+  | "theme"
+  | "sun"
+  | "moon";
 
 type AppIconProps = SVGProps<SVGSVGElement> & { name: AppIconName };
 
@@ -95,6 +97,17 @@ export function AppIcon({ name, ...props }: AppIconProps) {
           <circle cx="15.5" cy="8.5" r="1" fill="currentColor" />
          </>
       );
+      break;
+    case "sun":
+      content = (
+        <>
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2.5v2.3M12 19.2v2.3M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M2.5 12h2.3M19.2 12h2.3M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6" />
+        </>
+      );
+      break;
+    case "moon":
+      content = <path d="M20.4 14.6A8.5 8.5 0 0 1 9.4 3.6a8.5 8.5 0 1 0 11 11Z" />;
       break;
   }
 

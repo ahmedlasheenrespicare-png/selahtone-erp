@@ -2,12 +2,15 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppIcon } from "@/components/app-icon";
+import ColorModeToggle from "@/components/color-mode-toggle";
 import { getSession, canSeeAllBranches } from "@/lib/auth";
 import { financeEnabled } from "@/lib/finance/db";
 import { inventoryEnabled } from "@/lib/feature-flags";
 import {
+  resolveWorkspaceColorMode,
   resolveWorkspaceDashboardBg,
   resolveWorkspaceTheme,
+  WORKSPACE_COLOR_MODE_COOKIE,
   WORKSPACE_DASHBOARD_BG_COOKIE,
   WORKSPACE_THEME_COOKIE,
 } from "@/lib/workspace-theme";
@@ -16,6 +19,7 @@ import LogoutButton from "./logout-button";
 import { WorkspaceThemeProvider } from "./workspace-theme-provider";
 import "./workspace.css";
 import "./design.css"; // طبقة التصميم الجديد — فوق أنماط الشاشات القائمة، بلا تغيير في بنيتها
+import "./dark-mode.css"; // طبقة الوضع الليلي والنهاري المتجاوبة مع إعداد الجهاز واختيار المستخدم
 
 const ROLE_LABEL: Record<string, string> = {
   MANAGER: "مدير الشركة",
@@ -33,11 +37,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const initialDashboardBg = resolveWorkspaceDashboardBg(
     cookieStore.get(WORKSPACE_DASHBOARD_BG_COOKIE)?.value,
   );
+  const initialColorMode = resolveWorkspaceColorMode(
+    cookieStore.get(WORKSPACE_COLOR_MODE_COOKIE)?.value,
+  );
 
   return (
     <WorkspaceThemeProvider
       initialTheme={initialTheme}
       initialDashboardBg={initialDashboardBg}
+      initialColorMode={initialColorMode}
     >
       <a className="workspace-skip" href="#workspace-content">تخطي إلى المحتوى</a>
       <AppNavigation canViewAllBranches={canSeeAllBranches(session)} financeEnabled={financeEnabled()} menuScope={session.menuScope} inventoryEnabled={inventoryEnabled()} />
@@ -56,6 +64,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 <small>{ROLE_LABEL[session.role] ?? session.role} <span aria-hidden="true">·</span> {session.branchName ?? "كل الفروع"}</small>
               </span>
             </div>
+            <ColorModeToggle />
             <Link href="/change-password" className="workspace-account-link" title="تغيير كلمة المرور" aria-label="تغيير كلمة المرور">
               <AppIcon name="lock" /><span>كلمة المرور</span>
             </Link>

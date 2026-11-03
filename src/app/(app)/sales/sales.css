@@ -21,6 +21,7 @@
   --sl-accent-hover: #abdf80;
   --sl-primary-btn: #1e341e;
   --sl-primary-btn-hover: #284628;
+  --sl-surface: #ffffff;
   --sl-surface-soft: #f5f9f4;
   --sl-surface-tint: #eaf3e7;
   --sl-border: #d8e4d5;
@@ -48,6 +49,7 @@
   --sl-accent-hover: #98d8ec;
   --sl-primary-btn: #0d465d;
   --sl-primary-btn-hover: #145e7b;
+  --sl-surface: #ffffff;
   --sl-surface-soft: #f2f9fd;
   --sl-surface-tint: #e3f3fa;
   --sl-border: #cfe4ef;
@@ -167,7 +169,7 @@
 }
 
 .sales-suite .inv-button--secondary {
-  background: #ffffff;
+  background: var(--sl-surface);
   border-color: var(--sl-border-strong);
   color: var(--sl-ink);
 }
@@ -197,7 +199,7 @@
   padding: 6px 12px;
   border-radius: 99px;
   border: 1px solid var(--sl-border);
-  background: #ffffff;
+  background: var(--sl-surface);
   color: var(--sl-ink);
   font-size: 12px;
   font-weight: 700;
@@ -219,7 +221,7 @@
   padding: 16px 18px;
   border-radius: 16px;
   border: 1px solid var(--sl-border);
-  background: #ffffff;
+  background: var(--sl-surface);
   box-shadow: 0 8px 22px -16px rgba(12, 34, 42, 0.18);
 }
 
@@ -373,7 +375,7 @@
   padding: 12px 14px;
   border-radius: 16px;
   border: 1px solid var(--sl-border);
-  background: #ffffff;
+  background: var(--sl-surface);
   box-shadow: 0 6px 18px -14px rgba(12, 34, 42, 0.14);
 }
 
@@ -419,7 +421,7 @@
   height: 20px;
   padding-inline: 6px;
   border-radius: 99px;
-  background: #ffffff;
+  background: var(--sl-surface);
   color: var(--sl-ink);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
@@ -485,7 +487,7 @@
   padding-inline-end: 34px;
   border-radius: 11px;
   border: 1px solid var(--sl-border-strong);
-  background: #ffffff;
+  background: var(--sl-surface);
   color: var(--sl-ink);
   font: inherit;
   font-size: 12.5px;
@@ -524,7 +526,7 @@
 .sales-table-card {
   border-radius: 18px;
   border: 1px solid var(--sl-border);
-  background: #ffffff;
+  background: var(--sl-surface);
   box-shadow: 0 12px 28px -18px rgba(12, 34, 42, 0.22);
   overflow: hidden;
 }
@@ -703,7 +705,7 @@
   padding: 6px 11px;
   border-radius: 9px;
   border: 1px solid var(--sl-border);
-  background: #ffffff;
+  background: var(--sl-surface);
   color: var(--sl-ink);
   font-size: 11.5px;
   font-weight: 700;
@@ -799,7 +801,7 @@
 .sales-suite .inv-panel {
   border-radius: 18px;
   border: 1px solid var(--sl-border);
-  background: #ffffff;
+  background: var(--sl-surface);
   box-shadow: 0 10px 26px -18px rgba(12, 34, 42, 0.2);
 }
 
@@ -829,6 +831,7 @@
 .sales-suite .inv-field textarea {
   border-radius: 11px;
   border-color: var(--sl-border-strong);
+  background: var(--sl-surface);
   color: var(--sl-ink);
 }
 
@@ -896,7 +899,7 @@
   margin-bottom: 18px;
   border-radius: 14px;
   border: 1px solid var(--sl-border);
-  background: #ffffff;
+  background: var(--sl-surface);
 }
 
 .sales-period-pill {
@@ -927,7 +930,7 @@
   padding: 20px 18px 18px;
   border-radius: 22px;
   border: 1px solid var(--sl-border);
-  background: linear-gradient(180deg, var(--sl-surface-soft) 0%, #ffffff 100%);
+  background: linear-gradient(180deg, var(--sl-surface-soft) 0%, var(--sl-surface) 100%);
   box-shadow: 0 14px 32px -22px rgba(12, 34, 42, 0.24);
 }
 
@@ -977,7 +980,7 @@
   gap: 6px;
   padding: 4px 11px;
   border-radius: 999px;
-  background: #ffffff;
+  background: var(--sl-surface);
   border: 1px dashed var(--sl-border-strong);
   color: var(--sl-muted);
   font-size: 11.5px;
@@ -1049,7 +1052,7 @@
 .sales-suite .stat-cards .stat-card {
   border-radius: 18px;
   border: 1px solid var(--sl-border);
-  background: #ffffff;
+  background: var(--sl-surface);
   overflow: hidden;
   box-shadow: 0 12px 26px -18px rgba(12, 34, 42, 0.22);
 }
@@ -1150,7 +1153,7 @@
   padding: 12px;
   border: 1px solid var(--sl-border-strong);
   border-radius: 11px;
-  background: #ffffff;
+  background: var(--sl-surface);
   min-width: 0;
 }
 
