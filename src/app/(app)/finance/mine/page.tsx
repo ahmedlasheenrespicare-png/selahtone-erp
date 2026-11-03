@@ -144,6 +144,69 @@ export default async function MyCustodyPage() {
                       : "0 منصرفات · لم يُصرف نقد من العهدة في هذه الفترة",
                   tone: Number(cash.expenses) > 0 ? "negative" : "positive",
                 }}
+                series={[
+                  {
+                    id: "custody-equation",
+                    label: "معادلة العهدة",
+                    points: [
+                      {
+                        label: "رصيد العهدة الدفتري",
+                        shortLabel: "الرصيد",
+                        value: Number(cash.balance),
+                        formattedValue: `${formatMoney(cash.balance)} ج.م`,
+                        detail: "نقطة البداية قبل مبيعات ومصروفات الفترة",
+                      },
+                      {
+                        label: "بعد إضافة مبيعات الفترة نقدًا",
+                        shortLabel: "+المبيعات",
+                        value: Number(cash.balance) + Number(cash.sales),
+                        formattedValue: `${formatMoney((Number(cash.balance) + Number(cash.sales)).toFixed(2))} ج.م`,
+                        detail: `مقبوضات العملاء نقدًا: +${formatMoney(cash.sales)} ج.م`,
+                      },
+                      {
+                        label: "المتوقَّع بيدك الآن",
+                        shortLabel: "المتوقَّع",
+                        value: Number(cash.expected),
+                        formattedValue: `${formatMoney(cash.expected)} ج.م`,
+                        detail: `بعد خصم مصروفات من نقدك: −${formatMoney(cash.expenses)} ج.م`,
+                      },
+                    ],
+                  },
+                  {
+                    id: "today-vs-period",
+                    label: "اليوم والفترة",
+                    points: [
+                      {
+                        label: "مبيعات اليوم نقدًا",
+                        shortLabel: "بيع اليوم",
+                        value: Number(cash.todaySales),
+                        formattedValue: `${formatMoney(cash.todaySales)} ج.م`,
+                        detail: `${cash.todaySalesCount} عملية بيع نقدي اليوم`,
+                      },
+                      {
+                        label: "مصروفات اليوم من نقدك",
+                        shortLabel: "صرف اليوم",
+                        value: Number(cash.todayExpenses),
+                        formattedValue: `${formatMoney(cash.todayExpenses)} ج.م`,
+                        detail: "مصروفات سُددت من نقد يدك اليوم",
+                      },
+                      {
+                        label: "إجمالي مقبوضات الفترة",
+                        shortLabel: "بيع الفترة",
+                        value: Number(cash.sales),
+                        formattedValue: `${formatMoney(cash.sales)} ج.م`,
+                        detail: "منذ آخر تسوية معتمدة للعهدة",
+                      },
+                      {
+                        label: "إجمالي منصرفات الفترة",
+                        shortLabel: "صرف الفترة",
+                        value: Number(cash.expenses),
+                        formattedValue: `${formatMoney(cash.expenses)} ج.م`,
+                        detail: "منصرفات من نقد العهدة منذ آخر تسوية",
+                      },
+                    ],
+                  },
+                ]}
                 actionHref={cash.openSettlementId ? "/finance/settlements" : "/finance/settlements/new"}
                 actionLabel={
                   cash.openSettlementId ? "متابعة طلب التسوية المعلّق" : "تقديم طلب تسوية جديد"

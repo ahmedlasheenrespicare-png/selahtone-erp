@@ -3,7 +3,10 @@ import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import DashboardWallet, { type WalletPocketItem } from "@/app/(app)/dashboard/dashboard-wallet";
 import { AppIcon } from "@/components/app-icon";
-import PantherSpotlightCard from "@/components/panther-spotlight-card";
+import PantherSpotlightCard, {
+  type PantherChartPoint,
+  type PantherChartSeries,
+} from "@/components/panther-spotlight-card";
 import { getSession } from "@/lib/auth";
 import { displayMoney } from "@/lib/commerce-display";
 import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
@@ -43,7 +46,10 @@ export default async function FinancePage() {
         : [];
       return { accounts: loadedAccounts, expenses: loadedExpenses };
     }),
-    prisma.branch.findMany({ select: { id: true, nameAr: true } }),
+    prisma.branch.findMany({
+      select: { id: true, nameAr: true, isActive: true, code: true },
+      orderBy: { code: "asc" },
+    }),
     prisma.user.findMany({ where: { roleCode: "CS_AGENT" }, select: { id: true, fullName: true } }),
   ]);
   const summary = canManage ? await loadCashSummary(session) : null;
@@ -105,6 +111,230 @@ export default async function FinancePage() {
 
   const walletAccounts = rows.slice(0, 12);
   const pendingActionExpenses = summary ? summary.pendingExpenses + summary.approvedUnpaid : 0;
+
+  const EXPENSE_STATUS_AR: Record<string, string> = {
+    PENDING: "بانتظار الاعتماد",
+    APPROVED: "معتمد",
+    PAID: "مدفوع",
+  };
+
+  // بناء السلاسل التفاعلية الحقيقية لـ «الميزان النقدي ومصروفات الشهر»
+  const financeSpotlightSeries: PantherChartSeries[] = [];
+  if (canManage && summary) {
+    const vaultByBranch = new Map<string, bigint>();
+    for (const acc of accounts) {
+      if (!acc.closedAt && acc.kind === "VAULT") {
+        const bName = branchNames.get(acc.branchId) ?? "الفرع";
+        vaultByBranch.set(bName, (vaultByBranch.get(bName) ?? 0n) + moneyToCents(acc.balance));
+      }
+    }
+    const custodyByBranch = new Map<string, bigint>();
+    for (const c of summary.custodies) {
+      custodyByBranch.set(
+        c.branchName,
+        (custodyByBranch.get(c.branchName) ?? 0n) + moneyToCents(c.expected),
+      );
+    }
+    const monthExpByBranch = new Map<string, bigint>();
+    const monthExpensesChrono = expenses
+      .filter((exp) => String(exp.expenseDate).startsWith(currentMonthPrefix))
+      .slice()
+      .sort((a, b) => {
+        const dateCmp = String(a.expenseDate).localeCompare(String(b.expenseDate));
+        return dateCmp !== 0 ? dateCmp : Number(a.id) - Number(b.id);
+      });
+
+    for (const exp of monthExpensesChrono) {
+      const bName = branchNames.get(exp.branchId) ?? "الفرع";
+      monthExpByBranch.set(bName, (monthExpByBranch.get(bName) ?? 0n) + moneyToCents(exp.amount));
+    }
+
+    const orderedBranchNames = branches
+      .filter(
+        (b) =>
+          b.isActive ||
+          (vaultByBranch.get(b.nameAr) ?? 0n) > 0n ||
+          (custodyByBranch.get(b.nameAr) ?? 0n) > 0n ||
+          (monthExpByBranch.get(b.nameAr) ?? 0n) > 0n,
+      )
+      .map((b) => b.nameAr);
+    if (orderedBranchNames.length > 0) {
+      financeSpotlightSeries.push({
+        id: "branch-balance",
+        label: "ميزان الفروع",
+        points: orderedBranchNames.map((bName) => {
+          const vCents = vaultByBranch.get(bName) ?? 0n;
+          const cCents = custodyByBranch.get(bName) ?? 0n;
+          const liqCents = vCents + cCents;
+          const eCents = monthExpByBranch.get(bName) ?? 0n;
+          return {
+            label: bName,
+            shortLabel: bName.replace(/^فرع\s+/, ""),
+            value: Number(liqCents) / 100,
+            formattedValue: `${displayMoney(liqCents)} ج.م`,
+            secondaryValue: Number(eCents) / 100,
+            secondaryLabel: "مصروفات الشهر",
+            secondaryFormatted: `${displayMoney(eCents)} ج.م`,
+            detail: `خزنة ${displayMoney(vCents)} + عهدة متوقعة ${displayMoney(cCents)} ج.م`,
+          };
+        }),
+      });
+    }
+
+    if (monthExpensesChrono.length === 0) {
+      financeSpotlightSeries.push({
+        id: "month-expenses",
+        label: "مصروفات الشهر",
+        points: [
+          {
+            label: "بداية الشهر",
+            shortLabel: "البداية",
+            value: 0,
+            formattedValue: "0 ج.م",
+            secondaryValue: 0,
+            secondaryLabel: "المدفوع",
+            secondaryFormatted: "0 ج.م",
+            detail: "لا مصروفات مسجلة في الشهر الحالي",
+          },
+          {
+            label: "الآن",
+            shortLabel: "الآن",
+            value: 0,
+            formattedValue: "0 ج.م",
+            secondaryValue: 0,
+            secondaryLabel: "المدفوع",
+            secondaryFormatted: "0 ج.م",
+            detail: "إجمالي مصروفات الشهر 0 ج.م",
+          },
+        ],
+      });
+    } else if (monthExpensesChrono.length <= 14) {
+      let cumAll = 0n;
+      let cumPaid = 0n;
+      const expPoints: PantherChartPoint[] = [
+        {
+          label: "بداية الشهر",
+          shortLabel: "٠",
+          value: 0,
+          formattedValue: "0 ج.م",
+          secondaryValue: 0,
+          secondaryLabel: "المدفوع",
+          secondaryFormatted: "0 ج.م",
+          detail: "بداية مصروفات الشهر الحالي",
+        },
+      ];
+      for (const exp of monthExpensesChrono) {
+        const amt = moneyToCents(exp.amount);
+        cumAll += amt;
+        if (exp.status === "PAID") cumPaid += amt;
+        const bName = branchNames.get(exp.branchId) ?? "الفرع";
+        const stLabel = EXPENSE_STATUS_AR[exp.status] ?? exp.status;
+        expPoints.push({
+          label: `${exp.categorySnapshot} · ${bName}`,
+          shortLabel: `#${exp.id}`,
+          value: Number(cumAll) / 100,
+          formattedValue: `${displayMoney(cumAll)} ج.م`,
+          secondaryValue: Number(cumPaid) / 100,
+          secondaryLabel: "المدفوع فعليًا",
+          secondaryFormatted: `${displayMoney(cumPaid)} ج.م`,
+          detail: `بند ${displayMoney(amt)} ج.م (${stLabel}) — ${exp.description}`,
+        });
+      }
+      financeSpotlightSeries.push({
+        id: "month-expenses",
+        label: "مصروفات الشهر",
+        points: expPoints,
+      });
+    } else {
+      const byDay = new Map<string, { all: bigint; paid: bigint; count: number }>();
+      for (const exp of monthExpensesChrono) {
+        const dKey = String(exp.expenseDate);
+        const cur = byDay.get(dKey) ?? { all: 0n, paid: 0n, count: 0 };
+        const amt = moneyToCents(exp.amount);
+        cur.all += amt;
+        if (exp.status === "PAID") cur.paid += amt;
+        cur.count += 1;
+        byDay.set(dKey, cur);
+      }
+      let cumAll = 0n;
+      let cumPaid = 0n;
+      const expPoints: PantherChartPoint[] = [
+        {
+          label: "بداية الشهر",
+          shortLabel: "٠",
+          value: 0,
+          formattedValue: "0 ج.م",
+          secondaryValue: 0,
+          secondaryLabel: "المدفوع",
+          secondaryFormatted: "0 ج.م",
+        },
+      ];
+      for (const [dKey, info] of byDay.entries()) {
+        cumAll += info.all;
+        cumPaid += info.paid;
+        expPoints.push({
+          label: `يوم ${dKey}`,
+          shortLabel: dKey.slice(5),
+          value: Number(cumAll) / 100,
+          formattedValue: `${displayMoney(cumAll)} ج.م`,
+          secondaryValue: Number(cumPaid) / 100,
+          secondaryLabel: "المدفوع فعليًا",
+          secondaryFormatted: `${displayMoney(cumPaid)} ج.م`,
+          detail: `مصروفات اليوم ${displayMoney(info.all)} ج.م (${info.count} بند)`,
+        });
+      }
+      financeSpotlightSeries.push({
+        id: "month-expenses",
+        label: "مصروفات الشهر",
+        points: expPoints,
+      });
+    }
+
+    const expectedCustodyCents = moneyToCents(summary.totalExpected);
+    const totalLiquidityCents = vaultTotalCents + expectedCustodyCents;
+    const netSurplusCents = totalLiquidityCents - monthExpensesCents;
+    financeSpotlightSeries.push({
+      id: "cash-equation",
+      label: "معادلة السيولة",
+      points: [
+        {
+          label: "أرصدة الخزائن",
+          shortLabel: "الخزائن",
+          value: Number(vaultTotalCents) / 100,
+          formattedValue: `${displayMoney(vaultTotalCents)} ج.م`,
+          detail: `موزعة على ${openVaultCount} خزنة فرع نشطة`,
+        },
+        {
+          label: "المستحق بالعُهَد",
+          shortLabel: "العُهَد",
+          value: Number(expectedCustodyCents) / 100,
+          formattedValue: `${displayMoney(expectedCustodyCents)} ج.م`,
+          detail: `عبر ${openCustodyCount} عهدة موظف مفتوحة`,
+        },
+        {
+          label: "إجمالي السيولة",
+          shortLabel: "الإجمالي",
+          value: Number(totalLiquidityCents) / 100,
+          formattedValue: `${displayMoney(totalLiquidityCents)} ج.م`,
+          detail: "مجموع أرصدة الخزائن + المستحق بالعُهَد",
+        },
+        {
+          label: "مصروفات الشهر الحالي",
+          shortLabel: "المصروفات",
+          value: Number(monthExpensesCents) / 100,
+          formattedValue: `${displayMoney(monthExpensesCents)} ج.م`,
+          detail: `${monthExpensesCount} بند مصروف في الشهر الحالي`,
+        },
+        {
+          label: "صافي السيولة بعد المصروفات",
+          shortLabel: "الصافي",
+          value: Number(netSurplusCents) / 100,
+          formattedValue: `${displayMoney(netSurplusCents)} ج.م`,
+          detail: "إجمالي السيولة مطروحًا منه إجمالي مصروفات الشهر",
+        },
+      ],
+    });
+  }
 
   const pocketItems: WalletPocketItem[] = [
     {
@@ -322,6 +552,7 @@ export default async function FinancePage() {
                   : `${monthExpensesCount} مصروف مسجّل هذا الشهر · لا معلقات`,
               tone: pendingActionExpenses > 0 ? "negative" : "positive",
             }}
+            series={financeSpotlightSeries}
             actionHref="/finance/expenses"
             actionLabel="مراجعة المصروفات والاعتمادات"
           />

@@ -2137,6 +2137,19 @@
   overflow: hidden;
 }
 
+.dashboard-panther-stack {
+  width: min(100%, 560px);
+  margin: 56px auto 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.dashboard-panther-stack > .monthly-panther {
+  width: 100%;
+  margin: 0;
+}
+
 .monthly-panther.is-section {
   width: min(100%, 680px);
   margin: 0 auto 22px;
@@ -2313,10 +2326,137 @@
   color: var(--mp-danger);
 }
 
+.monthly-panther__chart-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.monthly-panther__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.monthly-panther__tab {
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--mp-divider);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--mp-muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.monthly-panther__tab:hover {
+  border-color: var(--mp-accent-border);
+  color: var(--mp-title);
+}
+
+.monthly-panther__tab.is-active {
+  background: var(--mp-accent-soft);
+  border-color: var(--mp-accent-border);
+  color: var(--mp-accent);
+}
+
+.monthly-panther__hud {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid var(--mp-divider);
+}
+
+.monthly-panther__hud-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.monthly-panther__hud-point {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--mp-title);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.monthly-panther__hud-live-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--mp-accent);
+  box-shadow: 0 0 8px var(--mp-accent);
+}
+
+.monthly-panther__hud-pin {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--mp-accent-soft);
+  border: 1px solid var(--mp-accent-border);
+  color: var(--mp-accent);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.monthly-panther__hud-detail {
+  color: var(--mp-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.monthly-panther__hud-values {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  text-align: end;
+}
+
+.monthly-panther__hud-primary {
+  color: var(--mp-accent);
+  font-size: 14px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+}
+
+.monthly-panther__hud-secondary {
+  color: var(--mp-danger);
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
 .monthly-panther__chart {
   position: relative;
   width: 100%;
-  height: 96px;
+  height: 118px;
+  cursor: crosshair;
+  touch-action: pan-y;
+  user-select: none;
+}
+
+.monthly-panther__chart:focus-visible {
+  outline: 2px solid var(--mp-accent);
+  outline-offset: 4px;
+  border-radius: 8px;
 }
 
 .monthly-panther__chart svg {
@@ -2326,13 +2466,73 @@
   overflow: visible;
 }
 
+.monthly-panther__grid-line {
+  stroke: var(--mp-divider);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+  opacity: 0.65;
+  vector-effect: non-scaling-stroke;
+}
+
+.monthly-panther__grid-baseline {
+  stroke: var(--mp-divider);
+  stroke-width: 1;
+  opacity: 0.9;
+  vector-effect: non-scaling-stroke;
+}
+
+.monthly-panther__secondary-path {
+  stroke: var(--mp-danger);
+  stroke-width: 1.7;
+  stroke-dasharray: 4 3;
+  opacity: 0.82;
+}
+
+.monthly-panther__crosshair {
+  stroke: var(--mp-accent);
+  stroke-width: 1.2;
+  stroke-dasharray: 3 3;
+  opacity: 0.55;
+}
+
+.monthly-panther__node {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--mp-bg);
+  border: 1.6px solid var(--mp-accent);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  opacity: 0.72;
+  transition: transform 0.16s ease, opacity 0.16s ease;
+}
+
+.monthly-panther__node.is-active {
+  opacity: 0;
+}
+
+.monthly-panther__sec-dot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--mp-danger);
+  border: 1.5px solid var(--mp-bg);
+  box-shadow: 0 0 8px var(--mp-danger);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  transition: left 0.16s ease-out, top 0.16s ease-out;
+}
+
 .monthly-panther__dot-anchor {
   position: absolute;
-  right: 0;
-  top: 85%;
   width: 12px;
   height: 12px;
-  transform: translate(50%, -50%);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  transition: left 0.16s ease-out, top 0.16s ease-out;
+  z-index: 2;
 }
 
 .monthly-panther__dot {
@@ -2349,6 +2549,40 @@
   border-radius: 999px;
   background: var(--mp-dot-halo);
   animation: monthlyPantherPulse 2.2s ease-in-out infinite;
+}
+
+.monthly-panther__x-axis {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 18px;
+  pointer-events: none;
+}
+
+.monthly-panther__x-tick {
+  position: absolute;
+  bottom: 0;
+  transform: translateX(-50%);
+  color: var(--mp-muted);
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0.78;
+  transition: color 0.16s ease, opacity 0.16s ease;
+}
+
+.monthly-panther__x-tick.is-start {
+  transform: translateX(-15%);
+}
+
+.monthly-panther__x-tick.is-end {
+  transform: translateX(-85%);
+}
+
+.monthly-panther__x-tick.is-active {
+  color: var(--mp-accent);
+  font-weight: 800;
+  opacity: 1;
 }
 
 @keyframes monthlyPantherPulse {
@@ -2394,9 +2628,16 @@
 }
 
 @media (max-width: 560px) {
+  .dashboard-panther-stack {
+    margin-top: 50px;
+    gap: 18px;
+  }
   .monthly-panther {
     padding: 18px;
     margin-top: 50px;
+  }
+  .dashboard-panther-stack > .monthly-panther {
+    margin: 0;
   }
   .monthly-panther__metrics {
     grid-template-columns: 1fr;

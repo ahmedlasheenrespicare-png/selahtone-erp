@@ -1,13 +1,18 @@
 import Link from "next/link";
 import { AppIcon, type AppIconName } from "@/components/app-icon";
+import PantherSpotlightCard from "@/components/panther-spotlight-card";
 // عميلٌ لا خادم: فإنّ التمريرَ تفاعل، والصفحةُ نفسها تُبنى على الخادم.
 import DashboardWallet, { type WalletPocketItem } from "./dashboard-wallet";
 import MonthlySalesPanther from "./monthly-sales-panther";
 import { prisma } from "@/lib/prisma";
 import { requireSession, branchScope, canSeeAllBranches } from "@/lib/auth";
 import { formatInventoryDecimal, stockValueScaled } from "@/lib/inventory-math";
-import { loadCashSummary, loadEmployeeCash } from "@/lib/finance/dashboard";
-import { loadSalesStats } from "@/lib/sales-stats";
+import {
+  loadCashSummary,
+  loadDashboardFinanceSpotlights,
+  loadEmployeeCash,
+} from "@/lib/finance/dashboard";
+import { loadSalesChartSeries, loadSalesStats } from "@/lib/sales-stats";
 
 export const dynamic = "force-dynamic";
 
@@ -75,6 +80,18 @@ export default async function DashboardPage() {
   const isAccountant = session.role === "ACCOUNTANT";
   const cash = isEmployee ? await loadEmployeeCash(session) : null;
   const summary = isEmployee ? null : await loadCashSummary(session);
+  const currentMonthLabel = monthFormatter.format(now);
+  let financeSpotlights: Awaited<ReturnType<typeof loadDashboardFinanceSpotlights>> = null;
+  try {
+    financeSpotlights = await loadDashboardFinanceSpotlights(session, {
+      branches: branches.map((b) => ({ id: b.id.toString(), nameAr: b.nameAr })),
+      monthLabel: currentMonthLabel,
+      cash,
+      summary,
+    });
+  } catch (error) {
+    console.error("dashboard: finance spotlights failed", error);
+  }
   // ملخّص مبيعات الشهر للمدير: الأرقام المفصّلة في /sales/stats، وهنا ما يكفي
   // ليعرف هل يفتحها. فالعناوين بلا أعداد تجعل المدير ينتقل ليسأل.
   //
@@ -83,10 +100,12 @@ export default async function DashboardPage() {
   let sales: Awaited<ReturnType<typeof loadSalesStats>> | null = null;
   let monthSales: Awaited<ReturnType<typeof loadSalesStats>> | null = null;
   let todaySales: Awaited<ReturnType<typeof loadSalesStats>> | null = null;
+  let monthSalesSeries: Awaited<ReturnType<typeof loadSalesChartSeries>> = [];
   try {
-    [monthSales, todaySales] = await Promise.all([
+    [monthSales, todaySales, monthSalesSeries] = await Promise.all([
       loadSalesStats(prisma, scope.branchId ?? null, "month"),
       loadSalesStats(prisma, scope.branchId ?? null, "today"),
+      loadSalesChartSeries(prisma, scope.branchId ?? null, "month"),
     ]);
     if (session.role === "MANAGER") {
       sales = monthSales;
@@ -602,21 +621,54 @@ export default async function DashboardPage() {
 
       </DashboardWallet>
 
-      {monthSales ? (
-        <MonthlySalesPanther
-          monthLabel={monthFormatter.format(now)}
-          totalFormatted={nf.format(Number(monthSales.total))}
-          outstandingFormatted={nf.format(Number(monthSales.outstandingTotal))}
-          averageFormatted={nf.format(Number(monthSales.averageInvoice))}
-          invoiceCount={nf.format(monthSales.invoiceCount)}
-          outstandingCount={nf.format(monthSales.outstandingCount)}
-          hasOutstanding={monthOutstandingNum > 0}
-          collectedPercent={monthCollectedPct}
-          outstandingPercent={monthOutstandingPct}
-          hasSales={monthSales.invoiceCount > 0}
-          reportHref={session.role === "MANAGER" ? "/sales/stats?period=month" : "/sales"}
-          reportLabel={session.role === "MANAGER" ? "عرض التقرير الكامل لمبيعات الشهر" : "عرض سجل فواتير الشهر"}
-        />
+      {monthSales || financeSpotlights?.cashBalance || financeSpotlights?.monthlyExpenses ? (
+        <div className="dashboard-panther-stack">
+          {monthSales ? (
+            <MonthlySalesPanther
+              monthLabel={currentMonthLabel}
+              totalFormatted={nf.format(Number(monthSales.total))}
+              outstandingFormatted={nf.format(Number(monthSales.outstandingTotal))}
+              averageFormatted={nf.format(Number(monthSales.averageInvoice))}
+              invoiceCount={nf.format(monthSales.invoiceCount)}
+              outstandingCount={nf.format(monthSales.outstandingCount)}
+              hasOutstanding={monthOutstandingNum > 0}
+              collectedPercent={monthCollectedPct}
+              outstandingPercent={monthOutstandingPct}
+              hasSales={monthSales.invoiceCount > 0}
+              series={monthSalesSeries}
+              reportHref={session.role === "MANAGER" ? "/sales/stats?period=month" : "/sales"}
+              reportLabel={session.role === "MANAGER" ? "عرض التقرير الكامل لمبيعات الشهر" : "عرض سجل فواتير الشهر"}
+            />
+          ) : null}
+
+          {financeSpotlights?.cashBalance ? (
+            <PantherSpotlightCard
+              layout="wallet"
+              title={financeSpotlights.cashBalance.title}
+              subtitle={financeSpotlights.cashBalance.subtitle}
+              pill={financeSpotlights.cashBalance.pill}
+              primary={financeSpotlights.cashBalance.primary}
+              secondary={financeSpotlights.cashBalance.secondary}
+              series={financeSpotlights.cashBalance.series}
+              actionHref={financeSpotlights.cashBalance.actionHref}
+              actionLabel={financeSpotlights.cashBalance.actionLabel}
+            />
+          ) : null}
+
+          {financeSpotlights?.monthlyExpenses ? (
+            <PantherSpotlightCard
+              layout="wallet"
+              title={financeSpotlights.monthlyExpenses.title}
+              subtitle={financeSpotlights.monthlyExpenses.subtitle}
+              pill={financeSpotlights.monthlyExpenses.pill}
+              primary={financeSpotlights.monthlyExpenses.primary}
+              secondary={financeSpotlights.monthlyExpenses.secondary}
+              series={financeSpotlights.monthlyExpenses.series}
+              actionHref={financeSpotlights.monthlyExpenses.actionHref}
+              actionLabel={financeSpotlights.monthlyExpenses.actionLabel}
+            />
+          ) : null}
+        </div>
       ) : null}
 
       <div className="dashboard-account-note"><span>حسابك: <strong>{ROLE_LABEL[session.role] ?? session.role}</strong></span><span aria-hidden="true">·</span><span dir="ltr">{session.email}</span></div>

@@ -1,4 +1,6 @@
-import PantherSpotlightCard from "@/components/panther-spotlight-card";
+import PantherSpotlightCard, {
+  type PantherChartSeries,
+} from "@/components/panther-spotlight-card";
 
 export type MonthlySalesPantherProps = {
   monthLabel: string;
@@ -11,6 +13,7 @@ export type MonthlySalesPantherProps = {
   collectedPercent: number;
   outstandingPercent: number;
   hasSales: boolean;
+  series: PantherChartSeries[];
   reportHref: string;
   reportLabel: string;
 };
@@ -26,6 +29,7 @@ export default function MonthlySalesPanther({
   collectedPercent,
   outstandingPercent,
   hasSales,
+  series,
   reportHref,
   reportLabel,
 }: MonthlySalesPantherProps) {
@@ -53,6 +57,7 @@ export default function MonthlySalesPanther({
           : "0% متأخرات · مسدّدة بالكامل",
         tone: hasOutstanding ? "negative" : "positive",
       }}
+      series={series}
       actionHref={reportHref}
       actionLabel={reportLabel}
     />

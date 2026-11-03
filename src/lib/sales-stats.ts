@@ -1,4 +1,8 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
+import type {
+  PantherChartPoint,
+  PantherChartSeries,
+} from "@/components/panther-spotlight-card";
 
 /**
  * إحصائيات المبيعات للمدير: الفواتير، والمبالغ، وأكثر الأصناف مبيعًا.
@@ -152,4 +156,265 @@ export async function loadSalesStats(db: PrismaClient, branchId: string | null, 
     outstandingTotal: money(toCents(outstanding[0]?.total ?? "0")),
     topItems: totalRows.map((row) => ({ ...row, cost: costByName.get(row.name) ?? "0.00" })),
   };
+}
+
+const arMoney = new Intl.NumberFormat("ar-EG-u-nu-latn", {
+  maximumFractionDigits: 2,
+});
+
+function formatCentsAr(cents: bigint): string {
+  return arMoney.format(Number(cents) / 100);
+}
+
+/**
+ * سلاسل الرسم البياني التفاعلي لمبيعات الفترة — تعكس الفواتير والتحصيلات والأفرع الحقيقية من القاعدة.
+ */
+export async function loadSalesChartSeries(
+  db: PrismaClient,
+  branchId: string | null,
+  period: Period,
+): Promise<PantherChartSeries[]> {
+  const start = await periodStart(db, period);
+  const branch = branchId === null ? null : BigInt(branchId);
+
+  const [salesRows, activeBranches] = await Promise.all([
+    db.$queryRaw<
+      Array<{
+        id: string;
+        branchId: string;
+        branchName: string;
+        branchCode: string;
+        customerName: string;
+        day: string;
+        dayShort: string;
+        total: string;
+        remaining: string;
+      }>
+    >`
+      SELECT
+        s.id::text AS id,
+        s.branch_id::text AS "branchId",
+        b.name_ar AS "branchName",
+        b.code AS "branchCode",
+        s.customer_name AS "customerName",
+        to_char(s.created_at AT TIME ZONE 'Africa/Cairo', 'YYYY-MM-DD') AS day,
+        to_char(s.created_at AT TIME ZONE 'Africa/Cairo', 'FMDD/FMMM') AS "dayShort",
+        s.total::text AS total,
+        GREATEST(
+          s.total
+          - COALESCE((SELECT SUM(r.amount) FROM commerce_refunds r WHERE r.sale_id = s.id), 0)
+          - COALESCE((SELECT SUM(c.amount) FROM commerce_collections c WHERE c.sale_id = s.id), 0),
+          0
+        )::text AS remaining
+      FROM commerce_sales s
+      JOIN branches b ON b.id = s.branch_id
+      WHERE s.cancelled_at IS NULL
+        AND (${branch}::bigint IS NULL OR s.branch_id = ${branch}::bigint)
+        AND s.created_at >= ${start}::timestamptz
+      ORDER BY s.created_at ASC, s.id ASC`,
+    branch === null
+      ? db.branch.findMany({
+          where: { isActive: true },
+          select: { id: true, nameAr: true, code: true },
+          orderBy: { code: "asc" },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const series: PantherChartSeries[] = [];
+
+  if (salesRows.length === 0) {
+    series.push({
+      id: "cumulative",
+      label: "مسار المبيعات",
+      points: [
+        {
+          label: "بداية الفترة",
+          shortLabel: "البداية",
+          value: 0,
+          formattedValue: "0 ج.م",
+          secondaryValue: 0,
+          secondaryLabel: "المتبقي",
+          secondaryFormatted: "0 ج.م",
+          detail: "بداية حساب الفترة المختارة",
+        },
+        {
+          label: "الآن — لا فواتير بعد",
+          shortLabel: "الآن",
+          value: 0,
+          formattedValue: "0 ج.م",
+          secondaryValue: 0,
+          secondaryLabel: "المتبقي",
+          secondaryFormatted: "0 ج.م",
+          detail: "لم تُسجّل فواتير مؤكدة في هذه الفترة",
+        },
+      ],
+    });
+  } else if (salesRows.length <= 14) {
+    let cumTotal = 0n;
+    let cumRemaining = 0n;
+    const cumulativePoints: PantherChartPoint[] = [
+      {
+        label: "بداية الفترة",
+        shortLabel: "٠",
+        value: 0,
+        formattedValue: "0 ج.م",
+        secondaryValue: 0,
+        secondaryLabel: "المتبقي",
+        secondaryFormatted: "0 ج.م",
+        detail: "نقطة الانطلاق قبل تسجيل فواتير الفترة",
+      },
+    ];
+    const invoicePoints: PantherChartPoint[] = [];
+
+    for (const row of salesRows) {
+      const saleCents = toCents(row.total);
+      const remCents = toCents(row.remaining);
+      cumTotal += saleCents;
+      cumRemaining += remCents;
+
+      cumulativePoints.push({
+        label: `فاتورة #${row.id} · ${row.branchName}`,
+        shortLabel: `#${row.id}`,
+        value: Number(cumTotal) / 100,
+        formattedValue: `${formatCentsAr(cumTotal)} ج.م`,
+        secondaryValue: Number(cumRemaining) / 100,
+        secondaryLabel: "تراكمي المتبقي",
+        secondaryFormatted: `${formatCentsAr(cumRemaining)} ج.م`,
+        detail: `قيمة الفاتورة ${formatCentsAr(saleCents)} ج.م (${row.customerName}) · ${row.day}`,
+      });
+
+      invoicePoints.push({
+        label: `فاتورة #${row.id} · ${row.customerName}`,
+        shortLabel: `#${row.id}`,
+        value: Number(saleCents) / 100,
+        formattedValue: `${formatCentsAr(saleCents)} ج.م`,
+        secondaryValue: Number(remCents) / 100,
+        secondaryLabel: "متبقٍّ",
+        secondaryFormatted: `${formatCentsAr(remCents)} ج.م`,
+        detail: `${row.branchName} · ${row.day}`,
+      });
+    }
+
+    series.push({
+      id: "cumulative",
+      label: "مسار المبيعات",
+      points: cumulativePoints,
+    });
+    series.push({
+      id: "invoices",
+      label: "كل فاتورة",
+      points: invoicePoints,
+    });
+  } else {
+    const byDay = new Map<
+      string,
+      { dayShort: string; totalCents: bigint; remCents: bigint; count: number }
+    >();
+    for (const row of salesRows) {
+      const entry = byDay.get(row.day) ?? {
+        dayShort: row.dayShort,
+        totalCents: 0n,
+        remCents: 0n,
+        count: 0,
+      };
+      entry.totalCents += toCents(row.total);
+      entry.remCents += toCents(row.remaining);
+      entry.count += 1;
+      byDay.set(row.day, entry);
+    }
+
+    let cumTotal = 0n;
+    let cumRem = 0n;
+    const cumDayPoints: PantherChartPoint[] = [
+      {
+        label: "بداية الفترة",
+        shortLabel: "٠",
+        value: 0,
+        formattedValue: "0 ج.م",
+        secondaryValue: 0,
+        secondaryLabel: "المتبقي",
+        secondaryFormatted: "0 ج.م",
+      },
+    ];
+    const dailyPoints: PantherChartPoint[] = [];
+
+    for (const [day, d] of byDay.entries()) {
+      cumTotal += d.totalCents;
+      cumRem += d.remCents;
+      cumDayPoints.push({
+        label: `يوم ${day}`,
+        shortLabel: d.dayShort,
+        value: Number(cumTotal) / 100,
+        formattedValue: `${formatCentsAr(cumTotal)} ج.م`,
+        secondaryValue: Number(cumRem) / 100,
+        secondaryLabel: "تراكمي المتبقي",
+        secondaryFormatted: `${formatCentsAr(cumRem)} ج.م`,
+        detail: `مبيعات اليوم ${formatCentsAr(d.totalCents)} ج.م (${d.count} فاتورة)`,
+      });
+      dailyPoints.push({
+        label: `يوم ${day}`,
+        shortLabel: d.dayShort,
+        value: Number(d.totalCents) / 100,
+        formattedValue: `${formatCentsAr(d.totalCents)} ج.م`,
+        secondaryValue: Number(d.remCents) / 100,
+        secondaryLabel: "متبقٍّ",
+        secondaryFormatted: `${formatCentsAr(d.remCents)} ج.م`,
+        detail: `${d.count} فاتورة مؤكدة في هذا اليوم`,
+      });
+    }
+
+    series.push({
+      id: "cumulative",
+      label: "مسار المبيعات",
+      points: cumDayPoints,
+    });
+    series.push({
+      id: "daily",
+      label: "يوميًا",
+      points: dailyPoints,
+    });
+  }
+
+  if (activeBranches.length > 1) {
+    const branchTotals = new Map<
+      string,
+      { totalCents: bigint; remCents: bigint; count: number }
+    >();
+    for (const row of salesRows) {
+      const entry = branchTotals.get(row.branchId) ?? {
+        totalCents: 0n,
+        remCents: 0n,
+        count: 0,
+      };
+      entry.totalCents += toCents(row.total);
+      entry.remCents += toCents(row.remaining);
+      entry.count += 1;
+      branchTotals.set(row.branchId, entry);
+    }
+
+    series.push({
+      id: "branches",
+      label: "حسب الفرع",
+      points: activeBranches.map((b) => {
+        const stat = branchTotals.get(b.id.toString()) ?? {
+          totalCents: 0n,
+          remCents: 0n,
+          count: 0,
+        };
+        return {
+          label: b.nameAr,
+          shortLabel: b.nameAr.replace(/^فرع\s+/, ""),
+          value: Number(stat.totalCents) / 100,
+          formattedValue: `${formatCentsAr(stat.totalCents)} ج.م`,
+          secondaryValue: Number(stat.remCents) / 100,
+          secondaryLabel: "المتبقي",
+          secondaryFormatted: `${formatCentsAr(stat.remCents)} ج.م`,
+          detail: `${stat.count} فاتورة مؤكدة في ${b.nameAr}`,
+        };
+      }),
+    });
+  }
+
+  return series;
 }
