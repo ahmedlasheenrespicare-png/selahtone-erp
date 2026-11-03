@@ -52,6 +52,17 @@
   --ws-action-hover-bg: #f3f7fd;
   --ws-action-hover-border: #bdd3f2;
   --ws-action-hover-ink: #1f3659;
+  --cl-1: #eef5f4;
+  --cl-2: #e5efed;
+  --cl-3: #dce9e6;
+  --cl-4: #d1e1de;
+  --cl-5: #c4d7d3;
+  --cl-notch: #dce9e6;
+  --cl-pill-bg: rgba(255, 255, 255, 0.86);
+  --cl-pill-border: rgba(30, 50, 80, 0.14);
+  --cl-pill-ink: #324868;
+  --cl-pill-strong: #1e3250;
+  --cl-card-rim: rgba(255, 255, 255, 0.68);
   display: grid;
   grid-template-columns: 256px minmax(0, 1fr);
   min-height: 100vh;
@@ -113,6 +124,17 @@
   --ws-action-hover-bg: rgba(155, 216, 106, 0.18);
   --ws-action-hover-border: rgba(155, 216, 106, 0.6);
   --ws-action-hover-ink: #ffffff;
+  --cl-1: #f1f5ef;
+  --cl-2: #e9f0e6;
+  --cl-3: #e1eadc;
+  --cl-4: #d7e3d1;
+  --cl-5: #ccd9c5;
+  --cl-notch: #e1eadc;
+  --cl-pill-bg: rgba(255, 255, 255, 0.86);
+  --cl-pill-border: rgba(30, 52, 30, 0.14);
+  --cl-pill-ink: #2c422c;
+  --cl-pill-strong: #1b2e1b;
+  --cl-card-rim: rgba(255, 255, 255, 0.68);
 }
 
 /* ثيم «الحافظة — صلة تون» (wallet-selahtone): ألوان وشعار صفحة فيسبوك selahearingsolutions */
@@ -169,6 +191,17 @@
   --ws-action-hover-bg: rgba(129, 205, 229, 0.22);
   --ws-action-hover-border: rgba(152, 216, 236, 0.65);
   --ws-action-hover-ink: #ffffff;
+  --cl-1: #eef6f9;
+  --cl-2: #e5f0f5;
+  --cl-3: #dbeaf1;
+  --cl-4: #d0e2eb;
+  --cl-5: #c3d8e3;
+  --cl-notch: #dbeaf1;
+  --cl-pill-bg: rgba(255, 255, 255, 0.86);
+  --cl-pill-border: rgba(18, 88, 115, 0.16);
+  --cl-pill-ink: #1e465d;
+  --cl-pill-strong: #0a2d44;
+  --cl-card-rim: rgba(255, 255, 255, 0.72);
 }
 
 .workspace-shell svg { flex: none; }
@@ -358,16 +391,248 @@
 }
 .workspace-nav-sublist--nested {
   margin: 4px 0 6px;
-  padding-inline-start: 14px;
-  margin-inline-start: 8px;
+  padding-inline-start: 10px;
+  margin-inline-start: 6px;
 }
 .workspace-nav-subitem { font-size: 13px; min-height: 40px; }
+.workspace-theme-row {
+  min-height: 42px;
+  padding: 6px 8px;
+  gap: 8px;
+  justify-content: space-between;
+}
+.workspace-theme-row .workspace-theme-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.workspace-theme-btn__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .workspace-theme-swatch {
-  width: 15px;
-  height: 15px;
+  width: 14px;
+  height: 14px;
   flex: none;
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.55);
+}
+
+/* =========================================================================
+   زر التبديل ثلاثي الأبعاد لتشغيل خلفية لوحة القيادة
+   sreenath_9297 / lucky-panther-31 (MIT) — مُكيَّف لثيمي «الافتراضي» و«صلة تون»
+   ========================================================================= */
+.lp31-switch {
+  --w: 74px;
+  --h: 26px;
+  --knob-size: 12px;
+  --offset: 6px;
+  --half-size: calc(var(--knob-size) / 2);
+
+  --cyan: #00ffff;
+  --face-tint: rgba(0, 255, 255, 0.12);
+  --face-tint-on: rgba(0, 255, 255, 0.2);
+  --track-glow: rgba(0, 255, 255, 0.34);
+  --white-glow: #ffffff;
+  --bg-off: #122834;
+  --bg-on: #091328;
+  --border-off: rgba(180, 226, 242, 0.38);
+
+  position: relative;
+  flex: none;
+  display: inline-block;
+  width: var(--w);
+  height: var(--h);
+  cursor: pointer;
+  user-select: none;
+}
+
+.lp31-switch[data-variant="wallet"] {
+  --cyan: #a3e635;
+  --face-tint: rgba(163, 230, 53, 0.14);
+  --face-tint-on: rgba(163, 230, 53, 0.24);
+  --track-glow: rgba(163, 230, 53, 0.36);
+  --bg-off: #172a17;
+  --bg-on: #0c170c;
+  --border-off: rgba(189, 214, 181, 0.38);
+}
+
+.lp31-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.lp31-track {
+  position: absolute;
+  inset: 0;
+  background-color: var(--bg-off);
+  border-radius: var(--h);
+  border: 1px solid var(--border-off);
+  transition:
+    background-color 0.45s ease,
+    border-color 0.45s ease,
+    box-shadow 0.45s ease;
+  overflow: hidden;
+  box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.52);
+  display: flex;
+  align-items: center;
+}
+
+.lp31-input:focus-visible ~ .lp31-track {
+  outline: 2px solid var(--ws-focus);
+  outline-offset: 2px;
+}
+
+.lp31-text {
+  position: absolute;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--white-glow);
+  text-shadow: 0 0 7px rgba(255, 255, 255, 0.72);
+  transition:
+    opacity 0.38s ease,
+    transform 0.38s ease;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.lp31-text--off {
+  left: 24px;
+  right: 6px;
+  text-align: center;
+  opacity: 0.92;
+}
+
+.lp31-text--on {
+  left: 7px;
+  right: 23px;
+  text-align: center;
+  opacity: 0;
+  transform: translateX(-8px);
+}
+
+.lp31-knob {
+  position: absolute;
+  top: var(--offset);
+  left: var(--offset);
+  width: var(--knob-size);
+  height: var(--knob-size);
+  perspective: 900px;
+  pointer-events: none;
+  transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  z-index: 2;
+}
+
+.lp31-cube {
+  display: block;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  transform-style: preserve-3d;
+  animation: lp31Spin 3s infinite linear;
+}
+
+.lp31-face {
+  display: block;
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: var(--face-tint);
+  border: 1px solid var(--cyan);
+  box-shadow:
+    0 0 3px var(--cyan),
+    inset 0 0 3px var(--cyan);
+  opacity: 0.85;
+  backface-visibility: visible;
+  transition:
+    background-color 0.45s ease,
+    box-shadow 0.45s ease;
+}
+
+.lp31-front {
+  transform: translateZ(var(--half-size));
+}
+.lp31-back {
+  transform: rotateY(180deg) translateZ(var(--half-size));
+}
+.lp31-right {
+  transform: rotateY(90deg) translateZ(var(--half-size));
+}
+.lp31-left {
+  transform: rotateY(-90deg) translateZ(var(--half-size));
+}
+.lp31-top {
+  transform: rotateX(90deg) translateZ(var(--half-size));
+}
+.lp31-bottom {
+  transform: rotateX(-90deg) translateZ(var(--half-size));
+}
+
+.lp31-input:checked ~ .lp31-track .lp31-knob {
+  transform: translateX(
+    calc(var(--w) - var(--knob-size) - (var(--offset) * 2) - 2px)
+  );
+}
+
+.lp31-input:checked ~ .lp31-track .lp31-text--off {
+  opacity: 0;
+  transform: translateX(8px);
+}
+
+.lp31-input:checked ~ .lp31-track .lp31-text--on {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.lp31-input:checked ~ .lp31-track {
+  background-color: var(--bg-on);
+  border-color: var(--cyan);
+  box-shadow: 0 0 10px var(--track-glow);
+}
+
+.lp31-input:checked ~ .lp31-track .lp31-face {
+  background: var(--face-tint-on);
+  box-shadow:
+    0 0 6px var(--cyan),
+    inset 0 0 6px var(--cyan);
+}
+
+@keyframes lp31Spin {
+  0% {
+    transform: rotateX(0deg) rotateY(0deg);
+  }
+  100% {
+    transform: rotateX(360deg) rotateY(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp31-cube {
+    animation: none;
+    transform: rotateX(-24deg) rotateY(34deg);
+  }
+  .lp31-knob,
+  .lp31-track,
+  .lp31-text,
+  .lp31-face {
+    transition: none;
+  }
 }
 .workspace-sidebar__foot {
   display: flex;
@@ -395,7 +660,12 @@
 .workspace-sidebar__foot small { color: var(--ws-foot-sub); font-size: 11px; }
 
 /* Topbar and content shared by all signed-in pages. */
-.workspace-main { min-width: 0; }
+.workspace-main {
+  min-width: 0;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
 .workspace-topbar {
   position: relative;
   min-height: 80px;
@@ -485,12 +755,135 @@
   background: var(--ws-action-hover-bg);
   color: var(--ws-action-hover-ink);
 }
-.workspace-account-link:hover svg, .workspace-logout:hover svg { color: #b9eb91; }
-.workspace-content { max-width: 1600px; min-width: 0; margin: 0 auto; padding: 31px 34px 48px; }
+.workspace-account-link:hover svg, .workspace-logout:hover svg { color: var(--ws-brand-accent); }
+.workspace-content { width: 100%; max-width: 1600px; min-width: 0; flex: 1 1 auto; margin: 0 auto; padding: 31px 34px 48px; }
 .workspace-content:focus { outline: none; }
+
+/* خلفية صفحات النظام كافة — FColombati «cold-lizard-87» (MIT، الأصل: Josetxu)
+   تعمل على جميع الصفحات عند تفعيل زر التبديل (data-dashboard-bg="on")، والوضع الافتراضي بدون خلفية */
+.workspace-shell[data-dashboard-bg="on"] .workspace-main {
+  background:
+    conic-gradient(
+        from 0deg at 68.4% 85.35%,
+        #fff0 0 60deg,
+        var(--cl-1) 0 120deg,
+        var(--cl-3) 0 202.5deg,
+        #fff0 0 360deg
+      )
+      50% / 20vmin 25vmin,
+    conic-gradient(
+        from 0deg at 31.6% 85.35%,
+        #fff0 0 157.5deg,
+        var(--cl-2) 0 240deg,
+        var(--cl-1) 0 300deg,
+        #fff0 0 360deg
+      )
+      50% / 20vmin 25vmin,
+    conic-gradient(
+        from 0deg at 81.35% 35.5%,
+        #fff0 0 22.75deg,
+        var(--cl-4) 0 157.25deg,
+        #fff0 0 360deg
+      )
+      50% / 20vmin 25vmin,
+    conic-gradient(
+        from 0deg at 18.65% 35.5%,
+        #fff0 0 202.75deg,
+        var(--cl-5) 0 337.25deg,
+        #fff0 0 360deg
+      )
+      50% / 20vmin 25vmin,
+    conic-gradient(
+        from 0deg at 50% 50%,
+        #fff0 0 60deg,
+        var(--cl-2) 0 157.5deg,
+        var(--cl-5) 0 180.1deg,
+        var(--cl-4) 0 202.5deg,
+        var(--cl-3) 0 300deg,
+        #fff0 0 360deg
+      )
+      50% / 20vmin 25vmin,
+    conic-gradient(
+        from 0deg at 50% 21.15%,
+        #fff0 0 22.5deg,
+        var(--cl-3) 0 120deg,
+        var(--cl-1) 0 240deg,
+        var(--cl-2) 0 337.5deg,
+        #fff0 0 360deg
+      )
+      50% / 20vmin 25vmin,
+    linear-gradient(90deg, var(--cl-4) 0 50%, var(--cl-5) 0 100%) 50% / 20vmin
+      25vmin;
+  background-position: center center;
+}
+
+/* تباين العناوين والملاحظات السفلية العائمة فوق نمط الخلفية في سائر الصفحات */
+.workspace-shell[data-dashboard-bg="on"] .dashboard-section-heading {
+  padding: 14px 18px;
+  border-radius: 16px;
+  background: var(--cl-pill-bg);
+  border: 1px solid var(--cl-pill-border);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 6px 18px -10px rgba(14, 34, 24, 0.18);
+}
+
+.workspace-shell[data-dashboard-bg="on"] .dashboard-section-heading h2 {
+  color: var(--cl-pill-strong);
+}
+
+.workspace-shell[data-dashboard-bg="on"] .dashboard-section-heading p {
+  color: var(--cl-pill-ink);
+}
+
+.workspace-shell[data-dashboard-bg="on"] .fin-page__foot,
+.workspace-shell[data-dashboard-bg="on"] .inv-page__foot {
+  width: fit-content;
+  max-width: 100%;
+  padding: 5px 15px;
+  border-radius: 999px;
+  background: var(--cl-pill-bg);
+  border: 1px solid var(--cl-pill-border);
+  color: var(--cl-pill-ink);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 6px 18px -10px rgba(14, 34, 24, 0.18);
+}
 
 /* Dashboard */
 .dashboard { min-width: 0; }
+
+/* إبراز عناصر لوحة القيادة وتباين النصوص العائمة عند تفعيل نمط cold-lizard-87 */
+.workspace-shell[data-dashboard-bg="on"] .dashboard .dashboard-wallet__back {
+  box-shadow:
+    0 0 0 1px var(--cl-card-rim),
+    0 24px 48px -14px rgba(5, 16, 10, 0.52),
+    inset 0 25px 35px rgba(0, 0, 0, 0.4),
+    inset 0 5px 15px rgba(0, 0, 0, 0.5);
+}
+
+.workspace-shell[data-dashboard-bg="on"] .dashboard .dashboard-wallet__hint {
+  bottom: -40px;
+  width: fit-content;
+  max-width: calc(100% - 24px);
+  margin-inline: auto;
+  padding: 5px 16px;
+  border-radius: 999px;
+  background: var(--cl-pill-bg);
+  border: 1px solid var(--cl-pill-border);
+  color: var(--cl-pill-ink);
+  font-style: normal;
+  font-size: 12px;
+  text-decoration: none;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 6px 18px -10px rgba(14, 34, 24, 0.22);
+}
+
+.workspace-shell[data-dashboard-bg="on"] .dashboard .monthly-panther {
+  margin-top: 66px;
+  box-shadow:
+    0 0 0 1px var(--cl-card-rim),
+    0 26px 52px -14px rgba(4, 12, 10, 0.62),
+    0 10px 24px -10px rgba(4, 12, 10, 0.42);
+}
 .dashboard-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 28px; }
 .dashboard-eyebrow { display: flex; align-items: center; gap: 7px; margin: 0 0 7px; color: #416ab1; font-size: 12px; font-weight: 700; }
 .dashboard-eyebrow span { width: 7px; height: 7px; border-radius: 50%; background: #5b9eda; }
@@ -568,6 +961,22 @@
 .dashboard-shortcuts .dashboard-panel__heading { padding-bottom: 12px; }
 .dashboard-account-note { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 20px; color: var(--ws-muted); font-size: 11px; }
 .dashboard-account-note strong { color: var(--ws-ink); }
+.workspace-shell[data-dashboard-bg="on"] .dashboard-account-note {
+  justify-content: center;
+  width: fit-content;
+  max-width: calc(100% - 24px);
+  margin: 16px auto 0;
+  padding: 6px 18px;
+  border-radius: 999px;
+  background: var(--cl-pill-bg);
+  border: 1px solid var(--cl-pill-border);
+  color: var(--cl-pill-ink);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 6px 18px -10px rgba(14, 34, 24, 0.2);
+}
+.workspace-shell[data-dashboard-bg="on"] .dashboard-account-note strong {
+  color: var(--cl-pill-strong);
+}
 
 @media (max-width: 1300px) {
   .dashboard-grid { grid-template-columns: 1fr; }
@@ -1752,6 +2161,13 @@
   box-shadow:
     0 25px 50px -16px rgba(4, 11, 58, 0.58),
     0 8px 20px -10px rgba(4, 11, 58, 0.38);
+}
+
+.workspace-shell[data-theme="wallet-selahtone"][data-dashboard-bg="on"] .dashboard .monthly-panther {
+  box-shadow:
+    0 0 0 1px var(--cl-card-rim),
+    0 26px 52px -14px rgba(4, 11, 58, 0.62),
+    0 10px 24px -10px rgba(4, 11, 58, 0.42);
 }
 
 .monthly-panther__glow {

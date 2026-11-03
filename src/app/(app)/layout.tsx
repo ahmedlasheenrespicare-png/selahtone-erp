@@ -5,7 +5,12 @@ import { AppIcon } from "@/components/app-icon";
 import { getSession, canSeeAllBranches } from "@/lib/auth";
 import { financeEnabled } from "@/lib/finance/db";
 import { inventoryEnabled } from "@/lib/feature-flags";
-import { resolveWorkspaceTheme, WORKSPACE_THEME_COOKIE } from "@/lib/workspace-theme";
+import {
+  resolveWorkspaceDashboardBg,
+  resolveWorkspaceTheme,
+  WORKSPACE_DASHBOARD_BG_COOKIE,
+  WORKSPACE_THEME_COOKIE,
+} from "@/lib/workspace-theme";
 import { AppNavigation } from "./app-navigation";
 import LogoutButton from "./logout-button";
 import { WorkspaceThemeProvider } from "./workspace-theme-provider";
@@ -25,9 +30,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const cookieStore = await cookies();
   const initialTheme = resolveWorkspaceTheme(cookieStore.get(WORKSPACE_THEME_COOKIE)?.value);
+  const initialDashboardBg = resolveWorkspaceDashboardBg(
+    cookieStore.get(WORKSPACE_DASHBOARD_BG_COOKIE)?.value,
+  );
 
   return (
-    <WorkspaceThemeProvider initialTheme={initialTheme}>
+    <WorkspaceThemeProvider
+      initialTheme={initialTheme}
+      initialDashboardBg={initialDashboardBg}
+    >
       <a className="workspace-skip" href="#workspace-content">تخطي إلى المحتوى</a>
       <AppNavigation canViewAllBranches={canSeeAllBranches(session)} financeEnabled={financeEnabled()} menuScope={session.menuScope} inventoryEnabled={inventoryEnabled()} />
 
