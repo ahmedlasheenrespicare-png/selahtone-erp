@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { AppIcon } from "@/components/app-icon";
 
 /* الحافظة — مطابقة لتصميم byllzz «rude-bat-50» (MIT):
@@ -30,12 +30,15 @@ export default function DashboardWallet({
   balanceValue,
   balanceLabel = "المستحق للخزنة",
   pocketItems,
+  hint = "مرّر المؤشر أو المس الجيب لإظهار الأرقام",
 }: {
   children: React.ReactNode;
   balanceValue: string;
   balanceLabel?: string;
   pocketItems?: WalletPocketItem[];
+  hint?: string;
 }) {
+  const gradientId = useId();
   const trackRef = useRef<HTMLDivElement | null>(null);
   const [index, setIndex] = useState(0);
   const [count, setCount] = useState(0);
@@ -170,25 +173,25 @@ export default function DashboardWallet({
             aria-hidden="true"
           >
             <defs>
-              <linearGradient id="walletPocketSurface" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#223a22" />
-                <stop offset="100%" stopColor="#182b18" />
+              <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" style={{ stopColor: "var(--wallet-pocket-top, #223a22)" }} />
+                <stop offset="100%" style={{ stopColor: "var(--wallet-pocket-bottom, #182b18)" }} />
               </linearGradient>
             </defs>
             <path
               d="M 0,0 L 165,0 C 215,0 232,28 280,28 C 328,28 345,0 395,0 L 560,0 L 560,196 L 0,196 Z"
-              fill="url(#walletPocketSurface)"
+              fill={`url(#${gradientId})`}
             />
             <path
               d="M 0,1 L 165,1 C 215,1 232,29 280,29 C 328,29 345,1 395,1 L 560,1"
               fill="none"
-              stroke="rgba(195, 226, 187, 0.28)"
+              style={{ stroke: "var(--wallet-pocket-rim, rgba(195, 226, 187, 0.28))" }}
               strokeWidth="1.5"
             />
             <path
               d="M 18,9 L 162,9 C 210,9 229,37 280,37 C 331,37 350,9 398,9 L 542,9"
               fill="none"
-              stroke="rgba(167, 197, 158, 0.34)"
+              style={{ stroke: "var(--wallet-pocket-stitch, rgba(167, 197, 158, 0.34))" }}
               strokeWidth="1.5"
               strokeDasharray="5 5"
               strokeLinecap="round"
@@ -284,7 +287,7 @@ export default function DashboardWallet({
         </div>
       </div>
 
-      <p className="dashboard-wallet__hint">مرّر المؤشر أو المس الجيب لإظهار الأرقام</p>
+      <p className="dashboard-wallet__hint">{hint}</p>
     </div>
   );
 }

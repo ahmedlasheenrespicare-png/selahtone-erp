@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AppIcon } from "@/components/app-icon";
 import { listAccounts, listExpenses } from "@/lib/finance/engine";
 import { cairoDate } from "@/lib/finance/validation";
 import { positiveDatabaseId } from "@/lib/inventory-validation";
@@ -63,12 +64,31 @@ export default async function ExpenseDetailPage({ params }: Props) {
 
   return (
     <div className="fin-page">
-      <Link href="/finance/expenses" className="fin-back">العودة إلى المصروفات</Link>
+      <Link href="/finance/expenses" className="fin-back">
+        <AppIcon name="arrow" />
+        <span>العودة إلى المصروفات</span>
+      </Link>
       <div className="fin-heading">
         <div>
-          <p className="fin-heading__eyebrow">مصروف رقم {expense.id}</p>
+          <p className="fin-heading__eyebrow">
+            <span className="fin-eyebrow-dot" aria-hidden="true" />
+            مصروف رقم {expense.id}
+          </p>
           <h1>{expense.description}</h1>
           <p>الحالة: {STATUS_LABEL[expense.status] ?? expense.status} · الإصدار {expense.revision}</p>
+        </div>
+        <div className="fin-actions">
+          <span
+            className={`fin-badge ${
+              expense.status === "PENDING"
+                ? "fin-badge--pending"
+                : expense.status === "APPROVED"
+                  ? "fin-badge--approved"
+                  : "fin-badge--paid"
+            }`}
+          >
+            {STATUS_LABEL[expense.status] ?? expense.status}
+          </span>
         </div>
       </div>
 
@@ -140,7 +160,7 @@ export default async function ExpenseDetailPage({ params }: Props) {
             <h2>بيانات الصرف</h2>
             <p>من أين خرج المال. «عهدة الموظف» لا تُخصم الآن بل تُسوّى في التسوية؛ «الحساب» يُخصم فورًا.</p>
           </div>
-          <div className="fin-panel__body">
+          <div className="fin-table-wrap">
             <table className="fin-table">
               <thead>
                 <tr><th>المبلغ</th><th>المصدر</th><th>الحساب</th><th>الطريقة</th><th>التاريخ</th><th>صرفه</th></tr>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AppIcon } from "@/components/app-icon";
 
 import { prisma } from "@/lib/prisma";
 import { listSettlements, settlementOverview } from "@/lib/finance/engine";
@@ -29,18 +30,28 @@ export default async function SettlementsPage() {
 
   return (
     <div className="fin-page">
-      <Link href="/finance/mine" className="fin-back">العودة إلى عهدتي</Link>
+      <Link href="/finance/mine" className="fin-back">
+        <AppIcon name="arrow" />
+        <span>العودة إلى عهدتي</span>
+      </Link>
       <div className="fin-heading">
         <div>
-          <p className="fin-heading__eyebrow">عهدة الموظف</p>
+          <p className="fin-heading__eyebrow">
+            <span className="fin-eyebrow-dot" aria-hidden="true" />
+            عهدة الموظف
+          </p>
           <h1>طلبات التسوية</h1>
           <p>الإجمالي المتوقع بيدك = العهدة + المبيعات − المصروفات. طلب التسوية لا يغيّر شيئًا حتى يعتمده المدير.</p>
         </div>
       </div>
 
       {!overview.account ? (
-        <div className="fin-panel fin-empty">
-          لا توجد عهدة مفتوحة باسمك بعد. تُفتح العهدة بجرد فعلي يسجّله المدير أو المحاسب.
+        <div className="fin-panel fin-empty fin-empty-state">
+          <span className="fin-empty-state__icon" aria-hidden="true">
+            <AppIcon name="cash" />
+          </span>
+          <h2>لا توجد عهدة مفتوحة باسمك بعد</h2>
+          <p>تُفتح العهدة بجرد فعلي يسجّله المدير أو المحاسب.</p>
         </div>
       ) : (
         <>
@@ -51,34 +62,37 @@ export default async function SettlementsPage() {
             </div>
             <div className="fin-panel__body">
               <div className="fin-fields">
-                <div className="field fin-field">
+                <div className="field fin-field fin-metric-tile">
                   <span className="fin-field__label">رصيد العهدة (النظامي)</span>
-                  <span className="fin-field__hint">{formatMoney(overview.account.balance)}</span>
+                  <span className="fin-field__hint">{formatMoney(overview.account.balance)} ج.م</span>
                 </div>
-                <div className="field fin-field">
+                <div className="field fin-field fin-metric-tile">
                   <span className="fin-field__label">الفرع</span>
                   <span className="fin-field__hint">{branchName.get(overview.account.branchId) ?? "—"}</span>
                 </div>
-                <div className="field fin-field">
+                <div className="field fin-field fin-metric-tile">
                   <span className="fin-field__label">مبيعات الفترة (نقدًا)</span>
-                  <span className="fin-field__hint">{formatMoney(overview.sales)}</span>
+                  <span className="fin-field__hint">{formatMoney(overview.sales)} ج.م</span>
                 </div>
-                <div className="field fin-field">
+                <div className="field fin-field fin-metric-tile">
                   <span className="fin-field__label">مصروفات الفترة (من نقدك)</span>
-                  <span className="fin-field__hint">{formatMoney(overview.expenses)}</span>
+                  <span className="fin-field__hint">{formatMoney(overview.expenses)} ج.م</span>
                 </div>
-                <div className="field fin-field">
+                <div className="field fin-field fin-field--wide fin-metric-tile is-highlight">
                   <span className="fin-field__label">الإجمالي المتوقع بيدك</span>
-                  <span className="fin-field__hint">{formatMoney(overview.expected)}</span>
+                  <span className="fin-field__hint">{formatMoney(overview.expected)} ج.م</span>
                 </div>
               </div>
               {overview.openRequestId ? (
-                <p className="fin-alert fin-alert--warning" style={{ marginTop: 12 }}>
+                <p className="fin-alert fin-alert--warning" style={{ marginTop: 14 }}>
                   لديك طلب تسوية مفتوح بانتظار اعتماد المدير. ألغِهِ بسبب إن أردت تقديم طلب جديد.
                 </p>
               ) : (
-                <div className="fin-actions">
-                  <Link className="fin-button" href="/finance/settlements/new">طلب تسوية جديدة</Link>
+                <div className="fin-actions" style={{ marginTop: 16 }}>
+                  <Link className="fin-button" href="/finance/settlements/new">
+                    <span className="fin-button__plus" aria-hidden="true">+</span>
+                    <span>طلب تسوية جديدة</span>
+                  </Link>
                 </div>
               )}
             </div>

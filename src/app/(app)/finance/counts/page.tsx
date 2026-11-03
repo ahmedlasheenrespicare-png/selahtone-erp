@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
+import { AppIcon } from "@/components/app-icon";
 import { listAccounts, listCashCounts, settlementOverview } from "@/lib/finance/engine";
 import { prisma } from "@/lib/prisma";
 import { accountLabel, formatMoney } from "../format";
@@ -53,13 +54,24 @@ export default async function CountsPage() {
 
   return (
     <div className="fin-page">
-      <Link href="/finance" className="fin-back">العودة إلى المالية</Link>
+      <Link href="/finance" className="fin-back">
+        <AppIcon name="arrow" />
+        <span>العودة إلى المالية</span>
+      </Link>
       <div className="fin-heading">
         <div>
-          <p className="fin-heading__eyebrow">جرد فعلي</p>
+          <p className="fin-heading__eyebrow">
+            <span className="fin-eyebrow-dot" aria-hidden="true" />
+            جرد فعلي
+          </p>
           <h1>جرد النقد وتسوية الفرق</h1>
           <p>الجرد يُسجَّل أولًا كملاحظة. الفرق لا يؤثر على الرصيد إلا بتأكيد تسوية منفصل بسبب موثق.</p>
         </div>
+        {open.length > 0 ? (
+          <div className="fin-actions">
+            <span className="fin-badge fin-badge--pending">{open.length} جرد معلق</span>
+          </div>
+        ) : null}
       </div>
 
       {open.length > 0 ? (

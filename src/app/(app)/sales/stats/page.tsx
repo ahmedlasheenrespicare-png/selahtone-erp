@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import PantherSpotlightCard from "@/components/panther-spotlight-card";
 import { branchScope, requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isPeriod, loadSalesStats, type Period } from "@/lib/sales-stats";
@@ -37,26 +38,54 @@ export default async function SalesStatsPage({ searchParams }: { searchParams: P
     <div className="inv-page">
       <div className="inv-heading">
         <div>
-          <p className="inv-heading__eyebrow">المبيعات والتحصيل</p>
+          <p className="inv-heading__eyebrow"><span className="sales-eyebrow-dot" aria-hidden="true" />المبيعات والتحصيل</p>
           <h1>إحصائيات المبيعات</h1>
           <p>الفواتير والمبالغ وأكثر الأصناف مبيعًا في نطاق حسابك.</p>
         </div>
         <div className="inv-actions">
-          <Link className="inv-button inv-button--secondary" href="/sales">الفواتير</Link>
+          <Link className="inv-button inv-button--secondary" href="/sales">← الفواتير</Link>
         </div>
       </div>
 
-      <div className="inv-actions" style={{ marginBottom: 18 }}>
+      <div className="sales-period-bar" role="navigation" aria-label="الفترة الزمنية">
         {PERIODS.map((item) => (
           <Link
             key={item.value}
-            className={`inv-button${item.value === period ? "" : " inv-button--secondary"}`}
+            className={`sales-period-pill${item.value === period ? " is-active" : ""}`}
             href={`/sales/stats?period=${item.value}`}
           >
             {item.label}
           </Link>
         ))}
       </div>
+
+      <PantherSpotlightCard
+        title={`ميزان مبيعات — ${PERIODS.find((p) => p.value === period)?.label ?? "الفترة"}`}
+        subtitle="محدّث الآن · الفواتير غير الملغاة في الفترة المختارة"
+        pill={`${nf.format(stats.invoiceCount)} فاتورة`}
+        primary={{
+          label: "صافي المبيعات",
+          value: money(stats.total),
+          unit: "ج.م",
+          delta:
+            stats.invoiceCount > 0
+              ? `متوسط الفاتورة ${money(stats.averageInvoice)} ج.م · خصومات ${money(stats.discount)} ج.م`
+              : "لا توجد مبيعات مسجلة في هذه الفترة",
+          tone: "positive",
+        }}
+        secondary={{
+          label: "الباقي على العملاء",
+          value: money(stats.outstandingTotal),
+          unit: "ج.م",
+          delta:
+            Number(stats.outstandingTotal) > 0
+              ? `${nf.format(stats.outstandingCount)} فاتورة عليها باقٍ بانتظار التحصيل`
+              : "0 متأخرات · فواتير الفترة مسدّدة بالكامل",
+          tone: Number(stats.outstandingTotal) > 0 ? "negative" : "positive",
+        }}
+        actionHref="/sales"
+        actionLabel="عرض سجل الفواتير والتحصيلات"
+      />
 
       {/* كرتان لا تسعة: الأرقامُ المرتبطةُ تُجمع، وصافي المبيعات يُبرز لأنه
           الناتج. والترتيبُ يتبع المعادلة: الإجمالي، ثم الخصم، ثم الصافي. */}

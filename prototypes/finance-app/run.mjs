@@ -118,6 +118,7 @@ const env = {
   DIRECT_URL: "postgresql://unused.invalid/finance_lab",
   AUTH_SECRET: randomBytes(48).toString("base64url"),
   FINANCE_ENABLED: "true",
+  ...(testMode ? {} : { INVENTORY_ENABLED: process.env.INVENTORY_ENABLED ?? "true" }),
   FINANCE_LAB_ONLY: "disposable-in-memory",
   FINANCE_LAB_PROJECT_DIR: dir,
   // Prisma's generator is WASM here. Dummy executables suppress network engine

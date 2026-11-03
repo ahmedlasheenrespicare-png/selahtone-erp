@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PantherSpotlightCard from "@/components/panther-spotlight-card";
 import { prisma } from "@/lib/prisma";
 import { requireSession, canSeeAllBranches } from "@/lib/auth";
 import { formatInventoryDecimal, scaledInteger, stockValueScaled } from "@/lib/inventory-math";
@@ -40,6 +41,12 @@ export default async function InventoryPage() {
     stockByProduct.set(key, current);
   }
 
+  const totalStockValue = [...stockByProduct.values()].reduce((a, s) => a + s.value, 0n);
+  const stockableProducts = products.filter((p) => p.category !== "SERVICE");
+  const inStockCount = stockableProducts.filter((p) => (stockByProduct.get(p.id.toString())?.qty ?? 0n) > 0n).length;
+  const zeroStockCount = Math.max(0, stockableProducts.length - inStockCount);
+  const canReceive = session.role === "MANAGER" || session.role === "CS_AGENT";
+
   return (
     <div className="inv-page">
       <div className="inv-heading">
@@ -51,13 +58,39 @@ export default async function InventoryPage() {
         <div className="inv-actions">
           <Link className="inv-button inv-button--secondary" href="/inventory/serials">سجل السيريالات</Link>
           <Link className="inv-button inv-button--secondary" href="/inventory/receipts">سجل التوريدات</Link>
-          {(session.role === "MANAGER" || session.role === "CS_AGENT") && <Link className="inv-button inv-button--secondary" href="/inventory/receipts/new">تسجيل توريد</Link>}
+          {canReceive && <Link className="inv-button inv-button--secondary" href="/inventory/receipts/new">تسجيل توريد</Link>}
           {canSeeAllBranches(session) && <>
             <Link className="inv-button inv-button--secondary" href="/inventory/opening">تسجيل رصيد افتتاحي</Link>
             <Link className="inv-button" href="/inventory/new"><span className="inv-button__plus" aria-hidden="true">+</span> إضافة صنف</Link>
           </>}
         </div>
       </div>
+
+      <PantherSpotlightCard
+        title="ميزان المخزون والنواقص"
+        subtitle={`محدّث الآن · ${session.branchName ?? "كل الفروع"}`}
+        pill={`${nf.format(products.length)} صنف نشط`}
+        primary={{
+          label: "إجمالي قيمة المخزون",
+          value: formatInventoryDecimal(totalStockValue, 6),
+          unit: "ج.م",
+          delta: `${nf.format(inStockCount)} صنف مخزني متوفّر في المستودعات`,
+          tone: "positive",
+        }}
+        secondary={{
+          label: "أصناف رصيدها صفر (نواقص)",
+          value: nf.format(zeroStockCount),
+          unit: "صنف",
+          delta:
+            zeroStockCount > 0
+              ? "أصناف مخزنية تحتاج توريدًا أو رصيدًا افتتاحيًا"
+              : "0 نواقص · كل الأصناف المخزنية متوفّرة",
+          tone: zeroStockCount > 0 ? "negative" : "positive",
+        }}
+        actionHref={canReceive ? "/inventory/receipts/new" : "/inventory/receipts"}
+        actionLabel={canReceive ? "تسجيل توريد بضاعة جديد" : "عرض سجل التوريدات"}
+      />
+
       <div className="kpis">
         <div className="kpi">
           <small>أصناف نشطة</small>
@@ -71,7 +104,7 @@ export default async function InventoryPage() {
         </div>
         <div className="kpi">
           <small>إجمالي القيمة</small>
-          <b>{formatInventoryDecimal([...stockByProduct.values()].reduce((a, s) => a + s.value, 0n), 6)}</b>
+          <b>{formatInventoryDecimal(totalStockValue, 6)}</b>
           <span>ج.م بمتوسط التكلفة</span>
         </div>
         <div className="kpi">
