@@ -991,6 +991,41 @@ test("صفحة فحص الجاهزية والأمان تفحص المحاور ا
   assert.ok(contrast("#fecaca", "#241416") >= MIN);
 });
 
+test("صفحة بيع جديد تعرض نبض الكاونتر والتسعير الاسترشادي وبطاقات الدفع والإيصال المثبّت والفوري بتباين WCAG >= 4.5:1", () => {
+  const newSalePageSrc = readFileSync(
+    new URL("../src/app/(app)/sales/new/page.tsx", import.meta.url),
+    "utf8",
+  );
+  const catalogFormSrc = readFileSync(
+    new URL("../src/app/(app)/sales/new/catalog-sale-form.tsx", import.meta.url),
+    "utf8",
+  );
+
+  // ١) شريط نبض الكاونتر + التسعير الاسترشادي + حفظ صلاحية المدير وموظف الفرع فقط
+  assert.ok(newSalePageSrc.includes("sales-kpi-strip"));
+  assert.ok(newSalePageSrc.includes("buildTypePriceHints"));
+  assert.ok(newSalePageSrc.includes("إنشاء البيع متاح للمدير وموظف الفرع فقط"));
+
+  // ٢) ترجمة عناوين الحقول بالعربية + بطاقات وسائل الدفع + المسودة + الإيصال اللحظي والفوري
+  assert.ok(catalogFormSrc.includes("formatCartFieldEntries"));
+  assert.ok(catalogFormSrc.includes("evaluateLiveDiscountStatus"));
+  assert.ok(catalogFormSrc.includes("sale-pay-cards"));
+  assert.ok(catalogFormSrc.includes("sale-live-receipt"));
+  assert.ok(catalogFormSrc.includes("sale-instant-receipt"));
+  assert.ok(catalogFormSrc.includes("sessionStorage"));
+
+  // ٣) تباين بطاقات الدفع وحارس الخصم وشارات المتبقي نهارًا وليلًا >= 4.5:1
+  assert.ok(contrast("#ffffff", "#1e341e") >= MIN);
+  assert.ok(contrast("#e2f3df", "#1e341e") >= MIN);
+  assert.ok(contrast("#ffffff", "#0d465d") >= MIN);
+  assert.ok(contrast("#e0f2fe", "#0d465d") >= MIN);
+  assert.ok(contrast("#166534", "#dcfce7") >= MIN);
+  assert.ok(contrast("#991b1b", "#fee2e2") >= MIN);
+  assert.ok(contrast("#92400e", "#fef3c7") >= MIN);
+  assert.ok(contrast("#ecfdf5", "#13393c") >= MIN);
+  assert.ok(contrast("#ccfbf1", "#13393c") >= MIN);
+});
+
 
 
 
