@@ -49,6 +49,8 @@ test("catalog sales run without a warehouse, without stock and with unknown tax"
     await pg.exec(read("prisma/manual-receiving-upgrade.sql"));
     await pg.exec(read("prisma/manual-commerce-upgrade.sql"));
     await pg.exec(read("prisma/manual-catalog-sales-upgrade.sql"));
+    await pg.exec(read("prisma/manual-cancel-permission-upgrade.sql"));
+    await pg.exec(read("prisma/manual-discount-ceiling-upgrade.sql"));
     await pg.exec(`INSERT INTO users(branch_id,role_code,full_name,email,password_hash,status,must_change_password)
       VALUES (2,'CS_AGENT','فرع آخر','other@example.test','fixture','ACTIVE',FALSE)`);
     db = new TestClient({ adapter: new PrismaPGlite(pg) as never });

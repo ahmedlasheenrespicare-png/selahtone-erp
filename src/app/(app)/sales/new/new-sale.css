@@ -1,0 +1,515 @@
+/* ==========================================================================
+   تطوير كاونتر البيع الجديد (/sales/new)
+   يتناغم مع ثيمي .sales-suite ومع الوضع الليلي بتباين WCAG AA >= 4.5:1
+   ========================================================================== */
+
+.sale-draft-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 10px 14px;
+  border-radius: 13px;
+  border: 1px dashed var(--sl-border-strong);
+  background: var(--sl-surface-soft);
+  color: var(--sl-ink);
+  font-size: 12.5px;
+}
+
+.sale-draft-bar__info {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.sale-draft-bar__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #16a34a;
+}
+
+.sale-draft-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: 9px;
+  border: 1px solid var(--sl-border-strong);
+  background: var(--sl-surface);
+  color: var(--sl-ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sale-draft-reset:hover:not(:disabled) {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+
+/* شريط البحث السريع عن الأصناف داخل الكاونتر */
+.sale-catalog-search {
+  position: relative;
+  margin-bottom: 10px;
+}
+
+.sale-catalog-search svg {
+  position: absolute;
+  inset-inline-start: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  color: var(--sl-muted);
+  pointer-events: none;
+}
+
+.sale-catalog-search input {
+  width: 100%;
+  min-height: 38px;
+  padding: 7px 12px;
+  padding-inline-start: 36px;
+  border-radius: 11px;
+  border: 1px solid var(--sl-border-strong);
+  background: var(--sl-surface-soft);
+  color: var(--sl-ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+/* شرائح السعر الاسترشادي تحت أو بجانب حقل السعر */
+.sale-price-hints {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.sale-price-hints__label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--sl-muted);
+}
+
+.sale-price-hint-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--sl-border-strong);
+  background: var(--sl-surface-tint);
+  color: var(--sl-ink);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.sale-price-hint-btn:hover:not(:disabled) {
+  background: var(--sl-primary-btn);
+  border-color: var(--sl-primary-btn);
+  color: #ffffff;
+}
+
+/* شارات تفاصيل البند بالعربية وأزرار التعديل والحذف في السلة */
+.sale-cart-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 5px;
+}
+
+.sale-cart-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 7px;
+  border: 1px solid var(--sl-border);
+  background: var(--sl-surface-soft);
+  color: var(--sl-ink);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.sale-cart-tag strong {
+  color: var(--sl-muted);
+  font-weight: 700;
+}
+
+.sale-cart-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.sale-line-edit {
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--sl-border-strong);
+  background: var(--sl-surface-soft);
+  color: var(--sl-ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sale-line-edit:hover:not(:disabled) {
+  background: var(--sl-surface-tint);
+  border-color: var(--sl-primary-btn);
+}
+
+/* حارس سقف الخصم اللحظي */
+.sale-discount-guard {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 7px;
+  padding: 7px 11px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sale-discount-guard.is-ok {
+  background: #dcfce7;
+  border: 1px solid #86efac;
+  color: #166534;
+}
+
+.sale-discount-guard.is-over {
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+  color: #991b1b;
+}
+
+/* شرائح نسبة الدفعة الأولى (100% / 50% / 25%) */
+.sale-payment-presets {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+
+.sale-fill-btn.is-locked {
+  background: var(--sl-primary-btn);
+  border-color: var(--sl-primary-btn);
+  color: #ffffff;
+}
+
+/* بطاقات وسائل الدفع الأربع */
+.sale-pay-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.sale-pay-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 12px 13px;
+  border-radius: 13px;
+  border: 1.5px solid var(--sl-border-strong);
+  background: var(--sl-surface-soft);
+  color: var(--sl-ink);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.sale-pay-card__head {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+}
+
+.sale-pay-card svg {
+  width: 18px;
+  height: 18px;
+}
+
+.sale-pay-card strong {
+  font-size: 13.5px;
+  font-weight: 800;
+}
+
+.sale-pay-card small {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--sl-muted);
+}
+
+.sale-pay-card:hover:not(:disabled) {
+  border-color: var(--sl-primary-btn);
+  transform: translateY(-1px);
+}
+
+.sale-pay-card.is-active {
+  background: var(--sl-primary-btn);
+  border-color: var(--sl-primary-btn);
+  color: #ffffff;
+}
+
+.sale-pay-card.is-active small {
+  color: #e2f3df;
+}
+
+.workspace-shell[data-theme="wallet-selahtone"] .sale-pay-card.is-active small {
+  color: #e0f2fe;
+}
+
+/* الإيصال اللحظي المثبّت على الجانب (Sticky Live Receipt) */
+.sales-suite .inv-side.sale-live-receipt {
+  position: sticky;
+  top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sale-receipt-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1.5px dashed var(--sl-border-strong);
+}
+
+.sale-receipt-head h2 {
+  margin: 0;
+}
+
+.sale-receipt-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: var(--sl-surface-soft);
+  border: 1px solid var(--sl-border);
+  font-size: 12px;
+}
+
+.sale-receipt-meta strong {
+  color: var(--sl-ink);
+}
+
+.sale-receipt-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 185px;
+  overflow-y: auto;
+}
+
+.sale-receipt-lines li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  padding-bottom: 5px;
+  border-bottom: 1px dotted var(--sl-border);
+}
+
+.sale-receipt-lines li:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.sale-due-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.sale-due-pill--paid {
+  background: #dcfce7;
+  border: 1px solid #86efac;
+  color: #166534;
+}
+
+.sale-due-pill--due {
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+}
+
+.sale-receipt-cta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 6px;
+}
+
+.sale-receipt-cta .inv-button {
+  width: 100%;
+  justify-content: center;
+}
+
+/* بطاقة الإيصال الفوري عقب إتمام البيع بنجاح */
+.sale-instant-receipt {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px;
+  border-radius: 20px;
+  border: 1.5px solid var(--sl-border-strong);
+  background: var(--sl-surface);
+  box-shadow: 0 18px 36px -20px rgba(12, 34, 42, 0.24);
+}
+
+.sale-instant-receipt__banner {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1.5px dashed var(--sl-border-strong);
+}
+
+.sale-instant-receipt__code {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--sl-primary-btn);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.sale-instant-receipt__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.sale-instant-receipt__stat {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--sl-border);
+  background: var(--sl-surface-soft);
+}
+
+.sale-instant-receipt__stat span {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--sl-muted);
+}
+
+.sale-instant-receipt__stat strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--sl-ink);
+}
+
+/* ---------------- توافق الوضع الليلي بتباين >= 4.5:1 ---------------- */
+.workspace-shell[data-color-mode="dark"] .sale-draft-bar,
+.workspace-shell[data-color-mode="dark"] .sale-catalog-search input,
+.workspace-shell[data-color-mode="dark"] .sale-cart-tag,
+.workspace-shell[data-color-mode="dark"] .sale-line-edit,
+.workspace-shell[data-color-mode="dark"] .sale-pay-card,
+.workspace-shell[data-color-mode="dark"] .sale-receipt-meta,
+.workspace-shell[data-color-mode="dark"] .sale-instant-receipt__stat {
+  background: var(--dm-surface-soft);
+  border-color: var(--dm-border-strong);
+  color: var(--dm-ink);
+}
+
+.workspace-shell[data-color-mode="dark"] .sale-instant-receipt,
+.workspace-shell[data-color-mode="dark"] .sale-draft-reset {
+  background: var(--dm-surface);
+  border-color: var(--dm-border-strong);
+  color: var(--dm-ink);
+}
+
+.workspace-shell[data-color-mode="dark"] .sale-price-hint-btn {
+  background: rgba(20, 184, 166, 0.15);
+  border-color: rgba(45, 212, 191, 0.45);
+  color: #ccfbf1;
+}
+
+.workspace-shell[data-color-mode="dark"] .sale-pay-card small,
+.workspace-shell[data-color-mode="dark"] .sale-cart-tag strong,
+.workspace-shell[data-color-mode="dark"] .sale-instant-receipt__stat span {
+  color: var(--dm-muted);
+}
+
+.workspace-shell[data-color-mode="dark"] .sale-pay-card.is-active,
+.workspace-shell[data-color-mode="dark"] .sale-fill-btn.is-locked {
+  background: rgba(20, 184, 166, 0.24);
+  border-color: #2dd4bf;
+  color: #ecfdf5;
+}
+
+.workspace-shell[data-color-mode="dark"] .sale-pay-card.is-active small {
+  color: #ccfbf1;
+}
+
+.workspace-shell[data-color-mode="dark"] .sale-discount-guard.is-ok,
+.workspace-shell[data-color-mode="dark"] .sale-due-pill--paid {
+  background: rgba(34, 197, 94, 0.18);
+  border-color: rgba(74, 222, 128, 0.45);
+  color: #bbf7d0;
+}
+
+.workspace-shell[data-color-mode="dark"] .sale-discount-guard.is-over {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(248, 113, 113, 0.45);
+  color: #fecaca;
+}
+
+.workspace-shell[data-color-mode="dark"] .sale-due-pill--due {
+  background: rgba(245, 158, 11, 0.18);
+  border-color: rgba(251, 191, 36, 0.45);
+  color: #fde68a;
+}
+
+@media (max-width: 860px) {
+  .sale-pay-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sales-suite .inv-side.sale-live-receipt {
+    position: static;
+  }
+}
+
+@media (max-width: 480px) {
+  .sale-pay-cards {
+    grid-template-columns: 1fr;
+  }
+}
