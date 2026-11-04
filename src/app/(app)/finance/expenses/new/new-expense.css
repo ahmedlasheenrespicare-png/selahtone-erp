@@ -1,0 +1,421 @@
+/* =========================================================================
+   تطوير شاشة تسجيل مصروف جديد (/finance/expenses/new)
+   متوافق مع ثيمي المالية والوضع الليلي بتباين WCAG AA >= 4.5:1
+   ========================================================================= */
+
+.exp-new-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  align-items: start;
+  gap: 18px;
+}
+
+.exp-new-main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.exp-draft-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 10px 14px;
+  border-radius: 13px;
+  border: 1px dashed var(--fn-border-strong);
+  background: var(--fn-surface-soft);
+  color: var(--fn-ink);
+  font-size: 12.5px;
+}
+
+.exp-draft-bar__info {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.exp-draft-bar__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #16a34a;
+}
+
+.exp-draft-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: 9px;
+  border: 1px solid var(--fn-border-strong);
+  background: var(--fn-surface);
+  color: var(--fn-ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.exp-draft-reset:hover:not(:disabled) {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+
+/* تنبيهات كشف التكرار (رقم مستند أو نفس اليوم) */
+.exp-dup-banner {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 12px 15px;
+  border-radius: 13px;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.exp-dup-banner.is-doc {
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+  color: #991b1b;
+}
+
+.exp-dup-banner.is-day {
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+}
+
+/* شرائح اختيار بنود المصروفات بنقرة واحدة */
+.exp-cat-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-bottom: 14px;
+}
+
+.exp-cat-bar__label {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--fn-muted);
+}
+
+.exp-cat-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.exp-cat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--fn-border-strong);
+  background: var(--fn-surface-soft);
+  color: var(--fn-ink);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.exp-cat-chip small {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--fn-muted);
+}
+
+.exp-cat-chip:hover:not(:disabled) {
+  border-color: var(--fn-primary-btn);
+  transform: translateY(-1px);
+}
+
+.exp-cat-chip.is-active {
+  background: var(--fn-primary-btn);
+  border-color: var(--fn-primary-btn);
+  color: #ffffff;
+}
+
+.exp-cat-chip.is-active small {
+  color: #e2f3df;
+}
+
+[data-theme="wallet-selahtone"] .finance-suite .exp-cat-chip.is-active small {
+  color: #e0f2fe;
+}
+
+/* شريط مصغّر أعلى الحقل (ضرائب استرشادية / تاريخ سريع) */
+.exp-field-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+.exp-mini-presets {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+
+.exp-mini-btn {
+  padding: 3px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--fn-border-strong);
+  background: var(--fn-surface-tint);
+  color: var(--fn-ink);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.exp-mini-btn:hover:not(:disabled),
+.exp-mini-btn.is-active {
+  background: var(--fn-primary-btn);
+  border-color: var(--fn-primary-btn);
+  color: #ffffff;
+}
+
+.exp-tax-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px 10px;
+  margin-top: 6px;
+  padding: 6px 10px;
+  border-radius: 9px;
+  background: #ecfdf5;
+  border: 1px solid #86efac;
+  color: #166534;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+/* معاينة سند قيد المصروف المثبّتة (Sticky Expense Voucher) */
+.finance-suite .fin-side.exp-live-voucher {
+  position: sticky;
+  top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.exp-voucher-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1.5px dashed var(--fn-border-strong);
+}
+
+.exp-voucher-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.exp-voucher-list {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--fn-border);
+  background: var(--fn-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.exp-voucher-list > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 12.5px;
+}
+
+.exp-voucher-list dt {
+  margin: 0;
+  color: var(--fn-muted);
+  font-weight: 700;
+}
+
+.exp-voucher-list dd {
+  margin: 0;
+  color: var(--fn-ink);
+  font-weight: 800;
+  text-align: end;
+  word-break: break-word;
+}
+
+.exp-voucher-total {
+  padding-top: 8px;
+  border-top: 1.5px dashed var(--fn-border-strong);
+  font-size: 14px !important;
+}
+
+.exp-voucher-cta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.exp-voucher-cta .fin-button {
+  width: 100%;
+}
+
+/* بطاقة سند قيد المصروف الفورية بعد الحفظ */
+.exp-instant-voucher {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 24px;
+  border-radius: 20px;
+  border: 1.5px solid var(--fn-border-strong);
+  background: var(--fn-surface);
+  box-shadow: 0 18px 36px -20px rgba(12, 34, 42, 0.24);
+}
+
+.exp-instant-voucher__banner {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1.5px dashed var(--fn-border-strong);
+}
+
+.exp-instant-voucher__code {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--fn-primary-btn);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.exp-instant-voucher__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.exp-instant-voucher__stat {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--fn-border);
+  background: var(--fn-surface-soft);
+}
+
+.exp-instant-voucher__stat span {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--fn-muted);
+}
+
+.exp-instant-voucher__stat strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 14.5px;
+  font-weight: 800;
+  color: var(--fn-ink);
+}
+
+/* ---------------- الوضع الليلي بتباين WCAG >= 4.5:1 ---------------- */
+.workspace-shell[data-color-mode="dark"] .exp-draft-bar,
+.workspace-shell[data-color-mode="dark"] .exp-cat-chip,
+.workspace-shell[data-color-mode="dark"] .exp-voucher-list,
+.workspace-shell[data-color-mode="dark"] .exp-instant-voucher__stat {
+  background: var(--dm-surface-soft);
+  border-color: var(--dm-border-strong);
+  color: var(--dm-ink);
+}
+
+.workspace-shell[data-color-mode="dark"] .exp-instant-voucher,
+.workspace-shell[data-color-mode="dark"] .exp-draft-reset {
+  background: var(--dm-surface);
+  border-color: var(--dm-border-strong);
+  color: var(--dm-ink);
+}
+
+.workspace-shell[data-color-mode="dark"] .exp-mini-btn {
+  background: rgba(20, 184, 166, 0.15);
+  border-color: rgba(45, 212, 191, 0.45);
+  color: #ccfbf1;
+}
+
+.workspace-shell[data-color-mode="dark"] .exp-cat-chip small,
+.workspace-shell[data-color-mode="dark"] .exp-voucher-list dt,
+.workspace-shell[data-color-mode="dark"] .exp-instant-voucher__stat span {
+  color: var(--dm-muted);
+}
+
+.workspace-shell[data-color-mode="dark"] .exp-voucher-list dd,
+.workspace-shell[data-color-mode="dark"] .exp-instant-voucher__stat strong {
+  color: var(--dm-ink);
+}
+
+.workspace-shell[data-color-mode="dark"] .exp-cat-chip.is-active,
+.workspace-shell[data-color-mode="dark"] .exp-mini-btn.is-active,
+.workspace-shell[data-color-mode="dark"] .exp-mini-btn:hover:not(:disabled) {
+  background: rgba(20, 184, 166, 0.24);
+  border-color: #2dd4bf;
+  color: #ecfdf5;
+}
+
+.workspace-shell[data-color-mode="dark"] .exp-cat-chip.is-active small {
+  color: #ccfbf1;
+}
+
+.workspace-shell[data-color-mode="dark"] .exp-tax-breakdown {
+  background: rgba(34, 197, 94, 0.18);
+  border-color: rgba(74, 222, 128, 0.45);
+  color: #bbf7d0;
+}
+
+.workspace-shell[data-color-mode="dark"] .exp-dup-banner.is-doc {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(248, 113, 113, 0.45);
+  color: #fecaca;
+}
+
+.workspace-shell[data-color-mode="dark"] .exp-dup-banner.is-day,
+.workspace-shell[data-color-mode="dark"] .exp-voucher-status {
+  background: rgba(245, 158, 11, 0.18);
+  border-color: rgba(251, 191, 36, 0.45);
+  color: #fde68a;
+}
+
+@media (max-width: 960px) {
+  .exp-new-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .finance-suite .fin-side.exp-live-voucher {
+    position: static;
+  }
+}
