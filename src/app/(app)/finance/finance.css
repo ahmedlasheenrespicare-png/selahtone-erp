@@ -1341,3 +1341,383 @@ a.fin-kpi-card:hover {
     flex-wrap: wrap;
   }
 }
+
+/* =========================================================================
+   تطوير مركز التسليم والتحويل النقدي (/finance/transfers) وسند الطباعة الرسمي
+   ========================================================================= */
+.finance-suite .fin-panel__heading--split {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px 16px;
+}
+
+.finance-suite .fin-transfer-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.finance-suite .fin-transfer-branch-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.finance-suite .fin-transfer-dir-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.finance-suite .fin-transfer-dir-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 12px 15px;
+  border-radius: 14px;
+  border: 1.5px solid var(--fn-border);
+  background: var(--fn-surface-soft);
+  color: var(--fn-ink);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.finance-suite .fin-transfer-dir-btn strong {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--fn-ink);
+}
+
+.finance-suite .fin-transfer-dir-btn small {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fn-muted);
+}
+
+.finance-suite .fin-transfer-dir-btn:hover {
+  border-color: var(--fn-border-strong);
+  background: var(--fn-surface-tint);
+}
+
+.finance-suite .fin-transfer-dir-btn.is-active {
+  border-color: var(--fn-primary-btn);
+  background: var(--fn-surface-tint);
+  box-shadow: 0 0 0 1px var(--fn-primary-btn);
+}
+
+.finance-suite .fin-quick-amounts {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.finance-suite .fin-transfer-bridge {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px dashed var(--fn-border-strong);
+  background: var(--fn-surface-soft);
+}
+
+.finance-suite .fin-transfer-bridge__party {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.finance-suite .fin-transfer-bridge__role {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--fn-muted);
+}
+
+.finance-suite .fin-transfer-bridge__party strong {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--fn-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.finance-suite .fin-transfer-bridge__bal {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--fn-ink-soft);
+}
+
+.finance-suite .fin-transfer-bridge__bal .is-pos {
+  color: #166534;
+  font-weight: 800;
+}
+
+.finance-suite .fin-transfer-bridge__bal .is-neg {
+  color: #b42a2a;
+  font-weight: 800;
+}
+
+.finance-suite .fin-transfer-bridge__arrow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--fn-code-bg);
+  color: var(--fn-code-ink);
+}
+
+.finance-suite .fin-transfer-bridge__amt {
+  font-size: 12.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.finance-suite .fin-transfer-bridge__line {
+  font-size: 16px;
+  line-height: 1;
+  font-weight: 800;
+}
+
+.finance-suite .fin-voucher-print-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--fn-border-strong);
+  background: var(--fn-surface-soft);
+  color: var(--fn-ink);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.16s ease, border-color 0.16s ease;
+}
+
+.finance-suite .fin-voucher-print-btn svg {
+  width: 13.5px;
+  height: 13.5px;
+}
+
+.finance-suite .fin-voucher-print-btn:hover {
+  background: var(--fn-surface-tint);
+  border-color: var(--fn-primary-btn);
+}
+
+/* بطاقة سند الاستلام والتسليم الرسمي (للعرض بعد التسجيل وللطباعة الرسمية) */
+.finance-suite .fin-handover-voucher {
+  margin-top: 14px;
+  padding: 20px 22px;
+  border-radius: 16px;
+  border: 1.5px solid var(--fn-border-strong);
+  background: var(--fn-surface);
+  color: var(--fn-ink);
+}
+
+.finance-suite .fin-handover-voucher__head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1.5px dashed var(--fn-border-strong);
+}
+
+.finance-suite .fin-handover-voucher__brand {
+  margin: 0 0 4px;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--fn-muted);
+}
+
+.finance-suite .fin-handover-voucher__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--fn-ink);
+}
+
+.finance-suite .fin-handover-voucher__sub {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: var(--fn-muted);
+}
+
+.finance-suite .fin-handover-voucher__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--fn-ink-soft);
+}
+
+.finance-suite .fin-handover-voucher__num {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--fn-code-bg);
+  color: var(--fn-code-ink);
+  font-weight: 800;
+}
+
+.finance-suite .fin-handover-voucher__amount-box {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 0;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--fn-surface-soft);
+  border: 1px solid var(--fn-border);
+}
+
+.finance-suite .fin-handover-voucher__amount-box span {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--fn-muted);
+}
+
+.finance-suite .fin-handover-voucher__amount-box strong {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--fn-ink);
+}
+
+.finance-suite .fin-handover-voucher__amount-box small {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--fn-muted);
+}
+
+.finance-suite .fin-handover-voucher__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.finance-suite .fin-handover-voucher__grid > div {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--fn-surface-soft);
+  border: 1px solid var(--fn-border);
+}
+
+.finance-suite .fin-handover-voucher__grid dt {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--fn-muted);
+  margin-bottom: 4px;
+}
+
+.finance-suite .fin-handover-voucher__grid dd {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--fn-ink);
+}
+
+.finance-suite .fin-handover-voucher__signatures {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  margin-top: 22px;
+  padding-top: 14px;
+  border-top: 1px solid var(--fn-border);
+}
+
+.finance-suite .fin-handover-voucher__sig {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: center;
+}
+
+.finance-suite .fin-handover-voucher__sig span {
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--fn-ink);
+}
+
+.finance-suite .fin-handover-voucher__sig-line {
+  height: 36px;
+  border-bottom: 1.5px dashed var(--fn-border-strong);
+}
+
+.finance-suite .fin-handover-voucher__sig small {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--fn-muted);
+}
+
+.fin-print-voucher-portal {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .finance-suite .fin-transfer-dir-tabs,
+  .finance-suite .fin-transfer-bridge,
+  .finance-suite .fin-handover-voucher__grid,
+  .finance-suite .fin-handover-voucher__signatures {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media print {
+  body[data-print-mode="voucher"] * {
+    visibility: hidden !important;
+  }
+
+  body[data-print-mode="voucher"] .fin-print-voucher-portal {
+    display: block !important;
+  }
+
+  body[data-print-mode="voucher"] .fin-handover-voucher.is-active-voucher,
+  body[data-print-mode="voucher"] .fin-handover-voucher.is-active-voucher * {
+    visibility: visible !important;
+  }
+
+  body[data-print-mode="voucher"] .fin-handover-voucher.is-active-voucher {
+    position: fixed;
+    inset: 16px;
+    margin: 0 !important;
+    padding: 24px !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border: 2px solid #0f172a !important;
+    box-shadow: none !important;
+    z-index: 99999;
+  }
+
+  body[data-print-mode="voucher"] .fin-handover-voucher.is-active-voucher dt,
+  body[data-print-mode="voucher"] .fin-handover-voucher.is-active-voucher dd,
+  body[data-print-mode="voucher"] .fin-handover-voucher.is-active-voucher h3,
+  body[data-print-mode="voucher"] .fin-handover-voucher.is-active-voucher p,
+  body[data-print-mode="voucher"] .fin-handover-voucher.is-active-voucher span,
+  body[data-print-mode="voucher"] .fin-handover-voucher.is-active-voucher strong,
+  body[data-print-mode="voucher"] .fin-handover-voucher.is-active-voucher small {
+    color: #0f172a !important;
+  }
+
+  body[data-print-mode="voucher"] .fin-handover-voucher__amount-box,
+  body[data-print-mode="voucher"] .fin-handover-voucher__grid > div,
+  body[data-print-mode="voucher"] .fin-handover-voucher__num {
+    background: #f8fafc !important;
+    border-color: #cbd5e1 !important;
+  }
+}

@@ -106,16 +106,39 @@ export async function closeAccountAction(_previous: FinanceActionState, formData
 export async function transferCashAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
   const guard = await requireFinanceWriter();
   if ("state" in guard) return guard.state;
+  const fromId = text(formData, "fromId");
+  const toId = text(formData, "toId");
   const raw = {
     requestId: text(formData, "requestId"),
-    fromId: text(formData, "fromId"),
-    toId: text(formData, "toId"),
+    fromId,
+    toId,
     amount: text(formData, "amount"),
     expectedBalance: text(formData, "expectedBalance"),
     actuallyTransferred: confirmed(formData, "actuallyTransferred"),
     negativeAcknowledged: confirmed(formData, "negativeAcknowledged"),
   };
   try {
+    if (/^\d+$/.test(fromId) && /^\d+$/.test(toId)) {
+      const closedCheck = await financeDb
+        .serializable((tx) =>
+          tx.query<{ id: string }>(
+            `SELECT id::text AS id
+               FROM finance.accounts
+              WHERE id IN ($1::bigint, $2::bigint)
+                AND closed_at IS NOT NULL
+              LIMIT 1`,
+            [fromId, toId],
+          ),
+        )
+        .catch(() => ({ rows: [] }));
+      if (closedCheck.rows.length > 0) {
+        return {
+          status: "error",
+          code: "account_closed",
+          message: "لا يجوز التسليم من أو إلى عهدة مقفلة.",
+        };
+      }
+    }
     const result = await transferCash(financeDb, guard.session.id, raw);
     revalidateFinance();
     return {

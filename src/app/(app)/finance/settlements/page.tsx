@@ -145,7 +145,7 @@ export default async function SettlementsPage() {
                               className={`fin-badge ${
                                 String(settlement.status) === "OPEN"
                                   ? "fin-badge--pending"
-                                  : String(settlement.status) === "APPROVED"
+                                  : String(settlement.status) === "CONFIRMED"
                                     ? "fin-badge--paid"
                                     : "fin-badge--closed"
                               }`}
