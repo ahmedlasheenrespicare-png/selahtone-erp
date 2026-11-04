@@ -5,6 +5,7 @@ import { requireSession, type SessionUser } from "@/lib/auth";
 import { createAppCategory, editAppCategory } from "@/lib/finance/app-categories";
 import { financeDb, financeEnabled } from "@/lib/finance/db";
 import { approveExpense, cancelCashCount, cancelSettlement, confirmCashCount, confirmSettlement, createExpense, openAccount, payExpense, rejectSettlement, requestCashCount, requestPaidExpenseReview, requestSettlement, transferCash, closeAccount, requestCustody, decideCustodyRequest, requestCountFromHolder, submitHolderCount } from "@/lib/finance/engine";
+import { buildCustodyDecisionPayload } from "@/lib/finance/new-account-helpers";
 import { payExpensePayload } from "@/lib/finance/pay-expense-source";
 import { FinanceProblem } from "@/lib/finance/types";
 import type { FinanceActionState } from "./finance-state";
@@ -450,14 +451,27 @@ export async function decideCustodyRequestAction(_previous: FinanceActionState, 
   const guard = await requireFinanceManager();
   if ("state" in guard) return guard.state;
   const { session } = guard;
+  const payload = buildCustodyDecisionPayload({
+    requestId: text(formData, "requestId"),
+    requestDbId: text(formData, "requestDbId"),
+    decision: text(formData, "decision"),
+    reason: text(formData, "reason"),
+    openingDate: text(formData, "openingDate"),
+    countedRaw: text(formData, "counted"),
+  });
   try {
-    await decideCustodyRequest(financeDb, session.id, {
-      requestId: formData.get("requestId"), requestId2: formData.get("requestDbId"),
-      decision: formData.get("decision"), reason: formData.get("reason"),
-      openingDate: formData.get("openingDate"), counted: formData.get("counted"),
-    });
+    const result = await decideCustodyRequest(financeDb, session.id, payload);
     revalidateFinance();
-    return { status: "success", message: formData.get("decision") === "APPROVE" ? "اعتُمد الطلب وفُتحت العهدة." : "رُفض الطلب." };
+    return {
+      status: "success",
+      id: result.id,
+      message:
+        payload.decision === "APPROVE"
+          ? result.replayed
+            ? "سبق اعتماد هذا الطلب؛ لم تُفتح عهدة مكررة."
+            : "اعتُمد طلب العهدة وفُتحت العهدة بالرصيد الفعلي بعد تأكيد الجرد."
+          : "رُفض طلب العهدة بسبب مدوّن، دون أي أثر مالي.",
+    };
   } catch (error) { return translate(error); }
 }
 
@@ -482,8 +496,10 @@ export async function submitHolderCountAction(_previous: FinanceActionState, for
   const { session } = guard;
   try {
     await submitHolderCount(financeDb, session.id, {
-      requestId: formData.get("requestId"), countId: formData.get("countId"),
-      countedAmount: formData.get("countedAmount"), actuallyCounted: formData.get("actuallyCounted"),
+      requestId: text(formData, "requestId"),
+      countId: text(formData, "countId"),
+      countedAmount: text(formData, "countedAmount"),
+      actuallyCounted: confirmed(formData, "actuallyCounted"),
     });
     revalidateFinance();
     return { status: "success", message: "سُجّل جردُك، وهو بانتظار تأكيد المدير." };

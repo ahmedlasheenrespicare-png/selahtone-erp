@@ -1,0 +1,630 @@
+/* ==========================================================================
+   صفحة فتح خزنة أو عهدة (/finance/accounts)
+   متوافقة مع الثيمين (default / editorial) والوضعين النهاري والليلي بتباين WCAG AA >= 4.5:1
+   ========================================================================== */
+
+.acc-open-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 334px;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 1040px) {
+  .acc-open-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.acc-open-main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* شريط التنبيه السريع للفروع التي تفتقر إلى خزنة */
+.acc-missing-vaults {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 16px;
+  border-radius: 14px;
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  color: #92400e;
+}
+
+.acc-missing-vaults__info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 13px;
+}
+
+.acc-missing-vaults__info strong {
+  font-size: 13.5px;
+  font-weight: 800;
+}
+
+.acc-missing-vaults__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.acc-missing-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #1e341e;
+  border: 1px solid #1e341e;
+  color: #ffffff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.14s ease, opacity 0.14s ease;
+}
+
+html[data-theme="editorial"] .acc-missing-chip {
+  background: #0d465d;
+  border-color: #0d465d;
+}
+
+.acc-missing-chip:hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+/* شريط المسودة التلقائية */
+.acc-draft-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--fn-surface);
+  border: 1px dashed var(--fn-border-strong);
+  font-size: 12.5px;
+  color: var(--fn-muted);
+}
+
+.acc-draft-bar__info {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.acc-draft-bar__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #15803d;
+}
+
+.acc-draft-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--fn-border-strong);
+  background: var(--fn-surface-soft);
+  color: var(--fn-ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* بطاقتا اختيار نوع الحساب النقدي */
+.acc-kind-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 640px) {
+  .acc-kind-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.acc-kind-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1.5px solid var(--fn-border-strong);
+  background: var(--fn-surface);
+  color: var(--fn-ink);
+  text-align: start;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.14s ease, box-shadow 0.15s ease;
+}
+
+.acc-kind-card:hover:not(:disabled) {
+  border-color: var(--fn-accent);
+  transform: translateY(-1px);
+}
+
+.acc-kind-card__icon {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--fn-surface-soft);
+  color: var(--fn-ink);
+}
+
+.acc-kind-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.acc-kind-card__body strong {
+  font-size: 14.5px;
+  font-weight: 800;
+}
+
+.acc-kind-card__body small {
+  font-size: 12px;
+  color: var(--fn-muted);
+  line-height: 1.45;
+}
+
+.acc-kind-card.is-active {
+  background: #1e341e;
+  border-color: #1e341e;
+  color: #ffffff;
+  box-shadow: 0 6px 18px rgba(30, 52, 30, 0.2);
+}
+
+.acc-kind-card.is-active .acc-kind-card__icon {
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+}
+
+.acc-kind-card.is-active .acc-kind-card__body small {
+  color: #e2f3df;
+}
+
+html[data-theme="editorial"] .acc-kind-card.is-active {
+  background: #0d465d;
+  border-color: #0d465d;
+  color: #ffffff;
+  box-shadow: 0 6px 18px rgba(13, 70, 93, 0.22);
+}
+
+html[data-theme="editorial"] .acc-kind-card.is-active .acc-kind-card__body small {
+  color: #e0f2fe;
+}
+
+/* شرائح الاختيار السريع للفروع والموظفين */
+.acc-chip-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px dashed var(--fn-border);
+}
+
+.acc-chip-bar__label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--fn-muted);
+}
+
+.acc-chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.acc-entity-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--fn-border-strong);
+  background: var(--fn-surface);
+  color: var(--fn-ink);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.acc-entity-chip small {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--fn-muted);
+}
+
+.acc-entity-chip:hover:not(:disabled) {
+  border-color: var(--fn-accent);
+  transform: translateY(-1px);
+}
+
+.acc-entity-chip.is-active {
+  background: #1e341e;
+  border-color: #1e341e;
+  color: #ffffff;
+}
+
+.acc-entity-chip.is-active small {
+  color: #e2f3df;
+}
+
+html[data-theme="editorial"] .acc-entity-chip.is-active {
+  background: #0d465d;
+  border-color: #0d465d;
+  color: #ffffff;
+}
+
+html[data-theme="editorial"] .acc-entity-chip.is-active small {
+  color: #e0f2fe;
+}
+
+/* أزرار مصغرة داخل رأس الحقل */
+.acc-field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.acc-mini-presets {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.acc-mini-btn {
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--fn-border-strong);
+  background: var(--fn-surface-soft);
+  color: var(--fn-ink);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.acc-mini-btn.is-active {
+  background: #1e341e;
+  border-color: #1e341e;
+  color: #ffffff;
+}
+
+html[data-theme="editorial"] .acc-mini-btn.is-active {
+  background: #0d465d;
+  border-color: #0d465d;
+  color: #ffffff;
+}
+
+/* حاسبة فئات النقد للجرد الفعلي */
+.acc-denom-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px dashed var(--fn-border-strong);
+  background: var(--fn-surface-soft);
+  color: var(--fn-ink);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.acc-denom-box {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--fn-border-strong);
+  background: var(--fn-surface-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.acc-denom-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(126px, 1fr));
+  gap: 10px;
+}
+
+.acc-denom-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--fn-surface);
+  border: 1px solid var(--fn-border);
+}
+
+.acc-denom-cell span {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--fn-ink);
+}
+
+.acc-denom-cell input {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--fn-border-strong);
+  background: var(--fn-surface-soft);
+  color: var(--fn-ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.acc-denom-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--fn-border-strong);
+}
+
+.acc-denom-total {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #dcfce7;
+  border: 1px solid #86efac;
+  color: #166534;
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
+/* بطاقة البتّ في طلب العهدة */
+.acc-decision-toggles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+@media (max-width: 560px) {
+  .acc-decision-toggles {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.acc-decision-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1.5px solid var(--fn-border-strong);
+  background: var(--fn-surface);
+  color: var(--fn-ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.acc-decision-btn.is-approve {
+  background: #166534;
+  border-color: #166534;
+  color: #ffffff;
+}
+
+.acc-decision-btn.is-reject {
+  background: #991b1b;
+  border-color: #991b1b;
+  color: #ffffff;
+}
+
+/* محضر فتح الحساب المثبّت (Sticky Opening Protocol) */
+.acc-live-protocol {
+  position: sticky;
+  top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.acc-protocol-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.22);
+}
+
+.acc-protocol-head h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.acc-protocol-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.acc-protocol-badge.is-counted {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.acc-protocol-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+}
+
+.acc-protocol-list div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.acc-protocol-list dt {
+  opacity: 0.88;
+  font-weight: 600;
+}
+
+.acc-protocol-list dd {
+  margin: 0;
+  font-weight: 800;
+  text-align: end;
+  word-break: break-word;
+}
+
+.acc-protocol-total {
+  padding-top: 10px;
+  margin-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.22);
+  font-size: 15px !important;
+}
+
+.acc-protocol-cta .fin-button {
+  width: 100%;
+  justify-content: center;
+}
+
+/* بطاقة محضر الافتتاح الفوري عقب الحفظ */
+.acc-instant-protocol {
+  border-radius: 16px;
+  border: 1.5px solid var(--fn-border-strong);
+  background: var(--fn-surface);
+  padding: 22px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+}
+
+.acc-instant-protocol__banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 14px;
+  margin-bottom: 16px;
+  border-bottom: 1px dashed var(--fn-border-strong);
+}
+
+.acc-instant-protocol__code {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: #1e341e;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+html[data-theme="editorial"] .acc-instant-protocol__code {
+  background: #0d465d;
+}
+
+.acc-instant-protocol__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.acc-instant-protocol__stat {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--fn-surface-soft);
+  border: 1px solid var(--fn-border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.acc-instant-protocol__stat span {
+  font-size: 12px;
+  color: var(--fn-muted);
+}
+
+.acc-instant-protocol__stat strong {
+  font-size: 14.5px;
+  color: var(--fn-ink);
+}
+
+/* ==========================================================================
+   الوضع الليلي (Dark Mode) — تباين WCAG AA >= 4.5:1
+   ========================================================================== */
+html[data-mode="dark"] .acc-missing-vaults {
+  background: #3a2912;
+  border-color: #d97706;
+  color: #fde68a;
+}
+
+html[data-mode="dark"] .acc-missing-chip {
+  background: #fef3c7;
+  border-color: #fde68a;
+  color: #451a03;
+}
+
+html[data-mode="dark"] .acc-denom-total {
+  background: #143524;
+  border-color: #22c55e;
+  color: #bbf7d0;
+}
+
+html[data-mode="dark"] .acc-protocol-badge {
+  background: #3b2c12;
+  color: #fef3c7;
+}
+
+html[data-mode="dark"] .acc-protocol-badge.is-counted {
+  background: #143524;
+  color: #bbf7d0;
+}
+
+html[data-mode="dark"] .acc-draft-bar__dot {
+  background: #4ade80;
+}

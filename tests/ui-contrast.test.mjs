@@ -1067,6 +1067,59 @@ test("صفحة تسجيل مصروف (/finance/expenses/new) تعرض شريط �
   assert.ok(contrast("#fef3c7", "#3b2c12") >= MIN);
 });
 
+test("صفحة فتح خزنة أو عهدة (/finance/accounts) تعرض نبض التغطية وحاسبة الفئات ومحضر الفتح المثبت بتباين >= 4.5:1", () => {
+  const accountsPageSrc = readFileSync(
+    new URL("../src/app/(app)/finance/accounts/page.tsx", import.meta.url),
+    "utf8",
+  );
+  const accountFormSrc = readFileSync(
+    new URL("../src/app/(app)/finance/accounts/account-form.tsx", import.meta.url),
+    "utf8",
+  );
+  const decisionSrc = readFileSync(
+    new URL("../src/app/(app)/finance/accounts/custody-request-decision.tsx", import.meta.url),
+    "utf8",
+  );
+  const actionsSrc = readFileSync(
+    new URL("../src/app/(app)/finance/actions.ts", import.meta.url),
+    "utf8",
+  );
+  const accountsCss = readFileSync(
+    new URL("../src/app/(app)/finance/accounts/accounts.css", import.meta.url),
+    "utf8",
+  );
+
+  // ١) شريط نبض التغطية + استبعاد العُهَد المقفلة + الحراسة المبكرة لصلاحية المدير والمحاسب
+  assert.ok(accountsPageSrc.includes("fin-kpi-strip"));
+  assert.ok(accountsPageSrc.includes("fin-stepper"));
+  assert.ok(accountsPageSrc.includes("computeBranchAccountCoverage"));
+  assert.ok(accountsPageSrc.includes("فتح الحسابات النقدية متاح للمدير والمحاسب فقط"));
+
+  // ٢) بطاقات النوع + حاسبة فئات النقد + محضر الافتتاح المثبت والفوري + إصلاح قرار طلب العهدة
+  assert.ok(accountFormSrc.includes("acc-kind-cards"));
+  assert.ok(accountFormSrc.includes("calculateDenominationTotal"));
+  assert.ok(accountFormSrc.includes("acc-live-protocol"));
+  assert.ok(accountFormSrc.includes("acc-instant-protocol"));
+  assert.ok(accountFormSrc.includes("sessionStorage"));
+  assert.ok(decisionSrc.includes("acc-decision-toggles"));
+  assert.ok(actionsSrc.includes("buildCustodyDecisionPayload"));
+
+  // ٣) تباين بطاقات النوع وشريط الفروع الناقصة وحاسبة الفئات نهارًا وليلًا >= 4.5:1
+  assert.ok(accountsCss.includes("acc-denom-box"));
+  assert.ok(contrast("#ffffff", "#1e341e") >= MIN);
+  assert.ok(contrast("#e2f3df", "#1e341e") >= MIN);
+  assert.ok(contrast("#ffffff", "#0d465d") >= MIN);
+  assert.ok(contrast("#e0f2fe", "#0d465d") >= MIN);
+  assert.ok(contrast("#ffffff", "#166534") >= MIN);
+  assert.ok(contrast("#ffffff", "#991b1b") >= MIN);
+  assert.ok(contrast("#92400e", "#fef3c7") >= MIN);
+  assert.ok(contrast("#fde68a", "#3a2912") >= MIN);
+  assert.ok(contrast("#451a03", "#fef3c7") >= MIN);
+  assert.ok(contrast("#166534", "#dcfce7") >= MIN);
+  assert.ok(contrast("#bbf7d0", "#143524") >= MIN);
+});
+
+
 
 
 
