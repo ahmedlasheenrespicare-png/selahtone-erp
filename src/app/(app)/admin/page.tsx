@@ -1,25 +1,37 @@
 import { redirect } from "next/navigation";
 
 import { AppIcon } from "@/components/app-icon";
-import { type AdminRole } from "@/lib/admin-directory";
-import { isMenuScope, type MenuScope } from "@/lib/menu-scope";
+import PantherSpotlightCard, {
+  type PantherChartPoint,
+  type PantherChartSeries,
+} from "@/components/panther-spotlight-card";
+import PrintPageButton from "@/components/print-page-button";
+import { ROLE_LABELS, type AdminRole } from "@/lib/admin-directory";
 import { canSeeAllBranches, getSession } from "@/lib/auth";
+import { financeDb, financeEnabled } from "@/lib/finance/db";
+import { isMenuScope, type MenuScope } from "@/lib/menu-scope";
 import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
 import { prisma } from "@/lib/prisma";
-import {
-  BranchActiveForm,
-  BranchCreateForm,
-  BranchRenameForm,
-  UserCreateForm,
-} from "./admin-forms";
-import AdminUsersDirectory, { type AdminDirectoryUserRow } from "./admin-users-directory";
+import type { BranchRow, UserRow } from "./admin-forms";
+import AdminHubView, { type SecurityAttemptRow } from "./admin-hub-view";
+import "./admin.css";
 
 export const dynamic = "force-dynamic";
 
+const ATTEMPT_LABELS: Record<
+  SecurityAttemptRow["resultCode"],
+  { label: string; tone: SecurityAttemptRow["tone"] }
+> = {
+  SUCCESS: { label: "دخول ناجح", tone: "ok" },
+  FAILED: { label: "بيانات دخول خاطئة", tone: "err" },
+  THROTTLED: { label: "تقييد مؤقت (محاولات متكررة)", tone: "warn" },
+  PASSWORD_CHANGE_SUCCESS: { label: "تغيير كلمة المرور", tone: "info" },
+  PASSWORD_CHANGE_FAILED: { label: "تعذّر تغيير كلمة المرور", tone: "warn" },
+  PASSWORD_RESET: { label: "تصفير كلمة المرور من الإدارة", tone: "info" },
+};
+
 /**
- * Branch and user directory for managers and accountants. It is deliberately
- * plain: every write is a server action that re-checks the actor, and the
- * screen never shows a password hash or a session token.
+ * Executive governance center for branches, users, permissions, financial custodies & auth audit.
  */
 export default async function AdminPage() {
   const session = await getSession();
@@ -29,20 +41,44 @@ export default async function AdminPage() {
   if (!canSeeAllBranches(session)) {
     return (
       <div className="dashboard">
-        <div className="alert alert-err" role="alert">إدارة الفروع والمستخدمين متاحة للمدير والمحاسب فقط.</div>
+        <div className="alert alert-err" role="alert">
+          إدارة الفروع والمستخدمين متاحة للمدير والمحاسب فقط.
+        </div>
       </div>
     );
   }
 
   const now = new Date();
-  const [branches, users, activeSessionGroups, lastLoginGroups] = await Promise.all([
+  const financeOn = financeEnabled();
+
+  const [
+    branches,
+    users,
+    activeSessionGroups,
+    lastLoginGroups,
+    recentAttempts,
+    activeThrottlesCount,
+    openFinanceAccounts,
+  ] = await Promise.all([
     prisma.branch.findMany({
       orderBy: { code: "asc" },
       include: { _count: { select: { users: true, warehouses: true } } },
     }),
     prisma.user.findMany({
       orderBy: [{ roleCode: "asc" }, { fullName: "asc" }],
-      include: { branch: { select: { nameAr: true } } },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phone: true,
+        roleCode: true,
+        branchId: true,
+        status: true,
+        mustChangePassword: true,
+        menuScope: true,
+        canCancelSales: true,
+        branch: { select: { nameAr: true } },
+      },
     }),
     prisma.authSession
       .groupBy({
@@ -58,173 +94,447 @@ export default async function AdminPage() {
         _max: { createdAt: true },
       })
       .catch(() => []),
+    prisma.loginAttempt
+      .findMany({
+        orderBy: { id: "desc" },
+        take: 120,
+        include: {
+          user: {
+            select: {
+              fullName: true,
+              roleCode: true,
+              branch: { select: { nameAr: true } },
+            },
+          },
+        },
+      })
+      .catch(() => []),
+    prisma.loginThrottle
+      .count({
+        where: { lockedUntil: { gt: now } },
+      })
+      .catch(() => 0),
+    financeOn
+      ? financeDb
+          .serializable((tx) =>
+            tx.query<{
+              id: string;
+              branchId: string;
+              kind: string;
+              holderId: string | null;
+            }>(
+              `SELECT id::text AS id,
+                      branch_id::text AS "branchId",
+                      kind::text AS kind,
+                      holder_id::text AS "holderId"
+                 FROM finance.accounts
+                WHERE closed_at IS NULL`,
+            ),
+          )
+          .catch(() => ({ rows: [] }))
+      : Promise.resolve({ rows: [] }),
   ]);
 
+  // خرائط الجلسات وآخر دخول
+  let totalActiveSessions = 0;
   const activeSessionByUser = new Map<string, number>();
   for (const g of activeSessionGroups) {
     activeSessionByUser.set(g.userId.toString(), g._count._all);
+    totalActiveSessions += g._count._all;
   }
+
   const lastLoginFmt = new Intl.DateTimeFormat("ar-EG-u-nu-latn", {
     dateStyle: "short",
     timeStyle: "short",
     timeZone: "Africa/Cairo",
   });
+  const cairoDayFmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Africa/Cairo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
   const lastLoginByUser = new Map<string, string>();
   for (const g of lastLoginGroups) {
     if (g.userId !== null && g._max.createdAt) {
-      lastLoginByUser.set(g.userId.toString(), lastLoginFmt.format(g._max.createdAt));
+      lastLoginByUser.set(
+        g.userId.toString(),
+        lastLoginFmt.format(g._max.createdAt),
+      );
     }
   }
 
-  const activeBranches = branches.filter((branch) => branch.isActive);
-  const directoryUsers: AdminDirectoryUserRow[] = users.map((user) => ({
-    id: user.id.toString(),
-    fullName: user.fullName,
-    email: user.email,
-    role: user.roleCode as AdminRole,
-    branchId: user.branchId === null ? null : user.branchId.toString(),
-    branchName: user.branch?.nameAr ?? null,
-    isActive: user.status === "ACTIVE",
-    mustChangePassword: user.mustChangePassword,
-    isSelf: user.id.toString() === session.id,
-    menuScope: isMenuScope(user.menuScope) ? (user.menuScope as MenuScope) : "FULL",
-    canCancelSales: user.canCancelSales,
-    activeSessionCount: activeSessionByUser.get(user.id.toString()) ?? 0,
-    lastLoginLabel: lastLoginByUser.get(user.id.toString()) ?? null,
-  }));
+  // خرائط الخزائن والعُهَد المفتوحة (بلا كشف أي أرصدة)
+  const openVaultByBranch = new Set<string>();
+  const openCustodyCountByBranch = new Map<string, number>();
+  const openCustodyByUser = new Map<string, string>();
+
+  for (const acc of openFinanceAccounts.rows) {
+    if (acc.kind === "VAULT") {
+      openVaultByBranch.add(acc.branchId);
+    } else if (acc.kind === "CUSTODY") {
+      openCustodyCountByBranch.set(
+        acc.branchId,
+        (openCustodyCountByBranch.get(acc.branchId) ?? 0) + 1,
+      );
+      if (acc.holderId && !openCustodyByUser.has(acc.holderId)) {
+        openCustodyByUser.set(acc.holderId, acc.id);
+      }
+    }
+  }
+
+  // عدد الموظفين النشطين لكل فرع
+  const activeStaffByBranch = new Map<string, number>();
+  let managerCount = 0;
+  let accountantCount = 0;
+  let agentCount = 0;
+  let activeUsersCount = 0;
+  let mustChangePwCount = 0;
+
+  for (const user of users) {
+    if (user.roleCode === "MANAGER") managerCount += 1;
+    else if (user.roleCode === "ACCOUNTANT") accountantCount += 1;
+    else agentCount += 1;
+
+    if (user.status === "ACTIVE") {
+      activeUsersCount += 1;
+      if (user.branchId !== null) {
+        const bKey = user.branchId.toString();
+        activeStaffByBranch.set(bKey, (activeStaffByBranch.get(bKey) ?? 0) + 1);
+      }
+    }
+    if (user.mustChangePassword) mustChangePwCount += 1;
+  }
+
+  const branchRows: BranchRow[] = branches.map((b) => {
+    const bId = b.id.toString();
+    return {
+      id: bId,
+      code: b.code,
+      nameAr: b.nameAr,
+      city: b.city,
+      phone: b.phone,
+      invoicePrefix: b.invoicePrefix,
+      isActive: b.isActive,
+      userCount: b._count.users,
+      activeUserCount: activeStaffByBranch.get(bId) ?? 0,
+      warehouseCount: b._count.warehouses,
+      hasOpenVault: openVaultByBranch.has(bId),
+      openCustodyCount: openCustodyCountByBranch.get(bId) ?? 0,
+    };
+  });
+
+  const userRows: UserRow[] = users.map((u) => {
+    const uId = u.id.toString();
+    return {
+      id: uId,
+      fullName: u.fullName,
+      email: u.email,
+      phone: u.phone,
+      role: u.roleCode as AdminRole,
+      branchId: u.branchId === null ? null : u.branchId.toString(),
+      branchName: u.branch?.nameAr ?? null,
+      isActive: u.status === "ACTIVE",
+      mustChangePassword: u.mustChangePassword,
+      isSelf: uId === session.id,
+      menuScope: isMenuScope(u.menuScope) ? (u.menuScope as MenuScope) : "FULL",
+      canCancelSales: u.canCancelSales,
+      activeSessionCount: activeSessionByUser.get(uId) ?? 0,
+      lastLoginLabel: lastLoginByUser.get(uId) ?? null,
+      openCustodyId: openCustodyByUser.get(uId) ?? null,
+    };
+  });
+
+  // بناء سجل الأمان + منحنى الـ ٧ أيام الأخيرة
+  const last7Days: string[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now.getTime() - i * 86_400_000);
+    last7Days.push(cairoDayFmt.format(d));
+  }
+  const dayAuthStats = new Map<string, { ok: number; fail: number }>();
+  for (const dKey of last7Days) {
+    dayAuthStats.set(dKey, { ok: 0, fail: 0 });
+  }
+
+  let recentFailedOrThrottled = 0;
+
+  const securityRows: SecurityAttemptRow[] = recentAttempts.map((att) => {
+    const code = att.result as SecurityAttemptRow["resultCode"];
+    const meta = ATTEMPT_LABELS[code] ?? { label: code, tone: "info" as const };
+    const dayKey = cairoDayFmt.format(att.createdAt);
+    const stat = dayAuthStats.get(dayKey);
+    if (stat) {
+      if (code === "SUCCESS") stat.ok += 1;
+      else if (code === "FAILED" || code === "THROTTLED") {
+        stat.fail += 1;
+        recentFailedOrThrottled += 1;
+      }
+    }
+
+    return {
+      id: att.id.toString(),
+      userFullName: att.user?.fullName ?? null,
+      userRoleLabel: att.user?.roleCode
+        ? ROLE_LABELS[att.user.roleCode as AdminRole] ?? att.user.roleCode
+        : null,
+      branchName: att.user?.branch?.nameAr ?? null,
+      shortIdentifierHash: `${att.identifierHash.slice(0, 10)}…`,
+      resultCode: code,
+      resultLabel: meta.label,
+      tone: meta.tone,
+      timestampFormatted: lastLoginFmt.format(att.createdAt),
+    };
+  });
+
+  const activeBranches = branchRows
+    .filter((b) => b.isActive)
+    .map((b) => ({ id: b.id, nameAr: b.nameAr, code: b.code }));
+
+  const vaultsReadyCount = branchRows.filter(
+    (b) => b.isActive && b.hasOpenVault,
+  ).length;
+
+  // السلاسل التفاعلية لبطاقة المؤشر التنفيذي
+  const branchTeamPoints: PantherChartPoint[] =
+    branchRows.length > 0
+      ? branchRows.map((b) => ({
+          label: b.nameAr,
+          shortLabel: b.code,
+          value: b.activeUserCount,
+          formattedValue: `${b.activeUserCount} موظف نشط`,
+          secondaryValue: financeOn ? b.openCustodyCount : b.warehouseCount,
+          secondaryLabel: financeOn ? "العُهَد المفتوحة" : "المستودعات",
+          secondaryFormatted: financeOn
+            ? `${b.openCustodyCount} عهدة`
+            : `${b.warehouseCount} مستودع`,
+          detail: `${b.isActive ? "نشط" : "موقوف"} · ${
+            financeOn
+              ? b.hasOpenVault
+                ? "خزنة مفتوحة"
+                : "بانتظار فتح خزنة"
+              : `${b.warehouseCount} مستودع`
+          }`,
+        }))
+      : [
+          {
+            label: "لا توجد فروع بعد",
+            shortLabel: "—",
+            value: 0,
+            formattedValue: "0 فرع",
+          },
+        ];
+
+  const roleMixPoints: PantherChartPoint[] = [
+    {
+      label: "موظفو الفروع (CS_AGENT)",
+      shortLabel: "موظف فرع",
+      value: agentCount,
+      formattedValue: `${agentCount} حساب`,
+      detail: "عمليات البيع والتحصيل والعهدة داخل الفرع",
+      tone: "accent",
+    },
+    {
+      label: "المحاسبون (ACCOUNTANT)",
+      shortLabel: "محاسب",
+      value: accountantCount,
+      formattedValue: `${accountantCount} حساب`,
+      detail: "إشراف مالي ورقابة على جميع الفروع",
+      tone: "alt",
+    },
+    {
+      label: "المديرون العامّون (MANAGER)",
+      shortLabel: "مدير",
+      value: managerCount,
+      formattedValue: `${managerCount} حساب`,
+      detail: "صلاحية كاملة على الفروع والمستخدمين والإعدادات",
+      tone: "warn",
+    },
+  ];
+
+  const authPulsePoints: PantherChartPoint[] = last7Days.map((dKey) => {
+    const st = dayAuthStats.get(dKey) ?? { ok: 0, fail: 0 };
+    return {
+      label: `يوم ${dKey}`,
+      shortLabel: dKey.slice(5),
+      value: st.ok,
+      formattedValue: `${st.ok} دخول ناجح`,
+      secondaryValue: st.fail,
+      secondaryLabel: "محاولات مرفوضة",
+      secondaryFormatted: `${st.fail} مرفوضة`,
+      detail:
+        st.fail > 0
+          ? `${st.ok} ناجح مقابل ${st.fail} محاولة مرفوضة`
+          : `${st.ok} عملية دخول ناجحة بلا رفض`,
+    };
+  });
+
+  const spotlightSeries: PantherChartSeries[] = [
+    {
+      id: "branch-team",
+      label: "الفروع والفريق",
+      chartVariant: "columns",
+      points: branchTeamPoints,
+    },
+    {
+      id: "roles-mix",
+      label: "هيكل الأدوار",
+      chartVariant: "donut",
+      points: roleMixPoints,
+    },
+    {
+      id: "auth-pulse",
+      label: "نبض الدخول (٧ أيام)",
+      chartVariant: "area",
+      points: authPulsePoints,
+    },
+  ];
 
   return (
     <div className="dashboard">
-      <section className="dashboard-overview" aria-labelledby="admin-title">
-        <div className="dashboard-section-heading">
+      <section className="dashboard-overview no-print" aria-labelledby="admin-title">
+        <div className="admin-header-bar">
           <div>
             <h2 id="admin-title">الفروع والمستخدمون</h2>
-            <p>إضافة فرع أو مستخدم، وإعادة تسمية الفروع، ومراجعة الجلسات النشطة وإيقافها.</p>
+            <p>
+              مركز موحّد لإدارة الفروع والمستودعات، وحوكمة صلاحيات المستخدمين والعُهَد، ومراقبة الجلسات وسجل الأمان.
+            </p>
           </div>
-          <span className="dashboard-scope"><span /> كل الفروع</span>
+          <div className="admin-header-actions">
+            <span className="dashboard-scope">
+              <span />
+              {session.role === "MANAGER"
+                ? "صلاحية المدير العام"
+                : "صلاحية المحاسب (عرض + موظفو الفروع)"}
+            </span>
+            <PrintPageButton
+              label="طباعة الدليل"
+              className="admin-ghost-btn"
+              title="طباعة دليل الفروع والمستخدمين والصلاحيات"
+            />
+          </div>
         </div>
       </section>
 
-      <div className="dashboard-grid">
-        <section className="dashboard-panel" aria-labelledby="branches-title">
-          <div className="dashboard-panel__heading">
-            <div>
-              <p className="dashboard-panel__eyebrow">الفروع</p>
-              <h2 id="branches-title">قائمة الفروع ({branches.length})</h2>
-              <p>خزنة واحدة لكل فرع نشط، وموظف واحد أو أكثر لكل فرع.</p>
-            </div>
-            <span className="dashboard-panel__heading-icon"><AppIcon name="branch" /></span>
-          </div>
-          <div className="dashboard-table-wrap" role="region" aria-label="جدول الفروع" tabIndex={0}>
-            <table className="dashboard-table">
-              <thead>
-                <tr>
-                  <th scope="col">الفرع</th>
-                  <th scope="col">المدينة</th>
-                  <th scope="col">البادئة</th>
-                  <th scope="col">المستودعات</th>
-                  <th scope="col">المستخدمون</th>
-                  <th scope="col">الحالة</th>
-                  <th scope="col">إجراء</th>
-                </tr>
-              </thead>
-              <tbody>
-                {branches.map((branch) => (
-                  <tr key={branch.id.toString()}>
-                    <td>
-                      <div className="dashboard-branch-name">
-                        <span className="dashboard-branch-name__icon"><AppIcon name="branch" /></span>
-                        <span><strong>{branch.nameAr}</strong><small dir="ltr">{branch.code}</small></span>
-                      </div>
-                    </td>
-                    <td>{branch.city ?? "—"}</td>
-                    <td dir="ltr">{branch.invoicePrefix}</td>
-                    <td>{branch._count.warehouses}</td>
-                    <td>{branch._count.users}</td>
-                    <td>{branch.isActive ? "نشط" : "موقوف"}</td>
-                    <td>
-                      <details>
-                        <summary className="dashboard-text-link">تعديل</summary>
-                        <div className="dashboard-setup__items">
-                          <BranchRenameForm
-                            branch={{
-                              id: branch.id.toString(),
-                              code: branch.code,
-                              nameAr: branch.nameAr,
-                              city: branch.city,
-                              invoicePrefix: branch.invoicePrefix,
-                              isActive: branch.isActive,
-                              userCount: branch._count.users,
-                              warehouseCount: branch._count.warehouses,
-                            }}
-                          />
-                          <BranchActiveForm
-                            branch={{
-                              id: branch.id.toString(),
-                              code: branch.code,
-                              nameAr: branch.nameAr,
-                              city: branch.city,
-                              invoicePrefix: branch.invoicePrefix,
-                              isActive: branch.isActive,
-                              userCount: branch._count.users,
-                              warehouseCount: branch._count.warehouses,
-                            }}
-                          />
-                        </div>
-                      </details>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="dashboard-panel__footer"><span>إيقاف فرع يوقف مستودعاته ويمنع المبيعات الجديدة فيه.</span></div>
-        </section>
-
-        <section className="dashboard-panel" aria-labelledby="new-branch-title">
-          <div className="dashboard-panel__heading">
-            <div>
-              <p className="dashboard-panel__eyebrow">إضافة</p>
-              <h2 id="new-branch-title">فرع جديد</h2>
-              <p>يُنشأ معه مستودع افتراضي واحد باسم الفرع.</p>
-            </div>
-            <span className="dashboard-panel__heading-icon"><AppIcon name="warehouse" /></span>
-          </div>
-          <BranchCreateForm />
-        </section>
-
-        <section className="dashboard-panel" aria-labelledby="users-title">
-          <div className="dashboard-panel__heading">
-            <div>
-              <p className="dashboard-panel__eyebrow">المستخدمون</p>
-              <h2 id="users-title">قائمة المستخدمين ({users.length})</h2>
-              <p>موظف الفرع يسجّل المبيعات والمصروفات ويرى عهدته؛ والمدير والمحاسب يديران كل الفروع.</p>
-            </div>
-            <span className="dashboard-panel__heading-icon"><AppIcon name="settings" /></span>
-          </div>
-          <AdminUsersDirectory
-            users={directoryUsers}
-            activeBranches={activeBranches.map((branch) => ({
-              id: branch.id.toString(),
-              nameAr: branch.nameAr,
-              code: branch.code,
-            }))}
-          />
-          <div className="dashboard-panel__footer"><span>لا تُعرض كلمات المرور أو تجزئاتها في أي شاشة.</span></div>
-        </section>
-
-        <section className="dashboard-panel" aria-labelledby="new-user-title">
-          <div className="dashboard-panel__heading">
-            <div>
-              <p className="dashboard-panel__eyebrow">إضافة</p>
-              <h2 id="new-user-title">مستخدم جديد</h2>
-              <p>كلمة المرور تُجزَّأ بـbcrypt ولا تُسجَّل في أي سجل.</p>
-            </div>
-            <span className="dashboard-panel__heading-icon"><AppIcon name="lock" /></span>
-          </div>
-          <UserCreateForm branches={activeBranches.map((branch) => ({ id: branch.id.toString(), nameAr: branch.nameAr, code: branch.code }))} />
-        </section>
+      <div className="no-print">
+        <PantherSpotlightCard
+          icon="branchScorecard"
+          chartVariant="columns"
+          title="حوكمة الفروع والفريق وأمان الوصول"
+          subtitle={`محدّث الآن · ${activeBranches.length} فرع نشط و${activeUsersCount} حساب فاعل`}
+          pill={`${totalActiveSessions} جلسة متصلة الآن`}
+          primary={{
+            label: "المستخدمون النشطون بالنظام",
+            value: String(activeUsersCount),
+            unit: `من ${userRows.length}`,
+            delta: `${managerCount} مدير · ${accountantCount} محاسب · ${agentCount} موظف فرع`,
+            tone: "positive",
+          }}
+          secondary={{
+            label: financeOn ? "جاهزية خزائن الفروع النشطة" : "الفروع النشطة بالتشغيل",
+            value: financeOn
+              ? `${vaultsReadyCount}/${activeBranches.length}`
+              : String(activeBranches.length),
+            unit: "فرع",
+            delta:
+              activeThrottlesCount > 0
+                ? `${activeThrottlesCount} قيد تقييد دخول مؤقت نشط الآن`
+                : mustChangePwCount > 0
+                  ? `${mustChangePwCount} حساب بانتظار تغيير كلمة المرور المؤقتة`
+                  : "جميع الحسابات النشطة مستوفية لسياسة الأمان",
+            tone: activeThrottlesCount > 0 ? "negative" : "positive",
+          }}
+          series={spotlightSeries}
+          actionHref="#admin-directory"
+          actionLabel="الانتقال إلى إدارة المستخدمين والفروع وسجل الأمان"
+        />
       </div>
+
+      <section
+        className="dashboard-pulse-strip no-print"
+        aria-label="ملخص الفروع والمستخدمين والأمان"
+      >
+        <div className="dashboard-pulse-card is-accent">
+          <span className="dashboard-pulse-card__icon" aria-hidden="true">
+            <AppIcon name="branch" />
+          </span>
+          <div className="dashboard-pulse-card__body">
+            <span className="dashboard-pulse-card__label">الفروع التشغيلية</span>
+            <strong className="dashboard-pulse-card__value">
+              {activeBranches.length} <small>نشط من {branchRows.length}</small>
+            </strong>
+            <small className="dashboard-pulse-card__sub">
+              {financeOn
+                ? `${vaultsReadyCount} فرع بخزنة مفتوحة`
+                : "مستودع افتراضي مستقل لكل فرع"}
+            </small>
+          </div>
+        </div>
+
+        <div className="dashboard-pulse-card">
+          <span className="dashboard-pulse-card__icon" aria-hidden="true">
+            <AppIcon name="shield" />
+          </span>
+          <div className="dashboard-pulse-card__body">
+            <span className="dashboard-pulse-card__label">الفريق النشط</span>
+            <strong className="dashboard-pulse-card__value">
+              {activeUsersCount} <small>من {userRows.length}</small>
+            </strong>
+            <small className="dashboard-pulse-card__sub">
+              {userRows.length - activeUsersCount} موقوف ·{" "}
+              {openCustodyByUser.size} بعهدة نقدية مفتوحة
+            </small>
+          </div>
+        </div>
+
+        <div className="dashboard-pulse-card">
+          <span className="dashboard-pulse-card__icon" aria-hidden="true">
+            <AppIcon name="check" />
+          </span>
+          <div className="dashboard-pulse-card__body">
+            <span className="dashboard-pulse-card__label">الجلسات المفتوحة الآن</span>
+            <strong className="dashboard-pulse-card__value">
+              {totalActiveSessions} <small>جلسة</small>
+            </strong>
+            <small className="dashboard-pulse-card__sub">
+              موزّعة على {activeSessionByUser.size} مستخدم متصل
+            </small>
+          </div>
+        </div>
+
+        <div
+          className={`dashboard-pulse-card${
+            activeThrottlesCount > 0 || recentFailedOrThrottled >= 3
+              ? " is-alert"
+              : ""
+          }`}
+        >
+          <span className="dashboard-pulse-card__icon" aria-hidden="true">
+            <AppIcon name="lock" />
+          </span>
+          <div className="dashboard-pulse-card__body">
+            <span className="dashboard-pulse-card__label">الأمان وكلمات المرور</span>
+            <strong className="dashboard-pulse-card__value">
+              {mustChangePwCount} <small>مؤقتة</small>
+            </strong>
+            <small className="dashboard-pulse-card__sub">
+              {activeThrottlesCount > 0
+                ? `${activeThrottlesCount} حظر مؤقت نشط الآن`
+                : `${recentFailedOrThrottled} محاولة دخول مرفوضة خلال ٧ أيام`}
+            </small>
+          </div>
+        </div>
+      </section>
+
+      <AdminHubView
+        actorRole={session.role as AdminRole}
+        financeOn={financeOn}
+        users={userRows}
+        branches={branchRows}
+        activeBranches={activeBranches}
+        securityRows={securityRows}
+        activeThrottlesCount={activeThrottlesCount}
+      />
     </div>
   );
 }

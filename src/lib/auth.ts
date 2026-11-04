@@ -83,7 +83,24 @@ export const getSession = cache(async (): Promise<SessionUser | null> => {
 
   const session = await prisma.authSession.findUnique({
     where: { id: payload.jti },
-    include: { user: { include: { branch: true } } },
+    select: {
+      id: true,
+      userId: true,
+      expiresAt: true,
+      user: {
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          roleCode: true,
+          branchId: true,
+          status: true,
+          mustChangePassword: true,
+          menuScope: true,
+          branch: { select: { nameAr: true } },
+        },
+      },
+    },
   });
   if (!session || session.userId.toString() !== payload.sub) return null;
   if (session.user.status !== "ACTIVE") {
