@@ -31,7 +31,13 @@ const PHASE_COPY: Record<
   },
 };
 
-export default function ColorModeToggle({ showDate = true }: { showDate?: boolean }) {
+export default function ColorModeToggle({
+  showDate = true,
+  compact = false,
+}: {
+  showDate?: boolean;
+  compact?: boolean;
+}) {
   const { colorMode, isAutoTimeMode, clock, toggleColorMode, enableAutoTimeMode } =
     useWorkspaceTheme();
   const uid = useId().replace(/:/g, "");
@@ -61,17 +67,29 @@ export default function ColorModeToggle({ showDate = true }: { showDate?: boolea
   const orbitStyle = {
     "--sky-orbit-deg": `${orbAngle}deg`,
   } as CSSProperties;
+  const shortNumericDate = clock.isoDate ? clock.isoDate.slice(5).replace("-", "/") : "";
 
   return (
-    <div className="workspace-topbar__skydate" role="group" aria-label="تاريخ اليوم وحالة النهار والليل">
+    <div
+      className={`workspace-topbar__skydate${compact ? " is-compact" : ""}`}
+      role="group"
+      aria-label="تاريخ اليوم وحالة النهار والليل"
+    >
       {showDate && clock.dateFormatted ? (
-        <div className="workspace-topbar__date">
+        <div className="workspace-topbar__date" title={`تاريخ اليوم: ${clock.dateFormatted}`}>
           <span className="workspace-topbar__date-icon" aria-hidden="true">
             <AppIcon name="calendar" />
           </span>
           <div className="workspace-topbar__date-copy">
             <small>تاريخ اليوم</small>
-            <time dateTime={clock.isoDate}>{clock.dateFormatted}</time>
+            <time dateTime={clock.isoDate}>
+              <span className="workspace-date__full">{clock.dateFormatted}</span>
+              {compact && shortNumericDate ? (
+                <span className="workspace-date__short" dir="ltr">
+                  {shortNumericDate}
+                </span>
+              ) : null}
+            </time>
           </div>
         </div>
       ) : null}

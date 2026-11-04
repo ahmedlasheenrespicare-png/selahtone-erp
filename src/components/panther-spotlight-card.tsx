@@ -28,10 +28,24 @@ export type PantherChartSeries = {
   points: PantherChartPoint[];
 };
 
+export type PantherSpotlightIconName =
+  | "efficiencyGauge"
+  | "salesGrowth"
+  | "customerCollection"
+  | "cashConversion"
+  | "balanceScale"
+  | "expenseReceipt"
+  | "approvalFlow"
+  | "netProfit"
+  | "serialScan"
+  | "branchScorecard"
+  | "inventoryCube";
+
 export type PantherSpotlightCardProps = {
   title: string;
   subtitle: string;
   pill?: string;
+  icon?: PantherSpotlightIconName;
   primary: PantherMetricBlock;
   secondary: PantherMetricBlock;
   series?: PantherChartSeries[];
@@ -39,6 +53,248 @@ export type PantherSpotlightCardProps = {
   actionLabel: string;
   layout?: "wallet" | "section";
 };
+
+function resolveSpotlightIcon(
+  title: string,
+  explicit?: PantherSpotlightIconName,
+): PantherSpotlightIconName {
+  if (explicit) return explicit;
+  if (title.includes("الكفاءة التشغيلية") || title.includes("الشامل")) {
+    return "efficiencyGauge";
+  }
+  if (title.includes("التحوّل النقدي") || title.includes("التحول النقدي")) {
+    return "cashConversion";
+  }
+  if (title.includes("تقييم وكفاءة الفروع") || title.includes("كفاءة الفروع")) {
+    return "branchScorecard";
+  }
+  if (title.includes("السيريالات") || (title.includes("الأصناف") && title.includes("حركة"))) {
+    return "serialScan";
+  }
+  if (title.includes("الربحية") || title.includes("صافي التشغيل")) {
+    return "netProfit";
+  }
+  if (title.includes("التحصيل")) {
+    return "customerCollection";
+  }
+  if (title.includes("مراحل الاعتماد")) {
+    return "approvalFlow";
+  }
+  if (title.includes("مصروفات")) {
+    return "expenseReceipt";
+  }
+  if (title.includes("الميزان النقدي") || title.includes("حركة العهدة")) {
+    return "balanceScale";
+  }
+  if (title.includes("المخزون")) {
+    return "inventoryCube";
+  }
+  return "salesGrowth";
+}
+
+function SpotlightSvgIcon({ name }: { name: PantherSpotlightIconName }) {
+  switch (name) {
+    case "efficiencyGauge":
+      return (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          strokeWidth="1.75"
+          stroke="currentColor"
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M4.2 17.6a9 9 0 1 1 15.6 0" />
+          <path d="M12 4.2v2" />
+          <path d="M5.7 8.5l1.5 1.1" />
+          <path d="M18.3 8.5l-1.5 1.1" />
+          <path d="M12 13.5l4.2-4.2" />
+          <circle cx="12" cy="13.5" r="1.9" />
+        </svg>
+      );
+    case "salesGrowth":
+      return (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          strokeWidth="1.75"
+          stroke="currentColor"
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M3 16.8l5.4-5.4 4 3.4L21 6.4" />
+          <path d="M15.4 6.4H21V12" />
+          <circle cx="8.4" cy="11.4" r="1.2" fill="currentColor" stroke="none" />
+          <circle cx="12.4" cy="14.8" r="1.2" fill="currentColor" stroke="none" />
+          <path d="M3 20.2h18" opacity="0.45" />
+        </svg>
+      );
+    case "customerCollection":
+      return (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          strokeWidth="1.75"
+          stroke="currentColor"
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <circle cx="9" cy="7.5" r="3.2" />
+          <path d="M3.4 19.5c0-3 2.5-5.2 5.6-5.2 1.1 0 2.1.3 3 .8" />
+          <circle cx="16.8" cy="15.6" r="4.4" />
+          <path d="m14.9 15.6 1.3 1.3 2.6-2.7" />
+        </svg>
+      );
+    case "cashConversion":
+      return (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          strokeWidth="1.75"
+          stroke="currentColor"
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M20 11A8.1 8.1 0 0 0 5.3 7.2L4 8.5" />
+          <path d="M4 4.5v4h4" />
+          <path d="M4 13a8.1 8.1 0 0 0 14.7 3.8L20 15.5" />
+          <path d="M20 19.5v-4h-4" />
+          <circle cx="12" cy="12" r="2.7" />
+        </svg>
+      );
+    case "balanceScale":
+      return (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          strokeWidth="1.75"
+          stroke="currentColor"
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M12 3.2v16.8" />
+          <path d="M8.2 20h7.6" />
+          <path d="M5 7h14" />
+          <path d="M5 7 2.5 13h5L5 7Z" />
+          <path d="M19 7l-2.5 6h5L19 7Z" />
+          <path d="M2.5 13a2.5 2.5 0 0 0 5 0" />
+          <path d="M16.5 13a2.5 2.5 0 0 0 5 0" />
+        </svg>
+      );
+    case "expenseReceipt":
+      return (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          strokeWidth="1.75"
+          stroke="currentColor"
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M5 4.6A1.6 1.6 0 0 1 6.6 3h8.8A1.6 1.6 0 0 1 17 4.6V21l-2.2-1.5L12.5 21l-2.3-1.5L8 21l-3-1.5V4.6Z" />
+          <path d="M8.4 8h5.2" />
+          <path d="M8.4 11.4h3.4" />
+          <path d="M14 14.6h7" />
+          <path d="m18.6 12.2 2.4 2.4-2.4 2.4" />
+        </svg>
+      );
+    case "approvalFlow":
+      return (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          strokeWidth="1.75"
+          stroke="currentColor"
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M13 21H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v5.5" />
+          <path d="m7.5 8.5 1.4 1.4 2.8-2.8" />
+          <path d="M7.5 13.5h4.5" />
+          <circle cx="17.2" cy="16.8" r="3.8" />
+          <path d="m15.7 16.8 1.1 1.1 2.2-2.3" />
+        </svg>
+      );
+    case "netProfit":
+      return (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          strokeWidth="1.75"
+          stroke="currentColor"
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M6.2 4h11.6l3.4 5.5L12 20.8 2.8 9.5 6.2 4Z" />
+          <path d="M2.8 9.5h18.4" />
+          <path d="M9.6 4 7.7 9.5 12 20.8l4.3-11.3L14.4 4" />
+        </svg>
+      );
+    case "serialScan":
+      return (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          strokeWidth="1.75"
+          stroke="currentColor"
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M4 7.2V5.4A1.4 1.4 0 0 1 5.4 4h1.8" />
+          <path d="M16.8 4h1.8A1.4 1.4 0 0 1 20 5.4v1.8" />
+          <path d="M20 16.8v1.8a1.4 1.4 0 0 1-1.4 1.4h-1.8" />
+          <path d="M7.2 20H5.4A1.4 1.4 0 0 1 4 18.6v-1.8" />
+          <path d="M7.5 8.5v7" />
+          <path d="M10.5 8.5v7" />
+          <path d="M13.5 8.5v7" />
+          <path d="M16.5 8.5v7" />
+        </svg>
+      );
+    case "branchScorecard":
+      return (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          strokeWidth="1.75"
+          stroke="currentColor"
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M4.2 10.5V19a1.2 1.2 0 0 0 1.2 1.2h13.2a1.2 1.2 0 0 0 1.2-1.2v-8.5" />
+          <path d="M3 10.2 5 4.8h14l2 5.4" />
+          <path d="M3 10.2a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0" />
+          <path d="m12 13.2.85 1.75 1.95.28-1.4 1.36.33 1.91L12 17.6l-1.73.9.33-1.91-1.4-1.36 1.95-.28L12 13.2Z" />
+        </svg>
+      );
+    case "inventoryCube":
+      return (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          strokeWidth="1.75"
+          stroke="currentColor"
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M12 3 4 7.5v9L12 21l8-4.5v-9L12 3Z" />
+          <path d="M4 7.5 12 12l8-4.5" />
+          <path d="M12 12v9" />
+          <path d="m8 5.25 8 4.5" />
+        </svg>
+      );
+  }
+}
 
 const SVG_W = 320;
 const SVG_H = 114;
@@ -252,6 +508,7 @@ export default function PantherSpotlightCard({
   title,
   subtitle,
   pill,
+  icon,
   primary,
   secondary,
   series,
@@ -261,6 +518,7 @@ export default function PantherSpotlightCard({
 }: PantherSpotlightCardProps) {
   const titleId = useId();
   const gradientId = useId();
+  const resolvedIcon = resolveSpotlightIcon(title, icon);
 
   const resolvedSeries =
     series && series.length > 0 ? series : buildFallbackSeries(primary, secondary);
@@ -316,22 +574,12 @@ export default function PantherSpotlightCard({
       <div className="monthly-panther__inner">
         <div className="monthly-panther__head">
           <div className="monthly-panther__brand">
-            <div className="monthly-panther__icon" aria-hidden="true">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                strokeWidth="1.6"
-                stroke="currentColor"
-                fill="none"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-                <path d="M3 12m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" />
-                <path d="M9 8m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" />
-                <path d="M15 4m0 1a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1z" />
-                <path d="M4 20l14 0" />
-              </svg>
+            <div
+              className="monthly-panther__icon"
+              data-spotlight-icon={resolvedIcon}
+              aria-hidden="true"
+            >
+              <SpotlightSvgIcon name={resolvedIcon} />
             </div>
             <div>
               <h2 id={titleId} className="monthly-panther__title">

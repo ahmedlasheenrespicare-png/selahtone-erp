@@ -2,32 +2,56 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { AppIcon } from "@/components/app-icon";
 import { BrandMark } from "@/components/brand-mark";
+import ColorModeToggle from "@/components/color-mode-toggle";
 import { LuckyPantherSwitch } from "@/components/lucky-panther-switch";
 import { SelatoneFacebookLogo, SelatoneFacebookMark } from "@/components/selatone-facebook-logo";
 import type { MenuScope } from "@/lib/menu-scope";
 import { WORKSPACE_THEME_GROUPS } from "@/lib/workspace-theme";
-import { isCurrentPath, navigationGroups } from "./navigation-items";
+import LogoutButton from "./logout-button";
+import {
+  isCurrentPath,
+  mobileBottomDockItems,
+  navigationGroups,
+  resolveActiveBottomDockHref,
+  type BottomDockRole,
+} from "./navigation-items";
 import { useWorkspaceTheme } from "./workspace-theme-provider";
 
 type AppNavigationProps = {
   canViewAllBranches: boolean;
+  role?: BottomDockRole;
   financeEnabled?: boolean;
   menuScope?: MenuScope;
   inventoryEnabled?: boolean;
+  userName?: string;
+  roleLabel?: string;
+  branchLabel?: string;
 };
 
-export function AppNavigation({ canViewAllBranches, financeEnabled = false, menuScope = "FULL", inventoryEnabled = false }: AppNavigationProps) {
+export function AppNavigation({
+  canViewAllBranches,
+  role,
+  financeEnabled = false,
+  menuScope = "FULL",
+  inventoryEnabled = false,
+  userName = "مستخدم النظام",
+  roleLabel = "مساحة العمل",
+  branchLabel = "كل الفروع",
+}: AppNavigationProps) {
   const pathname = usePathname();
-  const { theme, setTheme, dashboardBgByTheme, setThemeDashboardBg } = useWorkspaceTheme();
+  const { theme, setTheme, dashboardBgByTheme, setThemeDashboardBg, clock } = useWorkspaceTheme();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(true);
   const [openThemeGroups, setOpenThemeGroups] = useState<string[]>(() =>
     WORKSPACE_THEME_GROUPS.map((group) => group.id),
   );
   const toggleRef = useRef<HTMLButtonElement>(null);
+  const accountTriggerRef = useRef<HTMLButtonElement>(null);
+  const accountPopoverRef = useRef<HTMLDivElement>(null);
   // يُفتح الأب منسدلًا إن كان المسار الحالي داخل أحد أبنائه، فلا يضيع موضع
   // الموظف حين ينتقل بين شاشات البيع.
   const [openParents, setOpenParents] = useState<string[]>(() =>
@@ -36,6 +60,24 @@ export function AppNavigation({ canViewAllBranches, financeEnabled = false, menu
       .filter((item) => item.children?.some((child) => child.href && isCurrentPath(pathname, child.href)))
       .map((item) => item.label),
   );
+
+  useEffect(() => {
+    setAccountOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!accountOpen) return;
+    function handlePointerDown(event: MouseEvent): void {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (accountTriggerRef.current?.contains(target)) return;
+      if (accountPopoverRef.current?.contains(target)) return;
+      setAccountOpen(false);
+    }
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [accountOpen]);
+
   function toggleParent(label: string): void {
     setOpenParents((open) => (open.includes(label) ? open.filter((entry) => entry !== label) : [...open, label]));
   }
@@ -46,14 +88,34 @@ export function AppNavigation({ canViewAllBranches, financeEnabled = false, menu
   }
 
   const isSelatoneBrand = theme === "wallet-selahtone";
+  const userInitial = Array.from(userName)[0] ?? "ص";
+  const effectiveRole: BottomDockRole = role ?? (canViewAllBranches ? "MANAGER" : "CS_AGENT");
+  const dockItems = mobileBottomDockItems(
+    effectiveRole,
+    financeEnabled,
+    menuScope,
+    inventoryEnabled,
+  );
+  const activeDockHref = resolveActiveBottomDockHref(pathname, dockItems);
+  const dockListStyle = {
+    "--dock-cols": String(dockItems.length),
+  } as CSSProperties;
 
   return (
+    <>
     <aside
       className="workspace-sidebar"
       onKeyDown={(event) => {
-        if (event.key === "Escape" && menuOpen) {
-          setMenuOpen(false);
-          toggleRef.current?.focus();
+        if (event.key === "Escape") {
+          if (accountOpen) {
+            setAccountOpen(false);
+            accountTriggerRef.current?.focus();
+            return;
+          }
+          if (menuOpen) {
+            setMenuOpen(false);
+            toggleRef.current?.focus();
+          }
         }
       }}
     >
@@ -62,7 +124,10 @@ export function AppNavigation({ canViewAllBranches, financeEnabled = false, menu
           <Link
             href="/dashboard"
             className="workspace-brand workspace-brand--selahtone"
-            onClick={() => setMenuOpen(false)}
+            onClick={() => {
+              setMenuOpen(false);
+              setAccountOpen(false);
+            }}
             aria-label="صلة تون للخدمات السمعية، لوحة القيادة"
           >
             <SelatoneFacebookLogo className="workspace-brand__fb-card" />
@@ -75,7 +140,15 @@ export function AppNavigation({ canViewAllBranches, financeEnabled = false, menu
             </span>
           </Link>
         ) : (
-          <Link href="/dashboard" className="workspace-brand" onClick={() => setMenuOpen(false)} aria-label="صلة تون، لوحة القيادة">
+          <Link
+            href="/dashboard"
+            className="workspace-brand"
+            onClick={() => {
+              setMenuOpen(false);
+              setAccountOpen(false);
+            }}
+            aria-label="صلة تون، لوحة القيادة"
+          >
             <BrandMark className="workspace-brand__mark" />
             <span className="workspace-brand__text">
               <strong>صله <span>تون</span></strong>
@@ -83,6 +156,70 @@ export function AppNavigation({ canViewAllBranches, financeEnabled = false, menu
             </span>
           </Link>
         )}
+
+        <div className="workspace-mobile-strip" aria-label="شريط مساحة العمل والتاريخ والحساب">
+          <div className="workspace-mobile-strip__title" title="نظام إدارة صلة تون — مساحة العمل">
+            <span className="workspace-mobile-strip__title-icon" aria-hidden="true">
+              <AppIcon name="dashboard" />
+            </span>
+            <span className="workspace-mobile-strip__title-copy">
+              <small>نظام إدارة صلة تون</small>
+              <strong>مساحة العمل</strong>
+            </span>
+          </div>
+
+          <ColorModeToggle compact />
+
+          <div className="workspace-mobile-strip__inline-actions">
+            <div
+              className="workspace-user workspace-user--compact"
+              title={`${userName} — ${roleLabel} · ${branchLabel}`}
+            >
+              <span className="workspace-user__avatar" aria-hidden="true">{userInitial}</span>
+              <span className="workspace-user__details">
+                <strong>{userName}</strong>
+                <small>{roleLabel} <span aria-hidden="true">·</span> {branchLabel}</small>
+              </span>
+            </div>
+            <Link
+              href="/change-password"
+              className="workspace-account-link workspace-account-link--compact"
+              title="تغيير كلمة المرور"
+              aria-label="تغيير كلمة المرور"
+            >
+              <AppIcon name="lock" />
+              <span>كلمة المرور</span>
+            </Link>
+            <LogoutButton />
+          </div>
+
+          <button
+            ref={accountTriggerRef}
+            type="button"
+            className={`workspace-mobile-account__trigger${accountOpen ? " is-open" : ""}`}
+            aria-expanded={accountOpen}
+            aria-controls="workspace-mobile-account-popover"
+            aria-label={`حساب المستخدم ومساحة العمل: ${userName}`}
+            title={`${userName} — ${roleLabel} · ${branchLabel}`}
+            onClick={() => {
+              setAccountOpen((open) => {
+                const next = !open;
+                if (next) setMenuOpen(false);
+                return next;
+              });
+            }}
+          >
+            <span className="workspace-user__avatar workspace-mobile-account__avatar" aria-hidden="true">
+              {userInitial}
+            </span>
+            <span className="workspace-mobile-account__name">{userName}</span>
+            <AppIcon
+              name="arrow"
+              className={`workspace-mobile-account__chevron${accountOpen ? " is-open" : ""}`}
+            />
+          </button>
+        </div>
+
         <button
           ref={toggleRef}
           className="workspace-nav-toggle"
@@ -90,10 +227,61 @@ export function AppNavigation({ canViewAllBranches, financeEnabled = false, menu
           aria-expanded={menuOpen}
           aria-controls="workspace-navigation"
           aria-label={menuOpen ? "إغلاق القائمة" : "فتح القائمة"}
-          onClick={() => setMenuOpen((open) => !open)}
+          onClick={() => {
+            setMenuOpen((open) => {
+              const next = !open;
+              if (next) setAccountOpen(false);
+              return next;
+            });
+          }}
         >
           <AppIcon name={menuOpen ? "close" : "menu"} />
         </button>
+
+        {accountOpen ? (
+          <div
+            ref={accountPopoverRef}
+            id="workspace-mobile-account-popover"
+            className="workspace-mobile-popover"
+            role="dialog"
+            aria-label="بطاقة مساحة العمل وحساب المستخدم"
+          >
+            <div className="workspace-mobile-popover__head">
+              <span className="workspace-topbar__title-icon" aria-hidden="true">
+                <AppIcon name="dashboard" />
+              </span>
+              <div className="workspace-mobile-popover__head-copy">
+                <small>نظام إدارة صلة تون</small>
+                <strong>مساحة العمل</strong>
+              </div>
+              {clock.dateFormatted ? (
+                <time className="workspace-mobile-popover__date" dateTime={clock.isoDate}>
+                  {clock.dateFormatted}
+                </time>
+              ) : null}
+            </div>
+
+            <div className="workspace-mobile-popover__user">
+              <span className="workspace-user__avatar" aria-hidden="true">{userInitial}</span>
+              <div className="workspace-user__details">
+                <strong>{userName}</strong>
+                <small>{roleLabel} <span aria-hidden="true">·</span> {branchLabel}</small>
+              </div>
+            </div>
+
+            <div className="workspace-mobile-popover__actions">
+              <Link
+                href="/change-password"
+                className="workspace-account-link"
+                onClick={() => setAccountOpen(false)}
+              >
+                <AppIcon name="lock" />
+                <span>كلمة المرور</span>
+              </Link>
+              <LogoutButton />
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <nav id="workspace-navigation" className={`workspace-navigation${menuOpen ? " is-open" : ""}`} aria-label="التنقل الرئيسي">
@@ -252,5 +440,63 @@ export function AppNavigation({ canViewAllBranches, financeEnabled = false, menu
         <span><strong>مساحة عملك</strong><small>{canViewAllBranches ? "إدارة أوضح لكل الفروع" : "متابعة أوضح لفرعك"}</small></span>
       </div>
     </aside>
+
+    <nav className="workspace-bottom-dock" aria-label="التنقل السريع السفلي">
+      <ul className="workspace-bottom-dock__list" style={dockListStyle}>
+        {dockItems.map((item) => {
+          const isMenuAction = item.action === "open-menu";
+          const isActive = isMenuAction ? menuOpen : Boolean(item.href && activeDockHref === item.href);
+          const itemClassName = `workspace-bottom-dock__item${isActive ? " is-active" : ""}${
+            item.featured ? " is-featured" : ""
+          }`;
+
+          return (
+            <li className="workspace-bottom-dock__cell" key={item.id}>
+              {item.href ? (
+                <Link
+                  href={item.href}
+                  className={itemClassName}
+                  aria-current={isActive ? "page" : undefined}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setAccountOpen(false);
+                  }}
+                >
+                  <span className="workspace-bottom-dock__icon" aria-hidden="true">
+                    <AppIcon name={item.icon} />
+                  </span>
+                  <span className="workspace-bottom-dock__label">{item.label}</span>
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  className={itemClassName}
+                  aria-expanded={menuOpen}
+                  aria-controls="workspace-navigation"
+                  onClick={() => {
+                    setAccountOpen(false);
+                    setMenuOpen((open) => {
+                      const next = !open;
+                      if (next && typeof window !== "undefined") {
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                      }
+                      return next;
+                    });
+                  }}
+                >
+                  <span className="workspace-bottom-dock__icon" aria-hidden="true">
+                    <AppIcon name={menuOpen ? "close" : item.icon} />
+                  </span>
+                  <span className="workspace-bottom-dock__label">
+                    {menuOpen ? "إغلاق" : item.label}
+                  </span>
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+    </>
   );
 }

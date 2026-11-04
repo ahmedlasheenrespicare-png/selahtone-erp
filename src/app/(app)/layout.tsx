@@ -48,6 +48,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     WORKSPACE_TIMEZONE,
   );
 
+  const roleLabel = ROLE_LABEL[session.role] ?? session.role;
+  const branchLabel = session.branchName ?? "كل الفروع";
+
   return (
     <WorkspaceThemeProvider
       initialTheme={initialTheme}
@@ -57,7 +60,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       initialClock={initialClock}
     >
       <a className="workspace-skip" href="#workspace-content">تخطي إلى المحتوى</a>
-      <AppNavigation canViewAllBranches={canSeeAllBranches(session)} financeEnabled={financeEnabled()} menuScope={session.menuScope} inventoryEnabled={inventoryEnabled()} />
+      <AppNavigation
+        canViewAllBranches={canSeeAllBranches(session)}
+        role={session.role}
+        financeEnabled={financeEnabled()}
+        menuScope={session.menuScope}
+        inventoryEnabled={inventoryEnabled()}
+        userName={session.name}
+        roleLabel={roleLabel}
+        branchLabel={branchLabel}
+      />
 
       <div className="workspace-main">
         <div className="workspace-starfield" aria-hidden="true">
@@ -78,7 +90,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               <span className="workspace-user__avatar" aria-hidden="true">{Array.from(session.name)[0] ?? "ص"}</span>
               <span className="workspace-user__details">
                 <strong>{session.name}</strong>
-                <small>{ROLE_LABEL[session.role] ?? session.role} <span aria-hidden="true">·</span> {session.branchName ?? "كل الفروع"}</small>
+                <small>{roleLabel} <span aria-hidden="true">·</span> {branchLabel}</small>
               </span>
             </div>
             <Link href="/change-password" className="workspace-account-link" title="تغيير كلمة المرور" aria-label="تغيير كلمة المرور">
