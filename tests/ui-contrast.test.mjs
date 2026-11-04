@@ -1026,6 +1026,48 @@ test("صفحة بيع جديد تعرض نبض الكاونتر والتسعير
   assert.ok(contrast("#ccfbf1", "#13393c") >= MIN);
 });
 
+test("صفحة تسجيل مصروف (/finance/expenses/new) تعرض شريط النبض وسند القيد المثبت وتباين >= 4.5:1", () => {
+  const newExpensePageSrc = readFileSync(
+    new URL("../src/app/(app)/finance/expenses/new/page.tsx", import.meta.url),
+    "utf8",
+  );
+  const expenseFormSrc = readFileSync(
+    new URL("../src/app/(app)/finance/expenses/new/expense-form.tsx", import.meta.url),
+    "utf8",
+  );
+  const newExpenseCss = readFileSync(
+    new URL("../src/app/(app)/finance/expenses/new/new-expense.css", import.meta.url),
+    "utf8",
+  );
+
+  // ١) شريط نبض المصروفات + خطوات دورة الرقابة + سجل آخر ٥ قيود + التقييد بصلاحيات المدير والمحاسب وموظف الفرع
+  assert.ok(newExpensePageSrc.includes("fin-kpi-strip"));
+  assert.ok(newExpensePageSrc.includes("fin-stepper"));
+  assert.ok(newExpensePageSrc.includes("آخر ٥ مصروفات"));
+  assert.ok(newExpensePageSrc.includes("تسجيل المصروفات متاح للمدير والمحاسب"));
+
+  // ٢) اختيار البند السريع + حاسبة الضريبة المشمولة + كاشف التكرار + سند القيد المثبت والفوري + المسودة
+  assert.ok(expenseFormSrc.includes("expense-description-input"));
+  assert.ok(expenseFormSrc.includes("calculateInclusiveTaxExtract"));
+  assert.ok(expenseFormSrc.includes("detectExpenseDuplicateRisk"));
+  assert.ok(expenseFormSrc.includes("exp-live-voucher"));
+  assert.ok(expenseFormSrc.includes("exp-instant-voucher"));
+  assert.ok(expenseFormSrc.includes("sessionStorage"));
+
+  // ٣) تباين شرائح البند وشريط التكرار وسند القيد المثبت نهارًا وليلًا >= 4.5:1
+  assert.ok(newExpenseCss.includes("exp-cat-chip"));
+  assert.ok(contrast("#ffffff", "#1e341e") >= MIN);
+  assert.ok(contrast("#e2f3df", "#1e341e") >= MIN);
+  assert.ok(contrast("#ffffff", "#0d465d") >= MIN);
+  assert.ok(contrast("#e0f2fe", "#0d465d") >= MIN);
+  assert.ok(contrast("#991b1b", "#fee2e2") >= MIN);
+  assert.ok(contrast("#fecaca", "#3b171b") >= MIN);
+  assert.ok(contrast("#92400e", "#fef3c7") >= MIN);
+  assert.ok(contrast("#fde68a", "#3a2912") >= MIN);
+  assert.ok(contrast("#fef3c7", "#3b2c12") >= MIN);
+});
+
+
 
 
 
