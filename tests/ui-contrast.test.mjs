@@ -959,6 +959,38 @@ test("صفحة الفروع والمستخدمون تحمي تراتبية ال�
   assert.ok(contrast("#0b1512", "#86efac") >= MIN);
 });
 
+test("صفحة فحص الجاهزية والأمان تفحص المحاور الأربعة وتعرض مصفوفة الفروع ومسبار الصحة وتباين WCAG >= 4.5:1", () => {
+  const setupPageSrc = readFileSync(
+    new URL("../src/app/(app)/setup/page.tsx", import.meta.url),
+    "utf8",
+  );
+  const setupViewSrc = readFileSync(
+    new URL("../src/app/(app)/setup/setup-readiness-view.tsx", import.meta.url),
+    "utf8",
+  );
+
+  // ١) مؤشر الجاهزية (gauge) + المحاور الأربعة + قاعدة عدم تشغيل تهيئة البيانات على قاعدة قائمة
+  assert.ok(setupPageSrc.includes("PantherSpotlightCard"));
+  assert.ok(setupPageSrc.includes('chartVariant="gauge"'));
+  assert.ok(setupPageSrc.includes("isValidAuthSecret"));
+  assert.ok(setupPageSrc.includes("لا تُشغّل تهيئة البيانات على قاعدة قائمة"));
+  assert.ok(!setupPageSrc.includes("أرسل لي لقطة هذه الصفحة"));
+
+  // ٢) التبويبات الثلاثة + مسبار /api/health + تصدير CSV
+  assert.ok(setupViewSrc.includes("مصفوفة جاهزية الفروع"));
+  assert.ok(setupViewSrc.includes("بيئة التشغيل والوحدات"));
+  assert.ok(setupViewSrc.includes("/api/health"));
+  assert.ok(setupViewSrc.includes("downloadCsvFile"));
+
+  // ٣) تباين شارات الفحص نهارًا وليلًا >= 4.5:1
+  assert.ok(contrast("#166534", "#dcfce7") >= MIN);
+  assert.ok(contrast("#92400e", "#fef3c7") >= MIN);
+  assert.ok(contrast("#991b1b", "#fee2e2") >= MIN);
+  assert.ok(contrast("#bbf7d0", "#112418") >= MIN);
+  assert.ok(contrast("#fde68a", "#251f12") >= MIN);
+  assert.ok(contrast("#fecaca", "#241416") >= MIN);
+});
+
 
 
 
