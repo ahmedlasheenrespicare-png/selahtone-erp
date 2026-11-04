@@ -283,6 +283,46 @@ export type SidebarNavOptions = {
 };
 
 /**
+ * يبني عناصر القائمة المنسدلة تحت «لوحة القيادة» / «لوحة فرعي» في الشريط الجانبي
+ * بحيث تفتح عند النقر على «لوحة القيادة» جميع محتويات اللوحة كلٌّ على حدة مع احترام الدور وتفعيل المالية.
+ */
+export function buildDashboardSidebarChildren(
+  role: BottomDockRole,
+  financeEnabled = false,
+): NavigationItem[] {
+  const isStaff = role === "CS_AGENT";
+  return [
+    { label: "الوضع المركّز (نبض اليوم)", icon: "dashboard", href: "/dashboard" },
+    { label: "عرض شامل (كل الأقسام)", icon: "reports", href: "/dashboard?section=all" },
+    { label: "نبض عمليات اليوم", icon: "sales", href: "/dashboard?section=pulse" },
+    { label: "وتيرة الشهر وتوقّع الإغلاق", icon: "calendar", href: "/dashboard?section=pace" },
+    ...(!isStaff
+      ? [{ label: "درع الرقابة والخصومات", icon: "shield" as const, href: "/dashboard?section=governance" }]
+      : []),
+    { label: "الحافظة الذكية ومهام القرار", icon: "cash", href: "/dashboard?section=wallet" },
+    { label: "مؤشر الكفاءة الشامل", icon: "check", href: "/dashboard?section=efficiency" },
+    { label: "مبيعات الشهر وتطورها", icon: "sales", href: "/dashboard?section=monthly-sales" },
+    { label: "التحصيل والعملاء", icon: "receipt", href: "/dashboard?section=collections" },
+    { label: "التحوّل النقدي الصافي", icon: "transfers", href: "/dashboard?section=cash-conversion" },
+    ...(financeEnabled
+      ? [
+          { label: "الميزان النقدي والخزائن", icon: "cash" as const, href: "/dashboard?section=cash-balance" },
+          { label: "مصروفات الشهر والصرف", icon: "expenses" as const, href: "/dashboard?section=monthly-expenses" },
+        ]
+      : []),
+    {
+      label: isStaff ? "حركة الأصناف والسيريالات" : "الربحية وصافي التشغيل",
+      icon: isStaff ? "products" : "stockValue",
+      href: "/dashboard?section=profitability",
+    },
+    { label: "تقييم وكفاءة الفروع", icon: "branch", href: "/dashboard?section=branch-efficiency" },
+    { label: "رادار التحصيل وأعمار الذمم", icon: "receipt", href: "/dashboard?section=aging-radar" },
+    { label: "آخر العمليات الحيّة", icon: "receipt", href: "/dashboard?section=live-feed" },
+    { label: "صحّة الفروع والمخزون", icon: "branch", href: "/dashboard?section=branch-health" },
+  ];
+}
+
+/**
  * الهيكل المنظّم للقائمة الجانبية حسب الدور الوظيفي الفعلي (MANAGER / ACCOUNTANT / CS_AGENT)
  * ونطاق القائمة (FULL / LIMITED) وتفعيل الوحدات:
  * 1) العمليات اليومية المتكررة في الأعلى (ظاهرة مباشرة بلا طيّ مثل «بيع جديد»).
@@ -305,12 +345,20 @@ export function sidebarNavigationGroups(
     badges?.pendingExpenses && badges.pendingExpenses > 0 ? badges.pendingExpenses : undefined;
   const openSettlements =
     badges?.openSettlements && badges.openSettlements > 0 ? badges.openSettlements : undefined;
+  const dashboardChildren = buildDashboardSidebarChildren(role, financeEnabled);
 
   if (menuScope === "LIMITED") {
     return [
       {
         label: "المتابعة",
-        items: [{ label: "لوحة القيادة", icon: "dashboard", href: "/dashboard" }],
+        items: [
+          {
+            label: "لوحة القيادة",
+            icon: "dashboard",
+            href: "/dashboard",
+            children: dashboardChildren,
+          },
+        ],
       },
       {
         label: "المبيعات",
@@ -373,7 +421,12 @@ export function sidebarNavigationGroups(
       {
         label: "المتابعة التنفيذية",
         items: [
-          { label: "لوحة القيادة", icon: "dashboard", href: "/dashboard" },
+          {
+            label: "لوحة القيادة",
+            icon: "dashboard",
+            href: "/dashboard",
+            children: dashboardChildren,
+          },
           { label: "إحصائيات المبيعات", icon: "reports", href: "/sales/stats" },
         ],
       },
@@ -429,7 +482,12 @@ export function sidebarNavigationGroups(
       {
         label: "المتابعة والفواتير",
         items: [
-          { label: "لوحة القيادة", icon: "dashboard", href: "/dashboard" },
+          {
+            label: "لوحة القيادة",
+            icon: "dashboard",
+            href: "/dashboard",
+            children: dashboardChildren,
+          },
           { label: "سجل الفواتير والتحصيل", icon: "receipt", href: "/sales" },
           ...(inventoryEnabled
             ? [
@@ -492,7 +550,14 @@ export function sidebarNavigationGroups(
   return [
     {
       label: "الرئيسية",
-      items: [{ label: "لوحة فرعي", icon: "dashboard", href: "/dashboard" }],
+      items: [
+        {
+          label: "لوحة فرعي",
+          icon: "dashboard",
+          href: "/dashboard",
+          children: dashboardChildren,
+        },
+      ],
     },
     {
       label: "الكاونتر والمبيعات",
@@ -528,23 +593,40 @@ export function sidebarNavigationGroups(
 
 /**
  * يحدد الرابط الأدق مطابقةً للمسار المفتوح داخل القائمة الجانبية (الأطول بادئةً)،
- * فيمنع إضاءة رابطين معًا مثل (/sales مع /sales/new) أو (/finance مع /finance/expenses).
+ * فيمنع إضاءة رابطين معًا مثل (/sales مع /sales/new) أو (/finance مع /finance/expenses)،
+ * ويدعم مطابقة القسم النشط في لوحة القيادة (/dashboard?section=...).
  */
 export function resolveActiveSidebarHref(
   pathname: string,
   groups: readonly NavigationGroup[],
+  activeDashboardSection?: string | null,
 ): string | null {
+  if (
+    pathname === "/dashboard" &&
+    activeDashboardSection &&
+    activeDashboardSection !== "pulse-wallet"
+  ) {
+    const targetSectionHref = `/dashboard?section=${activeDashboardSection}`;
+    for (const group of groups) {
+      for (const item of group.items) {
+        if (item.children?.some((child) => child.href === targetSectionHref)) {
+          return targetSectionHref;
+        }
+      }
+    }
+  }
+
   let bestHref: string | null = null;
   for (const group of groups) {
     for (const item of group.items) {
-      if (item.href && isCurrentPath(pathname, item.href)) {
+      if (item.href && !item.href.includes("?") && isCurrentPath(pathname, item.href)) {
         if (!bestHref || item.href.length > bestHref.length) {
           bestHref = item.href;
         }
       }
       if (item.children) {
         for (const child of item.children) {
-          if (child.href && isCurrentPath(pathname, child.href)) {
+          if (child.href && !child.href.includes("?") && isCurrentPath(pathname, child.href)) {
             if (!bestHref || child.href.length > bestHref.length) {
               bestHref = child.href;
             }

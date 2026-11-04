@@ -1119,6 +1119,66 @@ test("صفحة فتح خزنة أو عهدة (/finance/accounts) تعرض نبض
   assert.ok(contrast("#bbf7d0", "#143524") >= MIN);
 });
 
+test("قائمة أقسام لوحة القيادة المنسدلة (/dashboard) تفرد كل محتوى على حدة وتحقق تباين >= 4.5:1 نهارًا وليلًا", () => {
+  const dashPageSrc = readFileSync(
+    new URL("../src/app/(app)/dashboard/page.tsx", import.meta.url),
+    "utf8",
+  );
+  const switcherSrc = readFileSync(
+    new URL("../src/app/(app)/dashboard/dashboard-section-switcher.tsx", import.meta.url),
+    "utf8",
+  );
+  const switcherCss = readFileSync(
+    new URL("../src/app/(app)/dashboard/dashboard-switcher.css", import.meta.url),
+    "utf8",
+  );
+
+  // ١) ربط القائمة المنسدلة بكل محتويات لوحة القيادة منفردة + العرض الشامل
+  assert.ok(dashPageSrc.includes("DashboardSectionSwitcher"));
+  for (const sectionId of [
+    '"pulse-wallet"',
+    '"all"',
+    '"pulse"',
+    '"wallet"',
+    '"efficiency"',
+    '"monthly-sales"',
+    '"collections"',
+    '"cash-conversion"',
+    '"cash-balance"',
+    '"monthly-expenses"',
+    '"profitability"',
+    '"branch-efficiency"',
+    '"aging-radar"',
+    '"live-feed"',
+    '"branch-health"',
+  ]) {
+    assert.ok(dashPageSrc.includes(sectionId), `القسم ${sectionId} مفقود من قائمة لوحة القيادة`);
+  }
+
+  // ٢) القائمة المنسدلة (listbox) + المزامنة مع القائمة المنسدلة لـ «لوحة القيادة» في الشريط الجانبي
+  const appNavSrc = readFileSync(
+    new URL("../src/app/(app)/app-navigation.tsx", import.meta.url),
+    "utf8",
+  );
+  const navItemsSrc = readFileSync(
+    new URL("../src/app/(app)/navigation-items.ts", import.meta.url),
+    "utf8",
+  );
+  assert.ok(switcherSrc.includes('role="listbox"'));
+  assert.ok(switcherSrc.includes("stepDashboardSection"));
+  assert.ok(switcherSrc.includes("sessionStorage"));
+  assert.ok(switcherSrc.includes("replaceState"));
+  assert.ok(navItemsSrc.includes("buildDashboardSidebarChildren"));
+  assert.ok(appNavSrc.includes("selahtone:dashboard-section-select"));
+  assert.ok(appNavSrc.includes("selahtone:dashboard-section-changed"));
+
+  // ٣) تباين الشارات والخيار المحدّد نهارًا وليلًا >= 4.5:1 وإخفاء الشريط عند الطباعة
+  assert.ok(switcherCss.includes("@media print"));
+  assert.ok(contrast("#991b1b", "#fee2e2") >= MIN);
+  assert.ok(contrast("#fecaca", "#3b171b") >= MIN);
+  assert.ok(contrast("#ffffff", "#1f5c2e") >= MIN);
+  assert.ok(contrast("#ffffff", "#0d5a78") >= MIN);
+});
 
 
 
@@ -1131,3 +1191,31 @@ test("صفحة فتح خزنة أو عهدة (/finance/accounts) تعرض نبض
 
 
 
+
+
+
+test("لوحة شرح إعدادات أقسام لوحة القيادة تستخدم ألوانًا دلالية مقروءة نهارًا وليلًا", () => {
+  const switcherSrc = readFileSync(new URL("../src/app/(app)/dashboard/dashboard-section-switcher.tsx", import.meta.url), "utf8");
+  const switcherCss = readFileSync(new URL("../src/app/(app)/dashboard/dashboard-switcher.css", import.meta.url), "utf8");
+  const workspaceCss = readFileSync(new URL("../src/app/(app)/workspace.css", import.meta.url), "utf8");
+  assert.ok(switcherSrc.includes("dash-settings-panel"));
+  assert.ok(switcherSrc.includes("إظهار الكل (استعادة الافتراضي)"));
+  assert.ok(switcherSrc.includes("selahtone:dashboard-visibility:"));
+  assert.ok(switcherSrc.includes("شرح بقية خيارات لوحة القيادة"));
+  assert.ok(switcherCss.includes(".dash-settings-option__copy small{color:var(--db-muted)"));
+  assert.ok(switcherCss.includes("background:var(--db-surface-soft)"));
+  assert.ok(switcherCss.includes("data-hidden-toggles"));
+
+  const dayBlock = workspaceCss.match(/\.dashboard\s*\{(?=[^}]*--db-surface:)([\s\S]*?)\n\}/);
+  const selatoneBlock = workspaceCss.match(/\.workspace-shell\[data-theme="wallet-selahtone"\]\s+\.dashboard\s*\{([\s\S]*?)\n\}/);
+  assert.ok(dayBlock && selatoneBlock, "رموز ألوان لوحة القيادة النهارية مفقودة");
+  for (const [name, block] of [["wallet", dayBlock], ["wallet-selahtone", selatoneBlock]]) {
+    const color = (tokenName) => {
+      const match = block[1].match(new RegExp(`--${tokenName}:\\s*(#[0-9a-fA-F]{6})`));
+      assert.ok(match, `رمز --${tokenName} مفقود من ثيم ${name}`);
+      return match[1];
+    };
+    assert.ok(contrast(color("db-ink"), color("db-surface")) >= MIN, `${name}: نص اللوحة على سطحها`);
+    assert.ok(contrast(color("db-muted"), color("db-surface-soft")) >= MIN, `${name}: النص التوضيحي على سطحه`);
+  }
+});

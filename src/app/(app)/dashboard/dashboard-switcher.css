@@ -1,0 +1,592 @@
+/* ==========================================================================
+   شريط وقائمة أقسام لوحة القيادة المنسدلة (Dashboard Section Switcher)
+   متوافق مع ثيمَي النظام (wallet / wallet-selahtone) والوضعين النهاري والليلي بتباين >= 4.5:1
+   ========================================================================== */
+
+.dash-switcher-bar {
+  position: relative;
+  z-index: 28;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  border-radius: 16px;
+  border: 1px solid var(--db-border-strong);
+  background: var(--db-surface);
+  box-shadow: 0 8px 24px -18px rgba(15, 23, 42, 0.22);
+}
+
+.workspace-shell[data-dashboard-bg="on"] .dash-switcher-bar {
+  box-shadow:
+    0 0 0 1px var(--cl-card-rim),
+    0 18px 36px -20px rgba(8, 22, 14, 0.34);
+}
+
+.dash-dropdown-wrap {
+  position: relative;
+  flex: 1 1 320px;
+  max-width: 560px;
+  min-width: 0;
+}
+
+.dash-dropdown-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 13px;
+  border-radius: 13px;
+  border: 1.5px solid var(--db-border-strong);
+  background: var(--db-surface-soft);
+  color: var(--db-ink);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.14s ease;
+}
+
+.dash-dropdown-trigger:hover {
+  background: var(--db-surface-tint);
+  border-color: var(--db-primary);
+}
+
+.dash-dropdown-trigger[aria-expanded="true"] {
+  border-color: var(--db-primary);
+  background: var(--db-surface-tint);
+}
+
+.dash-dropdown-trigger__start {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+
+.dash-dropdown-trigger__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: var(--db-primary);
+  color: #ffffff;
+}
+
+.dash-dropdown-trigger__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.dash-dropdown-trigger__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dash-dropdown-trigger__eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--db-muted);
+}
+
+.dash-dropdown-trigger__title {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--db-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dash-dropdown-trigger__end {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.dash-dropdown-chevron {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--db-surface);
+  border: 1px solid var(--db-border);
+  color: var(--db-ink);
+  font-size: 12px;
+  transition: transform 0.18s ease;
+}
+
+.dash-dropdown-trigger[aria-expanded="true"] .dash-dropdown-chevron {
+  transform: rotate(180deg);
+}
+
+/* شارات الأعداد داخل القائمة والزر */
+.dash-section-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 21px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  background: var(--db-surface-tint);
+  border: 1px solid var(--db-border-strong);
+  color: var(--db-ink);
+}
+
+.dash-section-badge.is-alert {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+
+.workspace-shell[data-color-mode="dark"] .dash-section-badge.is-alert {
+  background: #3b171b;
+  border-color: #f87171;
+  color: #fecaca;
+}
+
+/* القائمة المنسدلة الغنية */
+.dash-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  inset-inline-start: 0;
+  width: min(520px, calc(100vw - 32px));
+  max-height: min(72vh, 540px);
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  border: 1.5px solid var(--db-border-strong);
+  background: var(--db-surface);
+  box-shadow: 0 22px 48px -12px rgba(8, 15, 26, 0.36);
+  overflow: hidden;
+  animation: dashMenuOpen 0.15s ease-out;
+}
+
+@keyframes dashMenuOpen {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dash-dropdown-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--db-border);
+  background: var(--db-surface-soft);
+}
+
+.dash-dropdown-search svg {
+  width: 16px;
+  height: 16px;
+  color: var(--db-muted);
+  flex-shrink: 0;
+}
+
+.dash-dropdown-search input {
+  width: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--db-ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+.dash-dropdown-search input::placeholder {
+  color: var(--db-muted);
+}
+
+.dash-dropdown-scroll {
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dash-dropdown-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dash-dropdown-group__title {
+  padding: 4px 10px 2px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--db-muted);
+}
+
+.dash-dropdown-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 11px;
+  border-radius: 11px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--db-ink);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: background-color 0.13s ease, border-color 0.13s ease;
+}
+
+.dash-dropdown-option:hover {
+  background: var(--db-surface-tint);
+  border-color: var(--db-border);
+}
+
+.dash-dropdown-option__start {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.dash-dropdown-option__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: var(--db-surface-soft);
+  border: 1px solid var(--db-border);
+  color: var(--db-ink);
+}
+
+.dash-dropdown-option__icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.dash-dropdown-option__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dash-dropdown-option__copy strong {
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.dash-dropdown-option__copy small {
+  font-size: 11.5px;
+  color: var(--db-muted);
+  line-height: 1.4;
+}
+
+.dash-dropdown-option__end {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+}
+
+.dash-dropdown-option.is-selected {
+  background: var(--db-primary);
+  border-color: var(--db-primary);
+  color: #ffffff;
+}
+
+.dash-dropdown-option.is-selected .dash-dropdown-option__icon {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+}
+
+.dash-dropdown-option.is-selected .dash-dropdown-option__copy small {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.dash-dropdown-option.is-selected .dash-section-badge:not(.is-alert) {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #ffffff;
+}
+
+.dash-dropdown-empty {
+  margin: 0;
+  padding: 18px 12px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--db-muted);
+}
+
+/* أزرار التنقل السريع (السابق / التالي / عرض شامل) */
+.dash-switcher-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.dash-step-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 12px;
+  border: 1px solid var(--db-border-strong);
+  background: var(--db-surface-soft);
+}
+
+.dash-step-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 5px 11px;
+  border-radius: 9px;
+  border: 0;
+  background: transparent;
+  color: var(--db-ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.14s ease;
+}
+
+.dash-step-btn:hover {
+  background: var(--db-surface-tint);
+}
+
+.dash-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 7px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--db-border-strong);
+  background: var(--db-surface-soft);
+  color: var(--db-ink);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.dash-mode-toggle:hover {
+  background: var(--db-surface-tint);
+}
+
+.dash-mode-toggle.is-active {
+  background: var(--db-primary);
+  border-color: var(--db-primary);
+  color: #ffffff;
+}
+
+/* منصة العرض المنفرد لكل قسم على حدة */
+.dash-single-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: dashStageReveal 0.18s ease-out;
+}
+
+@keyframes dashStageReveal {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dash-single-stage--card {
+  width: 100%;
+  max-width: 680px;
+  margin-inline: auto;
+}
+
+.dash-single-stage--pulse-wallet {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dash-pulse-wallet-center {
+  width: 100%;
+  max-width: 640px;
+  margin-inline: auto;
+}
+
+.dash-focus-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px dashed var(--db-border-strong);
+  background: var(--db-surface-soft);
+  color: var(--db-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dash-focus-hint button {
+  border: 0;
+  background: transparent;
+  color: var(--db-ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+@media (max-width: 720px) {
+  .dash-switcher-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .dash-dropdown-wrap {
+    flex: 1 1 auto;
+    max-width: 100%;
+  }
+
+  .dash-dropdown-menu {
+    inset-inline: 0;
+    width: 100%;
+  }
+
+  .dash-switcher-controls {
+    justify-content: space-between;
+  }
+}
+
+@media print {
+  .dash-switcher-bar,
+  .dash-focus-hint {
+    display: none !important;
+  }
+}
+
+
+/* عناصر الوضع المركّز المركّبة، بالإضافة إلى الأقسام المنفردة */
+.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="pulse-sales"] .dashboard-pulse-strip > :nth-child(1),
+.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="pulse-collections"] .dashboard-pulse-strip > :nth-child(2),
+.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="pulse-tasks"] .dashboard-pulse-strip > :nth-child(3),
+.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="pulse-stock"] .dashboard-pulse-strip > :nth-child(4),
+.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="pace-progress"] .dashboard-pace-strip__progress,
+.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="pace-average"] .dashboard-pace-metric:nth-child(1),
+.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="pace-projection"] .dashboard-pace-metric:nth-child(2),
+.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="pace-comparison"] .dashboard-pace-metric:nth-child(3),
+.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="governance-summary"] .dashboard-governance__head,
+.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="governance-alerts"] .dashboard-governance__list,
+.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="wallet-cards"] .dashboard-wallet__viewport,
+.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="wallet-pocket"] .dashboard-pocket-wrap,
+.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="wallet-controls"] .dashboard-wallet__controls,
+.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="wallet-hint"] .dashboard-wallet__hint {
+  display: none !important;
+}
+
+/* لوحة شرح المؤشر وإعدادات الظهور */
+.dash-settings-panel{margin-top:20px;padding:20px;border:1px solid var(--db-border-strong);border-radius:18px;background:var(--db-surface);color:var(--db-ink);box-shadow:0 10px 26px -20px rgba(8,22,14,.34)}
+.dash-settings-panel__head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.dash-settings-panel__eyebrow{color:var(--db-muted);font-size:11px;font-weight:800}
+.dash-settings-panel h2{margin:3px 0 4px;color:var(--db-ink);font-size:19px}
+.dash-settings-panel__head p,.dash-settings-guide p{margin:0;color:var(--db-muted);font-size:13px;line-height:1.7}
+.dash-settings-panel__head p strong{color:var(--db-ink)}
+.dash-settings-reset{flex:0 0 auto;min-height:38px;padding:7px 12px;border:1px solid var(--db-border-strong);border-radius:10px;background:var(--db-surface-soft);color:var(--db-ink);font:inherit;font-size:12px;font-weight:800;cursor:pointer}
+.dash-settings-reset:hover:not(:disabled){background:var(--db-surface-tint)}
+.dash-settings-reset:disabled{opacity:.58;cursor:not-allowed}
+.dash-settings-guide{margin-top:14px;padding:14px;border:1px solid var(--db-border);border-radius:13px;background:var(--db-surface-soft)}
+.dash-settings-guide__columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:10px}
+.dash-settings-guide__columns div{display:grid;gap:3px}
+.dash-settings-guide__columns strong{color:var(--db-ink);font-size:12px}
+.dash-settings-guide__columns span{color:var(--db-muted);font-size:12px;line-height:1.65}
+.dash-settings-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,290px),1fr));gap:9px;margin-top:13px}
+.dash-settings-option{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:62px;padding:10px 12px;border:1px solid var(--db-border);border-radius:12px;background:var(--db-surface);cursor:pointer}
+.dash-settings-option.is-hidden{background:var(--db-surface-soft)}
+.dash-settings-option__copy{display:grid;gap:3px}
+.dash-settings-option__copy strong{color:var(--db-ink);font-size:12.5px}
+.dash-settings-option__copy small{color:var(--db-muted);font-size:11.5px;line-height:1.5}
+.dash-settings-option input{width:19px;height:19px;flex:0 0 auto;accent-color:var(--db-primary);cursor:pointer}
+.dash-settings-empty{margin-top:12px;padding:12px;border:1px solid var(--db-border-strong);border-radius:11px;background:var(--db-surface-tint);color:var(--db-ink);font-size:13px;font-weight:700}
+.dash-settings-all-guides{margin-top:15px;border-top:1px solid var(--db-border);padding-top:12px}
+.dash-settings-all-guides summary{color:var(--db-ink);font-size:13px;font-weight:800;cursor:pointer}
+.dash-settings-all-guides__list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:8px;margin-top:10px}
+.dash-settings-all-guides__list article{padding:10px 12px;border:1px solid var(--db-border);border-radius:10px;background:var(--db-surface-soft)}
+.dash-settings-all-guides__list h3{margin:0 0 4px;color:var(--db-ink);font-size:12.5px}
+.dash-settings-all-guides__list p,.dash-settings-all-guides__list small{margin:0;color:var(--db-muted);font-size:11.5px;line-height:1.55}
+.dash-settings-all-guides__list small{display:block;margin-top:4px}
+
+/* إخفاء المكوّنات فورًا، مع حفظ حالة مستقلة لكل خيار */
+.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="part-pulse"] [data-dash-part="pulse"],
+.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="part-pace"] [data-dash-part="pace"],
+.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="part-governance"] [data-dash-part="governance"],
+.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="part-wallet"] [data-dash-part="wallet"],
+.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="part-focus-hint"] [data-dash-part="focus-hint"],
+.dash-single-stage[data-dashboard-section="pulse"][data-hidden-toggles~="pulse-sales"] .dashboard-pulse-strip>:nth-child(1),
+.dash-single-stage[data-dashboard-section="pulse"][data-hidden-toggles~="pulse-collections"] .dashboard-pulse-strip>:nth-child(2),
+.dash-single-stage[data-dashboard-section="pulse"][data-hidden-toggles~="pulse-tasks"] .dashboard-pulse-strip>:nth-child(3),
+.dash-single-stage[data-dashboard-section="pulse"][data-hidden-toggles~="pulse-stock"] .dashboard-pulse-strip>:nth-child(4),
+.dash-single-stage[data-dashboard-section="pulse"][data-hidden-toggles~="pulse-comparison"] .dashboard-pulse-card__sub,
+.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="pulse-comparison"] .dashboard-pulse-card__sub,
+.dash-single-stage[data-dashboard-section="all"][data-hidden-toggles~="pulse-comparison"] .dashboard-pulse-card__sub,
+.dash-single-stage[data-dashboard-section="pace"][data-hidden-toggles~="pace-progress"] .dashboard-pace-strip__progress,
+.dash-single-stage[data-dashboard-section="pace"][data-hidden-toggles~="pace-average"] .dashboard-pace-metric:nth-child(1),
+.dash-single-stage[data-dashboard-section="pace"][data-hidden-toggles~="pace-projection"] .dashboard-pace-metric:nth-child(2),
+.dash-single-stage[data-dashboard-section="pace"][data-hidden-toggles~="pace-comparison"] .dashboard-pace-metric:nth-child(3),
+.dash-single-stage[data-dashboard-section="governance"][data-hidden-toggles~="governance-summary"] .dashboard-governance__head,
+.dash-single-stage[data-dashboard-section="governance"][data-hidden-toggles~="governance-alerts"] .dashboard-governance__list,
+.dash-single-stage[data-dashboard-section="wallet"][data-hidden-toggles~="wallet-cards"] .dashboard-wallet__viewport,
+.dash-single-stage[data-dashboard-section="wallet"][data-hidden-toggles~="wallet-pocket"] .dashboard-pocket-wrap,
+.dash-single-stage[data-dashboard-section="wallet"][data-hidden-toggles~="wallet-controls"] .dashboard-wallet__controls,
+.dash-single-stage[data-dashboard-section="wallet"][data-hidden-toggles~="wallet-hint"] .dashboard-wallet__hint,
+.dash-single-stage[data-dashboard-section="aging-radar"][data-hidden-toggles~="aging-buckets"] .dashboard-aging-buckets,
+.dash-single-stage[data-dashboard-section="aging-radar"][data-hidden-toggles~="aging-priority"] .dashboard-aging-priority,
+.dash-single-stage[data-dashboard-section="live-feed"][data-hidden-toggles~="feed-heading"] .dashboard-surface-card__head,
+.dash-single-stage[data-dashboard-section="live-feed"][data-hidden-toggles~="feed-rows"] .dashboard-feed,
+.dash-single-stage[data-dashboard-section="branch-health"][data-hidden-toggles~="branch-stock-alerts"] .dashboard-stock-box,
+.dash-single-stage[data-dashboard-section="branch-health"][data-hidden-toggles~="branch-cards"] .dashboard-branches-box,
+.dash-single-stage[data-dashboard-section="all"][data-hidden-toggles~="all-pulse"] .dashboard-pulse-strip,
+.dash-single-stage[data-dashboard-section="all"][data-hidden-toggles~="all-pace"] .dashboard-pace-strip,
+.dash-single-stage[data-dashboard-section="all"][data-hidden-toggles~="all-governance"] .dashboard-governance,
+.dash-single-stage[data-dashboard-section="all"][data-hidden-toggles~="all-wallet"] .dashboard-cards-grid__wallet,
+.dash-single-stage[data-dashboard-section="all"][data-hidden-toggles~="all-spotlights"] .dashboard-cards-grid__item,
+.dash-single-stage[data-dashboard-section="all"][data-hidden-toggles~="all-aging"] .dashboard-aging-card,
+.dash-single-stage[data-dashboard-section="all"][data-hidden-toggles~="all-activity"] .dashboard-lower-grid>:first-child,
+.dash-single-stage[data-dashboard-section="all"][data-hidden-toggles~="all-branches"] .dashboard-lower-grid>:last-child{display:none!important}
+.dash-single-stage[data-hidden-toggles~="metric-pair"] .monthly-panther__metrics,
+.dash-single-stage[data-hidden-toggles~="view-tabs"] .monthly-panther__tabs,
+.dash-single-stage[data-hidden-toggles~="live-hud"] .monthly-panther__hud,
+.dash-single-stage[data-hidden-toggles~="visual-chart"] .monthly-panther__chart,
+.dash-single-stage[data-hidden-toggles~="action-footer"] .monthly-panther__foot{display:none!important}
+
+@media(max-width:640px){.dash-settings-panel{padding:15px}.dash-settings-panel__head{flex-direction:column}.dash-settings-guide__columns{grid-template-columns:1fr}}
+@media print{.dash-settings-panel{display:none!important}}
