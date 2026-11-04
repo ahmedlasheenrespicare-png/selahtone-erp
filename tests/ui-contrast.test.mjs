@@ -1219,3 +1219,41 @@ test("لوحة شرح إعدادات أقسام لوحة القيادة تستخ
     assert.ok(contrast(color("db-muted"), color("db-surface-soft")) >= MIN, `${name}: النص التوضيحي على سطحه`);
   }
 });
+
+test("تصميم الدمج الأخير يضع الحافظة داخل الشبكة، والشبكة المضغوطة تضعها فوق اللوحة", () => {
+  const dashboard = readFileSync(new URL("../src/app/(app)/dashboard/page.tsx", import.meta.url), "utf8");
+  const switcher = readFileSync(new URL("../src/app/(app)/dashboard/dashboard-section-switcher.tsx", import.meta.url), "utf8");
+  const switcherCss = readFileSync(new URL("../src/app/(app)/dashboard/dashboard-switcher.css", import.meta.url), "utf8");
+  const walletStart = dashboard.indexOf("const fullDashboardWallet");
+  const spaciousStart = dashboard.indexOf("const fullDashboardView");
+  const compactStart = dashboard.indexOf("const compactDashboardView", spaciousStart);
+  const renderEnd = dashboard.indexOf("return (\n          <DashboardSectionSwitcher", compactStart);
+  assert.ok(spaciousStart >= 0 && compactStart > spaciousStart && renderEnd > compactStart);
+  const spacious = dashboard.slice(spaciousStart, compactStart);
+  const compact = dashboard.slice(compactStart, renderEnd);
+  assert.ok(dashboard.slice(walletStart, spaciousStart).includes("dashboard-cards-grid__wallet"));
+  assert.ok(spacious.includes("className=\"dashboard-cards-grid\"") && spacious.includes("fullDashboardWallet"), "التصميم الواسع يضم الحافظة في الشبكة");
+  assert.ok(spacious.indexOf("fullDashboardWallet") < spacious.indexOf("allSpotlightCards"), "الحافظة أول بطاقة في الشبكة الواسعة");
+  assert.ok(!compact.includes("dashboard-cards-grid__wallet"), "التصميم المضغوط لا يضع الحافظة داخل شبكة المؤشرات");
+  assert.ok(dashboard.includes("fullViewWallet={fullDashboardWallet}"));
+  assert.ok(dashboard.includes("compactView={compactDashboardView}"));
+  assert.ok(switcher.includes('selahtone:dashboard-all-layout:${userScopeKey}'));
+  assert.ok(switcher.includes('window.localStorage.getItem(layoutStorageKey) === "spacious"'));
+  assert.ok(switcher.includes('chooseAllLayout("spacious")'));
+  assert.ok(switcher.includes('chooseAllLayout("compact")'));
+  assert.ok(switcher.includes("تصميم الدمج الأخير (واسع)"));
+  assert.ok(switcher.includes("الشبكة المضغوطة"));
+  assert.ok(switcher.includes("data-dashboard-layout={allLayout}"));
+  assert.ok(switcher.includes('{allLayout === "compact" ? fullViewWallet : null}'));
+  assert.ok(switcher.includes('{allLayout === "compact" ? compactView : fullView}'));
+  assert.ok(spacious.includes("allPanelBeforeCards") && spacious.includes("allPanelAfterCards"));
+  for (const content of ["pulseNode", "paceNode", "governanceNode", "agingRadarNode", "liveFeedNode", "branchHealthNode"]) {
+    assert.ok(dashboard.includes(content), `${content} يجب أن يبقى موصولًا بلوحة المتابعة`);
+  }
+  assert.ok(switcherCss.includes(".dashboard-all-panel"));
+  assert.ok(switcherCss.includes(".dashboard-all-wallet"));
+  assert.ok(switcherCss.includes("grid-template-columns: repeat(2, minmax(0, 1fr))"), "الشبكة المضغوطة تتكون من عمودين");
+  assert.ok(switcherCss.includes('.dash-single-stage--all[data-dashboard-layout="compact"] .dashboard-all-panel .monthly-panther__chart { height: 96px; }'), "تصغير الرسوم محصور بخيار الشبكة المضغوطة");
+  assert.ok(switcherCss.includes("@media (max-width: 760px)"), "تعود الشبكة إلى عمود واحد على الهاتف");
+  assert.ok(switcherCss.includes(".dash-all-layout-picker"));
+});

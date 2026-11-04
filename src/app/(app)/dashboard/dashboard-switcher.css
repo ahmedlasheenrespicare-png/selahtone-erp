@@ -590,3 +590,149 @@
 
 @media(max-width:640px){.dash-settings-panel{padding:15px}.dash-settings-panel__head{flex-direction:column}.dash-settings-guide__columns{grid-template-columns:1fr}}
 @media print{.dash-settings-panel{display:none!important}}
+
+/* وضع «عرض شامل»: جميع الأقسام في حاوية موحّدة، والحافظة في بطاقة مستقلة */
+.dashboard-all-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+  padding: clamp(14px, 2vw, 24px);
+  border: 1px solid var(--db-border-strong);
+  border-radius: 22px;
+  background: var(--db-surface);
+  color: var(--db-ink);
+  box-shadow: 0 12px 32px -24px rgba(8, 22, 14, 0.38);
+}
+.dashboard-all-panel__head {
+  padding: 2px 2px 12px;
+  border-bottom: 1px solid var(--db-border);
+}
+.dashboard-all-panel__eyebrow {
+  color: var(--db-muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+.dashboard-all-panel__head h2,
+.dashboard-all-wallet__head h2 {
+  margin: 3px 0 4px;
+  color: var(--db-ink);
+  font-size: 18px;
+  font-weight: 850;
+}
+.dashboard-all-panel__head p,
+.dashboard-all-wallet__head p {
+  margin: 0;
+  color: var(--db-muted);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+.dashboard-all-panel > .dashboard-pulse-strip,
+.dashboard-all-panel > .dashboard-pace-strip,
+.dashboard-all-panel > .dashboard-governance,
+.dashboard-all-panel > .dashboard-aging-card,
+.dashboard-all-panel > .dashboard-lower-grid,
+.dashboard-all-panel > .dashboard-cards-grid {
+  margin-block: 0;
+}
+.dashboard-all-wallet {
+  width: 100%;
+  max-width: 780px;
+  margin-inline: auto;
+  padding: 16px 18px 4px;
+  border: 1px solid var(--db-border-strong);
+  border-radius: 18px;
+  background: var(--db-surface-soft);
+  color: var(--db-ink);
+}
+.dashboard-all-wallet__head {
+  margin-bottom: 8px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--db-border);
+}
+.dashboard-all-wallet > .dashboard-wallet {
+  max-width: 100%;
+}
+@media (max-width: 720px) {
+  .dashboard-all-panel { gap: 13px; border-radius: 16px; }
+  .dashboard-all-wallet { padding: 13px 12px 2px; }
+}
+
+/* الشبكة المضغوطة لا تُفعّل إلا عند اختيارها في العرض الشامل */
+.dash-single-stage--all[data-dashboard-layout="compact"] .dashboard-all-panel .dashboard-cards-grid.dashboard-all-panel__spotlights {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.dash-single-stage--all[data-dashboard-layout="compact"] .dashboard-all-panel .dashboard-cards-grid__item > .monthly-panther {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 16px;
+  border-radius: 16px;
+}
+.dash-single-stage--all[data-dashboard-layout="compact"] .dashboard-all-panel .monthly-panther__inner { gap: 12px; }
+.dash-single-stage--all[data-dashboard-layout="compact"] .dashboard-all-panel .monthly-panther__head { gap: 8px; padding-bottom: 10px; }
+.dash-single-stage--all[data-dashboard-layout="compact"] .dashboard-all-panel .monthly-panther__brand { gap: 8px; }
+.dash-single-stage--all[data-dashboard-layout="compact"] .dashboard-all-panel .monthly-panther__icon { width: 32px; height: 32px; }
+.dash-single-stage--all[data-dashboard-layout="compact"] .dashboard-all-panel .monthly-panther__icon svg { width: 17px; height: 17px; }
+.dash-single-stage--all[data-dashboard-layout="compact"] .dashboard-all-panel .monthly-panther__title { font-size: 14px; }
+.dash-single-stage--all[data-dashboard-layout="compact"] .dashboard-all-panel .monthly-panther__subtitle { font-size: 11px; }
+.dash-single-stage--all[data-dashboard-layout="compact"] .dashboard-all-panel .monthly-panther__metrics { gap: 4px; }
+.dash-single-stage--all[data-dashboard-layout="compact"] .dashboard-all-panel .monthly-panther__metric:first-child { padding-inline-end: 10px; }
+.dash-single-stage--all[data-dashboard-layout="compact"] .dashboard-all-panel .monthly-panther__metric:last-child { padding-inline-start: 10px; }
+.dash-single-stage--all[data-dashboard-layout="compact"] .dashboard-all-panel .monthly-panther__metric-value { font-size: clamp(17px, 1.8vw, 21px); }
+.dash-single-stage--all[data-dashboard-layout="compact"] .dashboard-all-panel .monthly-panther__chart-block { gap: 7px; }
+.dash-single-stage--all[data-dashboard-layout="compact"] .dashboard-all-panel .monthly-panther__chart { height: 96px; }
+.dash-single-stage--all[data-dashboard-layout="compact"] .dashboard-all-panel .monthly-panther__hud { padding: 7px 9px; }
+.dash-single-stage--all[data-dashboard-layout="compact"] .dashboard-all-panel .dashboard-pulse-strip { gap: 10px; }
+.dash-single-stage--all[data-dashboard-layout="compact"] .dashboard-all-panel .dashboard-pulse-card { gap: 9px; padding: 11px 12px; }
+.dash-single-stage--all[data-dashboard-layout="compact"] .dashboard-all-panel .dashboard-aging-body { gap: 12px; }
+.dash-single-stage--all[data-dashboard-layout="compact"] .dashboard-all-panel .dashboard-lower-grid { gap: 12px; }
+
+@media (max-width: 760px) {
+  .dash-single-stage--all[data-dashboard-layout="compact"] .dashboard-all-panel .dashboard-cards-grid.dashboard-all-panel__spotlights {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  .dash-single-stage--all[data-dashboard-layout="compact"] .dashboard-all-panel .monthly-panther__chart { height: 110px; }
+}
+
+/* اختيار موضع الحافظة متاح في «العرض الشامل» فقط */
+.dash-all-layout-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--db-border);
+  border-radius: 12px;
+  background: var(--db-surface-soft);
+}
+.dash-all-layout-picker__label {
+  margin-inline-end: 3px;
+  color: var(--db-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+.dash-all-layout-picker__button {
+  min-height: 34px;
+  padding: 6px 11px;
+  border: 1px solid var(--db-border-strong);
+  border-radius: 9px;
+  background: var(--db-surface);
+  color: var(--db-ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.dash-all-layout-picker__button:hover { background: var(--db-surface-tint); }
+.dash-all-layout-picker__button.is-active {
+  border-color: var(--db-primary);
+  background: var(--db-primary);
+  color: #fff;
+}
+@media (max-width: 560px) {
+  .dash-all-layout-picker { justify-content: center; }
+  .dash-all-layout-picker__label { width: 100%; text-align: center; }
+}
