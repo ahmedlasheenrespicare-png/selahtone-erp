@@ -878,6 +878,46 @@ test("صفحة تسليم وتحويل النقد تدعم تمكين الموظ
   assert.ok(contrast("#fca5a5", "#0f1c11") >= MIN);
 });
 
+test("صفحة بنود المصروفات تفصل المدفوع عن المعلّق وتعرض سجل التدقيق وتدعم التصدير والتكامل وتباين WCAG >= 4.5:1", () => {
+  const catPageSrc = readFileSync(
+    new URL("../src/app/(app)/finance/categories/page.tsx", import.meta.url),
+    "utf8",
+  );
+  const catDirSrc = readFileSync(
+    new URL("../src/app/(app)/finance/categories/categories-directory-view.tsx", import.meta.url),
+    "utf8",
+  );
+  const catFormsSrc = readFileSync(
+    new URL("../src/app/(app)/finance/categories/category-forms.tsx", import.meta.url),
+    "utf8",
+  );
+
+  // ١) فصل محاسبي صريح للمدفوع (PAID) + استعلام سجل التدقيق + المؤشر التفاعلي
+  assert.ok(catPageSrc.includes('exp.status === "PAID"'));
+  assert.ok(catPageSrc.includes("finance.category_audit"));
+  assert.ok(catPageSrc.includes("PantherSpotlightCard"));
+  assert.ok(catPageSrc.includes("fin-kpi-strip"));
+  assert.ok(catPageSrc.includes("PrintPageButton"));
+
+  // ٢) سجل تعديلات البنود + البحث والفلترة والتصدير + تكامل روابط المصروفات
+  assert.ok(catDirSrc.includes("سجل تعديلات البنود"));
+  assert.ok(catDirSrc.includes("downloadCsvFile"));
+  assert.ok(catDirSrc.includes("/finance/expenses/new?categoryId="));
+  assert.ok(catDirSrc.includes("/finance/expenses?category="));
+
+  // ٣) كشف التكرار الحي ودعم الإضافة المتتالية ومعاينة التغيير قبل الحفظ
+  assert.ok(catFormsSrc.includes("isDuplicate"));
+  assert.ok(catFormsSrc.includes("fin-cat-diff-preview"));
+
+  // ٤) تباين شارات التغيّر الشهري والمعلّق نهارًا وليلًا >= 4.5:1
+  assert.ok(contrast("#991b1b", "#fef2f2") >= MIN);
+  assert.ok(contrast("#166534", "#ecfdf5") >= MIN);
+  assert.ok(contrast("#92400e", "#ffffff") >= MIN);
+  assert.ok(contrast("#fecaca", "#1f1416") >= MIN);
+  assert.ok(contrast("#bbf7d0", "#112217") >= MIN);
+  assert.ok(contrast("#fde68a", "#0f1c11") >= MIN);
+});
+
 
 
 

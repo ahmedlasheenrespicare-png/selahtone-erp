@@ -29,8 +29,17 @@ function moneyToCents(raw: string): bigint {
   return negative ? -cents : cents;
 }
 
-export default async function ExpensesPage() {
+export default async function ExpensesPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ category?: string }>;
+}) {
   const { session, canManage } = await financePage();
+  const resolvedParams = searchParams ? await searchParams : undefined;
+  const initialCategory =
+    typeof resolvedParams?.category === "string" && resolvedParams.category.trim()
+      ? resolvedParams.category.trim()
+      : "all";
 
   const [expenses, branches] = await Promise.all([
     financeRead(session, (tx) => listExpenses({ serializable: (work) => work(tx) }, session.id)),
@@ -631,7 +640,12 @@ export default async function ExpensesPage() {
             <h2>سجل المصروفات الكامل</h2>
             <span>بحث فوري بالوصف أو البند وتصفية بحالة الاعتماد والصرف والفرع</span>
           </div>
-          <FinanceExpensesView rows={rows} branches={Array.from(branchSet)} canManage={canManage} />
+          <FinanceExpensesView
+            rows={rows}
+            branches={Array.from(branchSet)}
+            canManage={canManage}
+            initialCategory={initialCategory}
+          />
         </>
       )}
     </div>

@@ -1721,3 +1721,224 @@ a.fin-kpi-card:hover {
     border-color: #cbd5e1 !important;
   }
 }
+
+/* =========================================================================
+   تطوير مركز بنود المصروفات وسجل التدقيق (/finance/categories)
+   ========================================================================= */
+.finance-suite .fin-cat-create-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 14px;
+}
+
+.finance-suite .fin-cat-create-row__submit {
+  padding-top: 26px;
+}
+
+.finance-suite .fin-cat-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+
+.finance-suite .fin-cat-suggestions__label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--fn-muted);
+}
+
+.finance-suite .fin-cat-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.finance-suite .fin-cat-code-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.finance-suite .fin-cat-code-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--fn-border);
+  background: var(--fn-code-bg);
+  color: var(--fn-code-ink);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.finance-suite .fin-cat-code-btn:hover {
+  border-color: var(--fn-primary-btn);
+}
+
+.finance-suite .fin-cat-code-btn__hint {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--fn-muted);
+}
+
+.finance-suite .fin-cat-spend__line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.finance-suite .fin-cat-share-pct {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--fn-muted);
+}
+
+.finance-suite .fin-cat-pending-note {
+  display: block;
+  margin-top: 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #92400e;
+}
+
+.finance-suite .fin-cat-mom-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.finance-suite .fin-cat-mom-pill--up {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
+.finance-suite .fin-cat-mom-pill--down {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #166534;
+}
+
+.finance-suite .fin-cat-mom-pill--flat {
+  background: var(--fn-surface-soft);
+  border: 1px solid var(--fn-border);
+  color: var(--fn-muted);
+}
+
+.finance-suite .fin-cat-status-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.finance-suite .fin-cat-rev-btn {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--fn-muted);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.finance-suite .fin-cat-rev-btn:hover {
+  color: var(--fn-ink);
+}
+
+.finance-suite .fin-cat-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.finance-suite .fin-voucher-print-btn.is-active {
+  background: var(--fn-surface-tint);
+  border-color: var(--fn-primary-btn);
+}
+
+.finance-suite .fin-cat-row--editing > td {
+  background: var(--fn-surface-tint);
+}
+
+.finance-suite .fin-cat-edit-row > td {
+  padding: 14px 18px !important;
+  background: var(--fn-surface-soft);
+  border-bottom: 2px solid var(--fn-border-strong);
+}
+
+.finance-suite .fin-cat-edit-drawer {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 1px solid var(--fn-border-strong);
+  background: var(--fn-surface);
+}
+
+.finance-suite .fin-cat-edit-drawer__head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed var(--fn-border);
+}
+
+.finance-suite .fin-cat-edit-drawer__head strong {
+  display: block;
+  font-size: 14.5px;
+  font-weight: 800;
+  color: var(--fn-ink);
+}
+
+.finance-suite .fin-cat-edit-drawer__meta {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fn-muted);
+}
+
+.finance-suite .fin-cat-diff-preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px dashed var(--fn-border-strong);
+  background: var(--fn-surface-tint);
+  font-size: 12.5px;
+  color: var(--fn-ink);
+}
+
+.finance-suite .fin-cat-diff-preview__label {
+  font-weight: 800;
+  color: var(--fn-muted);
+}
+
+@media (max-width: 720px) {
+  .finance-suite .fin-cat-create-row {
+    grid-template-columns: 1fr;
+  }
+
+  .finance-suite .fin-cat-create-row__submit {
+    padding-top: 0;
+  }
+}

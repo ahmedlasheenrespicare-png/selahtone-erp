@@ -22,15 +22,19 @@ export default function FinanceExpensesView({
   rows,
   branches,
   canManage,
+  initialCategory = "all",
 }: {
   rows: FinanceExpenseRow[];
   branches: string[];
   canManage: boolean;
+  initialCategory?: string;
 }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ExpenseFilter>("all");
   const [branchFilter, setBranchFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState(() =>
+    rows.some((r) => r.categorySnapshot === initialCategory) ? initialCategory : "all",
+  );
 
   const categories = useMemo(() => {
     return Array.from(new Set(rows.map((r) => r.categorySnapshot))).sort((a, b) =>
