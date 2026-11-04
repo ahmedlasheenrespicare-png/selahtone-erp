@@ -17,6 +17,8 @@ type Props = {
   items: DashboardSectionMeta[];
   slots: Partial<Record<DashboardSectionId, ReactNode>>;
   fullView: ReactNode;
+  compactView: ReactNode;
+  fullViewWallet: ReactNode;
 };
 
 const nf = new Intl.NumberFormat("ar-EG-u-nu-latn");
@@ -27,6 +29,8 @@ export default function DashboardSectionSwitcher({
   items,
   slots,
   fullView,
+  compactView,
+  fullViewWallet,
 }: Props) {
   const storageKey = `selahtone:dashboard-section:${userScopeKey}`;
   const availableIds = useMemo(() => items.map((item) => item.id), [items]);
@@ -37,12 +41,32 @@ export default function DashboardSectionSwitcher({
   const [open, setOpen] = useState(false);
   const [filterText, setFilterText] = useState("");
   const visibilityStorageKey = `selahtone:dashboard-visibility:${userScopeKey}`;
+  const layoutStorageKey = `selahtone:dashboard-all-layout:${userScopeKey}`;
+  const [allLayout, setAllLayout] = useState<"spacious" | "compact">("compact");
   const [visibilityBySection, setVisibilityBySection] = useState<Record<string, string[]>>({});
   const hiddenToggles = visibilityBySection[selectedId] ?? [];
   const [visibilityLoaded, setVisibilityLoaded] = useState(false);
 
   const dropdownWrapRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // يحتفظ المستخدم بتصميم العرض الشامل المفضل: السابق الواسع أو الشبكة المضغوطة.
+  useEffect(() => {
+    try {
+      setAllLayout(window.localStorage.getItem(layoutStorageKey) === "spacious" ? "spacious" : "compact");
+    } catch {
+      setAllLayout("compact");
+    }
+  }, [layoutStorageKey]);
+
+  function chooseAllLayout(layout: "spacious" | "compact") {
+    setAllLayout(layout);
+    try {
+      window.localStorage.setItem(layoutStorageKey, layout);
+    } catch {
+      // يبقى الاختيار فعّالًا خلال الجلسة حتى إن كان التخزين المحلي غير متاح.
+    }
+  }
 
   // إعدادات الإظهار والإخفاء محفوظة لكل مستخدم ودور على هذا المتصفح.
   useEffect(() => {
@@ -366,8 +390,28 @@ export default function DashboardSectionSwitcher({
 
       {/* عرض المحتوى بحسب الاختيار */}
       {selectedId === "all" ? (
-        <div key="all" className="dash-single-stage" data-dashboard-section="all" data-hidden-toggles={hiddenToggleAttribute}>
-          {fullView}
+        <div key="all" className="dash-single-stage dash-single-stage--all" data-dashboard-section="all" data-dashboard-layout={allLayout} data-hidden-toggles={hiddenToggleAttribute}>
+          <div className="dash-all-layout-picker" role="group" aria-label="اختيار تصميم العرض الشامل">
+            <span className="dash-all-layout-picker__label">تصميم اللوحة:</span>
+            <button
+              type="button"
+              className={`dash-all-layout-picker__button${allLayout === "spacious" ? " is-active" : ""}`}
+              aria-pressed={allLayout === "spacious"}
+              onClick={() => chooseAllLayout("spacious")}
+            >
+              تصميم الدمج الأخير (واسع)
+            </button>
+            <button
+              type="button"
+              className={`dash-all-layout-picker__button${allLayout === "compact" ? " is-active" : ""}`}
+              aria-pressed={allLayout === "compact"}
+              onClick={() => chooseAllLayout("compact")}
+            >
+              الشبكة المضغوطة
+            </button>
+          </div>
+          {allLayout === "compact" ? fullViewWallet : null}
+          {allLayout === "compact" ? compactView : fullView}
         </div>
       ) : selectedId === "pulse-wallet" ? (
         <div key="pulse-wallet" className="dash-single-stage dash-single-stage--pulse-wallet" data-dashboard-section="pulse-wallet" data-hidden-toggles={hiddenToggleAttribute}>

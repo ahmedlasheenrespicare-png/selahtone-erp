@@ -1806,44 +1806,77 @@ export default async function DashboardPage({
           "branch-health": branchHealthNode,
         };
 
-        const fullDashboardView: ReactNode = (
+        const fullDashboardWallet: ReactNode = (
+          <section className="dashboard-all-wallet dashboard-cards-grid__wallet" aria-labelledby="dashboard-all-wallet-title">
+            <div className="dashboard-all-wallet__head">
+              <h2 id="dashboard-all-wallet-title">الحافظة المالية</h2>
+              <p>موضع الحافظة يتغير بحسب التصميم المختار.</p>
+            </div>
+            {walletNode}
+          </section>
+        );
+
+        const allPanelHeader: ReactNode = (
+          <header className="dashboard-all-panel__head">
+            <div>
+              <span className="dashboard-all-panel__eyebrow">نظرة موحّدة</span>
+              <h2 id="dashboard-all-title">لوحة المتابعة الشاملة</h2>
+              <p>في التصميم الواسع تدخل الحافظة ضمن الشبكة، وتظهر أعلى اللوحة في التصميم المضغوط.</p>
+            </div>
+          </header>
+        );
+        const allPanelBeforeCards: ReactNode = (
           <>
             {pulseNode}
             {paceNode}
             {governanceNode}
-            <div className="dashboard-cards-grid">
-              <div className="dashboard-cards-grid__wallet">{walletNode}</div>
-              {efficiencyNode ? (
-                <div className="dashboard-cards-grid__item">{efficiencyNode}</div>
-              ) : null}
-              {monthlySalesNode ? (
-                <div className="dashboard-cards-grid__item">{monthlySalesNode}</div>
-              ) : null}
-              {collectionsNode ? (
-                <div className="dashboard-cards-grid__item">{collectionsNode}</div>
-              ) : null}
-              {cashConversionNode ? (
-                <div className="dashboard-cards-grid__item">{cashConversionNode}</div>
-              ) : null}
-              {cashBalanceNode ? (
-                <div className="dashboard-cards-grid__item">{cashBalanceNode}</div>
-              ) : null}
-              {monthlyExpensesNode ? (
-                <div className="dashboard-cards-grid__item">{monthlyExpensesNode}</div>
-              ) : null}
-              {profitabilityNode ? (
-                <div className="dashboard-cards-grid__item">{profitabilityNode}</div>
-              ) : null}
-              {branchEfficiencyNode ? (
-                <div className="dashboard-cards-grid__item">{branchEfficiencyNode}</div>
-              ) : null}
-            </div>
+          </>
+        );
+        const allSpotlightCards: ReactNode = (
+          <>
+            {efficiencyNode ? <div className="dashboard-cards-grid__item">{efficiencyNode}</div> : null}
+            {monthlySalesNode ? <div className="dashboard-cards-grid__item">{monthlySalesNode}</div> : null}
+            {collectionsNode ? <div className="dashboard-cards-grid__item">{collectionsNode}</div> : null}
+            {cashConversionNode ? <div className="dashboard-cards-grid__item">{cashConversionNode}</div> : null}
+            {cashBalanceNode ? <div className="dashboard-cards-grid__item">{cashBalanceNode}</div> : null}
+            {monthlyExpensesNode ? <div className="dashboard-cards-grid__item">{monthlyExpensesNode}</div> : null}
+            {profitabilityNode ? <div className="dashboard-cards-grid__item">{profitabilityNode}</div> : null}
+            {branchEfficiencyNode ? <div className="dashboard-cards-grid__item">{branchEfficiencyNode}</div> : null}
+          </>
+        );
+        const allPanelAfterCards: ReactNode = (
+          <>
             {agingRadarNode}
             <section className="dashboard-lower-grid" aria-label="آخر الحركات وصحة الفروع والمخزون">
               {liveFeedNode}
               {branchHealthNode}
             </section>
           </>
+        );
+
+        // التصميم الواسع يعيد شبكة الدمج الأخير ويضع الحافظة كأول بطاقة داخلها.
+        const fullDashboardView: ReactNode = (
+          <section className="dashboard-all-panel" aria-labelledby="dashboard-all-title">
+            {allPanelHeader}
+            {allPanelBeforeCards}
+            <div className="dashboard-cards-grid">
+              {fullDashboardWallet}
+              {allSpotlightCards}
+            </div>
+            {allPanelAfterCards}
+          </section>
+        );
+
+        // التصميم المضغوط يرفع الحافظة فوق اللوحة ويضغط بطاقات المؤشرات في عمودين.
+        const compactDashboardView: ReactNode = (
+          <section className="dashboard-all-panel" aria-labelledby="dashboard-all-title">
+            {allPanelHeader}
+            {allPanelBeforeCards}
+            <div className="dashboard-cards-grid dashboard-all-panel__spotlights">
+              {allSpotlightCards}
+            </div>
+            {allPanelAfterCards}
+          </section>
         );
 
         return (
@@ -1853,6 +1886,8 @@ export default async function DashboardPage({
             items={sectionItems}
             slots={sectionSlots}
             fullView={fullDashboardView}
+            compactView={compactDashboardView}
+            fullViewWallet={fullDashboardWallet}
           />
         );
       })()}
