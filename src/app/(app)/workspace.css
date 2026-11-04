@@ -900,7 +900,6 @@
 .dashboard-eyebrow { display: flex; align-items: center; gap: 7px; margin: 0 0 7px; color: #416ab1; font-size: 12px; font-weight: 700; }
 .dashboard-eyebrow span { width: 7px; height: 7px; border-radius: 50%; background: #5b9eda; }
 .dashboard-heading h1 { color: #1c3054; font-size: clamp(24px, 2.1vw, 29px); letter-spacing: -.025em; }
-.dashboard-heading__description { margin: 5px 0 0; color: #60708a; font-size: 13px; }
 .dashboard-date { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid #e8edf5; border-radius: 12px; background: #fff; white-space: nowrap; }
 .dashboard-date > span { width: 35px; height: 35px; display: grid; place-items: center; border-radius: 9px; background: #f0f5fd; color: #4d72b5; }
 .dashboard-date svg { width: 18px; height: 18px; }

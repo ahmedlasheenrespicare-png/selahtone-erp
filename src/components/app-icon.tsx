@@ -2,6 +2,8 @@ import type { SVGProps } from "react";
 
 export type AppIconName =
   | "dashboard"
+  | "layoutWide"
+  | "layoutCompact"
   | "inventory"
   | "settings"
   | "expenses"
@@ -43,6 +45,12 @@ export function AppIcon({ name, ...props }: AppIconProps) {
   switch (name) {
     case "dashboard":
       content = <><rect x="3" y="3" width="7" height="7" rx="2" /><rect x="14" y="3" width="7" height="7" rx="2" /><rect x="3" y="14" width="7" height="7" rx="2" /><rect x="14" y="14" width="7" height="7" rx="2" /></>;
+      break;
+    case "layoutWide":
+      content = <><rect x="3" y="4" width="18" height="6" rx="1.8" /><rect x="3" y="13" width="8" height="7" rx="1.8" /><rect x="13" y="13" width="8" height="7" rx="1.8" /></>;
+      break;
+    case "layoutCompact":
+      content = <><rect x="3" y="4" width="5" height="7" rx="1.2" /><rect x="9.5" y="4" width="5" height="7" rx="1.2" /><rect x="16" y="4" width="5" height="7" rx="1.2" /><rect x="3" y="13" width="5" height="7" rx="1.2" /><rect x="9.5" y="13" width="5" height="7" rx="1.2" /><rect x="16" y="13" width="5" height="7" rx="1.2" /></>;
       break;
     case "inventory":
       content = <><path d="m3 7 9-4 9 4-9 4-9-4Z" /><path d="M3 7v10l9 4 9-4V7M12 11v10" /><path d="m7.5 5 9 4" /></>;
