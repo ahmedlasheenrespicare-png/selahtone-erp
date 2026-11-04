@@ -1,16 +1,24 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { AppIcon, type AppIconName } from "@/components/app-icon";
 import PantherSpotlightCard from "@/components/panther-spotlight-card";
 import PrintPageButton from "@/components/print-page-button";
 // عميلٌ لا خادم: فإنّ التمريرَ تفاعل، والصفحةُ نفسها تُبنى على الخادم.
+import DashboardSectionSwitcher from "./dashboard-section-switcher";
 import DashboardWallet, { type WalletPocketItem } from "./dashboard-wallet";
 import MonthlySalesPanther from "./monthly-sales-panther";
+import "./dashboard-switcher.css";
 import { prisma } from "@/lib/prisma";
 import { requireSession, branchScope, canSeeAllBranches } from "@/lib/auth";
 import {
   loadDashboardExecutiveSuite,
   normalizeSearchQuery,
 } from "@/lib/dashboard-executive";
+import {
+  type DashboardSectionId,
+  type DashboardSectionMeta,
+  isValidDashboardSectionId,
+} from "@/lib/dashboard-sections";
 import {
   loadDashboardOperationalData,
   type DashboardActivityItem,
@@ -73,7 +81,7 @@ type QuickActionItem = {
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ branch?: string; q?: string }>;
+  searchParams?: Promise<{ branch?: string; q?: string; section?: string }>;
 }) {
   const session = await requireSession();
   const scope = branchScope(session);
@@ -81,6 +89,10 @@ export default async function DashboardPage({
   const params = searchParams ? await searchParams : {};
   const rawSearchQ =
     typeof params.q === "string" ? normalizeSearchQuery(params.q) : "";
+  const requestedSection =
+    typeof params.section === "string" && isValidDashboardSectionId(params.section.trim())
+      ? params.section.trim()
+      : null;
 
   const allBranches = await prisma.branch.findMany({
     where: { isActive: true, ...(scope.branchId ? { id: BigInt(scope.branchId) } : {}) },
@@ -104,6 +116,7 @@ export default async function DashboardPage({
     const usp = new URLSearchParams();
     if (branchVal) usp.set("branch", branchVal);
     if (qVal) usp.set("q", qVal);
+    if (requestedSection) usp.set("section", requestedSection);
     const qs = usp.toString();
     return qs ? `/dashboard?${qs}` : "/dashboard";
   };
@@ -495,6 +508,9 @@ export default async function DashboardPage({
           {requestedBranch ? (
             <input type="hidden" name="branch" value={requestedBranch} />
           ) : null}
+          {requestedSection ? (
+            <input type="hidden" name="section" value={requestedSection} />
+          ) : null}
           <span className="dashboard-omni-form__icon" aria-hidden="true">
             <AppIcon name="search" />
           </span>
@@ -654,8 +670,10 @@ export default async function DashboardPage({
         ) : null}
       </section>
 
-      {/* ٣. شريط «نبض اليوم» التنفيذي (٤ بطاقات مركّزة) */}
-      <section className="dashboard-pulse-strip" aria-label="نبض عمليات اليوم">
+      {/* ٣–٥. قائمة أقسام لوحة القيادة المنسدلة (كل قسم ومؤشر على حدة + العرض الشامل) */}
+      {(() => {
+        const pulseNode: ReactNode = (
+          <section className="dashboard-pulse-strip" aria-label="نبض عمليات اليوم">
         <Link href="/sales" className="dashboard-pulse-card is-accent">
           <span className="dashboard-pulse-card__icon" aria-hidden="true">
             <AppIcon name="sales" />
@@ -771,9 +789,9 @@ export default async function DashboardPage({
           </div>
         )}
       </section>
+        );
 
-      {/* ٣-ب. شريط وتيرة الشهر وتوقّع الإغلاق (Monthly Run-Rate & Pace vs Last Month) */}
-      {execSuite?.monthPace ? (
+        const paceNode: ReactNode = execSuite?.monthPace ? (
         <section className="dashboard-pace-strip" aria-label="وتيرة الشهر وتوقع الإغلاق">
           <div className="dashboard-pace-strip__progress">
             <div className="dashboard-pace-strip__progress-top">
@@ -836,10 +854,9 @@ export default async function DashboardPage({
             </div>
           </div>
         </section>
-      ) : null}
+        ) : null;
 
-      {/* ٣-ج. شريط تنبيهات الرقابة المالية والخصومات (للإدارة والمحاسب فقط) */}
-      {!isEmployee && execSuite?.governance ? (
+        const governanceNode: ReactNode = !isEmployee && execSuite?.governance ? (
         <section
           className={`dashboard-governance${execSuite.governance.isClean ? " is-clean" : " has-alerts"}`}
           aria-label="الرقابة المالية والخصومات"
@@ -893,11 +910,9 @@ export default async function DashboardPage({
             </div>
           ) : null}
         </section>
-      ) : null}
+        ) : null;
 
-      {/* ٤. الشبكة المتجاوبة الموحّدة (٦ بطاقات متناظرة: المحفظة المركّزة + ٥ مؤشرات حيّة) */}
-      <div className="dashboard-cards-grid">
-        <div className="dashboard-cards-grid__wallet">
+        const walletNode: ReactNode = (
           <DashboardWallet
             balanceValue={expectedBalanceValue}
             balanceLabel="المستحق للخزنة"
@@ -1061,211 +1076,193 @@ export default async function DashboardPage({
               </div>
             </article>
           </DashboardWallet>
-        </div>
+        );
 
-        {execSuite?.compositeEfficiencySpotlight ? (
-          <div className="dashboard-cards-grid__item">
-            <PantherSpotlightCard
-              layout="wallet"
-              icon="efficiencyGauge"
-              chartVariant="gauge"
-              title={execSuite.compositeEfficiencySpotlight.title}
-              subtitle={execSuite.compositeEfficiencySpotlight.subtitle}
-              pill={execSuite.compositeEfficiencySpotlight.pill}
-              primary={execSuite.compositeEfficiencySpotlight.primary}
-              secondary={execSuite.compositeEfficiencySpotlight.secondary}
-              series={execSuite.compositeEfficiencySpotlight.series}
-              actionHref={
-                canOpen(execSuite.compositeEfficiencySpotlight.actionHref.split("?")[0])
-                  ? execSuite.compositeEfficiencySpotlight.actionHref
-                  : "/sales"
-              }
-              actionLabel={
-                canOpen(execSuite.compositeEfficiencySpotlight.actionHref.split("?")[0])
-                  ? execSuite.compositeEfficiencySpotlight.actionLabel
-                  : "مراجعة سجل العمليات"
-              }
-            />
-          </div>
-        ) : null}
+        const efficiencyNode: ReactNode = execSuite?.compositeEfficiencySpotlight ? (
+          <PantherSpotlightCard
+            layout="wallet"
+            icon="efficiencyGauge"
+            chartVariant="gauge"
+            title={execSuite.compositeEfficiencySpotlight.title}
+            subtitle={execSuite.compositeEfficiencySpotlight.subtitle}
+            pill={execSuite.compositeEfficiencySpotlight.pill}
+            primary={execSuite.compositeEfficiencySpotlight.primary}
+            secondary={execSuite.compositeEfficiencySpotlight.secondary}
+            series={execSuite.compositeEfficiencySpotlight.series}
+            actionHref={
+              canOpen(execSuite.compositeEfficiencySpotlight.actionHref.split("?")[0])
+                ? execSuite.compositeEfficiencySpotlight.actionHref
+                : "/sales"
+            }
+            actionLabel={
+              canOpen(execSuite.compositeEfficiencySpotlight.actionHref.split("?")[0])
+                ? execSuite.compositeEfficiencySpotlight.actionLabel
+                : "مراجعة سجل العمليات"
+            }
+          />
+        ) : null;
 
-        {monthSales ? (
-          <div className="dashboard-cards-grid__item">
-            <MonthlySalesPanther
-              monthLabel={currentMonthLabel}
-              totalFormatted={nf.format(Number(monthSales.total))}
-              outstandingFormatted={nf.format(Number(monthSales.outstandingTotal))}
-              averageFormatted={nf.format(Number(monthSales.averageInvoice))}
-              invoiceCount={nf.format(monthSales.invoiceCount)}
-              outstandingCount={nf.format(monthSales.outstandingCount)}
-              hasOutstanding={monthOutstandingNum > 0}
-              collectedPercent={monthCollectedPct}
-              outstandingPercent={monthOutstandingPct}
-              hasSales={monthSales.invoiceCount > 0}
-              series={monthSalesSeries}
-              reportHref={
-                session.role === "MANAGER"
-                  ? effectiveBranchId
-                    ? `/sales/stats?period=month&branch=${effectiveBranchId}`
-                    : "/sales/stats?period=month"
-                  : "/sales"
-              }
-              reportLabel={
-                session.role === "MANAGER"
-                  ? "عرض التقرير الكامل لمبيعات الشهر"
-                  : "عرض سجل فواتير الشهر"
-              }
-            />
-          </div>
-        ) : null}
+        const monthlySalesNode: ReactNode = monthSales ? (
+          <MonthlySalesPanther
+            monthLabel={currentMonthLabel}
+            totalFormatted={nf.format(Number(monthSales.total))}
+            outstandingFormatted={nf.format(Number(monthSales.outstandingTotal))}
+            averageFormatted={nf.format(Number(monthSales.averageInvoice))}
+            invoiceCount={nf.format(monthSales.invoiceCount)}
+            outstandingCount={nf.format(monthSales.outstandingCount)}
+            hasOutstanding={monthOutstandingNum > 0}
+            collectedPercent={monthCollectedPct}
+            outstandingPercent={monthOutstandingPct}
+            hasSales={monthSales.invoiceCount > 0}
+            series={monthSalesSeries}
+            reportHref={
+              session.role === "MANAGER"
+                ? effectiveBranchId
+                  ? `/sales/stats?period=month&branch=${effectiveBranchId}`
+                  : "/sales/stats?period=month"
+                : "/sales"
+            }
+            reportLabel={
+              session.role === "MANAGER"
+                ? "عرض التقرير الكامل لمبيعات الشهر"
+                : "عرض سجل فواتير الشهر"
+            }
+          />
+        ) : null;
 
-        {collectionsSpotlight ? (
-          <div className="dashboard-cards-grid__item">
-            <PantherSpotlightCard
-              layout="wallet"
-              icon="customerCollection"
-              chartVariant="donut"
-              title={collectionsSpotlight.title}
-              subtitle={collectionsSpotlight.subtitle}
-              pill={collectionsSpotlight.pill}
-              primary={collectionsSpotlight.primary}
-              secondary={collectionsSpotlight.secondary}
-              series={collectionsSpotlight.series}
-              actionHref={collectionsSpotlight.actionHref}
-              actionLabel={collectionsSpotlight.actionLabel}
-            />
-          </div>
-        ) : null}
+        const collectionsNode: ReactNode = collectionsSpotlight ? (
+          <PantherSpotlightCard
+            layout="wallet"
+            icon="customerCollection"
+            chartVariant="donut"
+            title={collectionsSpotlight.title}
+            subtitle={collectionsSpotlight.subtitle}
+            pill={collectionsSpotlight.pill}
+            primary={collectionsSpotlight.primary}
+            secondary={collectionsSpotlight.secondary}
+            series={collectionsSpotlight.series}
+            actionHref={collectionsSpotlight.actionHref}
+            actionLabel={collectionsSpotlight.actionLabel}
+          />
+        ) : null;
 
-        {execSuite?.cashConversionSpotlight ? (
-          <div className="dashboard-cards-grid__item">
-            <PantherSpotlightCard
-              layout="wallet"
-              icon="cashConversion"
-              chartVariant="waterfall"
-              title={execSuite.cashConversionSpotlight.title}
-              subtitle={execSuite.cashConversionSpotlight.subtitle}
-              pill={execSuite.cashConversionSpotlight.pill}
-              primary={execSuite.cashConversionSpotlight.primary}
-              secondary={execSuite.cashConversionSpotlight.secondary}
-              series={execSuite.cashConversionSpotlight.series}
-              actionHref={
-                canOpen(execSuite.cashConversionSpotlight.actionHref.split("?")[0])
-                  ? execSuite.cashConversionSpotlight.actionHref
-                  : "/sales"
-              }
-              actionLabel={
-                canOpen(execSuite.cashConversionSpotlight.actionHref.split("?")[0])
-                  ? execSuite.cashConversionSpotlight.actionLabel
-                  : "مراجعة الفواتير والتحصيلات"
-              }
-            />
-          </div>
-        ) : null}
+        const cashConversionNode: ReactNode = execSuite?.cashConversionSpotlight ? (
+          <PantherSpotlightCard
+            layout="wallet"
+            icon="cashConversion"
+            chartVariant="waterfall"
+            title={execSuite.cashConversionSpotlight.title}
+            subtitle={execSuite.cashConversionSpotlight.subtitle}
+            pill={execSuite.cashConversionSpotlight.pill}
+            primary={execSuite.cashConversionSpotlight.primary}
+            secondary={execSuite.cashConversionSpotlight.secondary}
+            series={execSuite.cashConversionSpotlight.series}
+            actionHref={
+              canOpen(execSuite.cashConversionSpotlight.actionHref.split("?")[0])
+                ? execSuite.cashConversionSpotlight.actionHref
+                : "/sales"
+            }
+            actionLabel={
+              canOpen(execSuite.cashConversionSpotlight.actionHref.split("?")[0])
+                ? execSuite.cashConversionSpotlight.actionLabel
+                : "مراجعة الفواتير والتحصيلات"
+            }
+          />
+        ) : null;
 
-        {financeSpotlights?.cashBalance ? (
-          <div className="dashboard-cards-grid__item">
-            <PantherSpotlightCard
-              layout="wallet"
-              icon="balanceScale"
-              chartVariant="donut"
-              title={financeSpotlights.cashBalance.title}
-              subtitle={financeSpotlights.cashBalance.subtitle}
-              pill={financeSpotlights.cashBalance.pill}
-              primary={financeSpotlights.cashBalance.primary}
-              secondary={financeSpotlights.cashBalance.secondary}
-              series={financeSpotlights.cashBalance.series}
-              actionHref={
-                canOpen(financeSpotlights.cashBalance.actionHref)
-                  ? financeSpotlights.cashBalance.actionHref
-                  : "/sales"
-              }
-              actionLabel={
-                canOpen(financeSpotlights.cashBalance.actionHref)
-                  ? financeSpotlights.cashBalance.actionLabel
-                  : "سجل المبيعات"
-              }
-            />
-          </div>
-        ) : null}
+        const cashBalanceNode: ReactNode = financeSpotlights?.cashBalance ? (
+          <PantherSpotlightCard
+            layout="wallet"
+            icon="balanceScale"
+            chartVariant="donut"
+            title={financeSpotlights.cashBalance.title}
+            subtitle={financeSpotlights.cashBalance.subtitle}
+            pill={financeSpotlights.cashBalance.pill}
+            primary={financeSpotlights.cashBalance.primary}
+            secondary={financeSpotlights.cashBalance.secondary}
+            series={financeSpotlights.cashBalance.series}
+            actionHref={
+              canOpen(financeSpotlights.cashBalance.actionHref)
+                ? financeSpotlights.cashBalance.actionHref
+                : "/sales"
+            }
+            actionLabel={
+              canOpen(financeSpotlights.cashBalance.actionHref)
+                ? financeSpotlights.cashBalance.actionLabel
+                : "سجل المبيعات"
+            }
+          />
+        ) : null;
 
-        {financeSpotlights?.monthlyExpenses ? (
-          <div className="dashboard-cards-grid__item">
-            <PantherSpotlightCard
-              layout="wallet"
-              icon="expenseReceipt"
-              chartVariant="area"
-              title={financeSpotlights.monthlyExpenses.title}
-              subtitle={financeSpotlights.monthlyExpenses.subtitle}
-              pill={financeSpotlights.monthlyExpenses.pill}
-              primary={financeSpotlights.monthlyExpenses.primary}
-              secondary={financeSpotlights.monthlyExpenses.secondary}
-              series={financeSpotlights.monthlyExpenses.series}
-              actionHref={
-                canOpen(financeSpotlights.monthlyExpenses.actionHref)
-                  ? financeSpotlights.monthlyExpenses.actionHref
-                  : "/finance/expenses"
-              }
-              actionLabel={financeSpotlights.monthlyExpenses.actionLabel}
-            />
-          </div>
-        ) : null}
+        const monthlyExpensesNode: ReactNode = financeSpotlights?.monthlyExpenses ? (
+          <PantherSpotlightCard
+            layout="wallet"
+            icon="expenseReceipt"
+            chartVariant="area"
+            title={financeSpotlights.monthlyExpenses.title}
+            subtitle={financeSpotlights.monthlyExpenses.subtitle}
+            pill={financeSpotlights.monthlyExpenses.pill}
+            primary={financeSpotlights.monthlyExpenses.primary}
+            secondary={financeSpotlights.monthlyExpenses.secondary}
+            series={financeSpotlights.monthlyExpenses.series}
+            actionHref={
+              canOpen(financeSpotlights.monthlyExpenses.actionHref)
+                ? financeSpotlights.monthlyExpenses.actionHref
+                : "/finance/expenses"
+            }
+            actionLabel={financeSpotlights.monthlyExpenses.actionLabel}
+          />
+        ) : null;
 
-        {execSuite?.fifthSpotlight ? (
-          <div className="dashboard-cards-grid__item">
-            <PantherSpotlightCard
-              layout="wallet"
-              icon={isEmployee ? "serialScan" : "netProfit"}
-              chartVariant={isEmployee ? "columns" : "waterfall"}
-              title={execSuite.fifthSpotlight.title}
-              subtitle={execSuite.fifthSpotlight.subtitle}
-              pill={execSuite.fifthSpotlight.pill}
-              primary={execSuite.fifthSpotlight.primary}
-              secondary={execSuite.fifthSpotlight.secondary}
-              series={execSuite.fifthSpotlight.series}
-              actionHref={
-                canOpen(execSuite.fifthSpotlight.actionHref.split("?")[0])
-                  ? execSuite.fifthSpotlight.actionHref
-                  : "/sales"
-              }
-              actionLabel={
-                canOpen(execSuite.fifthSpotlight.actionHref.split("?")[0])
-                  ? execSuite.fifthSpotlight.actionLabel
-                  : "مراجعة سجل المبيعات"
-              }
-            />
-          </div>
-        ) : null}
+        const profitabilityNode: ReactNode = execSuite?.fifthSpotlight ? (
+          <PantherSpotlightCard
+            layout="wallet"
+            icon={isEmployee ? "serialScan" : "netProfit"}
+            chartVariant={isEmployee ? "columns" : "waterfall"}
+            title={execSuite.fifthSpotlight.title}
+            subtitle={execSuite.fifthSpotlight.subtitle}
+            pill={execSuite.fifthSpotlight.pill}
+            primary={execSuite.fifthSpotlight.primary}
+            secondary={execSuite.fifthSpotlight.secondary}
+            series={execSuite.fifthSpotlight.series}
+            actionHref={
+              canOpen(execSuite.fifthSpotlight.actionHref.split("?")[0])
+                ? execSuite.fifthSpotlight.actionHref
+                : "/sales"
+            }
+            actionLabel={
+              canOpen(execSuite.fifthSpotlight.actionHref.split("?")[0])
+                ? execSuite.fifthSpotlight.actionLabel
+                : "مراجعة سجل المبيعات"
+            }
+          />
+        ) : null;
 
-        {execSuite?.branchEfficiencySpotlight ? (
-          <div className="dashboard-cards-grid__item">
-            <PantherSpotlightCard
-              layout="wallet"
-              icon="branchScorecard"
-              chartVariant="bars"
-              title={execSuite.branchEfficiencySpotlight.title}
-              subtitle={execSuite.branchEfficiencySpotlight.subtitle}
-              pill={execSuite.branchEfficiencySpotlight.pill}
-              primary={execSuite.branchEfficiencySpotlight.primary}
-              secondary={execSuite.branchEfficiencySpotlight.secondary}
-              series={execSuite.branchEfficiencySpotlight.series}
-              actionHref={
-                canOpen(execSuite.branchEfficiencySpotlight.actionHref.split("?")[0])
-                  ? execSuite.branchEfficiencySpotlight.actionHref
-                  : "/sales"
-              }
-              actionLabel={
-                canOpen(execSuite.branchEfficiencySpotlight.actionHref.split("?")[0])
-                  ? execSuite.branchEfficiencySpotlight.actionLabel
-                  : "استعراض فواتير الفرع"
-              }
-            />
-          </div>
-        ) : null}
-      </div>
+        const branchEfficiencyNode: ReactNode = execSuite?.branchEfficiencySpotlight ? (
+          <PantherSpotlightCard
+            layout="wallet"
+            icon="branchScorecard"
+            chartVariant="bars"
+            title={execSuite.branchEfficiencySpotlight.title}
+            subtitle={execSuite.branchEfficiencySpotlight.subtitle}
+            pill={execSuite.branchEfficiencySpotlight.pill}
+            primary={execSuite.branchEfficiencySpotlight.primary}
+            secondary={execSuite.branchEfficiencySpotlight.secondary}
+            series={execSuite.branchEfficiencySpotlight.series}
+            actionHref={
+              canOpen(execSuite.branchEfficiencySpotlight.actionHref.split("?")[0])
+                ? execSuite.branchEfficiencySpotlight.actionHref
+                : "/sales"
+            }
+            actionLabel={
+              canOpen(execSuite.branchEfficiencySpotlight.actionHref.split("?")[0])
+                ? execSuite.branchEfficiencySpotlight.actionLabel
+                : "استعراض فواتير الفرع"
+            }
+          />
+        ) : null;
 
-      {/* ٤-ب. رادار أولويات التحصيل وأعمار الذمم (Collection Priority & Aging Radar) */}
-      {execSuite?.agingRadar ? (
+        const agingRadarNode: ReactNode = execSuite?.agingRadar ? (
         <section className="dashboard-aging-card" aria-labelledby="aging-radar-title">
           <div className="dashboard-surface-card__head">
             <div>
@@ -1366,11 +1363,9 @@ export default async function DashboardPage({
             </div>
           </div>
         </section>
-      ) : null}
+        ) : null;
 
-      {/* ٥. القسم التنفيذي السفلي: السجل الحيّ لآخر الحركات + صحّة الفروع وتنبيهات المخزون */}
-      <section className="dashboard-lower-grid" aria-label="آخر الحركات وصحة الفروع والمخزون">
-        {/* العمود الأول: السجل الحيّ لآخر الحركات */}
+        const liveFeedNode: ReactNode = (
         <article className="dashboard-surface-card" aria-labelledby="live-feed-title">
           <div className="dashboard-surface-card__head">
             <div>
@@ -1441,8 +1436,9 @@ export default async function DashboardPage({
             </ul>
           )}
         </article>
+        );
 
-        {/* العمود الثاني: صحّة الفروع النشطة وتنبيهات المخزون */}
+        const branchHealthNode: ReactNode = (
         <article className="dashboard-surface-card" aria-labelledby="branch-stock-title">
           <div className="dashboard-surface-card__head">
             <div>
@@ -1588,7 +1584,278 @@ export default async function DashboardPage({
             </div>
           </div>
         </article>
-      </section>
+        );
+
+        const governanceAlertCount = execSuite?.governance?.alerts.length ?? 0;
+        const overdueInvoicesCount = execSuite?.agingRadar?.totalOpenCount ?? 0;
+
+        const sectionItems: DashboardSectionMeta[] = [
+          {
+            id: "pulse-wallet",
+            group: "modes",
+            label: "نبض اليوم والحافظة الذكية (الوضع المركّز)",
+            description: "الأرقام الأربعة الفورية ووتيرة الشهر والحافظة الذكية ومهام القرار",
+            icon: "dashboard",
+            stageKind: "pulse-wallet",
+            badgeCount: urgentTaskCount,
+            badgeTone: urgentTaskCount > 0 ? "alert" : "neutral",
+          },
+          {
+            id: "all",
+            group: "modes",
+            label: "عرض شامل (كل محتويات لوحة القيادة معًا)",
+            description: "إظهار جميع المؤشرات والرادارات والفروع والسجل الحي في صفحة واحدة",
+            icon: "reports",
+            stageKind: "full",
+          },
+          {
+            id: "pulse",
+            group: "daily",
+            label: "نبض عمليات اليوم",
+            description: "مبيعات اليوم، التحصيلات الفعلية، المهام العاجلة، وحالة المخزون",
+            icon: "sales",
+            stageKind: "wide",
+          },
+          ...(paceNode
+            ? [
+                {
+                  id: "pace" as DashboardSectionId,
+                  group: "daily" as const,
+                  label: `وتيرة ${currentMonthLabel} وتوقّع الإغلاق`,
+                  description: "متوسط البيع اليومي والإغلاق المتوقع مقارنةً بالشهر الماضي",
+                  icon: "calendar" as AppIconName,
+                  stageKind: "wide" as const,
+                },
+              ]
+            : []),
+          ...(governanceNode
+            ? [
+                {
+                  id: "governance" as DashboardSectionId,
+                  group: "daily" as const,
+                  label: "درع الرقابة المالية والخصومات",
+                  description: "مراقبة الإلغاءات والمرتجعات وسقف خصم الكاونتر وفروقات الجرد",
+                  icon: "shield" as AppIconName,
+                  stageKind: "wide" as const,
+                  badgeCount: governanceAlertCount,
+                  badgeTone: (governanceAlertCount > 0 ? "alert" : "neutral") as "alert" | "neutral",
+                },
+              ]
+            : []),
+          {
+            id: "wallet",
+            group: "daily",
+            label: "الحافظة الذكية ومهام القرار",
+            description: "المستحق للخزنة وعُهَد الفروع، القرارات المعلّقة، وصورة النطاق السريعة",
+            icon: "cash",
+            stageKind: "card",
+            badgeCount: unifiedActions.length,
+            badgeTone: unifiedActions.length > 0 ? "alert" : "neutral",
+          },
+          ...(efficiencyNode
+            ? [
+                {
+                  id: "efficiency" as DashboardSectionId,
+                  group: "spotlights" as const,
+                  label: "مؤشر الكفاءة التشغيلية الشامل",
+                  description: "عدّاد الكفاءة من 100 عبر التحصيل والمبيعات والمصروفات والتسويات والمخزون",
+                  icon: "check" as AppIconName,
+                  stageKind: "card" as const,
+                },
+              ]
+            : []),
+          ...(monthlySalesNode
+            ? [
+                {
+                  id: "monthly-sales" as DashboardSectionId,
+                  group: "spotlights" as const,
+                  label: `مبيعات الشهر (${currentMonthLabel})`,
+                  description: "منحنى تطور مبيعات الشهر ومتوسط الفاتورة ونسبة التحصيل",
+                  icon: "sales" as AppIconName,
+                  stageKind: "card" as const,
+                },
+              ]
+            : []),
+          ...(collectionsNode
+            ? [
+                {
+                  id: "collections" as DashboardSectionId,
+                  group: "spotlights" as const,
+                  label: "التحصيل والعملاء وطرق الدفع",
+                  description: "توزيع المحصّل الفعلي مقابل الآجل ووسائل الدفع",
+                  icon: "receipt" as AppIconName,
+                  stageKind: "card" as const,
+                },
+              ]
+            : []),
+          ...(cashConversionNode
+            ? [
+                {
+                  id: "cash-conversion" as DashboardSectionId,
+                  group: "spotlights" as const,
+                  label: "مؤشر التحوّل النقدي الصافي",
+                  description: "مسار تحوّل المبيعات إلى سيولة صافية بعد التحصيل والمصروفات",
+                  icon: "transfers" as AppIconName,
+                  stageKind: "card" as const,
+                },
+              ]
+            : []),
+          ...(cashBalanceNode
+            ? [
+                {
+                  id: "cash-balance" as DashboardSectionId,
+                  group: "spotlights" as const,
+                  label: "الميزان النقدي وسيولة الخزائن والعُهَد",
+                  description: "توزيع السيولة النقدية بين الخزائن الرئيسية وعُهَد الفروع المفتوحة",
+                  icon: "cash" as AppIconName,
+                  stageKind: "card" as const,
+                },
+              ]
+            : []),
+          ...(monthlyExpensesNode
+            ? [
+                {
+                  id: "monthly-expenses" as DashboardSectionId,
+                  group: "spotlights" as const,
+                  label: "مصروفات الشهر وحالة الصرف",
+                  description: "توزيع مصروفات الشهر بين المدفوع والمعتمد والمعلّق للاعتماد",
+                  icon: "expenses" as AppIconName,
+                  stageKind: "card" as const,
+                },
+              ]
+            : []),
+          ...(profitabilityNode
+            ? [
+                {
+                  id: "profitability" as DashboardSectionId,
+                  group: "spotlights" as const,
+                  label: isEmployee
+                    ? "حركة الأصناف والسيريالات"
+                    : "الربحية وصافي التشغيل",
+                  description: isEmployee
+                    ? "نشاط الأصناف والأجهزة التسلسلية في فرعك هذا الشهر"
+                    : "صافي المبيعات مطروحًا منه تكلفة البضاعة والمصروفات التشغيلية",
+                  icon: (isEmployee ? "products" : "stockValue") as AppIconName,
+                  stageKind: "card" as const,
+                },
+              ]
+            : []),
+          ...(branchEfficiencyNode
+            ? [
+                {
+                  id: "branch-efficiency" as DashboardSectionId,
+                  group: "spotlights" as const,
+                  label: "مؤشر تقييم وكفاءة الفروع",
+                  description: "مقارنة درجات كفاءة الفروع النشطة من 100",
+                  icon: "branch" as AppIconName,
+                  stageKind: "card" as const,
+                },
+              ]
+            : []),
+          ...(agingRadarNode
+            ? [
+                {
+                  id: "aging-radar" as DashboardSectionId,
+                  group: "operations" as const,
+                  label: "رادار أولويات التحصيل وأعمار الذمم",
+                  description: "شرائح أعمار الفواتير الآجلة وقائمة العملاء الأعلى أولوية للمتابعة",
+                  icon: "receipt" as AppIconName,
+                  stageKind: "wide" as const,
+                  badgeCount: overdueInvoicesCount,
+                  badgeTone: (overdueInvoicesCount > 0 ? "alert" : "neutral") as "alert" | "neutral",
+                },
+              ]
+            : []),
+          {
+            id: "live-feed",
+            group: "operations",
+            label: "آخر العمليات الحيّة",
+            description: "السجل الحيّ لأحدث الفواتير والتحصيلات والمصروفات والتسويات",
+            icon: "receipt",
+            stageKind: "wide",
+            badgeCount: mergedActivities.length,
+            badgeTone: "neutral",
+          },
+          {
+            id: "branch-health",
+            group: "operations",
+            label: "صحّة الفروع وتنبيهات المخزون",
+            description: "تنبيهات الأصناف النافدة أو المنخفضة وبطاقات أداء كل فرع نشط",
+            icon: "branch",
+            stageKind: "wide",
+            badgeCount: lowStockTotalCount > 0 ? lowStockTotalCount : branches.length,
+            badgeTone: lowStockTotalCount > 0 ? "alert" : "neutral",
+          },
+        ];
+
+        const sectionSlots: Partial<Record<DashboardSectionId, ReactNode>> = {
+          pulse: pulseNode,
+          pace: paceNode,
+          governance: governanceNode,
+          wallet: walletNode,
+          efficiency: efficiencyNode,
+          "monthly-sales": monthlySalesNode,
+          collections: collectionsNode,
+          "cash-conversion": cashConversionNode,
+          "cash-balance": cashBalanceNode,
+          "monthly-expenses": monthlyExpensesNode,
+          profitability: profitabilityNode,
+          "branch-efficiency": branchEfficiencyNode,
+          "aging-radar": agingRadarNode,
+          "live-feed": liveFeedNode,
+          "branch-health": branchHealthNode,
+        };
+
+        const fullDashboardView: ReactNode = (
+          <>
+            {pulseNode}
+            {paceNode}
+            {governanceNode}
+            <div className="dashboard-cards-grid">
+              <div className="dashboard-cards-grid__wallet">{walletNode}</div>
+              {efficiencyNode ? (
+                <div className="dashboard-cards-grid__item">{efficiencyNode}</div>
+              ) : null}
+              {monthlySalesNode ? (
+                <div className="dashboard-cards-grid__item">{monthlySalesNode}</div>
+              ) : null}
+              {collectionsNode ? (
+                <div className="dashboard-cards-grid__item">{collectionsNode}</div>
+              ) : null}
+              {cashConversionNode ? (
+                <div className="dashboard-cards-grid__item">{cashConversionNode}</div>
+              ) : null}
+              {cashBalanceNode ? (
+                <div className="dashboard-cards-grid__item">{cashBalanceNode}</div>
+              ) : null}
+              {monthlyExpensesNode ? (
+                <div className="dashboard-cards-grid__item">{monthlyExpensesNode}</div>
+              ) : null}
+              {profitabilityNode ? (
+                <div className="dashboard-cards-grid__item">{profitabilityNode}</div>
+              ) : null}
+              {branchEfficiencyNode ? (
+                <div className="dashboard-cards-grid__item">{branchEfficiencyNode}</div>
+              ) : null}
+            </div>
+            {agingRadarNode}
+            <section className="dashboard-lower-grid" aria-label="آخر الحركات وصحة الفروع والمخزون">
+              {liveFeedNode}
+              {branchHealthNode}
+            </section>
+          </>
+        );
+
+        return (
+          <DashboardSectionSwitcher
+            userScopeKey={`${session.id}-${session.role}`}
+            initialSectionParam={requestedSection}
+            items={sectionItems}
+            slots={sectionSlots}
+            fullView={fullDashboardView}
+          />
+        );
+      })()}
 
       <div className="dashboard-account-note">
         <span>
