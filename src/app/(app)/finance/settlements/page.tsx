@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppIcon } from "@/components/app-icon";
+import PrintPageButton from "@/components/print-page-button";
 
 import { prisma } from "@/lib/prisma";
 import { listSettlements, settlementOverview } from "@/lib/finance/engine";
@@ -30,7 +31,7 @@ export default async function SettlementsPage() {
 
   return (
     <div className="fin-page">
-      <Link href="/finance/mine" className="fin-back">
+      <Link href="/finance/mine" className="fin-back no-print">
         <AppIcon name="arrow" />
         <span>العودة إلى عهدتي</span>
       </Link>
@@ -42,6 +43,13 @@ export default async function SettlementsPage() {
           </p>
           <h1>طلبات التسوية</h1>
           <p>الإجمالي المتوقع بيدك = العهدة + المبيعات − المصروفات. طلب التسوية لا يغيّر شيئًا حتى يعتمده المدير.</p>
+        </div>
+        <div className="fin-actions">
+          <PrintPageButton
+            label="طباعة محضر التسوية"
+            className="fin-button fin-button--secondary"
+            title="طباعة محضر وطلبات التسوية النقدية"
+          />
         </div>
       </div>
 
@@ -132,7 +140,19 @@ export default async function SettlementsPage() {
                           <td>{formatMoney(String(settlement.expectedAmount))}</td>
                           <td>{formatMoney(String(settlement.countedAmount))}</td>
                           <td>{formatMoney(String(settlement.deviation))}</td>
-                          <td>{SETTLEMENT_STATUS_LABEL[String(settlement.status)] ?? String(settlement.status)}</td>
+                          <td>
+                            <span
+                              className={`fin-badge ${
+                                String(settlement.status) === "OPEN"
+                                  ? "fin-badge--pending"
+                                  : String(settlement.status) === "APPROVED"
+                                    ? "fin-badge--paid"
+                                    : "fin-badge--closed"
+                              }`}
+                            >
+                              {SETTLEMENT_STATUS_LABEL[String(settlement.status)] ?? String(settlement.status)}
+                            </span>
+                          </td>
                           <td>
                             {settlement.status === "OPEN" ? (
                               <SettlementCancelForm settlementId={String(settlement.id)} />

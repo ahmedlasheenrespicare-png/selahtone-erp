@@ -9,9 +9,18 @@ type PasswordFieldProps = {
   autoComplete: "current-password" | "new-password";
   error?: string;
   hint?: string;
+  onValueChange?: (value: string) => void;
 };
 
-export function PasswordField({ id, name, label, autoComplete, error, hint }: PasswordFieldProps) {
+export function PasswordField({
+  id,
+  name,
+  label,
+  autoComplete,
+  error,
+  hint,
+  onValueChange,
+}: PasswordFieldProps) {
   const [visible, setVisible] = useState(false);
   const [capsLock, setCapsLock] = useState(false);
   const [containsArabic, setContainsArabic] = useState(false);
@@ -28,7 +37,11 @@ export function PasswordField({ id, name, label, autoComplete, error, hint }: Pa
           aria-invalid={Boolean(error)} aria-describedby={describedBy}
           onKeyDown={checkCapsLock} onKeyUp={checkCapsLock}
           onBlur={() => { setCapsLock(false); setContainsArabic(false); }}
-          onChange={(event) => setContainsArabic(/\p{Script=Arabic}/u.test(event.currentTarget.value))}
+          onChange={(event) => {
+            const val = event.currentTarget.value;
+            setContainsArabic(/\p{Script=Arabic}/u.test(val));
+            onValueChange?.(val);
+          }}
         />
         <button
           className="password-toggle" type="button" onClick={() => setVisible(!visible)}

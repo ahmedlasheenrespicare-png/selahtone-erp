@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppIcon } from "@/components/app-icon";
+import PrintPageButton from "@/components/print-page-button";
 import { listAccounts, listExpenses } from "@/lib/finance/engine";
 import { cairoDate } from "@/lib/finance/validation";
 import { positiveDatabaseId } from "@/lib/inventory-validation";
@@ -64,7 +65,7 @@ export default async function ExpenseDetailPage({ params }: Props) {
 
   return (
     <div className="fin-page">
-      <Link href="/finance/expenses" className="fin-back">
+      <Link href="/finance/expenses" className="fin-back no-print">
         <AppIcon name="arrow" />
         <span>العودة إلى المصروفات</span>
       </Link>
@@ -78,6 +79,11 @@ export default async function ExpenseDetailPage({ params }: Props) {
           <p>الحالة: {STATUS_LABEL[expense.status] ?? expense.status} · الإصدار {expense.revision}</p>
         </div>
         <div className="fin-actions">
+          <PrintPageButton
+            label="طباعة إذن صرف"
+            className="fin-button fin-button--secondary"
+            title="طباعة إذن ومستند صرف المصروف"
+          />
           <span
             className={`fin-badge ${
               expense.status === "PENDING"
@@ -91,6 +97,63 @@ export default async function ExpenseDetailPage({ params }: Props) {
           </span>
         </div>
       </div>
+
+      <ol className="fin-stepper" aria-label="دورة حياة المصروف">
+        <li className="fin-stepper__step is-done">
+          <span className="fin-stepper__num">1</span>
+          <div className="fin-stepper__body">
+            <strong>تسجيل المصروف</strong>
+            <small>{userNames.get(expense.requestedBy) ?? "مُسجَّل"} · {expense.expenseDate}</small>
+          </div>
+        </li>
+        <li
+          className={`fin-stepper__step${
+            expense.status === "APPROVED" || expense.status === "PAID"
+              ? " is-done"
+              : " is-current"
+          }`}
+        >
+          <span className="fin-stepper__num">2</span>
+          <div className="fin-stepper__body">
+            <strong>اعتماد الإدارة</strong>
+            <small>
+              {expense.approvedBy
+                ? `اعتمد بواسطة ${userNames.get(expense.approvedBy) ?? expense.approvedBy}`
+                : "بانتظار الاعتماد"}
+            </small>
+          </div>
+        </li>
+        <li
+          className={`fin-stepper__step${
+            expense.status === "PAID"
+              ? " is-done"
+              : expense.status === "APPROVED"
+                ? " is-current"
+                : ""
+          }`}
+        >
+          <span className="fin-stepper__num">3</span>
+          <div className="fin-stepper__body">
+            <strong>الصرف الفعلي</strong>
+            <small>
+              {expense.status === "PAID"
+                ? `${payments.rows.length} حركة صرف مسجّلة`
+                : "بانتظار تسجيل الصرف"}
+            </small>
+          </div>
+        </li>
+        <li
+          className={`fin-stepper__step${
+            expense.status === "PAID" && payments.rows.length > 0 ? " is-done" : ""
+          }`}
+        >
+          <span className="fin-stepper__num">4</span>
+          <div className="fin-stepper__body">
+            <strong>التوثيق والمراجعة</strong>
+            <small>الإصدار #{expense.revision}</small>
+          </div>
+        </li>
+      </ol>
 
       <div className="fin-panel">
         <div className="fin-panel__heading">

@@ -587,6 +587,64 @@ test("الشريط السفلي المثبّت للجوال والشاشات ا�
   assert.equal(resolveActiveBottomDockHref("/finance/accounts", accountantDock), "/finance");
 });
 
+test("حزم تطوير الصفحات الشاملة (١-٣) تحقق تباين WCAG ٤.٥:١ وتوحّد الأيقونات والتصدير والطباعة", async () => {
+  const { buildCsvContent } = await import("../src/lib/csv-export.ts");
+  const workspaceCss = readFileSync(
+    new URL("../src/app/(app)/workspace.css", import.meta.url),
+    "utf8",
+  );
+  const darkModeCss = readFileSync(
+    new URL("../src/app/(app)/dark-mode.css", import.meta.url),
+    "utf8",
+  );
+
+  // ١) قياس تباين العناصر الجديدة في الوضع النهاري والليلي (>= 4.5:1)
+  const pairs = [
+    ["شارة تقادم الفاتورة التحذيرية نهارًا", "#7c2d12", "#ffedd5"],
+    ["شارة تقادم الفاتورة الحرجة نهارًا", "#991b1b", "#fee2e2"],
+    ["شريحة الاختيار السريع النشطة نهارًا", "#115e59", "#f0fdfa"],
+    ["رقم خطوة المصروف المكتملة", "#ffffff", "#15803d"],
+    ["رقم خطوة المصروف الحالية", "#ffffff", "#b45309"],
+    ["زر التبديل النشط في الوضع الليلي", "#ffffff", "#0f766e"],
+    ["شارة التقادم التحذيرية ليلًا", "#fde68a", "#1e293b"],
+    ["شارة التقادم الحرجة ليلًا", "#fecaca", "#1e293b"],
+    ["شريحة الاختيار النشطة ليلًا", "#99f6e4", "#1e293b"],
+  ];
+  for (const [label, fg, bg] of pairs) {
+    const c = contrast(fg, bg);
+    assert.ok(c >= MIN, `${label}: التباين ${c.toFixed(2)} أقل من ${MIN}`);
+  }
+
+  // ٢) مُصدِّر CSV يدعم BOM للعربية وعلامات الاقتباس والفواصل
+  const csvSample = buildCsvContent(["العميل", "المبلغ"], [['شركة "صلة"', "1,250.00"]]);
+  assert.equal(csvSample.startsWith("\uFEFF"), true);
+  assert.ok(csvSample.includes('"شركة ""صلة"""'));
+  assert.ok(csvSample.includes('"1,250.00"'));
+
+  // ٣) الطباعة المخصّصة (ملخص إغلاق اليوم + الإيصال الحراري 80mm) وعدم وجود prefers-color-scheme
+  assert.ok(workspaceCss.includes(".print-only-brief"));
+  assert.ok(workspaceCss.includes('html[data-print-mode="thermal"]'));
+  assert.ok(workspaceCss.includes(".fin-stepper"));
+  assert.ok(workspaceCss.includes(".fin-denom-grid"));
+  assert.ok(!darkModeCss.includes(["prefers", "color", "scheme"].join("-")));
+
+  // ٤) توحيد الأيقونات الدلالية المخصّصة في جميع صفحات المؤشرات
+  const iconChecks = [
+    ["../src/app/(app)/sales/page.tsx", 'icon="customerCollection"'],
+    ["../src/app/(app)/sales/stats/page.tsx", 'icon="salesGrowth"'],
+    ["../src/app/(app)/finance/page.tsx", 'icon="balanceScale"'],
+    ["../src/app/(app)/finance/expenses/page.tsx", 'icon="expenseReceipt"'],
+    ["../src/app/(app)/finance/expenses/page.tsx", 'icon="approvalFlow"'],
+    ["../src/app/(app)/finance/mine/page.tsx", 'icon="cashConversion"'],
+    ["../src/app/(app)/inventory/page.tsx", 'icon="inventoryCube"'],
+  ];
+  for (const [relPath, expectedSnippet] of iconChecks) {
+    const fileContent = readFileSync(new URL(relPath, import.meta.url), "utf8");
+    assert.ok(fileContent.includes(expectedSnippet), `الأيقونة المخصّصة مفقودة في ${relPath}: ${expectedSnippet}`);
+  }
+});
+
+
 
 
 

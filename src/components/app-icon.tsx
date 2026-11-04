@@ -27,7 +27,12 @@ export type AppIconName =
   | "shield"
   | "plusCircle"
   | "plusDoc"
-  | "transfers";
+  | "transfers"
+  | "printer"
+  | "download"
+  | "eye"
+  | "eyeOff"
+  | "share";
 
 type AppIconProps = SVGProps<SVGSVGElement> & { name: AppIconName };
 
@@ -153,6 +158,47 @@ export function AppIcon({ name, ...props }: AppIconProps) {
         <>
           <path d="m17 4 4 4-4 4M21 8H7" />
           <path d="m7 20-4-4 4-4M3 16h14" />
+        </>
+      );
+      break;
+    case "printer":
+      content = (
+        <>
+          <path d="M7 8V4h10v4" />
+          <rect x="4" y="8" width="16" height="8" rx="2" />
+          <path d="M7 14h10v6H7v-6ZM17 11h.01" />
+        </>
+      );
+      break;
+    case "download":
+      content = (
+        <>
+          <path d="M12 4v11m0 0-4-4m4 4 4-4" />
+          <path d="M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2" />
+        </>
+      );
+      break;
+    case "eye":
+      content = (
+        <>
+          <path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12Z" />
+          <circle cx="12" cy="12" r="3" />
+        </>
+      );
+      break;
+    case "eyeOff":
+      content = (
+        <>
+          <path d="M3 3l18 18" />
+          <path d="M10.6 10.6a2.5 2.5 0 0 0 3.5 3.5" />
+          <path d="M9.4 5.7A10.4 10.4 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a15.8 15.8 0 0 1-3.2 4.1M6.3 6.3A15.4 15.4 0 0 0 2.5 12s3.5 6.5 9.5 6.5a10 10 0 0 0 4.6-1.1" />
+        </>
+      );
+      break;
+    case "share":
+      content = (
+        <>
+          <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5Z" />
         </>
       );
       break;

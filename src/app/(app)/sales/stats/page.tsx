@@ -128,6 +128,29 @@ export default async function SalesStatsPage({
 
   const generatedAt = dateTimeFormatter.format(new Date());
 
+  const categoryBreakdown = (() => {
+    const map = new Map<
+      string,
+      { category: string; lines: number; qty: number; revenue: number }
+    >();
+    let totalRev = 0;
+    for (const item of exec.topItems) {
+      const cat = item.category || "أصناف متنوعة";
+      const cur = map.get(cat) ?? { category: cat, lines: 0, qty: 0, revenue: 0 };
+      cur.lines += item.lines;
+      cur.qty += item.quantityNum;
+      cur.revenue += item.revenueNum;
+      totalRev += item.revenueNum;
+      map.set(cat, cur);
+    }
+    return Array.from(map.values())
+      .sort((a, b) => b.revenue - a.revenue)
+      .map((row) => ({
+        ...row,
+        sharePct: totalRev > 0 ? Math.round((row.revenue / totalRev) * 1000) / 10 : 0,
+      }));
+  })();
+
   return (
     <div className="inv-page sale-print sales-stats-page">
       <div className="inv-heading">
@@ -334,6 +357,7 @@ export default async function SalesStatsPage({
         <div className="dashboard-cards-grid__item">
           <PantherSpotlightCard
             layout="wallet"
+            icon="salesGrowth"
             title={`ميزان مبيعات — ${periodLabel}`}
             subtitle={`محدّث الآن · ${branchScopeLabel}`}
             pill={`${nf.format(exec.invoiceCount)} فاتورة`}
@@ -364,6 +388,7 @@ export default async function SalesStatsPage({
         <div className="dashboard-cards-grid__item">
           <PantherSpotlightCard
             layout="wallet"
+            icon="customerCollection"
             title={exec.collectionsSpotlight.title}
             subtitle={exec.collectionsSpotlight.subtitle}
             pill={exec.collectionsSpotlight.pill}
@@ -379,6 +404,7 @@ export default async function SalesStatsPage({
         <div className="dashboard-cards-grid__item">
           <PantherSpotlightCard
             layout="wallet"
+            icon="netProfit"
             title={exec.profitabilitySpotlight.title}
             subtitle={exec.profitabilitySpotlight.subtitle}
             pill={exec.profitabilitySpotlight.pill}
@@ -577,6 +603,55 @@ export default async function SalesStatsPage({
           )}
         </div>
       </section>
+
+      {/* تحليل الإيراد والكمية حسب التصنيف السمعي */}
+      {categoryBreakdown.length > 0 ? (
+        <section className="inv-panel" aria-label="تحليل المبيعات حسب التصنيف">
+          <div className="inv-panel__heading">
+            <h2>تحليل المبيعات حسب التصنيف</h2>
+            <p>توزيع صافي إيراد الفترة والكميات المباعة عبر تصنيفات الخدمات السمعية والأصناف.</p>
+          </div>
+          <div className="inv-table-wrap table-wrap" role="region" aria-label="جدول تحليل التصنيفات" tabIndex={0}>
+            <table className="inv-table sales-stats-table">
+              <thead>
+                <tr>
+                  <th scope="col">التصنيف</th>
+                  <th scope="col">عدد البنود</th>
+                  <th scope="col">إجمالي الكمية</th>
+                  <th scope="col">صافي الإيراد</th>
+                  <th scope="col">الحصة من الإيراد</th>
+                </tr>
+              </thead>
+              <tbody>
+                {categoryBreakdown.map((cat) => (
+                  <tr key={cat.category}>
+                    <td>
+                      <strong>{cat.category}</strong>
+                    </td>
+                    <td>{nf.format(cat.lines)}</td>
+                    <td>{nf.format(cat.qty)}</td>
+                    <td>
+                      <strong>
+                        <bdi dir="ltr">{nf.format(cat.revenue)}</bdi> ج.م
+                      </strong>
+                    </td>
+                    <td>
+                      <div className="sales-stats-share">
+                        <span>
+                          <bdi dir="ltr">{nf.format(cat.sharePct)}%</bdi>
+                        </span>
+                        <div className="sales-stats-bar" aria-hidden="true">
+                          <span style={{ width: `${Math.min(100, Math.max(4, cat.sharePct))}%` }} />
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
 
       {/* لوحة أكثر الأصناف مبيعًا التفاعلية */}
       <SalesStatsTopItemsPanel items={exec.topItems} />

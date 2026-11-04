@@ -523,6 +523,7 @@ export default async function FinancePage() {
             <div className="dashboard-cards-grid__item">
               <PantherSpotlightCard
                 layout="wallet"
+                icon="balanceScale"
                 title="الميزان النقدي ومصروفات الشهر"
                 subtitle="محدّث الآن · إجمالي السيولة مقابل مصروفات الشهر الحالي"
                 pill={`${openVaultCount + openCustodyCount} حساب نشط`}

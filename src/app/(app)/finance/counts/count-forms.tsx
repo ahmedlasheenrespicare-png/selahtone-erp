@@ -7,6 +7,8 @@ import { accountLabel, formatMoney } from "../format";
 
 export type CountAccountOption = { id: string; kind: "VAULT" | "CUSTODY"; branchName: string; holderName: string | null; balance: string; expected: string };
 
+const EGP_DENOMINATIONS = [200, 100, 50, 20, 10, 5, 1] as const;
+
 /** A count is an observation: it records what was actually counted against the
  * balance the database holds, and never moves money on its own. */
 export function CountRequestForm({ requestId, accounts }: { requestId: string; accounts: CountAccountOption[] }) {
@@ -15,7 +17,37 @@ export function CountRequestForm({ requestId, accounts }: { requestId: string; a
   const [reason, setReason] = useState("");
   const [actuallyCounted, setActuallyCounted] = useState(false);
   const [review, setReview] = useState(false);
+  const [showDenoms, setShowDenoms] = useState(true);
+  const [denomQty, setDenomQty] = useState<Record<number, string>>({});
+  const [coinsAmount, setCoinsAmount] = useState("");
   const [state, formAction, pending] = useActionState(requestCountAction, initialFinanceActionState);
+
+  function computeDenomTotal(nextQty: Record<number, string>, nextCoins: string): number {
+    let sum = 0;
+    for (const d of EGP_DENOMINATIONS) {
+      const q = Number(nextQty[d] ?? "0");
+      if (Number.isFinite(q) && q > 0) sum += d * Math.floor(q);
+    }
+    const c = Number(nextCoins);
+    if (Number.isFinite(c) && c > 0) sum += c;
+    return Math.round(sum * 100) / 100;
+  }
+
+  function updateDenom(denom: number, raw: string): void {
+    const cleaned = raw.replace(/[^0-9]/g, "");
+    const next = { ...denomQty, [denom]: cleaned };
+    setDenomQty(next);
+    const total = computeDenomTotal(next, coinsAmount);
+    setCountedAmount(total > 0 ? String(total) : "");
+    setReview(false);
+  }
+
+  function updateCoins(raw: string): void {
+    setCoinsAmount(raw);
+    const total = computeDenomTotal(denomQty, raw);
+    setCountedAmount(total > 0 ? String(total) : "");
+    setReview(false);
+  }
 
   const account = accounts.find((item) => item.id === accountId) ?? null;
   const counted = Number(countedAmount);
@@ -63,15 +95,74 @@ export function CountRequestForm({ requestId, accounts }: { requestId: string; a
             </span>
           ) : null}
         </label>
-        <label className="field fin-field">
-          <span className="fin-field__label">النقد المعدود فعليًا</span>
-          <input inputMode="decimal" value={countedAmount} onChange={(event) => { setCountedAmount(event.target.value); setReview(false); }} placeholder="0.00" />
+        <div className="field fin-field">
+          <div className="sale-field-head">
+            <label htmlFor="counted-amount-input" className="fin-field__label">النقد المعدود فعليًا</label>
+            <button
+              type="button"
+              className="sale-fill-btn"
+              onClick={() => setShowDenoms((prev) => !prev)}
+            >
+              {showDenoms ? "إخفاء حاسبة الفئات" : "حاسبة الفئات الورقية"}
+            </button>
+          </div>
+          <input id="counted-amount-input" inputMode="decimal" value={countedAmount} onChange={(event) => { setCountedAmount(event.target.value); setReview(false); }} placeholder="0.00" />
           {countedAmount.trim() !== "" && !countedValid ? <span className="fin-field__error">أدخل مبلغًا غير سالب.</span> : null}
-        </label>
-        <label className="field fin-field">
+        </div>
+        <div className="field fin-field">
           <span className="fin-field__label">الفرق</span>
-          <span className="fin-field__hint">{difference === null ? "—" : formatMoney(difference.toFixed(2))}</span>
-        </label>
+          <span className={`fin-field__hint${difference !== null && difference < 0 ? " fin-money--negative" : ""}`}>
+            {difference === null ? "—" : `${formatMoney(difference.toFixed(2))} ج.م`}
+          </span>
+        </div>
+
+        {showDenoms ? (
+          <div className="fin-denom-box fin-field--wide" role="group" aria-label="حاسبة فئات النقد المصري">
+            <div className="fin-denom-box__head">
+              <strong>حاسبة فئات النقد المصري (تعبئ الحقل تلقائيًا)</strong>
+              <button
+                type="button"
+                className="sale-fill-btn"
+                onClick={() => {
+                  setDenomQty({});
+                  setCoinsAmount("");
+                  setCountedAmount("");
+                  setReview(false);
+                }}
+              >
+                تصفير الفئات
+              </button>
+            </div>
+            <div className="fin-denom-grid">
+              {EGP_DENOMINATIONS.map((denom) => (
+                <label key={denom} className="fin-denom-cell">
+                  <span className="fin-denom-cell__tag">{denom} ج.م</span>
+                  <input
+                    inputMode="numeric"
+                    placeholder="عدد الورق"
+                    value={denomQty[denom] ?? ""}
+                    onChange={(e) => updateDenom(denom, e.target.value)}
+                  />
+                  <small>
+                    {Number(denomQty[denom] ?? "0") > 0
+                      ? `${(denom * Number(denomQty[denom])).toLocaleString("en-US")} ج.م`
+                      : "0 ج.م"}
+                  </small>
+                </label>
+              ))}
+              <label className="fin-denom-cell">
+                <span className="fin-denom-cell__tag">فكة / عملات</span>
+                <input
+                  inputMode="decimal"
+                  placeholder="ج.م"
+                  value={coinsAmount}
+                  onChange={(e) => updateCoins(e.target.value)}
+                />
+                <small>قيمة مباشرة</small>
+              </label>
+            </div>
+          </div>
+        ) : null}
         <label className="field fin-field fin-field--wide">
           <span className="fin-field__label">سبب الجرد</span>
           <input value={reason} maxLength={300} onChange={(event) => { setReason(event.target.value); setReview(false); }} />

@@ -4,10 +4,12 @@ import type { SessionUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { AppIcon } from "@/components/app-icon";
 import PantherSpotlightCard from "@/components/panther-spotlight-card";
+import PrintPageButton from "@/components/print-page-button";
 import { listAccountActivity, listAccounts, listMyCountRequests } from "@/lib/finance/engine";
 import { loadEmployeeCash } from "@/lib/finance/dashboard";
 import { formatMoney } from "../format";
 import { financePage, financeRead } from "../page-context";
+import CustodyActivityView, { type CustodyMovementItem } from "./custody-activity-view";
 import { CustodyRequestForm, HolderCountForm } from "./custody-forms";
 import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
 
@@ -63,6 +65,11 @@ export default async function MyCustodyPage() {
           <p>ما يُتوقَّع في يدك الآن، وحركات العهدة. سجل المصروفات وتفاصيلها لا يظهر هنا.</p>
         </div>
         <div className="fin-actions">
+          <PrintPageButton
+            label="طباعة كشف العهدة"
+            className="fin-button fin-button--secondary"
+            title="طباعة ملخص وحركات العهدة"
+          />
           <Link className="fin-button" href="/finance/settlements">
             <AppIcon name="cash" />
             <span>طلبات التسوية</span>
@@ -124,6 +131,7 @@ export default async function MyCustodyPage() {
               </div>
 
               <PantherSpotlightCard
+                icon="cashConversion"
                 title="ميزان حركة العهدة"
                 subtitle="محدّث الآن · المقبوضات والمنصرفات النقدية منذ آخر تسوية"
                 pill={`${cash.todaySalesCount} بيع اليوم`}
@@ -250,46 +258,20 @@ async function CustodyActivity({ session, accountId }: { session: SessionUser; a
   const activity = await financeRead(session, (tx) =>
     listAccountActivity({ serializable: (work) => work(tx) }, session.id, accountId),
   );
+  const items: CustodyMovementItem[] = activity.map((movement) => ({
+    id: String(movement.id),
+    recordedAt: String(movement.recordedAt),
+    kindLabel: KIND_LABELS[movement.kind] ?? String(movement.kind),
+    direction: movement.direction === "OUT" ? "OUT" : "IN",
+    formattedAmount: formatMoney(movement.amount),
+  }));
   return (
     <div className="fin-panel">
       <div className="fin-panel__heading">
         <h2>حركات العهدة</h2>
         <p>الأحدث أولًا. الحركة التي تخرج من العهدة تُعرض بعلامة سالب.</p>
       </div>
-      {activity.length === 0 ? (
-        <div className="fin-panel__body"><p>لا توجد حركات مسجلة على العهدة بعد.</p></div>
-      ) : (
-        <div className="fin-table-wrap">
-          <table className="fin-table">
-            <thead>
-              <tr>
-                <th>التاريخ والوقت</th>
-                <th>النوع</th>
-                <th>الاتجاه</th>
-                <th>المبلغ</th>
-              </tr>
-            </thead>
-            <tbody>
-              {activity.map((movement) => (
-                <tr key={movement.id}>
-                  <td><bdi dir="ltr">{movement.recordedAt}</bdi></td>
-                  <td>{KIND_LABELS[movement.kind] ?? movement.kind}</td>
-                  <td>
-                    <span className={`fin-badge ${movement.direction === "OUT" ? "fin-badge--out" : "fin-badge--in"}`}>
-                      {movement.direction === "OUT" ? "خارج" : "داخل"}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`fin-money${movement.direction === "OUT" ? " fin-money--negative" : ""}`}>
-                      <bdi dir="ltr">{movement.direction === "OUT" ? `-${formatMoney(movement.amount)}` : formatMoney(movement.amount)}</bdi>
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <CustodyActivityView items={items} />
     </div>
   );
 }

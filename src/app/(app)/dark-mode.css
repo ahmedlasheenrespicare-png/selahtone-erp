@@ -1045,3 +1045,96 @@
   border-color: rgba(148, 163, 184, 0.30);
   color: #cbd5e1;
 }
+
+/* الوضع الليلي لعناصر الحزم الجديدة (المبيعات · المالية · الإدارة · المخزون) */
+.workspace-shell[data-color-mode="dark"] .sales-export-btn,
+.workspace-shell[data-color-mode="dark"] .sale-quick-chip,
+.workspace-shell[data-color-mode="dark"] .sale-mode-switch,
+.workspace-shell[data-color-mode="dark"] .sale-fill-btn,
+.workspace-shell[data-color-mode="dark"] .sale-discount-sim__chip,
+.workspace-shell[data-color-mode="dark"] .sale-discount-sim__grid > div,
+.workspace-shell[data-color-mode="dark"] .sale-discount-sim__card,
+.workspace-shell[data-color-mode="dark"] .catalog-filter-bar__search,
+.workspace-shell[data-color-mode="dark"] .admin-filter-bar__search,
+.workspace-shell[data-color-mode="dark"] .catalog-filter-bar select,
+.workspace-shell[data-color-mode="dark"] .admin-filter-bar select,
+.workspace-shell[data-color-mode="dark"] .fin-stepper,
+.workspace-shell[data-color-mode="dark"] .fin-denom-cell,
+.workspace-shell[data-color-mode="dark"] .fin-denom-cell input {
+  background: var(--dm-surface-soft);
+  border-color: var(--dm-border-strong);
+  color: var(--dm-ink);
+}
+
+.workspace-shell[data-color-mode="dark"] .sale-customer-hint,
+.workspace-shell[data-color-mode="dark"] .sale-quick-pick,
+.workspace-shell[data-color-mode="dark"] .sale-discount-sim,
+.workspace-shell[data-color-mode="dark"] .fin-stepper__step,
+.workspace-shell[data-color-mode="dark"] .fin-denom-box {
+  background: var(--dm-surface);
+  border-color: var(--dm-border);
+  color: var(--dm-ink);
+}
+
+.workspace-shell[data-color-mode="dark"] .sale-mode-switch button {
+  color: var(--dm-ink);
+}
+
+.workspace-shell[data-color-mode="dark"] .sale-mode-switch button.is-active,
+.workspace-shell[data-color-mode="dark"] .sale-discount-sim__chip.is-active {
+  background: #0f766e;
+  color: #ffffff;
+}
+
+.workspace-shell[data-color-mode="dark"] .sale-quick-chip:hover,
+.workspace-shell[data-color-mode="dark"] .sale-quick-chip.is-active {
+  background: rgba(20, 184, 166, 0.18);
+  border-color: rgba(45, 212, 191, 0.50);
+  color: #99f6e4;
+}
+
+.workspace-shell[data-color-mode="dark"] .sale-quick-chip small,
+.workspace-shell[data-color-mode="dark"] .sale-quick-pick__label,
+.workspace-shell[data-color-mode="dark"] .sale-discount-sim__grid span,
+.workspace-shell[data-color-mode="dark"] .sale-discount-sim__card span,
+.workspace-shell[data-color-mode="dark"] .sale-discount-sim__card small,
+.workspace-shell[data-color-mode="dark"] .fin-stepper__body small,
+.workspace-shell[data-color-mode="dark"] .fin-denom-cell small {
+  color: var(--dm-muted);
+}
+
+.workspace-shell[data-color-mode="dark"] .sale-discount-sim__grid strong,
+.workspace-shell[data-color-mode="dark"] .sale-discount-sim__card strong,
+.workspace-shell[data-color-mode="dark"] .fin-stepper__body strong,
+.workspace-shell[data-color-mode="dark"] .fin-denom-cell__tag,
+.workspace-shell[data-color-mode="dark"] .fin-denom-box__head {
+  color: var(--dm-ink);
+}
+
+.workspace-shell[data-color-mode="dark"] .sales-age-pill--warn,
+.workspace-shell[data-color-mode="dark"] .sale-customer-hint__warn {
+  background: rgba(245, 158, 11, 0.18);
+  border-color: rgba(245, 158, 11, 0.42);
+  color: #fde68a;
+}
+
+.workspace-shell[data-color-mode="dark"] .sales-age-pill--danger {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.42);
+  color: #fecaca;
+}
+
+.workspace-shell[data-color-mode="dark"] .fin-stepper__step.is-done {
+  background: rgba(34, 197, 94, 0.14);
+  border-color: rgba(34, 197, 94, 0.40);
+}
+
+.workspace-shell[data-color-mode="dark"] .fin-stepper__step.is-current {
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.40);
+}
+
+.workspace-shell[data-color-mode="dark"] .fin-cat-share-bar {
+  background: rgba(148, 163, 184, 0.22);
+}
+

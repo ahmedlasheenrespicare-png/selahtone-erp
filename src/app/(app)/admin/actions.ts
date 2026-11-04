@@ -247,3 +247,26 @@ export async function resetPasswordAction(_previous: AdminActionState, formData:
   revalidateDirectory();
   return { status: "success", message: "حُدِّثت كلمة المرور، وأُنهيت جلسات المستخدم السابقة، وسيُطلب تغييرها عند أول دخول." };
 }
+
+export async function revokeUserSessionsAction(_previous: AdminActionState, formData: FormData): Promise<AdminActionState> {
+  const guard = await requireAdmin();
+  if ("state" in guard) return guard.state;
+  const userId = rowId(text(formData, "userId"));
+  if (userId === null) return fail("المستخدم المحدد غير صحيح.");
+  if (userId.toString() === guard.session.id) {
+    return fail("لتسجيل الخروج من جلستك الحالية استخدم زر الخروج، أو غيّر كلمة مرورك لإنهاء الأجهزة الأخرى.");
+  }
+  try {
+    const deleted = await prisma.authSession.deleteMany({ where: { userId } });
+    revalidateDirectory();
+    return {
+      status: "success",
+      message:
+        deleted.count > 0
+          ? `أُنهيت ${deleted.count} جلسة نشطة لهذا المستخدم فورًا.`
+          : "لا توجد جلسات نشطة مسجّلة لهذا المستخدم حاليًا.",
+    };
+  } catch (error) {
+    return unexpected(error);
+  }
+}

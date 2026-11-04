@@ -9,8 +9,12 @@
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { branchScope, requireSession } from "@/lib/auth";
+import { displayMoney } from "@/lib/commerce-display";
+import { customerPosition } from "@/lib/commerce-math";
+import { scaledInteger } from "@/lib/inventory-math";
 import { positiveDatabaseId } from "@/lib/inventory-validation";
 import { prisma } from "@/lib/prisma";
+import type { KnownCustomerHint } from "./catalog-sale-form";
 import SaleForm from "./sale-form";
 
 export const dynamic = "force-dynamic";
@@ -30,15 +34,59 @@ export default async function WarehouseSale({ warehouseParam }: Props) {
     orderBy: [{ branch: { code: "asc" } }, { code: "asc" }], select: { id: true, nameAr: true, code: true, branch: { select: { nameAr: true } } },
   });
   const requested = typeof warehouseParam === "string" ? positiveDatabaseId(warehouseParam) : null;
-  const warehouse = requested ? warehouses.find((item) => item.id.toString() === requested) : null;
+  const warehouse = requested
+    ? warehouses.find((item) => item.id.toString() === requested) ?? null
+    : warehouses[0] ?? null;
   const today = cairoDate();
-  // فصلٌ مؤقت بين البيع والمخزون: «true» فيسجَّل البيع بلا اشتراط رصيد ولا خصم منه
   const stockDecoupled = process.env.SALES_STOCK_DECOUPLED === "true";
-  const [products, stock, settings] = warehouse ? await Promise.all([
+  const [products, stock, settings, recentSales] = warehouse ? await Promise.all([
     prisma.product.findMany({ where: { isActive: true }, include: { taxRate: true }, orderBy: [{ nameAr: "asc" }, { id: "asc" }] }),
     prisma.stockLevel.findMany({ where: { warehouseId: warehouse.id }, select: { productId: true, qtyOnHand: true } }),
     prisma.commerceSettings.findUnique({ where: { id: 1 } }),
-  ]) : [[], [], null];
+    prisma.commerceSale.findMany({
+      where: {
+        cancelledAt: null,
+        ...(scope.branchId ? { branchId: BigInt(scope.branchId) } : {}),
+      },
+      orderBy: [{ createdAt: "desc" }],
+      take: 150,
+      select: {
+        customerName: true,
+        customerPhone: true,
+        total: true,
+        collections: { select: { amount: true } },
+        refunds: { select: { amount: true } },
+        returns: { select: { lines: { select: { total: true } } } },
+      },
+    }),
+  ]) : [[], [], null, []];
+
+  const customerMap = new Map<string, { phone: string; name: string; invoiceCount: number; unpaidCents: bigint }>();
+  for (const s of recentSales) {
+    const digits = s.customerPhone.replace(/\D+/g, "");
+    if (digits.length < 6) continue;
+    const orig = scaledInteger(s.total.toFixed(2), 2);
+    const ret = s.returns.flatMap((r) => r.lines).reduce((acc, l) => acc + scaledInteger(l.total.toFixed(2), 2), 0n);
+    const col = s.collections.reduce((acc, c) => acc + scaledInteger(c.amount.toFixed(2), 2), 0n);
+    const ref = s.refunds.reduce((acc, r) => acc + scaledInteger(r.amount.toFixed(2), 2), 0n);
+    const pos = customerPosition({ originalTotalCents: orig, returnedCents: ret, collectedCents: col, refundedCents: ref });
+    const existing = customerMap.get(digits);
+    if (existing) {
+      existing.invoiceCount += 1;
+      existing.unpaidCents += pos.dueFromCustomerCents;
+    } else {
+      customerMap.set(digits, { phone: s.customerPhone, name: s.customerName, invoiceCount: 1, unpaidCents: pos.dueFromCustomerCents });
+    }
+  }
+  const knownCustomers: KnownCustomerHint[] = Array.from(customerMap.values()).slice(0, 80).map((c) => ({
+    phone: c.phone,
+    digits: c.phone.replace(/\D+/g, ""),
+    name: c.name,
+    invoiceCount: c.invoiceCount,
+    unpaidFormatted: displayMoney(c.unpaidCents),
+    hasUnpaid: c.unpaidCents > 0n,
+  }));
+
   const levels = new Map(stock.map((item) => [item.productId.toString(), item.qtyOnHand.toFixed(2)]));
   return <div className="inv-page">
     <Link href="/sales" className="inv-back">← العودة إلى الفواتير</Link>
@@ -49,14 +97,23 @@ export default async function WarehouseSale({ warehouseParam }: Props) {
       <form className="inv-panel" method="get" action="/sales/new" style={{ marginBottom: 16 }}><div className="inv-panel__body sale-inline">
         <div className="inv-field"><label htmlFor="sale-warehouse">الفرع والمستودع</label><select id="sale-warehouse" name="warehouseId" defaultValue={warehouse?.id.toString() ?? ""} required>
           <option value="">اختر المستودع</option>{warehouses.map((item) => <option key={item.id.toString()} value={item.id.toString()}>{item.branch.nameAr} — {item.nameAr} ({item.code})</option>)}
-        </select></div><button className="inv-button inv-button--secondary" type="submit">فتح قائمة الأصناف</button>
+        </select></div><button className="inv-button inv-button--secondary" type="submit">تبديل المستودع</button>
       </div></form>
       {warehouse && settings && <>
-        <SaleForm stockDecoupled={stockDecoupled} requestId={randomUUID()} warehouseId={warehouse.id.toString()} warehouseName={`${warehouse.branch.nameAr} — ${warehouse.nameAr}`} staff={session.role === "CS_AGENT"} discountBps={session.role === "MANAGER" ? settings.managerDiscountBps : settings.staffDiscountBps} products={products.map((product) => {
-          const tax = product.taxRate;
-          const supported = tax && tax.isActive && tax.effectiveFrom <= today && (!tax.effectiveTo || tax.effectiveTo >= today) && ["VAT", "SCHEDULE", "EXEMPT"].includes(tax.kind) && tax.rate.greaterThanOrEqualTo(0) && tax.rate.lessThanOrEqualTo(100) && (tax.kind !== "EXEMPT" || tax.rate.isZero());
-          return { id: product.id.toString(), name: product.nameAr, sku: product.sku, unitPrice: product.salePrice.toFixed(2), taxId: tax?.id.toString() ?? "", taxKind: tax?.kind ?? "", taxRate: tax?.rate.toFixed(3) ?? "", taxCode: tax?.code ?? "غير محدد", taxUsable: Boolean(supported), isStock: product.category !== "SERVICE", isSerialized: product.category !== "SERVICE" && (product.isSerialized || product.category === "HEARING_AID"), quantityAvailable: levels.get(product.id.toString()) ?? "0.00" };
-        })} />
+        <SaleForm
+          stockDecoupled={stockDecoupled}
+          requestId={randomUUID()}
+          warehouseId={warehouse.id.toString()}
+          warehouseName={`${warehouse.branch.nameAr} — ${warehouse.nameAr}`}
+          staff={session.role === "CS_AGENT"}
+          discountBps={session.role === "MANAGER" ? settings.managerDiscountBps : settings.staffDiscountBps}
+          knownCustomers={knownCustomers}
+          products={products.map((product) => {
+            const tax = product.taxRate;
+            const supported = tax && tax.isActive && tax.effectiveFrom <= today && (!tax.effectiveTo || tax.effectiveTo >= today) && ["VAT", "SCHEDULE", "EXEMPT"].includes(tax.kind) && tax.rate.greaterThanOrEqualTo(0) && tax.rate.lessThanOrEqualTo(100) && (tax.kind !== "EXEMPT" || tax.rate.isZero());
+            return { id: product.id.toString(), name: product.nameAr, sku: product.sku, unitPrice: product.salePrice.toFixed(2), taxId: tax?.id.toString() ?? "", taxKind: tax?.kind ?? "", taxRate: tax?.rate.toFixed(3) ?? "", taxCode: tax?.code ?? "غير محدد", taxUsable: Boolean(supported), isStock: product.category !== "SERVICE", isSerialized: product.category !== "SERVICE" && (product.isSerialized || product.category === "HEARING_AID"), quantityAvailable: levels.get(product.id.toString()) ?? "0.00" };
+          })}
+        />
       </>}
       {warehouse && !settings && <div className="inv-alert inv-alert--error">إعداد حد الخصم غير موجود؛ لا يمكن إنشاء بيع قبل مراجعته.</div>}
     </>}
