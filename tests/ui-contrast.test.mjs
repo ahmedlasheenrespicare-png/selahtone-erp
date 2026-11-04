@@ -918,6 +918,47 @@ test("صفحة بنود المصروفات تفصل المدفوع عن المع
   assert.ok(contrast("#fde68a", "#0f1c11") >= MIN);
 });
 
+test("صفحة الفروع والمستخدمون تحمي تراتبية الصلاحيات والعُهَد المفتوحة وتعرض سجل الأمان وتباين WCAG >= 4.5:1", () => {
+  const adminPageSrc = readFileSync(
+    new URL("../src/app/(app)/admin/page.tsx", import.meta.url),
+    "utf8",
+  );
+  const adminActionsSrc = readFileSync(
+    new URL("../src/app/(app)/admin/actions.ts", import.meta.url),
+    "utf8",
+  );
+  const adminHubSrc = readFileSync(
+    new URL("../src/app/(app)/admin/admin-hub-view.tsx", import.meta.url),
+    "utf8",
+  );
+  const adminFormsSrc = readFileSync(
+    new URL("../src/app/(app)/admin/admin-forms.tsx", import.meta.url),
+    "utf8",
+  );
+
+  // ١) حوكمة الصلاحيات وفحص العهدة المفتوحة قبل النقل أو الإيقاف
+  assert.ok(adminActionsSrc.includes("requireManagerOnly"));
+  assert.ok(adminActionsSrc.includes("canManageTargetUser"));
+  assert.ok(adminActionsSrc.includes("findOpenCustodyForUser"));
+
+  // ٢) المؤشر التفاعلي + ٣ تبويبات (مستخدمون / فروع / أمان) + مولّد كلمات مرور وتصدير CSV
+  assert.ok(adminPageSrc.includes("PantherSpotlightCard"));
+  assert.ok(adminHubSrc.includes("الأمان وسجل الدخول"));
+  assert.ok(adminHubSrc.includes("downloadCsvFile"));
+  assert.ok(adminFormsSrc.includes("generateStrongPassword"));
+  assert.ok(adminFormsSrc.includes("بطاقة الدخول"));
+
+  // ٣) تباين الشارات الإدارية والأمنية نهارًا وليلًا >= 4.5:1
+  assert.ok(contrast("#1e3a8a", "#dbeafe") >= MIN);
+  assert.ok(contrast("#0f766e", "#ccfbf1") >= MIN);
+  assert.ok(contrast("#166534", "#dcfce7") >= MIN);
+  assert.ok(contrast("#991b1b", "#fee2e2") >= MIN);
+  assert.ok(contrast("#92400e", "#fef3c7") >= MIN);
+  assert.ok(contrast("#bfdbfe", "#16263f") >= MIN);
+  assert.ok(contrast("#99f6e4", "#112d2c") >= MIN);
+  assert.ok(contrast("#0b1512", "#86efac") >= MIN);
+});
+
 
 
 

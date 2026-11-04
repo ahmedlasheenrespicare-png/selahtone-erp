@@ -2,12 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  assignableRolesForActor,
   branchInputError,
+  canManageBranchStructure,
+  canManageTargetUser,
   isAdminRole,
   isIdentifier,
   normalizeBranchCode,
   normalizeInvoicePrefix,
   normalizeName,
+  phoneInputError,
   userInputError,
 } from "../src/lib/admin-directory";
 
@@ -62,4 +66,26 @@ test("user input validates name, email and password policy", () => {
   assert.match(userInputError({ ...base, role: "OWNER" }, { requirePassword: true }) ?? "", /الدور/);
   // تعديل مستخدم قائم لا يشترط كلمة مرور.
   assert.equal(userInputError({ ...base, password: "" }, { requirePassword: false }), null);
+});
+
+test("role hierarchy prevents accountant privilege escalation and validates phone numbers", () => {
+  assert.equal(canManageBranchStructure("MANAGER"), true);
+  assert.equal(canManageBranchStructure("ACCOUNTANT"), false);
+  assert.equal(canManageBranchStructure("CS_AGENT"), false);
+
+  assert.equal(canManageTargetUser("MANAGER", "MANAGER"), true);
+  assert.equal(canManageTargetUser("MANAGER", "ACCOUNTANT"), true);
+  assert.equal(canManageTargetUser("MANAGER", "CS_AGENT"), true);
+
+  assert.equal(canManageTargetUser("ACCOUNTANT", "MANAGER"), false);
+  assert.equal(canManageTargetUser("ACCOUNTANT", "ACCOUNTANT"), false);
+  assert.equal(canManageTargetUser("ACCOUNTANT", "CS_AGENT"), true);
+
+  assert.deepEqual(assignableRolesForActor("MANAGER"), ["MANAGER", "ACCOUNTANT", "CS_AGENT"]);
+  assert.deepEqual(assignableRolesForActor("ACCOUNTANT"), ["CS_AGENT"]);
+  assert.deepEqual(assignableRolesForActor("CS_AGENT"), []);
+
+  assert.equal(phoneInputError(""), null);
+  assert.equal(phoneInputError("+20 100 123 4567"), null);
+  assert.match(phoneInputError("abc") ?? "", /الهاتف/);
 });
