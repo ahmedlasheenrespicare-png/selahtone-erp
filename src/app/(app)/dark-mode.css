@@ -1152,3 +1152,19 @@
   color: #fca5a5;
 }
 
+.workspace-shell[data-color-mode="dark"] .finance-suite .fin-cat-pending-note {
+  color: #fde68a;
+}
+
+.workspace-shell[data-color-mode="dark"] .finance-suite .fin-cat-mom-pill--up {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.42);
+  color: #fecaca;
+}
+
+.workspace-shell[data-color-mode="dark"] .finance-suite .fin-cat-mom-pill--down {
+  background: rgba(34, 197, 94, 0.16);
+  border-color: rgba(34, 197, 94, 0.42);
+  color: #bbf7d0;
+}
+

@@ -22,6 +22,7 @@ type Props = {
   branches: BranchOption[];
   categories: CategoryOption[];
   existingHints?: ExistingExpenseHint[];
+  initialCategoryId?: string;
 };
 
 const QUICK_DESCRIPTION_TEMPLATES = [
@@ -39,9 +40,14 @@ export default function ExpenseForm({
   branches,
   categories,
   existingHints = [],
+  initialCategoryId = "",
 }: Props) {
   const [branchId, setBranchId] = useState(branches[0]?.id ?? "");
-  const [categoryId, setCategoryId] = useState("");
+  const [categoryId, setCategoryId] = useState(() =>
+    categories.some((c) => c.active && c.id === initialCategoryId)
+      ? initialCategoryId
+      : "",
+  );
   const [amount, setAmount] = useState("");
   const [expenseDate, setExpenseDate] = useState(today);
   const [description, setDescription] = useState("");

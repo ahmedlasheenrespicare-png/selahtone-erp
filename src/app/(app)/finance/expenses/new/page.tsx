@@ -13,8 +13,17 @@ import ExpenseForm, {
 
 export const dynamic = "force-dynamic";
 
-export default async function NewExpensePage() {
+export default async function NewExpensePage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ categoryId?: string }>;
+}) {
   const { session, canManage } = await financePage();
+  const resolvedParams = searchParams ? await searchParams : undefined;
+  const requestedCategoryId =
+    typeof resolvedParams?.categoryId === "string"
+      ? resolvedParams.categoryId.trim()
+      : "";
   if (!canManage && session.role !== "CS_AGENT") {
     return (
       <div className="fin-page">
@@ -83,6 +92,7 @@ export default async function NewExpensePage() {
           branches={branchOptions}
           categories={categoryOptions}
           existingHints={existingHints}
+          initialCategoryId={requestedCategoryId}
         />
       )}
     </div>
