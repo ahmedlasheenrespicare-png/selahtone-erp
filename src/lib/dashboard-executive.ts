@@ -682,7 +682,7 @@ export async function loadDashboardExecutiveSuite(
           ]
         : rawBranchPoints;
 
-    // السلسلة ٣: جسر الربحية (المبيعات ← مجمل الربح ← صافي التشغيل ← الخصومات والمرتجعات)
+    // السلسلة ١: جسر الربحية (المبيعات ← مجمل الربح ← المصروفات التشغيلية ← صافي التشغيل)
     const bridgePoints: PantherChartPoint[] = [
       {
         label: "صافي المبيعات",
@@ -699,27 +699,45 @@ export async function loadDashboardExecutiveSuite(
         detail: `تكلفة البضاعة المباعة: ${displayMoney(monthCogsCents)} ج.م`,
       },
       {
-        label: "صافي التشغيل بعد المصروفات",
-        shortLabel: "الصافي",
-        value: Number(monthNetOperatingCents) / 100,
-        formattedValue: `${displayMoney(monthNetOperatingCents)} ج.م`,
-        detail: `المصروفات المعتمدة والمدفوعة: ${displayMoney(monthOpExpensesCents)} ج.م`,
+        label: "المصروفات التشغيلية بالشهر",
+        shortLabel: "−المصروفات",
+        value: Number(monthOpExpensesCents) / 100,
+        formattedValue: `${displayMoney(monthOpExpensesCents)} ج.م`,
+        detail: `خصومات ومرتجعات الفترة: ${displayMoney(monthDiscountsCents + monthPartialReturnsCents)} ج.م`,
+        tone: "danger",
       },
       {
-        label: "الخصومات والمرتجعات",
-        shortLabel: "خصم/مرتجع",
-        value: Number(monthDiscountsCents + monthPartialReturnsCents) / 100,
-        formattedValue: `${displayMoney(monthDiscountsCents + monthPartialReturnsCents)} ج.م`,
-        detail: `خصومات ${displayMoney(monthDiscountsCents)} ج.م · مرتجعات ${displayMoney(monthPartialReturnsCents)} ج.م`,
+        label: "صافي التشغيل بعد المصروفات",
+        shortLabel: "=الصافي",
+        value: Number(monthNetOperatingCents) / 100,
+        formattedValue: `${displayMoney(monthNetOperatingCents)} ج.م`,
+        detail: "صافي ربح التشغيل الفعلي بعد التكلفة والمصروفات",
       },
     ];
 
     const profitSeries: PantherChartSeries[] = [
-      { id: "daily-operating", label: "صافي الأيام", points: dailyPoints },
+      {
+        id: "profit-bridge",
+        label: "جسر الربحية",
+        chartVariant: "waterfall",
+        points: bridgePoints,
+      },
+      {
+        id: "daily-operating",
+        label: "صافي الأيام",
+        chartVariant: "area",
+        points: dailyPoints,
+      },
       ...(branchPoints.length > 0
-        ? [{ id: "branch-operating", label: "مساهمة الفروع", points: branchPoints }]
+        ? [
+            {
+              id: "branch-operating",
+              label: "مساهمة الفروع",
+              chartVariant: "columns" as const,
+              points: branchPoints,
+            },
+          ]
         : []),
-      { id: "profit-bridge", label: "جسر الربحية", points: bridgePoints },
     ];
 
     const statsHref = opts.canAccessSalesStats
@@ -1557,10 +1575,27 @@ export async function loadDashboardExecutiveSuite(
       : cashBranchRaw;
 
   const cashConversionSeries: PantherChartSeries[] = [
-    { id: "daily-conversion", label: "المسار اليومي", points: dailyConversionPoints },
-    { id: "cash-funnel", label: "قمع السيولة", points: cashFunnelPoints },
+    {
+      id: "cash-funnel",
+      label: "قمع السيولة",
+      chartVariant: "waterfall",
+      points: cashFunnelPoints,
+    },
+    {
+      id: "daily-conversion",
+      label: "المسار اليومي",
+      chartVariant: "area",
+      points: dailyConversionPoints,
+    },
     ...(opts.canManage && cashBranchPoints.length > 0
-      ? [{ id: "branch-conversion", label: "حسب الفرع", points: cashBranchPoints }]
+      ? [
+          {
+            id: "branch-conversion",
+            label: "حسب الفرع",
+            chartVariant: "columns" as const,
+            points: cashBranchPoints,
+          },
+        ]
       : []),
   ];
 

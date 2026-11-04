@@ -500,6 +500,7 @@ export default async function ExpensesPage() {
           <PantherSpotlightCard
             layout="wallet"
             icon="expenseReceipt"
+            chartVariant="area"
             title="مصروفات الشهر وحالة الصرف"
             subtitle={`محدّث الآن · شهر ${currentMonthPrefix}`}
             pill={`${monthCount} مصروف هذا الشهر`}
@@ -530,6 +531,7 @@ export default async function ExpensesPage() {
           <PantherSpotlightCard
             layout="wallet"
             icon="approvalFlow"
+            chartVariant="donut"
             title="مراحل الاعتماد وبنود الصرف"
             subtitle={
               canManage

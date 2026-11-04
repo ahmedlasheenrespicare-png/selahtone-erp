@@ -358,6 +358,7 @@ export default async function SalesStatsPage({
           <PantherSpotlightCard
             layout="wallet"
             icon="salesGrowth"
+            chartVariant="area"
             title={`ميزان مبيعات — ${periodLabel}`}
             subtitle={`محدّث الآن · ${branchScopeLabel}`}
             pill={`${nf.format(exec.invoiceCount)} فاتورة`}
@@ -389,6 +390,7 @@ export default async function SalesStatsPage({
           <PantherSpotlightCard
             layout="wallet"
             icon="customerCollection"
+            chartVariant="donut"
             title={exec.collectionsSpotlight.title}
             subtitle={exec.collectionsSpotlight.subtitle}
             pill={exec.collectionsSpotlight.pill}
@@ -405,6 +407,7 @@ export default async function SalesStatsPage({
           <PantherSpotlightCard
             layout="wallet"
             icon="netProfit"
+            chartVariant="bars"
             title={exec.profitabilitySpotlight.title}
             subtitle={exec.profitabilitySpotlight.subtitle}
             pill={exec.profitabilitySpotlight.pill}

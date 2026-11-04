@@ -12,11 +12,12 @@ import type { MenuScope } from "@/lib/menu-scope";
 import { WORKSPACE_THEME_GROUPS } from "@/lib/workspace-theme";
 import LogoutButton from "./logout-button";
 import {
-  isCurrentPath,
   mobileBottomDockItems,
-  navigationGroups,
   resolveActiveBottomDockHref,
+  resolveActiveSidebarHref,
+  sidebarNavigationGroups,
   type BottomDockRole,
+  type SidebarNavBadges,
 } from "./navigation-items";
 import { useWorkspaceTheme } from "./workspace-theme-provider";
 
@@ -26,6 +27,7 @@ type AppNavigationProps = {
   financeEnabled?: boolean;
   menuScope?: MenuScope;
   inventoryEnabled?: boolean;
+  badges?: SidebarNavBadges;
   userName?: string;
   roleLabel?: string;
   branchLabel?: string;
@@ -37,6 +39,7 @@ export function AppNavigation({
   financeEnabled = false,
   menuScope = "FULL",
   inventoryEnabled = false,
+  badges,
   userName = "مستخدم النظام",
   roleLabel = "مساحة العمل",
   branchLabel = "كل الفروع",
@@ -45,25 +48,47 @@ export function AppNavigation({
   const { theme, setTheme, dashboardBgByTheme, setThemeDashboardBg, clock } = useWorkspaceTheme();
   const [menuOpen, setMenuOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
-  const [themeOpen, setThemeOpen] = useState(true);
+  // قسم المظهر مطوي افتراضيًا لتقليل طول القائمة الجانبية وإبراز العمليات اليومية.
+  const [themeOpen, setThemeOpen] = useState(false);
   const [openThemeGroups, setOpenThemeGroups] = useState<string[]>(() =>
     WORKSPACE_THEME_GROUPS.map((group) => group.id),
   );
   const toggleRef = useRef<HTMLButtonElement>(null);
   const accountTriggerRef = useRef<HTMLButtonElement>(null);
   const accountPopoverRef = useRef<HTMLDivElement>(null);
-  // يُفتح الأب منسدلًا إن كان المسار الحالي داخل أحد أبنائه، فلا يضيع موضع
-  // الموظف حين ينتقل بين شاشات البيع.
+
+  const effectiveRole: BottomDockRole = role ?? (canViewAllBranches ? "MANAGER" : "CS_AGENT");
+  const navGroups = sidebarNavigationGroups(effectiveRole, {
+    financeEnabled,
+    menuScope,
+    inventoryEnabled,
+    badges,
+  });
+  const activeSidebarHref = resolveActiveSidebarHref(pathname, navGroups);
+
+  // يُفتح الأب منسدلًا إن كان المسار الفعّال داخل أحد أبنائه، فلا يضيع موضع المستخدم.
   const [openParents, setOpenParents] = useState<string[]>(() =>
-    navigationGroups(canViewAllBranches, financeEnabled, menuScope, inventoryEnabled)
+    navGroups
       .flatMap((group) => group.items)
-      .filter((item) => item.children?.some((child) => child.href && isCurrentPath(pathname, child.href)))
+      .filter((item) => item.children?.some((child) => child.href === activeSidebarHref))
       .map((item) => item.label),
   );
 
   useEffect(() => {
     setAccountOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!activeSidebarHref) return;
+    const matchingParent = navGroups
+      .flatMap((group) => group.items)
+      .find((item) => item.children?.some((child) => child.href === activeSidebarHref));
+    if (matchingParent) {
+      setOpenParents((prev) =>
+        prev.includes(matchingParent.label) ? prev : [...prev, matchingParent.label],
+      );
+    }
+  }, [activeSidebarHref]);
 
   useEffect(() => {
     if (!accountOpen) return;
@@ -89,7 +114,6 @@ export function AppNavigation({
 
   const isSelatoneBrand = theme === "wallet-selahtone";
   const userInitial = Array.from(userName)[0] ?? "ص";
-  const effectiveRole: BottomDockRole = role ?? (canViewAllBranches ? "MANAGER" : "CS_AGENT");
   const dockItems = mobileBottomDockItems(
     effectiveRole,
     financeEnabled,
@@ -285,72 +309,112 @@ export function AppNavigation({
       </div>
 
       <nav id="workspace-navigation" className={`workspace-navigation${menuOpen ? " is-open" : ""}`} aria-label="التنقل الرئيسي">
-        {navigationGroups(canViewAllBranches, financeEnabled, menuScope, inventoryEnabled).map((group) => (
+        {navGroups.map((group) => (
           <div className="workspace-nav-group" key={group.label}>
             <p className="workspace-nav-group__label">{group.label}</p>
             <ul>
-              {group.items.map((item) => (
-                <li key={item.label}>
-                  {item.children?.length ? (
-                    <>
-                      <button
-                        type="button"
-                        className="workspace-nav-item workspace-nav-parent"
-                        aria-expanded={openParents.includes(item.label)}
-                        aria-controls={`subnav-${item.label}`}
-                        onClick={() => toggleParent(item.label)}
+              {group.items.map((item) => {
+                const parentOpen = openParents.includes(item.label);
+                const parentHasActive = Boolean(
+                  item.children?.some((child) => child.href && child.href === activeSidebarHref),
+                );
+                const itemActive = Boolean(item.href && item.href === activeSidebarHref);
+
+                return (
+                  <li key={item.label}>
+                    {item.children?.length ? (
+                      <>
+                        <button
+                          type="button"
+                          className={`workspace-nav-item workspace-nav-parent${
+                            parentHasActive && !parentOpen ? " is-active" : ""
+                          }`}
+                          aria-expanded={parentOpen}
+                          aria-controls={`subnav-${item.label}`}
+                          onClick={() => toggleParent(item.label)}
+                        >
+                          <AppIcon name={item.icon} />
+                          <span>{item.label}</span>
+                          <AppIcon
+                            name="arrow"
+                            className={`workspace-nav-chevron${parentOpen ? " is-open" : ""}`}
+                          />
+                        </button>
+                        {parentOpen ? (
+                          <ul id={`subnav-${item.label}`} className="workspace-nav-sublist">
+                            {item.children.map((child) => {
+                              const childActive = Boolean(
+                                child.href && child.href === activeSidebarHref,
+                              );
+                              return (
+                                <li key={child.label}>
+                                  {child.href ? (
+                                    <Link
+                                      href={child.href}
+                                      className={`workspace-nav-item workspace-nav-subitem${
+                                        childActive ? " is-active" : ""
+                                      }`}
+                                      aria-current={childActive ? "page" : undefined}
+                                      onClick={() => setMenuOpen(false)}
+                                    >
+                                      <AppIcon name={child.icon} />
+                                      <span>{child.label}</span>
+                                      {child.badgeCount && child.badgeCount > 0 ? (
+                                        <span className="workspace-nav-badge">
+                                          {child.badgeCount}
+                                        </span>
+                                      ) : childActive ? (
+                                        <span
+                                          className="workspace-nav-item__indicator"
+                                          aria-hidden="true"
+                                        />
+                                      ) : null}
+                                    </Link>
+                                  ) : null}
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        ) : null}
+                      </>
+                    ) : item.href ? (
+                      <Link
+                        href={item.href}
+                        className={`workspace-nav-item${itemActive ? " is-active" : ""}${
+                          item.featured && !itemActive ? " is-featured" : ""
+                        }`}
+                        aria-current={itemActive ? "page" : undefined}
+                        onClick={() => setMenuOpen(false)}
                       >
                         <AppIcon name={item.icon} />
                         <span>{item.label}</span>
-                        <AppIcon name="arrow" className={`workspace-nav-chevron${openParents.includes(item.label) ? " is-open" : ""}`} />
-                      </button>
-                      {openParents.includes(item.label) ? (
-                        <ul id={`subnav-${item.label}`} className="workspace-nav-sublist">
-                          {item.children.map((child) => (
-                            <li key={child.label}>
-                              {child.href ? (
-                                <Link
-                                  href={child.href}
-                                  className={`workspace-nav-item workspace-nav-subitem${isCurrentPath(pathname, child.href) ? " is-active" : ""}`}
-                                  aria-current={isCurrentPath(pathname, child.href) ? "page" : undefined}
-                                  onClick={() => setMenuOpen(false)}
-                                >
-                                  <AppIcon name={child.icon} />
-                                  <span>{child.label}</span>
-                                  {isCurrentPath(pathname, child.href) && <span className="workspace-nav-item__indicator" aria-hidden="true" />}
-                                </Link>
-                              ) : null}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : null}
-                    </>
-                  ) : item.href ? (
-                    <Link
-                      href={item.href}
-                      className={`workspace-nav-item${isCurrentPath(pathname, item.href) ? " is-active" : ""}`}
-                      aria-current={isCurrentPath(pathname, item.href) ? "page" : undefined}
-                      onClick={() => setMenuOpen(false)}
-                    >
-                      <AppIcon name={item.icon} />
-                      <span>{item.label}</span>
-                      {isCurrentPath(pathname, item.href) && <span className="workspace-nav-item__indicator" aria-hidden="true" />}
-                    </Link>
-                  ) : (
-                    <span className="workspace-nav-item is-disabled" aria-disabled="true">
-                      <AppIcon name={item.icon} />
-                      <span>{item.label}</span>
-                      <small>قريبًا</small>
-                    </span>
-                  )}
-                </li>
-              ))}
+                        {item.badgeCount && item.badgeCount > 0 ? (
+                          <span
+                            className="workspace-nav-badge"
+                            aria-label={`${item.badgeCount} بانتظار المراجعة`}
+                          >
+                            {item.badgeCount}
+                          </span>
+                        ) : itemActive ? (
+                          <span className="workspace-nav-item__indicator" aria-hidden="true" />
+                        ) : null}
+                      </Link>
+                    ) : (
+                      <span className="workspace-nav-item is-disabled" aria-disabled="true">
+                        <AppIcon name={item.icon} />
+                        <span>{item.label}</span>
+                        <small>قريبًا</small>
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           </div>
         ))}
 
         <div className="workspace-nav-group">
-          <p className="workspace-nav-group__label" dir="ltr">Theme</p>
+          <p className="workspace-nav-group__label">المظهر</p>
           <ul>
             <li>
               <button
@@ -361,7 +425,7 @@ export function AppNavigation({
                 onClick={() => setThemeOpen((open) => !open)}
               >
                 <AppIcon name="theme" />
-                <span dir="ltr">Theme</span>
+                <span>المظهر والسمات</span>
                 <AppIcon name="arrow" className={`workspace-nav-chevron${themeOpen ? " is-open" : ""}`} />
               </button>
               {themeOpen ? (

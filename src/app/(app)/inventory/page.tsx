@@ -157,6 +157,7 @@ export default async function InventoryPage() {
 
       <PantherSpotlightCard
         icon="inventoryCube"
+        chartVariant="columns"
         title="ميزان المخزون والنواقص"
         subtitle={`محدّث الآن · ${session.branchName ?? "كل الفروع"}`}
         pill={`${nf.format(products.length)} صنف نشط`}

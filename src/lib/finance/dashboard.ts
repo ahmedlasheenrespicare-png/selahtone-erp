@@ -660,7 +660,31 @@ export async function loadDashboardFinanceSpotlights(
     const totalLiquidityCents = vaultTotalCents + expectedCustodyCents;
     const netSurplusCents = totalLiquidityCents - monthTotalCents;
 
-    const cashSeries: PantherChartSeries[] = [];
+    const cashSeries: PantherChartSeries[] = [
+      {
+        id: "liquidity-mix",
+        label: "توزيع السيولة",
+        chartVariant: "donut",
+        points: [
+          {
+            label: "أرصدة الخزائن المفتوحة",
+            shortLabel: "الخزائن",
+            value: Number(vaultTotalCents) / 100,
+            formattedValue: `${displayMoney(vaultTotalCents)} ج.م`,
+            detail: `موزّعة على ${openVaultCount} خزنة فرع نشطة`,
+            tone: "accent",
+          },
+          {
+            label: "المستحق بالعُهَد المفتوحة",
+            shortLabel: "العُهَد",
+            value: Number(expectedCustodyCents) / 100,
+            formattedValue: `${displayMoney(expectedCustodyCents)} ج.م`,
+            detail: `عبر ${openCustodyCount} عهدة موظف مفتوحة`,
+            tone: "alt",
+          },
+        ],
+      },
+    ];
 
     if (opts.branches.length > 0) {
       const branchPoints: PantherChartPoint[] = opts.branches.map((b) => {

@@ -132,6 +132,7 @@ export default async function MyCustodyPage() {
 
               <PantherSpotlightCard
                 icon="cashConversion"
+                chartVariant="waterfall"
                 title="ميزان حركة العهدة"
                 subtitle="محدّث الآن · المقبوضات والمنصرفات النقدية منذ آخر تسوية"
                 pill={`${cash.todaySalesCount} بيع اليوم`}
@@ -156,6 +157,7 @@ export default async function MyCustodyPage() {
                   {
                     id: "custody-equation",
                     label: "معادلة العهدة",
+                    chartVariant: "waterfall",
                     points: [
                       {
                         label: "رصيد العهدة الدفتري",
@@ -165,15 +167,24 @@ export default async function MyCustodyPage() {
                         detail: "نقطة البداية قبل مبيعات ومصروفات الفترة",
                       },
                       {
-                        label: "بعد إضافة مبيعات الفترة نقدًا",
+                        label: "مقبوضات مبيعات الفترة نقدًا",
                         shortLabel: "+المبيعات",
-                        value: Number(cash.balance) + Number(cash.sales),
-                        formattedValue: `${formatMoney((Number(cash.balance) + Number(cash.sales)).toFixed(2))} ج.م`,
-                        detail: `مقبوضات العملاء نقدًا: +${formatMoney(cash.sales)} ج.م`,
+                        value: Number(cash.sales),
+                        formattedValue: `+${formatMoney(cash.sales)} ج.م`,
+                        detail: `الإجمالي قبل الصرف: ${formatMoney((Number(cash.balance) + Number(cash.sales)).toFixed(2))} ج.م`,
+                        tone: "alt",
+                      },
+                      {
+                        label: "منصرفات من نقد العهدة",
+                        shortLabel: "−المصروفات",
+                        value: Number(cash.expenses),
+                        formattedValue: `−${formatMoney(cash.expenses)} ج.م`,
+                        detail: "مصروفات سُدّدت فعليًا من نقد يدك",
+                        tone: "danger",
                       },
                       {
                         label: "المتوقَّع بيدك الآن",
-                        shortLabel: "المتوقَّع",
+                        shortLabel: "=المتوقَّع",
                         value: Number(cash.expected),
                         formattedValue: `${formatMoney(cash.expected)} ج.م`,
                         detail: `بعد خصم مصروفات من نقدك: −${formatMoney(cash.expenses)} ج.م`,
