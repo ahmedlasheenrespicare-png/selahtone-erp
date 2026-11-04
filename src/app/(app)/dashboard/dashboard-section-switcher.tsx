@@ -19,6 +19,9 @@ type Props = {
   fullView: ReactNode;
   compactView: ReactNode;
   fullViewWallet: ReactNode;
+  headerContent: ReactNode;
+  headerTools: ReactNode;
+  beforeContent: ReactNode;
 };
 
 const nf = new Intl.NumberFormat("ar-EG-u-nu-latn");
@@ -31,6 +34,9 @@ export default function DashboardSectionSwitcher({
   fullView,
   compactView,
   fullViewWallet,
+  headerContent,
+  headerTools,
+  beforeContent,
 }: Props) {
   const storageKey = `selahtone:dashboard-section:${userScopeKey}`;
   const availableIds = useMemo(() => items.map((item) => item.id), [items]);
@@ -240,176 +246,195 @@ export default function DashboardSectionSwitcher({
 
   return (
     <>
-      <div className="dash-switcher-bar no-print" role="region" aria-label="اختيار قسم لوحة القيادة">
-        <div className="dash-dropdown-wrap" ref={dropdownWrapRef}>
-          <button
-            type="button"
-            className="dash-dropdown-trigger"
-            aria-haspopup="listbox"
-            aria-expanded={open}
-            aria-label="قائمة أقسام لوحة القيادة"
-            onClick={() => {
-              const nextOpen = !open;
-              setOpen(nextOpen);
-              if (nextOpen) {
-                setTimeout(() => searchInputRef.current?.focus(), 20);
-              }
-            }}
-          >
-            <span className="dash-dropdown-trigger__start">
-              <span className="dash-dropdown-trigger__icon" aria-hidden="true">
-                <AppIcon name={activeMeta?.icon ?? "dashboard"} />
-              </span>
-              <span className="dash-dropdown-trigger__copy">
-                <span className="dash-dropdown-trigger__eyebrow">
-                  محتوى لوحة القيادة ({nf.format(activeIndex + 1)} من {nf.format(items.length)})
-                </span>
-                <span className="dash-dropdown-trigger__title">
-                  {activeMeta?.label ?? "لوحة القيادة"}
-                </span>
-              </span>
-            </span>
+      <div className="dashboard-heading">
+        <div className="dashboard-heading__top">
+          {headerContent}
 
-            <span className="dash-dropdown-trigger__end">
-              {activeMeta?.badgeCount && activeMeta.badgeCount > 0 ? (
-                <span
-                  className={`dash-section-badge${
-                    activeMeta.badgeTone === "alert" ? " is-alert" : ""
-                  }`}
-                >
-                  {nf.format(activeMeta.badgeCount)}
-                </span>
-              ) : null}
-              <span className="dash-dropdown-chevron" aria-hidden="true">
-                ▾
-              </span>
-            </span>
-          </button>
-
-          {open ? (
-            <div className="dash-dropdown-menu" role="listbox" aria-label="كل أقسام ومؤشرات لوحة القيادة">
-              <div className="dash-dropdown-search">
-                <AppIcon name="search" />
-                <input
-                  ref={searchInputRef}
-                  type="search"
-                  value={filterText}
-                  onChange={(e) => setFilterText(e.target.value)}
-                  placeholder="صفِّ أقسام ومؤشرات اللوحة بالاسم…"
-                  aria-label="تصفية أقسام لوحة القيادة"
-                />
-              </div>
-
-              <div className="dash-dropdown-scroll">
-                {filteredGroups.length === 0 ? (
-                  <p className="dash-dropdown-empty">لا يوجد قسم مطابق لعبارة البحث.</p>
-                ) : (
-                  filteredGroups.map((grp) => (
-                    <div key={grp.group} className="dash-dropdown-group">
-                      <span className="dash-dropdown-group__title">{grp.title}</span>
-                      {grp.items.map((opt) => {
-                        const isSelected = opt.id === selectedId;
-                        return (
-                          <button
-                            key={opt.id}
-                            type="button"
-                            role="option"
-                            aria-selected={isSelected}
-                            className={`dash-dropdown-option${isSelected ? " is-selected" : ""}`}
-                            onClick={() => selectSection(opt.id)}
-                          >
-                            <span className="dash-dropdown-option__start">
-                              <span className="dash-dropdown-option__icon" aria-hidden="true">
-                                <AppIcon name={opt.icon} />
-                              </span>
-                              <span className="dash-dropdown-option__copy">
-                                <strong>{opt.label}</strong>
-                                <small>{opt.description}</small>
-                              </span>
-                            </span>
-
-                            <span className="dash-dropdown-option__end">
-                              {opt.badgeCount && opt.badgeCount > 0 ? (
-                                <span
-                                  className={`dash-section-badge${
-                                    opt.badgeTone === "alert" ? " is-alert" : ""
-                                  }`}
-                                >
-                                  {nf.format(opt.badgeCount)}
-                                </span>
-                              ) : null}
-                              {isSelected ? <span aria-hidden="true">✓</span> : null}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          ) : null}
         </div>
+        <div className="dash-switcher-bar dash-switcher-bar--header no-print" role="region" aria-label="اختيار قسم لوحة القيادة">
+          <div className="dash-dropdown-wrap" ref={dropdownWrapRef}>
+            <button
+              type="button"
+              className="dash-dropdown-trigger"
+              aria-haspopup="listbox"
+              aria-expanded={open}
+              aria-label="قائمة أقسام لوحة القيادة"
+              onClick={() => {
+                const nextOpen = !open;
+                setOpen(nextOpen);
+                if (nextOpen) {
+                  setTimeout(() => searchInputRef.current?.focus(), 20);
+                }
+              }}
+            >
+              <span className="dash-dropdown-trigger__start">
+                <span className="dash-dropdown-trigger__icon" aria-hidden="true">
+                  <AppIcon name={activeMeta?.icon ?? "dashboard"} />
+                </span>
+                <span className="dash-dropdown-trigger__copy">
+                  <span className="dash-dropdown-trigger__eyebrow">
+                    محتوى لوحة القيادة ({nf.format(activeIndex + 1)} من {nf.format(items.length)})
+                  </span>
+                  <span className="dash-dropdown-trigger__title">
+                    {activeMeta?.label ?? "لوحة القيادة"}
+                  </span>
+                </span>
+              </span>
 
-        <div className="dash-switcher-controls">
-          <div className="dash-step-group" role="group" aria-label="التنقل بين الأقسام">
-            <button
-              type="button"
-              className="dash-step-btn"
-              onClick={() =>
-                selectSection(stepDashboardSection(selectedId, availableIds, -1))
-              }
-              title="القسم السابق"
-            >
-              <span>السابق</span>
+              <span className="dash-dropdown-trigger__end">
+                {activeMeta?.badgeCount && activeMeta.badgeCount > 0 ? (
+                  <span
+                    className={`dash-section-badge${
+                      activeMeta.badgeTone === "alert" ? " is-alert" : ""
+                    }`}
+                  >
+                    {nf.format(activeMeta.badgeCount)}
+                  </span>
+                ) : null}
+                <span className="dash-dropdown-chevron" aria-hidden="true">
+                  ▾
+                </span>
+              </span>
             </button>
-            <button
-              type="button"
-              className="dash-step-btn"
-              onClick={() =>
-                selectSection(stepDashboardSection(selectedId, availableIds, 1))
-              }
-              title="القسم التالي"
-            >
-              <span>التالي</span>
-            </button>
+
+            {open ? (
+              <div className="dash-dropdown-menu" role="listbox" aria-label="كل أقسام ومؤشرات لوحة القيادة">
+                <div className="dash-dropdown-search">
+                  <AppIcon name="search" />
+                  <input
+                    ref={searchInputRef}
+                    type="search"
+                    value={filterText}
+                    onChange={(e) => setFilterText(e.target.value)}
+                    placeholder="صفِّ أقسام ومؤشرات اللوحة بالاسم…"
+                    aria-label="تصفية أقسام لوحة القيادة"
+                  />
+                </div>
+
+                <div className="dash-dropdown-scroll">
+                  {filteredGroups.length === 0 ? (
+                    <p className="dash-dropdown-empty">لا يوجد قسم مطابق لعبارة البحث.</p>
+                  ) : (
+                    filteredGroups.map((grp) => (
+                      <div key={grp.group} className="dash-dropdown-group">
+                        <span className="dash-dropdown-group__title">{grp.title}</span>
+                        {grp.items.map((opt) => {
+                          const isSelected = opt.id === selectedId;
+                          return (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              role="option"
+                              aria-selected={isSelected}
+                              className={`dash-dropdown-option${isSelected ? " is-selected" : ""}`}
+                              onClick={() => selectSection(opt.id)}
+                            >
+                              <span className="dash-dropdown-option__start">
+                                <span className="dash-dropdown-option__icon" aria-hidden="true">
+                                  <AppIcon name={opt.icon} />
+                                </span>
+                                <span className="dash-dropdown-option__copy">
+                                  <strong>{opt.label}</strong>
+                                  <small>{opt.description}</small>
+                                </span>
+                              </span>
+
+                              <span className="dash-dropdown-option__end">
+                                {opt.badgeCount && opt.badgeCount > 0 ? (
+                                  <span
+                                    className={`dash-section-badge${
+                                      opt.badgeTone === "alert" ? " is-alert" : ""
+                                    }`}
+                                  >
+                                    {nf.format(opt.badgeCount)}
+                                  </span>
+                                ) : null}
+                                {isSelected ? <span aria-hidden="true">✓</span> : null}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            ) : null}
           </div>
 
-          <button
-            type="button"
-            className={`dash-mode-toggle${selectedId === "all" ? " is-active" : ""}`}
-            onClick={() =>
-              selectSection(selectedId === "all" ? "pulse-wallet" : "all")
-            }
-          >
-            <AppIcon name="dashboard" />
-            <span>{selectedId === "all" ? "الوضع المركّز" : "عرض شامل (الكل)"}</span>
-          </button>
+          <div className="dash-switcher-controls">
+            <div className="dash-step-group" role="group" aria-label="التنقل بين الأقسام">
+              <button
+                type="button"
+                className="dash-step-btn dash-step-btn--previous"
+                onClick={() =>
+                  selectSection(stepDashboardSection(selectedId, availableIds, -1))
+                }
+                title="القسم السابق"
+                aria-label="القسم السابق"
+              >
+                <AppIcon name="arrow" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                className="dash-step-btn dash-step-btn--next"
+                onClick={() =>
+                  selectSection(stepDashboardSection(selectedId, availableIds, 1))
+                }
+                title="القسم التالي"
+                aria-label="القسم التالي"
+              >
+                <AppIcon name="arrow" aria-hidden="true" />
+              </button>
+            </div>
+
+            <button
+              type="button"
+              className={`dash-mode-toggle${selectedId === "all" ? " is-active" : ""}`}
+              onClick={() =>
+                selectSection(selectedId === "all" ? "pulse-wallet" : "all")
+              }
+              title={selectedId === "all" ? "العودة إلى العرض المركّز" : "عرض شامل (الكل)"}
+              aria-label={selectedId === "all" ? "العودة إلى العرض المركّز" : "عرض شامل، كل الأقسام"}
+            >
+              <AppIcon name="dashboard" aria-hidden="true" />
+            </button>
+            <details className="dashboard-design-menu">
+            <summary aria-label="اختيار تصميم لوحة القيادة" title="اختيار تصميم لوحة القيادة">
+              <AppIcon name={allLayout === "spacious" ? "layoutWide" : "layoutCompact"} aria-hidden="true" />
+            </summary>
+              <div className="dashboard-design-menu__panel" role="group" aria-label="تصميمات لوحة القيادة">
+                <button
+                  type="button"
+                  className={`dashboard-design-menu__option${allLayout === "spacious" ? " is-active" : ""}`}
+                  aria-pressed={allLayout === "spacious"}
+                  onClick={() => chooseAllLayout("spacious")}
+                >
+                <AppIcon name="layoutWide" aria-hidden="true" />
+                <span>واسع</span>
+                  {allLayout === "spacious" ? <AppIcon name="check" aria-hidden="true" /> : null}
+                </button>
+                <button
+                  type="button"
+                  className={`dashboard-design-menu__option${allLayout === "compact" ? " is-active" : ""}`}
+                  aria-pressed={allLayout === "compact"}
+                  onClick={() => chooseAllLayout("compact")}
+                >
+                <AppIcon name="layoutCompact" aria-hidden="true" />
+                <span>مضغوط</span>
+                  {allLayout === "compact" ? <AppIcon name="check" aria-hidden="true" /> : null}
+                </button>
+              </div>
+            </details>
+          </div>
         </div>
+        {headerTools}
       </div>
+      {beforeContent}
 
       {/* عرض المحتوى بحسب الاختيار */}
       {selectedId === "all" ? (
         <div key="all" className="dash-single-stage dash-single-stage--all" data-dashboard-section="all" data-dashboard-layout={allLayout} data-hidden-toggles={hiddenToggleAttribute}>
-          <div className="dash-all-layout-picker" role="group" aria-label="اختيار تصميم العرض الشامل">
-            <span className="dash-all-layout-picker__label">تصميم اللوحة:</span>
-            <button
-              type="button"
-              className={`dash-all-layout-picker__button${allLayout === "spacious" ? " is-active" : ""}`}
-              aria-pressed={allLayout === "spacious"}
-              onClick={() => chooseAllLayout("spacious")}
-            >
-              تصميم الدمج الأخير (واسع)
-            </button>
-            <button
-              type="button"
-              className={`dash-all-layout-picker__button${allLayout === "compact" ? " is-active" : ""}`}
-              aria-pressed={allLayout === "compact"}
-              onClick={() => chooseAllLayout("compact")}
-            >
-              الشبكة المضغوطة
-            </button>
-          </div>
           {allLayout === "compact" ? fullViewWallet : null}
           {allLayout === "compact" ? compactView : fullView}
         </div>

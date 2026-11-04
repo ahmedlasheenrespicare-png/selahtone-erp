@@ -356,6 +356,8 @@ export default async function DashboardPage({
           { key: "stats", label: "إحصائيات المبيعات", href: effectiveBranchId ? `/sales/stats?period=month&branch=${effectiveBranchId}` : "/sales/stats?period=month", icon: "reports" },
         ];
   const quickActions = candidateQuickActions.filter((a) => canOpen(a.href.split("?")[0]));
+  const primaryQuickAction = quickActions.find((action) => action.primary) ?? quickActions[0];
+  const secondaryQuickActions = quickActions.filter((action) => action.key !== primaryQuickAction?.key);
 
   // بطاقة المهام العاجلة في شريط نبض اليوم
   const urgentTaskCount = isEmployee
@@ -392,45 +394,104 @@ export default async function DashboardPage({
   const lowStockTotalCount = pulseData?.lowStockTotalCount ?? 0;
   const outOfStockCount = pulseData?.outOfStockCount ?? 0;
 
-  return (
-    <div className="dashboard">
-      {/* ١. الترويسة العملية + الإجراءات السريعة */}
-      <div className="dashboard-heading">
-        <div>
-          <p className="dashboard-eyebrow">
-            <span /> لوحة القيادة · {activeScopeLabel}
-          </p>
-          <h1>أهلًا بك، {session.name}</h1>
-          <p className="dashboard-heading__description">
-            {isEmployee
-              ? "متابعة فورية لمبيعات فرعك وعهدتك النقدية ومهام اليوم في مكان واحد."
-              : isAccountant
-                ? "متابعة حيّة للسيولة والتسويات والمصروفات المعتمدة والتحصيلات."
-                : "نبض المبيعات والسيولة والاعتمادات وصحة الفروع لحظةً بلحظة."}
-          </p>
-        </div>
-
-        <div className="dashboard-quick-actions" role="navigation" aria-label="إجراءات سريعة">
-          {quickActions.map((act) => (
-            <Link
-              key={act.key}
-              href={act.href}
-              className={`dashboard-quick-btn${act.primary ? " is-primary" : ""}`}
-            >
-              <AppIcon name={act.icon} />
-              <span>{act.label}</span>
-              {act.badge && act.badge > 0 ? (
-                <strong className="dashboard-quick-btn__badge">{nf.format(act.badge)}</strong>
-              ) : null}
+  const dashboardScopeControl: ReactNode = canViewAllBranches && !scope.branchId && allBranches.length > 1 ? (
+    <details className="dashboard-scope-menu">
+      <summary aria-label={`تغيير نطاق العرض، الحالي ${activeScopeLabel}`}>
+        <span className="dashboard-scope-menu__label">النطاق</span>
+        <strong>{activeScopeLabel}</strong>
+        <span className="dashboard-scope-menu__chevron" aria-hidden="true">⌄</span>
+      </summary>
+      <nav className="dashboard-scope-menu__panel" aria-label="خيارات نطاق العرض">
+        <Link href={buildDashboardHref(null)} aria-current={requestedBranch === null ? "page" : undefined}>
+          كل الفروع ({nf.format(allBranches.length)})
+        </Link>
+        {allBranches.map((branch) => {
+          const idStr = branch.id.toString();
+          return (
+            <Link key={idStr} href={buildDashboardHref(idStr)} aria-current={requestedBranch === idStr ? "page" : undefined}>
+              {branch.nameAr}
             </Link>
-          ))}
-          <PrintPageButton
-            label="ملخص إغلاق اليوم"
-            title="طباعة ملخص إغلاق اليوم وحصيلة المبيعات والسيولة"
-          />
-        </div>
-      </div>
+          );
+        })}
+      </nav>
+    </details>
+  ) : null;
 
+  const dashboardOmniSearchForm: ReactNode = (
+    <form method="get" action="/dashboard" className="dashboard-omni-form" role="search">
+      {requestedBranch ? <input type="hidden" name="branch" value={requestedBranch} /> : null}
+      {requestedSection ? <input type="hidden" name="section" value={requestedSection} /> : null}
+      <span className="dashboard-omni-form__icon" aria-hidden="true"><AppIcon name="search" /></span>
+      <input
+        type="search"
+        name="q"
+        defaultValue={rawSearchQ}
+        placeholder="بحث فوري: سيريال، هاتف أو اسم عميل، فاتورة أو كود صنف..."
+        aria-label="ابحث برقم السيريال أو هاتف العميل أو رقم الفاتورة أو كود الصنف"
+        className="dashboard-omni-form__input"
+      />
+      <div className="dashboard-omni-form__actions">
+        {rawSearchQ ? <Link href={buildDashboardHref(requestedBranch, null)} className="dashboard-omni-form__clear" aria-label="مسح البحث">×</Link> : null}
+        <button type="submit" className="dashboard-omni-form__submit" aria-label="تنفيذ البحث"><AppIcon name="search" /></button>
+      </div>
+    </form>
+  );
+
+  const dashboardHeaderContent: ReactNode = (
+    <div className="dashboard-heading__intro">
+      <p className="dashboard-eyebrow">
+        <span /> لوحة القيادة · {activeScopeLabel}
+      </p>
+      <h1>أهلًا بك، {session.name}</h1>
+    </div>
+  );
+
+  const dashboardHeaderTools: ReactNode = (
+    <div className="dashboard-heading__tools">
+      {dashboardScopeControl}
+      {dashboardOmniSearchForm}
+      <div className="dashboard-quick-actions" role="navigation" aria-label="إجراءات سريعة">
+        {primaryQuickAction ? (
+          <Link
+            href={primaryQuickAction.href}
+            className="dashboard-quick-btn dashboard-quick-btn--icon is-primary"
+            aria-label={primaryQuickAction.label}
+            title={primaryQuickAction.label}
+          >
+            <AppIcon name={primaryQuickAction.icon} />
+            {primaryQuickAction.badge && primaryQuickAction.badge > 0 ? (
+              <strong className="dashboard-quick-btn__badge">{nf.format(primaryQuickAction.badge)}</strong>
+            ) : null}
+          </Link>
+        ) : null}
+        <details className="dashboard-quick-menu">
+          <summary aria-label="المزيد من الإجراءات" title="المزيد من الإجراءات">
+            <span aria-hidden="true">⋯</span>
+            <small>المزيد</small>
+          </summary>
+          <div className="dashboard-quick-menu__panel">
+            {secondaryQuickActions.map((action) => (
+              <Link key={action.key} href={action.href}>
+                <AppIcon name={action.icon} />
+                <span>{action.label}</span>
+                {action.badge && action.badge > 0 ? (
+                  <strong className="dashboard-quick-btn__badge">{nf.format(action.badge)}</strong>
+                ) : null}
+              </Link>
+            ))}
+            <PrintPageButton
+              label="ملخص إغلاق اليوم"
+              title="طباعة ملخص إغلاق اليوم وحصيلة المبيعات والسيولة"
+              className="dashboard-quick-menu__print"
+            />
+          </div>
+        </details>
+      </div>
+    </div>
+  );
+
+  const dashboardPrelude: ReactNode = (
+    <>
       {/* ملخّص إغلاق اليوم الرسمي المخصّص للطباعة */}
       <section className="print-only-brief" aria-label="ملخص إغلاق اليوم">
         <div className="print-only-brief__head">
@@ -474,70 +535,9 @@ export default async function DashboardPage({
         </div>
       </section>
 
-      {/* ٢. شريط تصفية الفرع السريع للإدارة والمحاسب */}
-      {canViewAllBranches && !scope.branchId && allBranches.length > 1 ? (
-        <div className="dashboard-branch-bar" role="navigation" aria-label="تصفية لوحة القيادة حسب الفرع">
-          <span className="dashboard-branch-bar__label">نطاق العرض:</span>
-          <Link
-            href={buildDashboardHref(null)}
-            className={`dashboard-branch-pill${requestedBranch === null ? " is-active" : ""}`}
-            aria-current={requestedBranch === null ? "page" : undefined}
-          >
-            كل الفروع ({nf.format(allBranches.length)})
-          </Link>
-          {allBranches.map((b) => {
-            const idStr = b.id.toString();
-            const isSelected = requestedBranch === idStr;
-            return (
-              <Link
-                key={idStr}
-                href={buildDashboardHref(idStr)}
-                className={`dashboard-branch-pill${isSelected ? " is-active" : ""}`}
-                aria-current={isSelected ? "page" : undefined}
-              >
-                {b.nameAr}
-              </Link>
-            );
-          })}
-        </div>
-      ) : null}
-
-      {/* ٢-ب. شريط البحث الفوري الشامل (سيريال · هاتف أو اسم عميل · رقم فاتورة · صنف) */}
-      <section className="dashboard-omni-section" aria-label="البحث الفوري الشامل">
-        <form method="get" action="/dashboard" className="dashboard-omni-form" role="search">
-          {requestedBranch ? (
-            <input type="hidden" name="branch" value={requestedBranch} />
-          ) : null}
-          {requestedSection ? (
-            <input type="hidden" name="section" value={requestedSection} />
-          ) : null}
-          <span className="dashboard-omni-form__icon" aria-hidden="true">
-            <AppIcon name="search" />
-          </span>
-          <input
-            type="search"
-            name="q"
-            defaultValue={rawSearchQ}
-            placeholder="بحث فوري: رقم سيريال جهاز، هاتف أو اسم عميل، رقم فاتورة (#)، أو كود الصنف..."
-            aria-label="ابحث برقم السيريال أو هاتف العميل أو رقم الفاتورة"
-            className="dashboard-omni-form__input"
-          />
-          <div className="dashboard-omni-form__actions">
-            {rawSearchQ ? (
-              <Link
-                href={buildDashboardHref(requestedBranch, null)}
-                className="dashboard-omni-form__clear"
-              >
-                مسح
-              </Link>
-            ) : null}
-            <button type="submit" className="dashboard-omni-form__submit">
-              بحث فوري
-            </button>
-          </div>
-        </form>
-
-        {execSuite?.omniSearch ? (
+      {/* نتائج البحث تظهر أسفل الترويسة؛ حقل البحث نفسه مدمج داخلها */}
+      {execSuite?.omniSearch ? (
+        <section className="dashboard-omni-section" aria-label="نتائج البحث الفوري">
           <div className="dashboard-omni-results" role="region" aria-label="نتائج البحث الفوري">
             <div className="dashboard-omni-results__head">
               <strong>
@@ -667,9 +667,13 @@ export default async function DashboardPage({
               </div>
             )}
           </div>
-        ) : null}
-      </section>
+        </section>
+      ) : null}
+    </>
+  );
 
+  return (
+    <div className="dashboard">
       {/* ٣–٥. قائمة أقسام لوحة القيادة المنسدلة (كل قسم ومؤشر على حدة + العرض الشامل) */}
       {(() => {
         const pulseNode: ReactNode = (
@@ -1888,6 +1892,9 @@ export default async function DashboardPage({
             fullView={fullDashboardView}
             compactView={compactDashboardView}
             fullViewWallet={fullDashboardWallet}
+            headerContent={dashboardHeaderContent}
+            headerTools={dashboardHeaderTools}
+            beforeContent={dashboardPrelude}
           />
         );
       })()}
