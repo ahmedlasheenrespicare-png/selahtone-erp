@@ -1,12 +1,18 @@
 import { redirect } from "next/navigation";
 
 import { AppIcon } from "@/components/app-icon";
-import { ROLE_LABELS, type AdminRole } from "@/lib/admin-directory";
-import { MENU_SCOPE_LABELS, isMenuScope, type MenuScope } from "@/lib/menu-scope";
+import { type AdminRole } from "@/lib/admin-directory";
+import { isMenuScope, type MenuScope } from "@/lib/menu-scope";
 import { canSeeAllBranches, getSession } from "@/lib/auth";
 import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
 import { prisma } from "@/lib/prisma";
-import { BranchActiveForm, BranchCreateForm, BranchRenameForm, PasswordResetForm, UserCreateForm, UserEditForm } from "./admin-forms";
+import {
+  BranchActiveForm,
+  BranchCreateForm,
+  BranchRenameForm,
+  UserCreateForm,
+} from "./admin-forms";
+import AdminUsersDirectory, { type AdminDirectoryUserRow } from "./admin-users-directory";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +34,8 @@ export default async function AdminPage() {
     );
   }
 
-  const [branches, users] = await Promise.all([
+  const now = new Date();
+  const [branches, users, activeSessionGroups, lastLoginGroups] = await Promise.all([
     prisma.branch.findMany({
       orderBy: { code: "asc" },
       include: { _count: { select: { users: true, warehouses: true } } },
@@ -37,9 +44,54 @@ export default async function AdminPage() {
       orderBy: [{ roleCode: "asc" }, { fullName: "asc" }],
       include: { branch: { select: { nameAr: true } } },
     }),
+    prisma.authSession
+      .groupBy({
+        by: ["userId"],
+        where: { expiresAt: { gt: now } },
+        _count: { _all: true },
+      })
+      .catch(() => []),
+    prisma.loginAttempt
+      .groupBy({
+        by: ["userId"],
+        where: { result: "SUCCESS", userId: { not: null } },
+        _max: { createdAt: true },
+      })
+      .catch(() => []),
   ]);
 
+  const activeSessionByUser = new Map<string, number>();
+  for (const g of activeSessionGroups) {
+    activeSessionByUser.set(g.userId.toString(), g._count._all);
+  }
+  const lastLoginFmt = new Intl.DateTimeFormat("ar-EG-u-nu-latn", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "Africa/Cairo",
+  });
+  const lastLoginByUser = new Map<string, string>();
+  for (const g of lastLoginGroups) {
+    if (g.userId !== null && g._max.createdAt) {
+      lastLoginByUser.set(g.userId.toString(), lastLoginFmt.format(g._max.createdAt));
+    }
+  }
+
   const activeBranches = branches.filter((branch) => branch.isActive);
+  const directoryUsers: AdminDirectoryUserRow[] = users.map((user) => ({
+    id: user.id.toString(),
+    fullName: user.fullName,
+    email: user.email,
+    role: user.roleCode as AdminRole,
+    branchId: user.branchId === null ? null : user.branchId.toString(),
+    branchName: user.branch?.nameAr ?? null,
+    isActive: user.status === "ACTIVE",
+    mustChangePassword: user.mustChangePassword,
+    isSelf: user.id.toString() === session.id,
+    menuScope: isMenuScope(user.menuScope) ? (user.menuScope as MenuScope) : "FULL",
+    canCancelSales: user.canCancelSales,
+    activeSessionCount: activeSessionByUser.get(user.id.toString()) ?? 0,
+    lastLoginLabel: lastLoginByUser.get(user.id.toString()) ?? null,
+  }));
 
   return (
     <div className="dashboard">
@@ -47,7 +99,7 @@ export default async function AdminPage() {
         <div className="dashboard-section-heading">
           <div>
             <h2 id="admin-title">الفروع والمستخدمون</h2>
-            <p>إضافة فرع أو مستخدم، وإعادة تسمية الفروع، وإيقافها أو تفعيلها.</p>
+            <p>إضافة فرع أو مستخدم، وإعادة تسمية الفروع، ومراجعة الجلسات النشطة وإيقافها.</p>
           </div>
           <span className="dashboard-scope"><span /> كل الفروع</span>
         </div>
@@ -73,7 +125,6 @@ export default async function AdminPage() {
                   <th scope="col">المستودعات</th>
                   <th scope="col">المستخدمون</th>
                   <th scope="col">الحالة</th>
-                  <th scope="col">نطاق القائمة</th>
                   <th scope="col">إجراء</th>
                 </tr>
               </thead>
@@ -151,70 +202,14 @@ export default async function AdminPage() {
             </div>
             <span className="dashboard-panel__heading-icon"><AppIcon name="settings" /></span>
           </div>
-          <div className="dashboard-table-wrap" role="region" aria-label="جدول المستخدمين" tabIndex={0}>
-            <table className="dashboard-table">
-              <thead>
-                <tr>
-                  <th scope="col">الاسم</th>
-                  <th scope="col">البريد</th>
-                  <th scope="col">الدور</th>
-                  <th scope="col">الفرع</th>
-                  <th scope="col">الحالة</th>
-                  <th scope="col">إجراء</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((user) => (
-                  <tr key={user.id.toString()}>
-                    <td><strong>{user.fullName}</strong></td>
-                    <td dir="ltr">{user.email}</td>
-                    <td>{ROLE_LABELS[user.roleCode as AdminRole] ?? user.roleCode}</td>
-                    <td>{user.branch?.nameAr ?? "بدون فرع"}</td>
-                    <td>{user.status === "ACTIVE" ? "نشط" : "موقوف"}{user.mustChangePassword ? " • بانتظار تغيير كلمة المرور" : ""}</td>
-                    <td>{user.roleCode === "CS_AGENT" ? "—" : MENU_SCOPE_LABELS[(isMenuScope(user.menuScope) ? user.menuScope : "FULL") as MenuScope]}</td>
-                    <td>
-                      <details>
-                        <summary className="dashboard-text-link">تعديل</summary>
-                        <div className="dashboard-setup__items">
-                          <UserEditForm
-                            user={{
-                              id: user.id.toString(),
-                              fullName: user.fullName,
-                              email: user.email,
-                              role: user.roleCode as AdminRole,
-                              branchId: user.branchId === null ? null : user.branchId.toString(),
-                              branchName: user.branch?.nameAr ?? null,
-                              isActive: user.status === "ACTIVE",
-                              mustChangePassword: user.mustChangePassword,
-                              isSelf: user.id.toString() === session.id,
-                              menuScope: isMenuScope(user.menuScope) ? user.menuScope : "FULL",
-                              canCancelSales: user.canCancelSales,
-                            }}
-                            branches={activeBranches.map((branch) => ({ id: branch.id.toString(), nameAr: branch.nameAr, code: branch.code }))}
-                          />
-                          <PasswordResetForm
-                            user={{
-                              id: user.id.toString(),
-                              fullName: user.fullName,
-                              email: user.email,
-                              role: user.roleCode as AdminRole,
-                              branchId: user.branchId === null ? null : user.branchId.toString(),
-                              branchName: user.branch?.nameAr ?? null,
-                              isActive: user.status === "ACTIVE",
-                              mustChangePassword: user.mustChangePassword,
-                              isSelf: user.id.toString() === session.id,
-                              menuScope: isMenuScope(user.menuScope) ? user.menuScope : "FULL",
-                              canCancelSales: user.canCancelSales,
-                            }}
-                          />
-                        </div>
-                      </details>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <AdminUsersDirectory
+            users={directoryUsers}
+            activeBranches={activeBranches.map((branch) => ({
+              id: branch.id.toString(),
+              nameAr: branch.nameAr,
+              code: branch.code,
+            }))}
+          />
           <div className="dashboard-panel__footer"><span>لا تُعرض كلمات المرور أو تجزئاتها في أي شاشة.</span></div>
         </section>
 

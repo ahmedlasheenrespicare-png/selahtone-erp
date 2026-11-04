@@ -1,3 +1,4 @@
+import PrintPageButton from "@/components/print-page-button";
 import { prisma } from "@/lib/prisma";
 import { requireSession, canSeeAllBranches } from "@/lib/auth";
 import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
@@ -19,14 +20,35 @@ export default async function SetupPage() {
     return <div className="alert alert-err">هذه الصفحة للمدير والمحاسب فقط.</div>;
   }
 
-  const [branches, users, taxRates, products, warehouses, expenseCategories, tax5] = await Promise.all([
+  const now = new Date();
+  const [
+    branches,
+    activeBranchCount,
+    users,
+    activeUserCount,
+    taxRates,
+    products,
+    warehouses,
+    expenseCategories,
+    tax5,
+    activeSessionCount,
+    expiredSessionCount,
+    lockedThrottleCount,
+    branchList,
+  ] = await Promise.all([
     prisma.branch.count(),
+    prisma.branch.count({ where: { isActive: true } }),
     prisma.user.count(),
+    prisma.user.count({ where: { status: "ACTIVE" } }),
     prisma.taxRate.findMany({ orderBy: { rate: "asc" } }),
     prisma.product.count(),
     prisma.warehouse.findMany({ include: { branch: true } }),
     prisma.expenseCategory.count(),
     prisma.taxRate.findUnique({ where: { code: "VAT5" } }),
+    prisma.authSession.count({ where: { expiresAt: { gt: now } } }).catch(() => 0),
+    prisma.authSession.count({ where: { expiresAt: { lte: now } } }).catch(() => 0),
+    prisma.loginThrottle.count({ where: { lockedUntil: { gt: now } } }).catch(() => 0),
+    prisma.branch.findMany({ include: { warehouses: true }, orderBy: { code: "asc" } }),
   ]);
 
   // فحص محرك الضريبة على بيانات حقيقية من القاعدة
@@ -50,7 +72,7 @@ export default async function SetupPage() {
     {
       label: "الفروع الثلاثة",
       ok: branches >= 3,
-      detail: `${branches} فرع`,
+      detail: `${branches} فرع (${activeBranchCount} نشط)`,
     },
     {
       label: "مستودع لكل فرع",
@@ -85,7 +107,7 @@ export default async function SetupPage() {
     {
       label: "المستخدمون",
       ok: users >= 3,
-      detail: `${users} مستخدم`,
+      detail: `${users} مستخدم (${activeUserCount} نشط)`,
     },
   ];
 
@@ -93,11 +115,41 @@ export default async function SetupPage() {
 
   return (
     <>
-      <div className={`alert ${passed === checks.length ? "alert-ok" : "alert-warn alert-info"}`}>
-        <b>{passed} من {checks.length} فحصًا ناجحًا.</b>{" "}
-        {passed === checks.length
-          ? "الإعداد سليم — أرسل لي لقطة هذه الصفحة لننتقل للخطوة التالية."
-          : "راجع البنود غير الناجحة مع المسؤول. لا تُشغّل تهيئة البيانات على قاعدة قائمة لأنها قد تغيّر بيانات حقيقية."}
+      <div className="setup-top-bar">
+        <div className={`alert ${passed === checks.length ? "alert-ok" : "alert-warn alert-info"}`} style={{ marginBottom: 0, flex: 1 }}>
+          <b>{passed} من {checks.length} فحصًا ناجحًا.</b>{" "}
+          {passed === checks.length
+            ? "الإعداد سليم — أرسل لي لقطة هذه الصفحة لننتقل للخطوة التالية."
+            : "راجع البنود غير الناجحة مع المسؤول. لا تُشغّل تهيئة البيانات على قاعدة قائمة لأنها قد تغيّر بيانات حقيقية."}
+        </div>
+        <PrintPageButton
+          label="طباعة تقرير الإعداد"
+          className="btn sec"
+          title="طباعة تقرير الجاهزية وصحة الجلسات"
+        />
+      </div>
+
+      <div className="kpis" style={{ marginBottom: 16 }}>
+        <div className="kpi">
+          <small>جلسات نشطة الآن</small>
+          <b>{nf.format(activeSessionCount)}</b>
+          <span>جلسة مصادق عليها غير منتهية</span>
+        </div>
+        <div className="kpi">
+          <small>جلسات منتهية الصلاحية</small>
+          <b>{nf.format(expiredSessionCount)}</b>
+          <span>تُنظَّف تلقائيًا عند تسجيل الدخول</span>
+        </div>
+        <div className="kpi">
+          <small>إقفالات مؤقتة (Throttle)</small>
+          <b>{nf.format(lockedThrottleCount)}</b>
+          <span>{lockedThrottleCount > 0 ? "يوجد قفل مؤقت لمحاولات دخول متكررة" : "لا توجد حسابات مقفلة مؤقتًا"}</span>
+        </div>
+        <div className="kpi">
+          <small>الفروع والمستخدمون النشطون</small>
+          <b>{nf.format(activeBranchCount)} فرع · {nf.format(activeUserCount)} مستخدم</b>
+          <span>من أصل {nf.format(branches)} فرع و{nf.format(users)} مستخدم</span>
+        </div>
       </div>
 
       <div className="card">
@@ -128,20 +180,23 @@ export default async function SetupPage() {
         <div className="table-wrap">
           <table>
             <thead>
-              <tr><th>الفرع</th><th>الكود</th><th>المدينة</th><th>المستودعات</th><th>تاريخ الإنشاء</th></tr>
+              <tr><th>الفرع</th><th>الكود</th><th>المدينة</th><th>الحالة</th><th>المستودعات</th><th>تاريخ الإنشاء</th></tr>
             </thead>
             <tbody>
-              {await prisma.branch.findMany({ include: { warehouses: true }, orderBy: { code: "asc" } }).then((bs) =>
-                bs.map((b) => (
-                  <tr key={b.id.toString()}>
-                    <td>{b.nameAr}</td>
-                    <td><code>{b.code}</code></td>
-                    <td className="muted">{b.city ?? "—"}</td>
-                    <td className="small">{b.warehouses.map((w) => w.code).join(" · ")}</td>
-                    <td className="muted small">{new Date(b.createdAt).toLocaleDateString("ar-EG")}</td>
-                  </tr>
-                )),
-              )}
+              {branchList.map((b) => (
+                <tr key={b.id.toString()}>
+                  <td>{b.nameAr}</td>
+                  <td><code>{b.code}</code></td>
+                  <td className="muted">{b.city ?? "—"}</td>
+                  <td>
+                    <span className={`badge ${b.isActive ? "b-ok" : "b-warn"}`}>
+                      {b.isActive ? "نشط" : "موقوف"}
+                    </span>
+                  </td>
+                  <td className="small">{b.warehouses.map((w) => w.code).join(" · ")}</td>
+                  <td className="muted small">{new Date(b.createdAt).toLocaleDateString("ar-EG")}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

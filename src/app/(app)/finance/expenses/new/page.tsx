@@ -1,11 +1,15 @@
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { AppIcon } from "@/components/app-icon";
-import { listSelectableCategories } from "@/lib/finance/engine";
+import { listExpenses, listSelectableCategories } from "@/lib/finance/engine";
 import { cairoDate } from "@/lib/finance/validation";
 import { prisma } from "@/lib/prisma";
 import { financePage, financeRead } from "../../page-context";
-import ExpenseForm, { type BranchOption, type CategoryOption } from "./expense-form";
+import ExpenseForm, {
+  type BranchOption,
+  type CategoryOption,
+  type ExistingExpenseHint,
+} from "./expense-form";
 
 export const dynamic = "force-dynamic";
 
@@ -28,17 +32,26 @@ export default async function NewExpensePage() {
     );
   }
 
-  const [branches, categories] = await Promise.all([
+  const [branches, categories, recentExpenses] = await Promise.all([
     prisma.branch.findMany({
       where: { isActive: true, ...(canManage ? {} : { id: BigInt(session.branchId as string) }) },
       orderBy: { code: "asc" },
       select: { id: true, nameAr: true },
     }),
     financeRead(session, (tx) => listSelectableCategories({ serializable: (work) => work(tx) }, session.id)),
+    financeRead(session, (tx) => listExpenses({ serializable: (work) => work(tx) }, session.id)).catch(() => []),
   ]);
 
   const branchOptions: BranchOption[] = branches.map((branch) => ({ id: branch.id.toString(), name: branch.nameAr }));
   const categoryOptions: CategoryOption[] = categories.map((category) => ({ id: category.id, name: category.name, active: category.active }));
+  const existingHints: ExistingExpenseHint[] = recentExpenses.slice(0, 80).map((exp) => ({
+    id: String(exp.id),
+    branchId: String(exp.branchId),
+    categoryName: String(exp.categorySnapshot),
+    expenseDate: String(exp.expenseDate),
+    amount: String(exp.amount),
+    description: String(exp.description),
+  }));
 
   return (
     <div className="fin-page">
@@ -64,7 +77,13 @@ export default async function NewExpensePage() {
       {!branchOptions.length ? (
         <div className="fin-panel fin-empty">لا يوجد فرع نشط؛ أضف فرعًا نشطًا قبل تسجيل مصروف.</div>
       ) : (
-        <ExpenseForm requestId={randomUUID()} today={cairoDate()} branches={branchOptions} categories={categoryOptions} />
+        <ExpenseForm
+          requestId={randomUUID()}
+          today={cairoDate()}
+          branches={branchOptions}
+          categories={categoryOptions}
+          existingHints={existingHints}
+        />
       )}
     </div>
   );

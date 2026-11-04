@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AppIcon } from "@/components/app-icon";
+import { downloadCsvFile } from "@/lib/csv-export";
 
 export type FinanceExpenseRow = {
   id: string;
@@ -29,6 +30,13 @@ export default function FinanceExpensesView({
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ExpenseFilter>("all");
   const [branchFilter, setBranchFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+
+  const categories = useMemo(() => {
+    return Array.from(new Set(rows.map((r) => r.categorySnapshot))).sort((a, b) =>
+      a.localeCompare(b, "ar"),
+    );
+  }, [rows]);
 
   const counts = useMemo(() => {
     let pending = 0;
@@ -47,19 +55,36 @@ export default function FinanceExpensesView({
     return rows.filter((r) => {
       if (filter !== "all" && r.status !== filter) return false;
       if (branchFilter !== "all" && r.branchName !== branchFilter) return false;
+      if (categoryFilter !== "all" && r.categorySnapshot !== categoryFilter) return false;
       if (q) {
         const hay = `${r.description} ${r.categorySnapshot} ${r.branchName} ${r.expenseDate} ${r.id}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [rows, query, filter, branchFilter]);
+  }, [rows, query, filter, branchFilter, categoryFilter]);
 
   function badgeClass(status: string): string {
     if (status === "PENDING") return "fin-badge fin-badge--pending";
     if (status === "APPROVED") return "fin-badge fin-badge--approved";
     if (status === "PAID") return "fin-badge fin-badge--paid";
     return "fin-badge fin-badge--closed";
+  }
+
+  function handleExportCsv(): void {
+    downloadCsvFile(
+      `selahtone-expenses-${new Date().toISOString().slice(0, 10)}.csv`,
+      ["رقم المصروف", "التاريخ", "الفرع", "البند", "الوصف", "المبلغ (ج.م)", "الحالة"],
+      filtered.map((r) => [
+        r.id,
+        r.expenseDate,
+        r.branchName,
+        r.categorySnapshot,
+        r.description,
+        r.amountFormatted,
+        r.statusLabel,
+      ]),
+    );
   }
 
   return (
@@ -90,6 +115,22 @@ export default function FinanceExpensesView({
             ) : null}
           </div>
 
+          {categories.length > 1 ? (
+            <select
+              className="fin-branch-select"
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              aria-label="تصفية حسب البند"
+            >
+              <option value="all">كل البنود ({categories.length})</option>
+              {categories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+          ) : null}
+
           {branches.length > 1 ? (
             <select
               className="fin-branch-select"
@@ -105,6 +146,16 @@ export default function FinanceExpensesView({
               ))}
             </select>
           ) : null}
+
+          <button
+            type="button"
+            className="fin-button fin-button--secondary"
+            onClick={handleExportCsv}
+            disabled={filtered.length === 0}
+          >
+            <AppIcon name="download" />
+            <span>تصدير CSV ({filtered.length})</span>
+          </button>
         </div>
 
         <div className="fin-toolbar__row">

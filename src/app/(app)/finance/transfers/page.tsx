@@ -2,12 +2,14 @@ import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppIcon } from "@/components/app-icon";
+import PrintPageButton from "@/components/print-page-button";
 import { getSession } from "@/lib/auth";
 import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
 import { assertFinanceActor, financeDb, financeEnabled } from "@/lib/finance/db";
 import { financeRead } from "../page-context";
 import { listAccounts, listSettlements } from "@/lib/finance/engine";
 import { prisma } from "@/lib/prisma";
+import { accountLabel, formatMoney } from "../format";
 import TransferForm, { type AccountOption } from "./transfer-form";
 import { SettlementDecisionCard, type SettlementDecisionItem } from "./settlement-decisions";
 
@@ -97,9 +99,43 @@ export default async function FinanceTransfersPage() {
     balance: account.balance,
   }));
 
+  const optionById = new Map(options.map((opt) => [opt.id, opt]));
+  const recentTransfersRes =
+    options.length > 0
+      ? await financeRead(session, (tx) =>
+          tx.query<{
+            id: string;
+            sourceId: string;
+            destId: string;
+            amount: string;
+            createdAt: string;
+          }>(
+            `SELECT m.id::text AS id,
+                    m.source_id::text AS "sourceId",
+                    m.destination_id::text AS "destId",
+                    m.amount::text AS amount,
+                    m.created_at::text AS "createdAt"
+               FROM finance.movements m
+              WHERE m.kind = 'TRANSFER'
+                ${canManage ? "" : "AND m.branch_id = $1::bigint"}
+              ORDER BY m.id DESC
+              LIMIT 20`,
+            canManage ? [] : [session.branchId],
+          ),
+        ).catch(() => ({ rows: [] }))
+      : { rows: [] };
+  const recentTransfers = recentTransfersRes.rows.filter(
+    (r) => optionById.has(r.sourceId) || optionById.has(r.destId),
+  );
+  const transferDateFmt = new Intl.DateTimeFormat("ar-EG-u-nu-latn", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Africa/Cairo",
+  });
+
   return (
     <div className="fin-page">
-      <Link href={canManage ? "/finance" : "/finance/mine"} className="fin-back">
+      <Link href={canManage ? "/finance" : "/finance/mine"} className="fin-back no-print">
         <AppIcon name="arrow" />
         <span>{canManage ? "العودة إلى المالية" : "العودة إلى عهدتي"}</span>
       </Link>
@@ -111,6 +147,13 @@ export default async function FinanceTransfersPage() {
           </p>
           <h1>تسليم نقد بين الحسابات</h1>
           <p>خطوة واحدة بين خزنة الفرع وعهدة موظف في الفرع نفسه. التسليم بين فرعين غير مسموح.</p>
+        </div>
+        <div className="fin-actions">
+          <PrintPageButton
+            label="طباعة سند التسليم"
+            className="fin-button fin-button--secondary"
+            title="طباعة سجل وسندات التسليم النقدي"
+          />
         </div>
       </div>
 
@@ -162,6 +205,60 @@ export default async function FinanceTransfersPage() {
           ))}
         </div>
       ) : null}
+
+      <div className="fin-page__section">
+        <div className="fin-panel">
+          <div className="fin-panel__heading">
+            <h2>سجل حركات التسليم النقدي الأخيرة</h2>
+            <p>أحدث عمليات التسليم الفعلي بين خزنة الفرع وعُهَد الموظفين مع إمكانية طباعة السجل كسند مراجعة.</p>
+          </div>
+          {recentTransfers.length === 0 ? (
+            <div className="fin-empty">لم تُسجَّل حركات تسليم نقدي بعد ضمن الحسابات المتاحة.</div>
+          ) : (
+            <div className="fin-table-wrap">
+              <table className="fin-table">
+                <thead>
+                  <tr>
+                    <th>رقم الحركة</th>
+                    <th>من (المسلِّم)</th>
+                    <th>إلى (المستلِم)</th>
+                    <th>المبلغ</th>
+                    <th>التوقيت</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentTransfers.map((tr) => {
+                    const src = optionById.get(tr.sourceId);
+                    const dst = optionById.get(tr.destId);
+                    const dt = new Date(tr.createdAt);
+                    return (
+                      <tr key={tr.id}>
+                        <td><bdi dir="ltr">#{tr.id}</bdi></td>
+                        <td>
+                          {src
+                            ? `${src.branchName} · ${accountLabel(src.kind)}${src.holderName ? ` (${src.holderName})` : ""}`
+                            : `حساب #${tr.sourceId}`}
+                        </td>
+                        <td>
+                          {dst
+                            ? `${dst.branchName} · ${accountLabel(dst.kind)}${dst.holderName ? ` (${dst.holderName})` : ""}`
+                            : `حساب #${tr.destId}`}
+                        </td>
+                        <td>
+                          <strong className="fin-money"><bdi dir="ltr">{formatMoney(tr.amount)}</bdi></strong>
+                        </td>
+                        <td>
+                          <bdi dir="ltr">{Number.isNaN(dt.getTime()) ? tr.createdAt : transferDateFmt.format(dt)}</bdi>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

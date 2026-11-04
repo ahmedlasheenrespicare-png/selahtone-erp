@@ -499,6 +499,7 @@ export default async function ExpensesPage() {
         <div className="dashboard-cards-grid__item">
           <PantherSpotlightCard
             layout="wallet"
+            icon="expenseReceipt"
             title="مصروفات الشهر وحالة الصرف"
             subtitle={`محدّث الآن · شهر ${currentMonthPrefix}`}
             pill={`${monthCount} مصروف هذا الشهر`}
@@ -528,6 +529,7 @@ export default async function ExpensesPage() {
         <div className="dashboard-cards-grid__item">
           <PantherSpotlightCard
             layout="wallet"
+            icon="approvalFlow"
             title="مراحل الاعتماد وبنود الصرف"
             subtitle={
               canManage

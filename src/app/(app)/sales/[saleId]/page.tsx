@@ -71,12 +71,25 @@ export default async function SaleDetailPage({ params }: Props) {
         <h1>فاتورة ST-{sale.id.toString()}</h1>
         <p>{dateFormatter.format(sale.createdAt)} · سجّلها {sale.createdBy.fullName}</p>
       </div>
-      <div className="inv-actions">
+      <div className="inv-actions no-print">
         <Link href="/sales" className="inv-button inv-button--secondary">← العودة إلى الفواتير</Link>
-        <PrintButton />
+        <PrintButton
+          invoiceCode={`ST-${sale.id.toString()}`}
+          customerName={sale.customerName}
+          customerPhone={sale.customerPhone}
+          branchName={sale.branch.nameAr}
+          netTotalFormatted={displayMoney(original - returned)}
+          paidFormatted={displayMoney(collected - refunded)}
+          dueFormatted={displayMoney(balance.dueFromCustomerCents)}
+          hasDue={balance.dueFromCustomerCents > 0n}
+        />
       </div>
     </div>
     <article className="inv-panel inv-panel__body sale-print" aria-labelledby="invoice-title">
+      <div className="sale-print__brand-banner">
+        <strong>صلة تون للخدمات السمعية</strong>
+        <span>{sale.branch.nameAr} · إيصال مراجعة وبيان حساب عميل</span>
+      </div>
       <p className="sale-print-watermark">إيصال داخلي للمراجعة — ليس فاتورة ضريبية إلكترونية رسمية.</p>
       <div className="sale-detail-head"><div><h2 id="invoice-title">فاتورة ST-{sale.id.toString()}</h2><p>{dateFormatter.format(sale.createdAt)} · سجّلها {sale.createdBy.fullName}</p></div><span className={`sale-chip ${sale.cancelledAt ? "sale-chip--neutral" : hasReturns ? "sale-chip--warning" : "sale-chip--confirmed"}`}><span className="sale-chip__dot" aria-hidden="true" />{status}</span></div>
       <dl className="sale-meta"><div><dt>العميل</dt><dd>{sale.customerName}</dd></div><div><dt>الهاتف</dt><dd><bdi dir="ltr">{sale.customerPhone}</bdi></dd></div><div><dt>الفرع</dt><dd>{sale.warehouse ? `${sale.branch.nameAr} — ${sale.warehouse.nameAr}` : sale.branch.nameAr}</dd></div></dl>

@@ -9,6 +9,7 @@ import {
   createUserAction,
   renameBranchAction,
   resetPasswordAction,
+  revokeUserSessionsAction,
   setBranchActiveAction,
   updateUserAction,
 } from "./actions";
@@ -266,6 +267,30 @@ export function PasswordResetForm({ user }: { user: UserRow }) {
         {!ready && <p className="field-hint">١٢ حرفًا على الأقل.</p>}
       </div>
       <button className="btn" type="submit" disabled={pending || !ready}>{pending ? "جارٍ التحديث…" : "تحديث كلمة المرور"}</button>
+    </form>
+  );
+}
+
+export function RevokeSessionsForm({
+  user,
+  activeSessionCount,
+}: {
+  user: UserRow;
+  activeSessionCount: number;
+}) {
+  const [state, action, pending] = useActionState(revokeUserSessionsAction, initialAdminActionState);
+  if (user.isSelf) return null;
+
+  return (
+    <form action={action} className="form" aria-busy={pending}>
+      <input type="hidden" name="userId" value={user.id} />
+      <Result
+        state={state}
+        fallback={`الجلسات النشطة حاليًا: ${activeSessionCount}. إنهاء الجلسات يخرج المستخدم فورًا من كل أجهزته دون تغيير كلمة مروره.`}
+      />
+      <button className="btn sec" type="submit" disabled={pending || activeSessionCount === 0}>
+        {pending ? "جارٍ إنهاء الجلسات…" : `إنهاء الجلسات النشطة (${activeSessionCount})`}
+      </button>
     </form>
   );
 }

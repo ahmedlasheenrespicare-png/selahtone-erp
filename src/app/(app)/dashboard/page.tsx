@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AppIcon, type AppIconName } from "@/components/app-icon";
 import PantherSpotlightCard from "@/components/panther-spotlight-card";
+import PrintPageButton from "@/components/print-page-button";
 // عميلٌ لا خادم: فإنّ التمريرَ تفاعل، والصفحةُ نفسها تُبنى على الخادم.
 import DashboardWallet, { type WalletPocketItem } from "./dashboard-wallet";
 import MonthlySalesPanther from "./monthly-sales-panther";
@@ -396,24 +397,69 @@ export default async function DashboardPage({
           </p>
         </div>
 
-        {quickActions.length > 0 ? (
-          <div className="dashboard-quick-actions" role="navigation" aria-label="إجراءات سريعة">
-            {quickActions.map((act) => (
-              <Link
-                key={act.key}
-                href={act.href}
-                className={`dashboard-quick-btn${act.primary ? " is-primary" : ""}`}
-              >
-                <AppIcon name={act.icon} />
-                <span>{act.label}</span>
-                {act.badge && act.badge > 0 ? (
-                  <strong className="dashboard-quick-btn__badge">{nf.format(act.badge)}</strong>
-                ) : null}
-              </Link>
-            ))}
-          </div>
-        ) : null}
+        <div className="dashboard-quick-actions" role="navigation" aria-label="إجراءات سريعة">
+          {quickActions.map((act) => (
+            <Link
+              key={act.key}
+              href={act.href}
+              className={`dashboard-quick-btn${act.primary ? " is-primary" : ""}`}
+            >
+              <AppIcon name={act.icon} />
+              <span>{act.label}</span>
+              {act.badge && act.badge > 0 ? (
+                <strong className="dashboard-quick-btn__badge">{nf.format(act.badge)}</strong>
+              ) : null}
+            </Link>
+          ))}
+          <PrintPageButton
+            label="ملخص إغلاق اليوم"
+            title="طباعة ملخص إغلاق اليوم وحصيلة المبيعات والسيولة"
+          />
+        </div>
       </div>
+
+      {/* ملخّص إغلاق اليوم الرسمي المخصّص للطباعة */}
+      <section className="print-only-brief" aria-label="ملخص إغلاق اليوم">
+        <div className="print-only-brief__head">
+          <div>
+            <strong>صلة تون للخدمات السمعية — ملخص إغلاق اليوم</strong>
+            <small>
+              النطاق: {activeScopeLabel} · أعدّه: {session.name} ({ROLE_LABEL[session.role] ?? session.role})
+            </small>
+          </div>
+          <span>{activityTimeFormatter.format(new Date())}</span>
+        </div>
+        <div className="print-only-brief__grid">
+          <div>
+            <span>صافي مبيعات اليوم</span>
+            <strong>{todaySales ? `${nf.format(Number(todaySales.total))} ج.م` : todayNetSalesValue}</strong>
+          </div>
+          <div>
+            <span>فواتير اليوم النشطة</span>
+            <strong>{todaySales ? nf.format(todaySales.invoiceCount) : "0"} فاتورة</strong>
+          </div>
+          <div>
+            <span>المحصّل من مبيعات اليوم</span>
+            <strong>
+              {todaySales
+                ? `${nf.format(Math.max(0, Number(todaySales.total) - Number(todaySales.outstandingTotal)))} ج.م`
+                : "0 ج.م"}
+            </strong>
+          </div>
+          <div>
+            <span>الرصيد النقدي المتوقع</span>
+            <strong>{expectedBalanceValue}</strong>
+          </div>
+          <div>
+            <span>صافي مبيعات الشهر</span>
+            <strong>{monthSales ? `${nf.format(Number(monthSales.total))} ج.م` : "0 ج.م"}</strong>
+          </div>
+          <div>
+            <span>إجمالي الذمم المتبقية</span>
+            <strong>{monthSales ? `${nf.format(Number(monthSales.outstandingTotal))} ج.م` : "0 ج.م"}</strong>
+          </div>
+        </div>
+      </section>
 
       {/* ٢. شريط تصفية الفرع السريع للإدارة والمحاسب */}
       {canViewAllBranches && !scope.branchId && allBranches.length > 1 ? (

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AppIcon } from "@/components/app-icon";
+import { downloadCsvFile } from "@/lib/csv-export";
 
 export type SalesInvoiceStatusKind = "confirmed" | "partial_return" | "full_return" | "cancelled";
 
@@ -20,10 +21,13 @@ export type SalesInvoiceRow = {
   statusLabel: string;
   statusKind: SalesInvoiceStatusKind;
   createdAtFormatted: string;
+  createdAtIso?: string;
+  ageDays?: number;
   linesCount: number;
 };
 
 type FilterTab = "all" | "confirmed" | "due_from" | "due_to" | "returns";
+type PeriodFilter = "ALL" | "TODAY" | "7D" | "MONTH";
 
 export default function SalesInvoicesView({
   rows,
@@ -34,6 +38,7 @@ export default function SalesInvoicesView({
 }) {
   const [query, setQuery] = useState("");
   const [branchFilter, setBranchFilter] = useState("ALL");
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("ALL");
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
 
   const counts = useMemo(() => {
@@ -48,8 +53,31 @@ export default function SalesInvoicesView({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const now = new Date();
+    const cairoToday = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Africa/Cairo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(now);
+    const cairoYearMonth = cairoToday.slice(0, 7);
+
     return rows.filter((row) => {
       if (branchFilter !== "ALL" && row.branchName !== branchFilter) return false;
+      if (periodFilter !== "ALL" && row.createdAtIso) {
+        const d = new Date(row.createdAtIso);
+        const rowDate = new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Africa/Cairo",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(d);
+        if (periodFilter === "TODAY" && rowDate !== cairoToday) return false;
+        if (periodFilter === "7D" && now.getTime() - d.getTime() > 7 * 24 * 60 * 60 * 1000) {
+          return false;
+        }
+        if (periodFilter === "MONTH" && !rowDate.startsWith(cairoYearMonth)) return false;
+      }
       if (activeTab === "confirmed" && row.statusKind !== "confirmed") return false;
       if (activeTab === "due_from" && !row.hasDueFromCustomer) return false;
       if (activeTab === "due_to" && !row.hasDueToCustomer) return false;
@@ -63,7 +91,37 @@ export default function SalesInvoicesView({
         row.branchName.toLowerCase().includes(q)
       );
     });
-  }, [rows, query, branchFilter, activeTab]);
+  }, [rows, query, branchFilter, periodFilter, activeTab]);
+
+  function handleExportCsv(): void {
+    downloadCsvFile(
+      `selahtone-invoices-${new Date().toISOString().slice(0, 10)}.csv`,
+      [
+        "رقم الفاتورة",
+        "اسم العميل",
+        "هاتف العميل",
+        "الفرع",
+        "عدد البنود",
+        "الإجمالي الأصلي (ج.م)",
+        "المتبقي على العميل (ج.م)",
+        "مستحق للعميل (ج.م)",
+        "الحالة",
+        "التاريخ",
+      ],
+      filtered.map((r) => [
+        r.code,
+        r.customerName,
+        r.customerPhone,
+        r.branchName,
+        r.linesCount,
+        r.originalFormatted,
+        r.dueFromCustomerFormatted,
+        r.dueToCustomerFormatted,
+        r.statusLabel,
+        r.createdAtFormatted,
+      ]),
+    );
+  }
 
   const tabs: Array<{ id: FilterTab; label: string; count: number }> = [
     { id: "all", label: "الكل", count: counts.all },
@@ -96,6 +154,19 @@ export default function SalesInvoicesView({
         </div>
 
         <div className="sales-toolbar__controls">
+          <label className="sales-branch-select" aria-label="تصفية حسب الفترة">
+            <AppIcon name="calendar" />
+            <select
+              value={periodFilter}
+              onChange={(e) => setPeriodFilter(e.target.value as PeriodFilter)}
+            >
+              <option value="ALL">كل الفترات</option>
+              <option value="TODAY">اليوم</option>
+              <option value="7D">آخر ٧ أيام</option>
+              <option value="MONTH">هذا الشهر</option>
+            </select>
+          </label>
+
           {branches.length > 1 ? (
             <label className="sales-branch-select" aria-label="تصفية حسب الفرع">
               <AppIcon name="branch" />
@@ -129,6 +200,17 @@ export default function SalesInvoicesView({
               </button>
             ) : null}
           </div>
+
+          <button
+            type="button"
+            className="inv-button inv-button--secondary sales-export-btn"
+            onClick={handleExportCsv}
+            disabled={filtered.length === 0}
+            title="تصدير الفواتير المعروضة بصيغة CSV"
+          >
+            <AppIcon name="download" />
+            <span>تصدير CSV ({filtered.length})</span>
+          </button>
         </div>
       </div>
 
@@ -141,6 +223,7 @@ export default function SalesInvoicesView({
             onClick={() => {
               setQuery("");
               setBranchFilter("ALL");
+              setPeriodFilter("ALL");
               setActiveTab("all");
             }}
           >
@@ -204,6 +287,19 @@ export default function SalesInvoicesView({
                       </td>
                       <td className={`sales-money-cell${sale.hasDueFromCustomer ? " is-due-from" : " is-zero"}`}>
                         <bdi dir="ltr">{sale.dueFromCustomerFormatted}</bdi> <small>ج.م</small>
+                        {sale.hasDueFromCustomer && typeof sale.ageDays === "number" ? (
+                          <span
+                            className={`sales-age-pill${
+                              sale.ageDays >= 15
+                                ? " is-danger"
+                                : sale.ageDays >= 7
+                                  ? " is-warn"
+                                  : ""
+                            }`}
+                          >
+                            {sale.ageDays === 0 ? "اليوم" : `منذ ${sale.ageDays} ي`}
+                          </span>
+                        ) : null}
                       </td>
                       <td className={`sales-money-cell${sale.hasDueToCustomer ? " is-due-to" : " is-zero"}`}>
                         <bdi dir="ltr">{sale.dueToCustomerFormatted}</bdi> <small>ج.م</small>

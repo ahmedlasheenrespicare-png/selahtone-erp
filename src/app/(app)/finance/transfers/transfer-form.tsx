@@ -33,7 +33,28 @@ export default function TransferForm({ requestId, accounts }: Props) {
       <div className="fin-panel fin-success" role="status">
         <h2>تم تسجيل التسليم</h2>
         <p>{state.message}</p>
-        <div className="fin-actions">
+        <dl className="sale-totals" style={{ marginTop: 12 }}>
+          <div>
+            <dt>من (المسلِّم)</dt>
+            <dd>{source ? `${source.branchName} · ${accountLabel(source.kind)}${source.holderName ? ` (${source.holderName})` : ""}` : "—"}</dd>
+          </div>
+          <div>
+            <dt>إلى (المستلِم)</dt>
+            <dd>{target ? `${accountLabel(target.kind)}${target.holderName ? ` (${target.holderName})` : ""}` : "—"}</dd>
+          </div>
+          <div className="sale-totals__strong">
+            <dt>المبلغ المسلَّم نقدًا</dt>
+            <dd><bdi dir="ltr">{formatMoney(amount)}</bdi></dd>
+          </div>
+        </dl>
+        <div className="fin-actions no-print">
+          <button
+            type="button"
+            className="fin-button fin-button--secondary"
+            onClick={() => window.print()}
+          >
+            طباعة سند التسليم
+          </button>
           <a className="fin-button" href="/finance/transfers">تسليم آخر</a>
           <Link className="fin-button fin-button--secondary" href="/finance">الحسابات النقدية</Link>
         </div>
@@ -81,11 +102,25 @@ export default function TransferForm({ requestId, accounts }: Props) {
               </select>
               {source && targets.length === 0 ? <span className="fin-field__hint">لا يوجد حساب مقابل في هذا الفرع؛ افتح عهدة للموظف أولًا.</span> : null}
             </label>
-            <label className="field fin-field">
-              <span className="fin-field__label">المبلغ</span>
-              <input inputMode="decimal" value={amount} onChange={(event) => { setAmount(event.target.value); setReview(false); }} placeholder="0.00" />
+            <div className="field fin-field">
+              <div className="sale-field-head">
+                <label htmlFor="transfer-amount-input" className="fin-field__label">المبلغ</label>
+                {source && Number(source.balance) > 0 ? (
+                  <button
+                    type="button"
+                    className="sale-fill-btn"
+                    onClick={() => {
+                      setAmount(Number(source.balance).toFixed(2).replace(/\.00$/, ""));
+                      setReview(false);
+                    }}
+                  >
+                    تسليم كامل الرصيد ({formatMoney(source.balance)})
+                  </button>
+                ) : null}
+              </div>
+              <input id="transfer-amount-input" inputMode="decimal" value={amount} onChange={(event) => { setAmount(event.target.value); setReview(false); }} placeholder="0.00" />
               {amount.trim() !== "" && !amountValid ? <span className="fin-field__error">أدخل مبلغًا أكبر من صفر.</span> : null}
-            </label>
+            </div>
             <div className="field fin-field">
               <span className="fin-field__label">الرصيد بعد التسليم</span>
               <span className="fin-field__hint">{projected === null ? "—" : formatMoney(projected.toFixed(2))}</span>

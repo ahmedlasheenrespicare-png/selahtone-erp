@@ -144,6 +144,10 @@ export default async function SalesPage() {
       name: line.nameSnapshot,
       qty: formatLineQty(line.quantity.toFixed(2)),
     }));
+    const ageDays = Math.max(
+      0,
+      Math.floor((Date.now() - sale.createdAt.getTime()) / (24 * 60 * 60 * 1000)),
+    );
 
     return {
       id: sale.id.toString(),
@@ -160,6 +164,8 @@ export default async function SalesPage() {
       statusLabel,
       statusKind,
       createdAtFormatted: dateFormatter.format(sale.createdAt),
+      createdAtIso: sale.createdAt.toISOString(),
+      ageDays,
       linesCount: sale.lines.length,
       itemPills,
       extraItemsCount: Math.max(0, sale.lines.length - 3),
@@ -389,6 +395,7 @@ export default async function SalesPage() {
             <div className="dashboard-cards-grid__item">
               <PantherSpotlightCard
                 layout="wallet"
+                icon="customerCollection"
                 title={collectionsSpotlight.title}
                 subtitle={collectionsSpotlight.subtitle}
                 pill={collectionsSpotlight.pill}
