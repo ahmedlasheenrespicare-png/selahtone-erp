@@ -36,6 +36,7 @@ export default function MonthlySalesPanther({
   return (
     <PantherSpotlightCard
       layout="wallet"
+      icon="salesGrowth"
       title="مبيعات الشهر"
       subtitle={`محدّث الآن · ${monthLabel}`}
       pill={`${invoiceCount} فاتورة`}

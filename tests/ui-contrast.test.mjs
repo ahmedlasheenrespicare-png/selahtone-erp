@@ -348,6 +348,249 @@ test("تباين وبنية لوحة القيادة التنفيذية (نبض �
   assert.ok(topbarSkySrc.includes("تاريخ اليوم"), "يجب الإبقاء على تاريخ اليوم في الشريط العلوي");
 });
 
+test("الحزمة التنفيذية الخماسية للوحة القيادة (المؤشر السادس · البحث الفوري · وتيرة الشهر · الرقابة · رادار التحصيل)", () => {
+  // التحقق من تباين الشارات وأرقام الذمم في الوضع النهاري والليلي
+  assert.ok(contrast("#145a36", "#e3f6ea") >= MIN);
+  assert.ok(contrast("#8f2424", "#fde8e8") >= MIN);
+  assert.ok(contrast("#9f2d2d", "#ffffff") >= MIN);
+  assert.ok(contrast("#fca5a5", "#142216") >= MIN);
+  assert.ok(contrast("#fca5a5", "#0f203d") >= MIN);
+
+  const dashSrc = readFileSync(
+    new URL("../src/app/(app)/dashboard/page.tsx", import.meta.url),
+    "utf8",
+  );
+  for (const token of [
+    "dashboard-omni-section",
+    "dashboard-pace-strip",
+    "dashboard-governance",
+    "dashboard-aging-card",
+    "fifthSpotlight",
+    "رادار أولويات التحصيل وأعمار الذمم",
+  ]) {
+    assert.ok(dashSrc.includes(token), `لوحة القيادة تفتقد ${token}`);
+  }
+
+  const execSrc = readFileSync(
+    new URL("../src/lib/dashboard-executive.ts", import.meta.url),
+    "utf8",
+  );
+  assert.ok(execSrc.includes('title: "الربحية وصافي التشغيل"'));
+  assert.ok(execSrc.includes('title: "حركة الأصناف والسيريالات"'));
+  assert.ok(!execSrc.includes("-infinity"), "يجب عدم استخدام -infinity في استعلامات لوحة القيادة");
+});
+
+test("المؤشرات المركّبة الثلاثة (الكفاءة الشاملة · التحوّل النقدي الصافي · تقييم وكفاءة الفروع) موصولة في لوحة القيادة", () => {
+  const dashSrc = readFileSync(
+    new URL("../src/app/(app)/dashboard/page.tsx", import.meta.url),
+    "utf8",
+  );
+  for (const token of [
+    "compositeEfficiencySpotlight",
+    "cashConversionSpotlight",
+    "branchEfficiencySpotlight",
+    "branchScoresById",
+  ]) {
+    assert.ok(dashSrc.includes(token), `لوحة القيادة تفتقد ${token}`);
+  }
+
+  const execSrc = readFileSync(
+    new URL("../src/lib/dashboard-executive.ts", import.meta.url),
+    "utf8",
+  );
+  for (const title of [
+    'title: "مؤشر الكفاءة التشغيلية الشامل"',
+    'title: "مؤشر التحوّل النقدي الصافي"',
+    'title: "مؤشر تقييم وكفاءة الفروع"',
+  ]) {
+    assert.ok(execSrc.includes(title), `ملف المؤشرات التنفيذية يفتقد ${title}`);
+  }
+});
+
+test("كل بطاقة مؤشر تملك أيقونة مخصّصة ومختلفة عن الأيقونة القديمة ذات الأعمدة الثلاثة", () => {
+  const pantherSrc = readFileSync(
+    new URL("../src/components/panther-spotlight-card.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.ok(
+    !pantherSrc.includes("M3 12m0 1a1 1 0 0 1 1 -1h4"),
+    "يجب استبدال أيقونة الأعمدة الثلاثة القديمة بالكامل",
+  );
+  assert.ok(pantherSrc.includes("data-spotlight-icon={resolvedIcon}"));
+
+  const dashSrc = readFileSync(
+    new URL("../src/app/(app)/dashboard/page.tsx", import.meta.url),
+    "utf8",
+  );
+  const salesPantherSrc = readFileSync(
+    new URL("../src/app/(app)/dashboard/monthly-sales-panther.tsx", import.meta.url),
+    "utf8",
+  );
+
+  for (const iconName of [
+    'icon="efficiencyGauge"',
+    'icon="customerCollection"',
+    'icon="cashConversion"',
+    'icon="balanceScale"',
+    'icon="expenseReceipt"',
+    'icon="branchScorecard"',
+    '"serialScan"',
+    '"netProfit"',
+  ]) {
+    assert.ok(dashSrc.includes(iconName), `لوحة القيادة تفتقد الأيقونة المخصّصة ${iconName}`);
+  }
+  assert.ok(salesPantherSrc.includes('icon="salesGrowth"'));
+});
+
+test("دمج عناصر الشريط العلوي داخل شريط صلة تون على الجوال والشاشات الضيقة مع ثبات الأبعاد", () => {
+  const layoutSrc = readFileSync(
+    new URL("../src/app/(app)/layout.tsx", import.meta.url),
+    "utf8",
+  );
+  const navSrc = readFileSync(
+    new URL("../src/app/(app)/app-navigation.tsx", import.meta.url),
+    "utf8",
+  );
+  const workspaceCss = readFileSync(
+    new URL("../src/app/(app)/workspace.css", import.meta.url),
+    "utf8",
+  );
+  const darkModeCss = readFileSync(
+    new URL("../src/app/(app)/dark-mode.css", import.meta.url),
+    "utf8",
+  );
+
+  // تمرير بيانات المستخدم والدور والفرع إلى شريط التنقل الموحّد مع بقاء الشريط العلوي لسطح المكتب
+  assert.ok(layoutSrc.includes("userName={session.name}"));
+  assert.ok(layoutSrc.includes("roleLabel={roleLabel}"));
+  assert.ok(layoutSrc.includes("branchLabel={branchLabel}"));
+  assert.ok(layoutSrc.includes('className="workspace-topbar"'));
+
+  // وجود كافة عناصر الشريط العلوي داخل .workspace-sidebar__brand-row
+  for (const snippet of [
+    'className="workspace-mobile-strip"',
+    "نظام إدارة صلة تون",
+    "مساحة العمل",
+    "<ColorModeToggle compact />",
+    'href="/change-password"',
+    "<LogoutButton />",
+    'className="workspace-mobile-popover"',
+  ]) {
+    assert.ok(navSrc.includes(snippet), `شريط الجوال الموحّد يفتقد ${snippet}`);
+  }
+
+  // ثبات أبعاد شريط صلة تون على الشاشات الضيقة والجوال (height: 42px / 48px, width: 100%, padding: 13px 18px) وإخفاء الشريط العلوي المنفصل
+  assert.ok(workspaceCss.includes(".workspace-mobile-strip,\n.workspace-mobile-popover {\n  display: none;\n}"));
+  const mobileBlock = workspaceCss.slice(workspaceCss.indexOf("@media (max-width: 820px)"));
+  assert.ok(mobileBlock.includes("padding: 13px 18px;"));
+  assert.ok(mobileBlock.includes("width: 100%;"));
+  assert.ok(mobileBlock.includes("height: 42px;"));
+  assert.ok(mobileBlock.includes("max-height: 42px;"));
+  assert.ok(mobileBlock.includes("height: 48px;"));
+  assert.ok(mobileBlock.includes("max-height: 48px;"));
+  assert.ok(mobileBlock.includes("flex-wrap: nowrap;"));
+  assert.ok(mobileBlock.includes(".workspace-topbar {\n    display: none !important;\n  }"));
+
+  // النسخة المدمجة لودجت التاريخ ودورة السماء دون الاعتماد على وضع الجهاز التلقائي
+  assert.ok(darkModeCss.includes(".workspace-topbar__skydate.is-compact"));
+  assert.ok(!darkModeCss.includes(["prefers", "color", "scheme"].join("-")));
+});
+
+test("الشريط السفلي المثبّت للجوال والشاشات الصغيرة يعرض أهم ٥ صفحات بأيقونة فوق كل اسم", async () => {
+  const { mobileBottomDockItems, resolveActiveBottomDockHref } = await import(
+    "../src/app/(app)/navigation-items.ts"
+  );
+  const layoutSrc = readFileSync(
+    new URL("../src/app/(app)/layout.tsx", import.meta.url),
+    "utf8",
+  );
+  const navSrc = readFileSync(
+    new URL("../src/app/(app)/app-navigation.tsx", import.meta.url),
+    "utf8",
+  );
+  const workspaceCss = readFileSync(
+    new URL("../src/app/(app)/workspace.css", import.meta.url),
+    "utf8",
+  );
+
+  assert.ok(layoutSrc.includes("role={session.role}"));
+  assert.ok(navSrc.includes('className="workspace-bottom-dock"'));
+  assert.ok(navSrc.includes('aria-label="التنقل السريع السفلي"'));
+
+  // التحقق من ترتيب الأيقونة فوق الاسم مباشرةً داخل كل عنصر
+  const iconIdx = navSrc.indexOf('className="workspace-bottom-dock__icon"');
+  const labelIdx = navSrc.indexOf('className="workspace-bottom-dock__label"');
+  assert.ok(iconIdx !== -1 && labelIdx !== -1 && iconIdx < labelIdx, "يجب أن تسبق الأيقونةُ اسمَ الصفحة في الشريط السفلي");
+
+  // إخفاء الشريط على سطح المكتب والطباعة، وتثبيته أسفل الشاشة مع ترتيب عمودي (الأيقونة فوق النص) في الشاشات <= 820px
+  assert.ok(workspaceCss.includes(".workspace-bottom-dock {\n  display: none;\n}"));
+  const mobileBlock = workspaceCss.slice(workspaceCss.indexOf("@media (max-width: 820px)"));
+  assert.ok(mobileBlock.includes(".workspace-bottom-dock {"));
+  assert.ok(mobileBlock.includes("position: fixed;"));
+  assert.ok(mobileBlock.includes("bottom: 0;"));
+  assert.ok(mobileBlock.includes("flex-direction: column;"));
+  assert.ok(mobileBlock.includes("padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px));"));
+  assert.ok(workspaceCss.includes("@media print {\n  .workspace-bottom-dock {\n    display: none !important;\n  }\n}"));
+
+  // التحقق من الصفحات الخمس والأيقونات المستقلة وصلاحيات كل دور
+  const managerDock = mobileBottomDockItems("MANAGER", true, "FULL", false);
+  assert.equal(managerDock.length, 5);
+  assert.deepEqual(managerDock.map((i) => i.href), [
+    "/dashboard",
+    "/sales",
+    "/sales/new",
+    "/finance",
+    "/finance/expenses",
+  ]);
+  assert.equal(new Set(managerDock.map((i) => i.icon)).size, 5);
+
+  const accountantDock = mobileBottomDockItems("ACCOUNTANT", true, "FULL", false);
+  assert.equal(accountantDock.length, 5);
+  assert.deepEqual(accountantDock.map((i) => i.href), [
+    "/dashboard",
+    "/sales",
+    "/finance",
+    "/finance/transfers",
+    "/finance/expenses",
+  ]);
+  assert.equal(accountantDock.some((i) => i.href === "/sales/new"), false);
+  assert.equal(accountantDock.some((i) => i.href === "/sales/stats"), false);
+  assert.equal(new Set(accountantDock.map((i) => i.icon)).size, 5);
+
+  const staffDock = mobileBottomDockItems("CS_AGENT", true, "FULL", false);
+  assert.equal(staffDock.length, 5);
+  assert.deepEqual(staffDock.map((i) => i.href), [
+    "/dashboard",
+    "/sales",
+    "/sales/new",
+    "/finance/mine",
+    "/finance/expenses",
+  ]);
+  assert.equal(new Set(staffDock.map((i) => i.icon)).size, 5);
+
+  const limitedManager = mobileBottomDockItems("MANAGER", true, "LIMITED", false);
+  assert.equal(limitedManager.length, 5);
+  for (const item of limitedManager) {
+    if (item.href) {
+      assert.ok(
+        item.href.startsWith("/dashboard") ||
+          item.href.startsWith("/sales") ||
+          item.href.startsWith("/finance/expenses"),
+      );
+    }
+  }
+
+  assert.equal(resolveActiveBottomDockHref("/sales/new", managerDock), "/sales/new");
+  assert.equal(resolveActiveBottomDockHref("/sales/42", managerDock), "/sales");
+  assert.equal(resolveActiveBottomDockHref("/finance/expenses", accountantDock), "/finance/expenses");
+  assert.equal(resolveActiveBottomDockHref("/finance/transfers", accountantDock), "/finance/transfers");
+  assert.equal(resolveActiveBottomDockHref("/finance/accounts", accountantDock), "/finance");
+});
+
+
+
+
+
 
 
 

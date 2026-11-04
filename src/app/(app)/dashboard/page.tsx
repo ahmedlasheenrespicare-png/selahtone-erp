@@ -7,6 +7,10 @@ import MonthlySalesPanther from "./monthly-sales-panther";
 import { prisma } from "@/lib/prisma";
 import { requireSession, branchScope, canSeeAllBranches } from "@/lib/auth";
 import {
+  loadDashboardExecutiveSuite,
+  normalizeSearchQuery,
+} from "@/lib/dashboard-executive";
+import {
   loadDashboardOperationalData,
   type DashboardActivityItem,
 } from "@/lib/dashboard-pulse";
@@ -68,12 +72,14 @@ type QuickActionItem = {
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ branch?: string }>;
+  searchParams?: Promise<{ branch?: string; q?: string }>;
 }) {
   const session = await requireSession();
   const scope = branchScope(session);
   const canViewAllBranches = canSeeAllBranches(session);
   const params = searchParams ? await searchParams : {};
+  const rawSearchQ =
+    typeof params.q === "string" ? normalizeSearchQuery(params.q) : "";
 
   const allBranches = await prisma.branch.findMany({
     where: { isActive: true, ...(scope.branchId ? { id: BigInt(scope.branchId) } : {}) },
@@ -92,6 +98,14 @@ export default async function DashboardPage({
     allBranches.some((b) => b.id.toString() === params.branch)
       ? params.branch
       : null;
+
+  const buildDashboardHref = (branchVal: string | null, qVal: string | null = rawSearchQ || null) => {
+    const usp = new URLSearchParams();
+    if (branchVal) usp.set("branch", branchVal);
+    if (qVal) usp.set("q", qVal);
+    const qs = usp.toString();
+    return qs ? `/dashboard?${qs}` : "/dashboard";
+  };
 
   const effectiveBranchId = scope.branchId ?? requestedBranch;
   const branches = requestedBranch
@@ -153,9 +167,10 @@ export default async function DashboardPage({
   let monthSalesSeries: Awaited<ReturnType<typeof loadSalesChartSeries>> = [];
   let collectionsSpotlight: Awaited<ReturnType<typeof loadCollectionsSpotlight>> | null = null;
   let pulseData: Awaited<ReturnType<typeof loadDashboardOperationalData>> | null = null;
+  let execSuite: Awaited<ReturnType<typeof loadDashboardExecutiveSuite>> | null = null;
 
   try {
-    [monthSales, todaySales, monthSalesSeries, collectionsSpotlight, pulseData] =
+    [monthSales, todaySales, monthSalesSeries, collectionsSpotlight, pulseData, execSuite] =
       await Promise.all([
         loadSalesStats(prisma, effectiveBranchId, "month"),
         loadSalesStats(prisma, effectiveBranchId, "today"),
@@ -174,6 +189,27 @@ export default async function DashboardPage({
             warehouseCodes: b.warehouses.map((w) => w.code),
             usersCount: b._count.users,
           })),
+        }),
+        loadDashboardExecutiveSuite(prisma, {
+          branchId: effectiveBranchId,
+          canManage: !isEmployee,
+          monthLabel: currentMonthLabel,
+          branches: branches.map((b) => ({ id: b.id.toString(), nameAr: b.nameAr })),
+          financeOpsSummary: financeSpotlights?.financeOpsSummary ?? null,
+          paidExpenseFlow: financeSpotlights?.paidExpenseFlow ?? null,
+          employeeCustodyState: cash
+            ? {
+                settlementStale: cash.settlementStale,
+                pendingActionsCount:
+                  (cash.openSettlementId ? 1 : 0) +
+                  cash.pendingExpenses +
+                  cash.approvedUnpaid,
+              }
+            : null,
+          searchQuery: rawSearchQ || null,
+          canAccessInventorySerials: invOn && canOpen("/inventory/serials"),
+          canAccessSalesStats: canOpen("/sales/stats"),
+          canAccessFinance: finOn && canOpen(isEmployee ? "/finance/mine" : "/finance"),
         }),
       ]);
   } catch (error) {
@@ -384,7 +420,7 @@ export default async function DashboardPage({
         <div className="dashboard-branch-bar" role="navigation" aria-label="تصفية لوحة القيادة حسب الفرع">
           <span className="dashboard-branch-bar__label">نطاق العرض:</span>
           <Link
-            href="/dashboard"
+            href={buildDashboardHref(null)}
             className={`dashboard-branch-pill${requestedBranch === null ? " is-active" : ""}`}
             aria-current={requestedBranch === null ? "page" : undefined}
           >
@@ -396,7 +432,7 @@ export default async function DashboardPage({
             return (
               <Link
                 key={idStr}
-                href={`/dashboard?branch=${idStr}`}
+                href={buildDashboardHref(idStr)}
                 className={`dashboard-branch-pill${isSelected ? " is-active" : ""}`}
                 aria-current={isSelected ? "page" : undefined}
               >
@@ -406,6 +442,171 @@ export default async function DashboardPage({
           })}
         </div>
       ) : null}
+
+      {/* ٢-ب. شريط البحث الفوري الشامل (سيريال · هاتف أو اسم عميل · رقم فاتورة · صنف) */}
+      <section className="dashboard-omni-section" aria-label="البحث الفوري الشامل">
+        <form method="get" action="/dashboard" className="dashboard-omni-form" role="search">
+          {requestedBranch ? (
+            <input type="hidden" name="branch" value={requestedBranch} />
+          ) : null}
+          <span className="dashboard-omni-form__icon" aria-hidden="true">
+            <AppIcon name="search" />
+          </span>
+          <input
+            type="search"
+            name="q"
+            defaultValue={rawSearchQ}
+            placeholder="بحث فوري: رقم سيريال جهاز، هاتف أو اسم عميل، رقم فاتورة (#)، أو كود الصنف..."
+            aria-label="ابحث برقم السيريال أو هاتف العميل أو رقم الفاتورة"
+            className="dashboard-omni-form__input"
+          />
+          <div className="dashboard-omni-form__actions">
+            {rawSearchQ ? (
+              <Link
+                href={buildDashboardHref(requestedBranch, null)}
+                className="dashboard-omni-form__clear"
+              >
+                مسح
+              </Link>
+            ) : null}
+            <button type="submit" className="dashboard-omni-form__submit">
+              بحث فوري
+            </button>
+          </div>
+        </form>
+
+        {execSuite?.omniSearch ? (
+          <div className="dashboard-omni-results" role="region" aria-label="نتائج البحث الفوري">
+            <div className="dashboard-omni-results__head">
+              <strong>
+                نتائج البحث عن «{execSuite.omniSearch.query}» ({nf.format(execSuite.omniSearch.totalHits)})
+              </strong>
+              <Link
+                href={buildDashboardHref(requestedBranch, null)}
+                className="dashboard-omni-results__close"
+              >
+                إغلاق النتائج
+              </Link>
+            </div>
+
+            {execSuite.omniSearch.totalHits === 0 ? (
+              <p className="dashboard-omni-empty">
+                لا توجد نتائج مطابقة لـ «{execSuite.omniSearch.query}» ضمن {activeScopeLabel}. جرّب جزءًا من رقم السيريال أو آخر أرقام الهاتف أو رقم الفاتورة.
+              </p>
+            ) : (
+              <div className="dashboard-omni-grid">
+                {execSuite.omniSearch.serials.length > 0 ? (
+                  <div className="dashboard-omni-group">
+                    <h3>الأرقام التسلسلية ({nf.format(execSuite.omniSearch.serials.length)})</h3>
+                    <ul>
+                      {execSuite.omniSearch.serials.map((ser) => {
+                        const targetHref = ser.saleId
+                          ? `/sales/${ser.saleId}`
+                          : invOn && canOpen("/inventory/serials")
+                            ? "/inventory/serials"
+                            : null;
+                        const body = (
+                          <>
+                            <div>
+                              <strong dir="ltr">{ser.serialNumber}</strong>
+                              <small>
+                                {ser.productName} · <span dir="ltr">{ser.sku}</span> · {ser.warehouseName} ({ser.branchName})
+                              </small>
+                            </div>
+                            <span
+                              className={`dashboard-feed__badge ${
+                                ser.isAvailable ? "is-positive" : "is-warning"
+                              }`}
+                            >
+                              {ser.isAvailable
+                                ? "متاح بالمستودع"
+                                : `مباع — فاتورة #${ser.saleId}${ser.customerName ? ` (${ser.customerName})` : ""}`}
+                            </span>
+                          </>
+                        );
+                        return (
+                          <li key={ser.serialId}>
+                            {targetHref && canOpen(targetHref) ? (
+                              <Link href={targetHref} className="dashboard-omni-hit">
+                                {body}
+                              </Link>
+                            ) : (
+                              <div className="dashboard-omni-hit">{body}</div>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ) : null}
+
+                {execSuite.omniSearch.sales.length > 0 ? (
+                  <div className="dashboard-omni-group">
+                    <h3>الفواتير والعملاء ({nf.format(execSuite.omniSearch.sales.length)})</h3>
+                    <ul>
+                      {execSuite.omniSearch.sales.map((sale) => (
+                        <li key={sale.saleId}>
+                          <Link href={`/sales/${sale.saleId}`} className="dashboard-omni-hit">
+                            <div>
+                              <strong>
+                                فاتورة #{sale.saleId} — {sale.customerName}
+                              </strong>
+                              <small>
+                                <span dir="ltr">{sale.customerPhone}</span> · {sale.branchName} · الصافي{" "}
+                                <bdi dir="ltr">{sale.netTotalFormatted}</bdi> ج.م
+                              </small>
+                            </div>
+                            <span className={`dashboard-feed__badge is-${sale.tone}`}>
+                              {sale.statusLabel}
+                            </span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                {execSuite.omniSearch.products.length > 0 ? (
+                  <div className="dashboard-omni-group">
+                    <h3>الأصناف والمخزون ({nf.format(execSuite.omniSearch.products.length)})</h3>
+                    <ul>
+                      {execSuite.omniSearch.products.map((prod) => {
+                        const prodHref = invOn && canOpen("/inventory") ? "/inventory" : null;
+                        const prodBody = (
+                          <>
+                            <div>
+                              <strong>{prod.nameAr}</strong>
+                              <small>
+                                <span dir="ltr">{prod.sku}</span> · سعر البيع{" "}
+                                <bdi dir="ltr">{prod.salePriceFormatted}</bdi> ج.م
+                                {prod.isSerialized ? " · تسلسلي" : ""}
+                              </small>
+                            </div>
+                            <span className="dashboard-feed__badge is-neutral">
+                              متاح {prod.qtyOnHandFormatted}
+                            </span>
+                          </>
+                        );
+                        return (
+                          <li key={prod.productId}>
+                            {prodHref ? (
+                              <Link href={prodHref} className="dashboard-omni-hit">
+                                {prodBody}
+                              </Link>
+                            ) : (
+                              <div className="dashboard-omni-hit">{prodBody}</div>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ) : null}
+              </div>
+            )}
+          </div>
+        ) : null}
+      </section>
 
       {/* ٣. شريط «نبض اليوم» التنفيذي (٤ بطاقات مركّزة) */}
       <section className="dashboard-pulse-strip" aria-label="نبض عمليات اليوم">
@@ -525,7 +726,130 @@ export default async function DashboardPage({
         )}
       </section>
 
-      {/* ٤. الشبكة المتجاوبة الموحّدة: المحفظة المركّزة (٣ شرائح صافية بلا تكرار) + ٤ مؤشرات حيّة */}
+      {/* ٣-ب. شريط وتيرة الشهر وتوقّع الإغلاق (Monthly Run-Rate & Pace vs Last Month) */}
+      {execSuite?.monthPace ? (
+        <section className="dashboard-pace-strip" aria-label="وتيرة الشهر وتوقع الإغلاق">
+          <div className="dashboard-pace-strip__progress">
+            <div className="dashboard-pace-strip__progress-top">
+              <strong>وتيرة {currentMonthLabel}</strong>
+              <span>
+                اليوم {nf.format(execSuite.monthPace.dayOfMonth)} من{" "}
+                {nf.format(execSuite.monthPace.daysInMonth)} (
+                {nf.format(execSuite.monthPace.monthProgressPct)}%)
+              </span>
+            </div>
+            <div
+              className="dashboard-pace-strip__bar"
+              role="progressbar"
+              aria-valuenow={execSuite.monthPace.monthProgressPct}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="نسبة الأيام المنقضية من الشهر"
+            >
+              <span style={{ width: `${execSuite.monthPace.monthProgressPct}%` }} />
+            </div>
+          </div>
+
+          <div className="dashboard-pace-strip__metrics">
+            <div className="dashboard-pace-metric">
+              <span>متوسط البيع اليومي</span>
+              <strong>
+                <bdi dir="ltr">{execSuite.monthPace.dailyAverageFormatted}</bdi> <small>ج.م/يوم</small>
+              </strong>
+            </div>
+
+            <div className="dashboard-pace-metric">
+              <span>الإغلاق المتوقّع لنهاية الشهر</span>
+              <strong>
+                <bdi dir="ltr">{execSuite.monthPace.projectedCloseFormatted}</bdi> <small>ج.م</small>
+              </strong>
+            </div>
+
+            <div className="dashboard-pace-metric">
+              <span>مقارنة بنفس الفترة من الشهر الماضي</span>
+              <div className="dashboard-pace-metric__row">
+                {execSuite.monthPace.paceVsLastMonthPct !== null ? (
+                  <span
+                    className={`dashboard-pace-badge is-${execSuite.monthPace.paceDirection}`}
+                  >
+                    {execSuite.monthPace.paceVsLastMonthPct > 0
+                      ? `↑ متقدّم +${nf.format(execSuite.monthPace.paceVsLastMonthPct)}%`
+                      : execSuite.monthPace.paceVsLastMonthPct < 0
+                        ? `↓ أقل ${nf.format(execSuite.monthPace.paceVsLastMonthPct)}%`
+                        : "نفس وتيرة الشهر الماضي"}
+                  </span>
+                ) : (
+                  <span className="dashboard-pace-badge is-flat">
+                    الشهر الماضي: <bdi dir="ltr">{execSuite.monthPace.prevFullMonthFormatted}</bdi> ج.م
+                  </span>
+                )}
+                <small>
+                  مقابل <bdi dir="ltr">{execSuite.monthPace.prevSameSpanFormatted}</bdi> ج.م لنفس الأيام
+                </small>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {/* ٣-ج. شريط تنبيهات الرقابة المالية والخصومات (للإدارة والمحاسب فقط) */}
+      {!isEmployee && execSuite?.governance ? (
+        <section
+          className={`dashboard-governance${execSuite.governance.isClean ? " is-clean" : " has-alerts"}`}
+          aria-label="الرقابة المالية والخصومات"
+        >
+          <div className="dashboard-governance__head">
+            <span className="dashboard-governance__icon" aria-hidden="true">
+              <AppIcon name="shield" />
+            </span>
+            <div>
+              <strong>تنبيهات الرقابة المالية والخصومات</strong>
+              {execSuite.governance.isClean ? (
+                <p>
+                  ضوابط التشغيل سليمة اليوم — لا إلغاءات أو مرتجعات مسجّلة اليوم، ولا تجاوزات لسقف خصم الكاونتر (
+                  {execSuite.governance.staffDiscountPctLabel})، ولا فروقات جرد معلّقة.
+                </p>
+              ) : (
+                <p>حالات رقابية تستوجب المراجعة ضمن {activeScopeLabel}:</p>
+              )}
+            </div>
+          </div>
+
+          {!execSuite.governance.isClean ? (
+            <div className="dashboard-governance__list">
+              {execSuite.governance.alerts.map((al) => {
+                const allowed = canOpen(al.href);
+                const content = (
+                  <>
+                    <div>
+                      <strong>{al.title}</strong>
+                      <small>{al.detail}</small>
+                    </div>
+                    <span className={`dashboard-feed__badge is-${al.tone === "danger" ? "danger" : "warning"}`}>
+                      مراجعة
+                    </span>
+                  </>
+                );
+                return allowed ? (
+                  <Link
+                    key={al.key}
+                    href={al.href}
+                    className={`dashboard-governance__item is-${al.tone}`}
+                  >
+                    {content}
+                  </Link>
+                ) : (
+                  <div key={al.key} className={`dashboard-governance__item is-${al.tone}`}>
+                    {content}
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      {/* ٤. الشبكة المتجاوبة الموحّدة (٦ بطاقات متناظرة: المحفظة المركّزة + ٥ مؤشرات حيّة) */}
       <div className="dashboard-cards-grid">
         <div className="dashboard-cards-grid__wallet">
           <DashboardWallet
@@ -693,6 +1017,31 @@ export default async function DashboardPage({
           </DashboardWallet>
         </div>
 
+        {execSuite?.compositeEfficiencySpotlight ? (
+          <div className="dashboard-cards-grid__item">
+            <PantherSpotlightCard
+              layout="wallet"
+              icon="efficiencyGauge"
+              title={execSuite.compositeEfficiencySpotlight.title}
+              subtitle={execSuite.compositeEfficiencySpotlight.subtitle}
+              pill={execSuite.compositeEfficiencySpotlight.pill}
+              primary={execSuite.compositeEfficiencySpotlight.primary}
+              secondary={execSuite.compositeEfficiencySpotlight.secondary}
+              series={execSuite.compositeEfficiencySpotlight.series}
+              actionHref={
+                canOpen(execSuite.compositeEfficiencySpotlight.actionHref.split("?")[0])
+                  ? execSuite.compositeEfficiencySpotlight.actionHref
+                  : "/sales"
+              }
+              actionLabel={
+                canOpen(execSuite.compositeEfficiencySpotlight.actionHref.split("?")[0])
+                  ? execSuite.compositeEfficiencySpotlight.actionLabel
+                  : "مراجعة سجل العمليات"
+              }
+            />
+          </div>
+        ) : null}
+
         {monthSales ? (
           <div className="dashboard-cards-grid__item">
             <MonthlySalesPanther
@@ -727,6 +1076,7 @@ export default async function DashboardPage({
           <div className="dashboard-cards-grid__item">
             <PantherSpotlightCard
               layout="wallet"
+              icon="customerCollection"
               title={collectionsSpotlight.title}
               subtitle={collectionsSpotlight.subtitle}
               pill={collectionsSpotlight.pill}
@@ -739,10 +1089,36 @@ export default async function DashboardPage({
           </div>
         ) : null}
 
+        {execSuite?.cashConversionSpotlight ? (
+          <div className="dashboard-cards-grid__item">
+            <PantherSpotlightCard
+              layout="wallet"
+              icon="cashConversion"
+              title={execSuite.cashConversionSpotlight.title}
+              subtitle={execSuite.cashConversionSpotlight.subtitle}
+              pill={execSuite.cashConversionSpotlight.pill}
+              primary={execSuite.cashConversionSpotlight.primary}
+              secondary={execSuite.cashConversionSpotlight.secondary}
+              series={execSuite.cashConversionSpotlight.series}
+              actionHref={
+                canOpen(execSuite.cashConversionSpotlight.actionHref.split("?")[0])
+                  ? execSuite.cashConversionSpotlight.actionHref
+                  : "/sales"
+              }
+              actionLabel={
+                canOpen(execSuite.cashConversionSpotlight.actionHref.split("?")[0])
+                  ? execSuite.cashConversionSpotlight.actionLabel
+                  : "مراجعة الفواتير والتحصيلات"
+              }
+            />
+          </div>
+        ) : null}
+
         {financeSpotlights?.cashBalance ? (
           <div className="dashboard-cards-grid__item">
             <PantherSpotlightCard
               layout="wallet"
+              icon="balanceScale"
               title={financeSpotlights.cashBalance.title}
               subtitle={financeSpotlights.cashBalance.subtitle}
               pill={financeSpotlights.cashBalance.pill}
@@ -767,6 +1143,7 @@ export default async function DashboardPage({
           <div className="dashboard-cards-grid__item">
             <PantherSpotlightCard
               layout="wallet"
+              icon="expenseReceipt"
               title={financeSpotlights.monthlyExpenses.title}
               subtitle={financeSpotlights.monthlyExpenses.subtitle}
               pill={financeSpotlights.monthlyExpenses.pill}
@@ -782,7 +1159,161 @@ export default async function DashboardPage({
             />
           </div>
         ) : null}
+
+        {execSuite?.fifthSpotlight ? (
+          <div className="dashboard-cards-grid__item">
+            <PantherSpotlightCard
+              layout="wallet"
+              icon={isEmployee ? "serialScan" : "netProfit"}
+              title={execSuite.fifthSpotlight.title}
+              subtitle={execSuite.fifthSpotlight.subtitle}
+              pill={execSuite.fifthSpotlight.pill}
+              primary={execSuite.fifthSpotlight.primary}
+              secondary={execSuite.fifthSpotlight.secondary}
+              series={execSuite.fifthSpotlight.series}
+              actionHref={
+                canOpen(execSuite.fifthSpotlight.actionHref.split("?")[0])
+                  ? execSuite.fifthSpotlight.actionHref
+                  : "/sales"
+              }
+              actionLabel={
+                canOpen(execSuite.fifthSpotlight.actionHref.split("?")[0])
+                  ? execSuite.fifthSpotlight.actionLabel
+                  : "مراجعة سجل المبيعات"
+              }
+            />
+          </div>
+        ) : null}
+
+        {execSuite?.branchEfficiencySpotlight ? (
+          <div className="dashboard-cards-grid__item">
+            <PantherSpotlightCard
+              layout="wallet"
+              icon="branchScorecard"
+              title={execSuite.branchEfficiencySpotlight.title}
+              subtitle={execSuite.branchEfficiencySpotlight.subtitle}
+              pill={execSuite.branchEfficiencySpotlight.pill}
+              primary={execSuite.branchEfficiencySpotlight.primary}
+              secondary={execSuite.branchEfficiencySpotlight.secondary}
+              series={execSuite.branchEfficiencySpotlight.series}
+              actionHref={
+                canOpen(execSuite.branchEfficiencySpotlight.actionHref.split("?")[0])
+                  ? execSuite.branchEfficiencySpotlight.actionHref
+                  : "/sales"
+              }
+              actionLabel={
+                canOpen(execSuite.branchEfficiencySpotlight.actionHref.split("?")[0])
+                  ? execSuite.branchEfficiencySpotlight.actionLabel
+                  : "استعراض فواتير الفرع"
+              }
+            />
+          </div>
+        ) : null}
       </div>
+
+      {/* ٤-ب. رادار أولويات التحصيل وأعمار الذمم (Collection Priority & Aging Radar) */}
+      {execSuite?.agingRadar ? (
+        <section className="dashboard-aging-card" aria-labelledby="aging-radar-title">
+          <div className="dashboard-surface-card__head">
+            <div>
+              <h2 id="aging-radar-title">رادار أولويات التحصيل وأعمار الذمم</h2>
+              <p>
+                توزيع الذمم المفتوحة حسب عمر الفاتورة وأهم العملاء المستحق متابعتهم اليوم ضمن {activeScopeLabel}.
+              </p>
+            </div>
+            <div className="dashboard-aging-card__head-end">
+              <span
+                className={`dashboard-feed__badge ${
+                  execSuite.agingRadar.totalOpenCount > 0 ? "is-warning" : "is-positive"
+                }`}
+              >
+                {execSuite.agingRadar.totalOpenCount > 0
+                  ? `${nf.format(execSuite.agingRadar.totalOpenCount)} فاتورة آجلة · ${execSuite.agingRadar.totalDueFormatted} ج.م`
+                  : "لا ذمم متأخرة"}
+              </span>
+              <Link href="/sales" className="dashboard-surface-card__link">
+                كل الفواتير <AppIcon name="arrow" />
+              </Link>
+            </div>
+          </div>
+
+          <div className="dashboard-aging-body">
+            <div className="dashboard-aging-buckets">
+              {execSuite.agingRadar.buckets.map((b) => (
+                <div key={b.key} className={`dashboard-aging-bucket is-${b.tone}`}>
+                  <div className="dashboard-aging-bucket__top">
+                    <span>{b.label}</span>
+                    <strong>{nf.format(b.count)} فاتورة</strong>
+                  </div>
+                  <div className="dashboard-aging-bucket__amount">
+                    <bdi dir="ltr">{b.totalFormatted}</bdi> <small>ج.م</small>
+                  </div>
+                  <div className="dashboard-aging-bucket__track" aria-hidden="true">
+                    <span style={{ width: `${Math.max(b.count > 0 ? 6 : 0, b.sharePct)}%` }} />
+                  </div>
+                  <small className="dashboard-aging-bucket__share">
+                    {nf.format(b.sharePct)}% من إجمالي الذمم المفتوحة
+                  </small>
+                </div>
+              ))}
+            </div>
+
+            <div className="dashboard-aging-priority">
+              <div className="dashboard-stock-box__head">
+                <strong>أعلى الفواتير أولويةً للمتابعة والتحصيل</strong>
+                <span className="dashboard-branches-sub">مرتّبة حسب الأقدمية وقيمة المتبقّي</span>
+              </div>
+
+              {execSuite.agingRadar.priorityInvoices.length > 0 ? (
+                <ul className="dashboard-aging-list">
+                  {execSuite.agingRadar.priorityInvoices.map((inv) => (
+                    <li key={inv.saleId} className="dashboard-aging-row">
+                      <div className="dashboard-aging-row__info">
+                        <div className="dashboard-aging-row__title">
+                          <strong>
+                            فاتورة #{inv.saleId} — {inv.customerName}
+                          </strong>
+                          <span
+                            className={`dashboard-feed__badge is-${
+                              inv.tone === "danger"
+                                ? "danger"
+                                : inv.tone === "warning"
+                                  ? "warning"
+                                  : "neutral"
+                            }`}
+                          >
+                            {inv.ageLabel}
+                          </span>
+                        </div>
+                        <small>
+                          هاتف: <span dir="ltr">{inv.customerPhone}</span> · {inv.branchName} · سُدّد{" "}
+                          <bdi dir="ltr">{inv.paidFormatted}</bdi> من <bdi dir="ltr">{inv.netTotalFormatted}</bdi> ج.م
+                        </small>
+                      </div>
+
+                      <div className="dashboard-aging-row__end">
+                        <div className="dashboard-aging-row__due">
+                          <span>المتبقّي</span>
+                          <strong>
+                            <bdi dir="ltr">{inv.dueFormatted}</bdi> ج.م
+                          </strong>
+                        </div>
+                        <Link href={inv.href} className="dashboard-aging-row__cta">
+                          تحصيل / متابعة
+                        </Link>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="dashboard-stock-ok">
+                  ممتاز — لا توجد فواتير آجلة مفتوحة بانتظار التحصيل ضمن النطاق المعروض حاليًا.
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       {/* ٥. القسم التنفيذي السفلي: السجل الحيّ لآخر الحركات + صحّة الفروع وتنبيهات المخزون */}
       <section className="dashboard-lower-grid" aria-label="آخر الحركات وصحة الفروع والمخزون">
@@ -929,6 +1460,7 @@ export default async function DashboardPage({
                 <div className="dashboard-branch-cards">
                   {pulseData.branchHealth.map((bh) => {
                     const expectedCustody = custodyExpectedByBranchName.get(bh.branchName);
+                    const effBadge = execSuite?.branchScoresById?.[bh.branchId];
                     return (
                       <div key={bh.branchId} className="dashboard-branch-card">
                         <div className="dashboard-branch-card__top">
@@ -945,6 +1477,14 @@ export default async function DashboardPage({
                             </span>
                           </div>
                           <div className="dashboard-warehouse-list">
+                            {effBadge ? (
+                              <span
+                                className={`dashboard-feed__badge is-${effBadge.tone}`}
+                                title={`تقييم كفاءة الفرع: ${effBadge.gradeLabel}`}
+                              >
+                                كفاءة {nf.format(effBadge.score)}/100
+                              </span>
+                            ) : null}
                             {bh.warehouseCodes.length > 0 ? (
                               bh.warehouseCodes.map((code) => (
                                 <span key={code} dir="ltr">

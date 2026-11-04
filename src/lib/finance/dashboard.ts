@@ -255,10 +255,42 @@ export type DashboardFinanceActivity = {
   href: string;
 };
 
+export type DashboardPaidExpenseFlow = {
+  /** المصروفات المدفوعة فعليًا هذا الشهر ضمن صلاحية المستخدم بالسنت */
+  monthPaidCentsStr: string;
+  /** المصروفات المدفوعة يومًا بيوم (YYYY-MM-DD -> cents) */
+  monthPaidByDayCents: Record<string, string>;
+  /** المصروفات المدفوعة لكل فرع (branchId -> cents) */
+  monthPaidByBranchIdCents: Record<string, string>;
+};
+
+export type DashboardFinanceOpsSummary = {
+  /** إجمالي المصروفات المعتمدة والمدفوعة هذا الشهر بالسنت */
+  monthRecognizedExpensesCentsStr: string;
+  /** المصروفات المعتمدة والمدفوعة يومًا بيوم (YYYY-MM-DD -> cents) */
+  monthRecognizedByDayCents: Record<string, string>;
+  /** المصروفات المعتمدة والمدفوعة لكل فرع (branchId -> cents) */
+  monthRecognizedByBranchIdCents: Record<string, string>;
+  /** طلبات تسوية معلّقة بطلت بسبب حركة نقدية لاحقة */
+  staleOpenSettlementsCount: number;
+  /** طلبات تسوية (مفتوحة أو مؤكّدة هذا الشهر) ذات فرق جرد فعلي */
+  varianceSettlementsCount: number;
+  /** مجموع القيم المطلقة لفروقات الجرد بالسنت */
+  varianceTotalAbsCentsStr: string;
+  /** عدد طلبات التسوية الباطلة لكل فرع */
+  staleByBranchId: Record<string, number>;
+  /** عدد طلبات التسوية ذات الفروقات لكل فرع */
+  varianceByBranchId: Record<string, number>;
+  /** عدد المعاملات المالية المعلّقة للاعتماد أو الصرف */
+  pendingBacklogCount: number;
+};
+
 export type DashboardFinanceSpotlights = {
   cashBalance: DashboardSpotlightData | null;
   monthlyExpenses: DashboardSpotlightData | null;
   recentActivities: DashboardFinanceActivity[];
+  financeOpsSummary: DashboardFinanceOpsSummary | null;
+  paidExpenseFlow: DashboardPaidExpenseFlow;
 };
 
 const EXPENSE_STATUS_AR: Record<string, string> = {
@@ -294,19 +326,52 @@ export async function loadDashboardFinanceSpotlights(
   const canReadOwnExpenses = session.role === "CS_AGENT" && Boolean(session.branchId);
   if (!canManage && !canReadOwnExpenses) return null;
 
-  const { accounts: rawAccounts, expenses: rawExpenses, settlements: rawSettlements } =
-    await read(session, async (tx) => {
-      const inlineDb = { serializable: <R>(work: (inner: FinanceTransaction) => Promise<R>) => work(tx) };
-      const loadedAccounts = await listAccounts(inlineDb, session.id);
-      const loadedExpenses =
-        canManage || canReadOwnExpenses ? await listExpenses(inlineDb, session.id) : [];
-      const loadedSettlements = await listSettlements(inlineDb, session.id);
-      return {
-        accounts: loadedAccounts,
-        expenses: loadedExpenses,
-        settlements: loadedSettlements,
-      };
-    });
+  const {
+    accounts: rawAccounts,
+    expenses: rawExpenses,
+    settlements: rawSettlements,
+    staleOpenBranchIds,
+  } = await read(session, async (tx) => {
+    const inlineDb = { serializable: <R>(work: (inner: FinanceTransaction) => Promise<R>) => work(tx) };
+    const loadedAccounts = await listAccounts(inlineDb, session.id);
+    const loadedExpenses =
+      canManage || canReadOwnExpenses ? await listExpenses(inlineDb, session.id) : [];
+    const loadedSettlements = await listSettlements(inlineDb, session.id);
+    const staleRows = canManage
+      ? await tx.query<{ branchId: string }>(`
+          SELECT st.branch_id::text AS "branchId"
+          FROM finance.settlements st
+          WHERE st.status = 'OPEN'
+            AND (
+              EXISTS (
+                SELECT 1 FROM finance.movements m
+                WHERE (m.source_id = st.account_id OR m.destination_id = st.account_id)
+                  AND m.created_at > st.created_at
+              )
+              OR EXISTS (
+                SELECT 1 FROM public.commerce_collections c
+                JOIN public.commerce_sales s ON s.id = c.sale_id
+                WHERE s.branch_id = st.branch_id
+                  AND c.method = 'CASH'
+                  AND c.created_at > st.created_at
+              )
+              OR EXISTS (
+                SELECT 1 FROM finance.payments p
+                JOIN finance.expenses e ON e.id = p.expense_id
+                WHERE e.branch_id = st.branch_id
+                  AND p.source = 'HOLDER_CASH'
+                  AND p.recorded_at > st.created_at
+              )
+            )
+        `)
+      : { rows: [] };
+    return {
+      accounts: loadedAccounts,
+      expenses: loadedExpenses,
+      settlements: loadedSettlements,
+      staleOpenBranchIds: staleRows.rows.map((r) => String(r.branchId)),
+    };
+  });
 
   const activeBranchFilter =
     session.branchId ? String(session.branchId) : opts.branchFilterId ?? null;
@@ -852,9 +917,94 @@ export async function loadDashboardFinanceSpotlights(
     });
   }
 
+  const paidByDayMap = new Map<string, bigint>();
+  const paidByBranchIdMap = new Map<string, bigint>();
+  let paidFlowTotalCents = 0n;
+  for (const exp of monthExpensesChrono) {
+    if (exp.status !== "PAID") continue;
+    const amt = toCents(exp.amount);
+    paidFlowTotalCents += amt;
+    const dKey = String(exp.expenseDate).slice(0, 10);
+    paidByDayMap.set(dKey, (paidByDayMap.get(dKey) ?? 0n) + amt);
+    const bId = String(exp.branchId);
+    paidByBranchIdMap.set(bId, (paidByBranchIdMap.get(bId) ?? 0n) + amt);
+  }
+  const paidExpenseFlow: DashboardPaidExpenseFlow = {
+    monthPaidCentsStr: paidFlowTotalCents.toString(),
+    monthPaidByDayCents: Object.fromEntries(
+      Array.from(paidByDayMap.entries()).map(([k, v]) => [k, v.toString()]),
+    ),
+    monthPaidByBranchIdCents: Object.fromEntries(
+      Array.from(paidByBranchIdMap.entries()).map(([k, v]) => [k, v.toString()]),
+    ),
+  };
+
+  let financeOpsSummary: DashboardFinanceOpsSummary | null = null;
+  if (canManage) {
+    let recognizedCents = 0n;
+    const byDayMap = new Map<string, bigint>();
+    const byBranchIdMap = new Map<string, bigint>();
+
+    for (const exp of monthExpensesChrono) {
+      if (exp.status !== "PAID" && exp.status !== "APPROVED") continue;
+      const amt = toCents(exp.amount);
+      recognizedCents += amt;
+      const dKey = String(exp.expenseDate).slice(0, 10);
+      byDayMap.set(dKey, (byDayMap.get(dKey) ?? 0n) + amt);
+      const bId = String(exp.branchId);
+      byBranchIdMap.set(bId, (byBranchIdMap.get(bId) ?? 0n) + amt);
+    }
+
+    const filteredStaleBranchIds = activeBranchFilter
+      ? staleOpenBranchIds.filter((bId) => bId === activeBranchFilter)
+      : staleOpenBranchIds;
+    const staleByBranchId: Record<string, number> = {};
+    for (const bId of filteredStaleBranchIds) {
+      staleByBranchId[bId] = (staleByBranchId[bId] ?? 0) + 1;
+    }
+
+    let varianceCount = 0;
+    let varianceAbsCents = 0n;
+    const varianceByBranchId: Record<string, number> = {};
+    let openSettlementsCount = 0;
+    for (const st of settlements) {
+      if (st.status === "OPEN") openSettlementsCount += 1;
+      const stDatePrefix = String(st.resolvedAt ?? st.createdAt).slice(0, 7);
+      const relevant =
+        st.status === "OPEN" ||
+        (st.status === "CONFIRMED" && stDatePrefix === currentMonthPrefix);
+      if (!relevant) continue;
+      const dev = toCents(String(st.deviation ?? "0"));
+      if (dev !== 0n) {
+        varianceCount += 1;
+        varianceAbsCents += dev < 0n ? -dev : dev;
+        const bId = String(st.branchId);
+        varianceByBranchId[bId] = (varianceByBranchId[bId] ?? 0) + 1;
+      }
+    }
+
+    financeOpsSummary = {
+      monthRecognizedExpensesCentsStr: recognizedCents.toString(),
+      monthRecognizedByDayCents: Object.fromEntries(
+        Array.from(byDayMap.entries()).map(([k, v]) => [k, v.toString()]),
+      ),
+      monthRecognizedByBranchIdCents: Object.fromEntries(
+        Array.from(byBranchIdMap.entries()).map(([k, v]) => [k, v.toString()]),
+      ),
+      staleOpenSettlementsCount: filteredStaleBranchIds.length,
+      varianceSettlementsCount: varianceCount,
+      varianceTotalAbsCentsStr: varianceAbsCents.toString(),
+      staleByBranchId,
+      varianceByBranchId,
+      pendingBacklogCount: monthPendingCount + monthApprovedCount + openSettlementsCount,
+    };
+  }
+
   return {
     cashBalance: cashBalanceSpotlight,
     monthlyExpenses: monthlyExpensesSpotlight,
     recentActivities,
+    financeOpsSummary,
+    paidExpenseFlow,
   };
 }

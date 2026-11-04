@@ -1,5 +1,5 @@
 import type { AppIconName } from "@/components/app-icon";
-import { type MenuScope } from "@/lib/menu-scope";
+import type { MenuScope } from "@/lib/menu-scope";
 
 export type NavigationItem = {
   label: string;
@@ -117,4 +117,151 @@ export function navigationGroups(
 
 export function isCurrentPath(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+export type BottomDockRole = "MANAGER" | "ACCOUNTANT" | "CS_AGENT";
+
+export type BottomDockItem = {
+  id: string;
+  label: string;
+  icon: AppIconName;
+  href?: string;
+  action?: "open-menu";
+  featured?: boolean;
+};
+
+/**
+ * أهم خمس صفحات في الشريط السفلي المثبّت للجوال والشاشات الضيقة (<= 820px)،
+ * مخصّصة حسب صلاحيات كل دور ونطاق القائمة (FULL / LIMITED) وتفعيل الوحدات
+ * بحيث لا يظهر لأي مستخدم تبويب غير مصرّح له.
+ */
+export function mobileBottomDockItems(
+  role: BottomDockRole,
+  financeEnabled = false,
+  menuScope: MenuScope = "FULL",
+  inventoryEnabled = false,
+): BottomDockItem[] {
+  if (menuScope === "LIMITED") {
+    if (financeEnabled) {
+      if (role === "ACCOUNTANT") {
+        return [
+          { id: "dashboard", label: "الرئيسية", icon: "dashboard", href: "/dashboard" },
+          { id: "sales", label: "الفواتير", icon: "receipt", href: "/sales" },
+          { id: "new-expense", label: "مصروف جديد", icon: "plusCircle", href: "/finance/expenses/new", featured: true },
+          { id: "expenses", label: "المصروفات", icon: "expenses", href: "/finance/expenses" },
+          { id: "menu", label: "القائمة", icon: "menu", action: "open-menu" },
+        ];
+      }
+      return [
+        { id: "dashboard", label: "الرئيسية", icon: "dashboard", href: "/dashboard" },
+        { id: "sales", label: "الفواتير", icon: "receipt", href: "/sales" },
+        { id: "new-sale", label: "بيع جديد", icon: "plusCircle", href: "/sales/new", featured: true },
+        { id: "expenses", label: "المصروفات", icon: "expenses", href: "/finance/expenses" },
+        { id: "new-expense", label: "مصروف جديد", icon: "plusDoc", href: "/finance/expenses/new" },
+      ];
+    }
+
+    if (role === "ACCOUNTANT") {
+      return [
+        { id: "dashboard", label: "الرئيسية", icon: "dashboard", href: "/dashboard" },
+        { id: "sales", label: "الفواتير", icon: "receipt", href: "/sales", featured: true },
+        { id: "password", label: "كلمة المرور", icon: "lock", href: "/change-password" },
+        { id: "menu", label: "القائمة", icon: "menu", action: "open-menu" },
+      ];
+    }
+
+    return [
+      { id: "dashboard", label: "الرئيسية", icon: "dashboard", href: "/dashboard" },
+      { id: "sales", label: "الفواتير", icon: "receipt", href: "/sales" },
+      { id: "new-sale", label: "بيع جديد", icon: "plusCircle", href: "/sales/new", featured: true },
+      ...(role === "MANAGER"
+        ? [{ id: "sales-stats", label: "الإحصائيات", icon: "reports" as const, href: "/sales/stats" }]
+        : [{ id: "password", label: "كلمة المرور", icon: "lock" as const, href: "/change-password" }]),
+      { id: "menu", label: "القائمة", icon: "menu", action: "open-menu" },
+    ];
+  }
+
+  if (role === "MANAGER") {
+    if (financeEnabled) {
+      return [
+        { id: "dashboard", label: "الرئيسية", icon: "dashboard", href: "/dashboard" },
+        { id: "sales", label: "الفواتير", icon: "receipt", href: "/sales" },
+        { id: "new-sale", label: "بيع جديد", icon: "plusCircle", href: "/sales/new", featured: true },
+        { id: "finance", label: "الحسابات", icon: "cash", href: "/finance" },
+        { id: "expenses", label: "المصروفات", icon: "expenses", href: "/finance/expenses" },
+      ];
+    }
+    return [
+      { id: "dashboard", label: "الرئيسية", icon: "dashboard", href: "/dashboard" },
+      { id: "sales", label: "الفواتير", icon: "receipt", href: "/sales" },
+      { id: "new-sale", label: "بيع جديد", icon: "plusCircle", href: "/sales/new", featured: true },
+      { id: "sales-stats", label: "الإحصائيات", icon: "reports", href: "/sales/stats" },
+      inventoryEnabled
+        ? { id: "inventory", label: "المخزون", icon: "inventory", href: "/inventory" }
+        : { id: "admin", label: "الإدارة", icon: "branch", href: "/admin" },
+    ];
+  }
+
+  if (role === "ACCOUNTANT") {
+    if (financeEnabled) {
+      return [
+        { id: "dashboard", label: "الرئيسية", icon: "dashboard", href: "/dashboard" },
+        { id: "sales", label: "الفواتير", icon: "receipt", href: "/sales" },
+        { id: "finance", label: "الحسابات", icon: "cash", href: "/finance", featured: true },
+        { id: "transfers", label: "التسليمات", icon: "transfers", href: "/finance/transfers" },
+        { id: "expenses", label: "المصروفات", icon: "expenses", href: "/finance/expenses" },
+      ];
+    }
+    return [
+      { id: "dashboard", label: "الرئيسية", icon: "dashboard", href: "/dashboard" },
+      { id: "sales", label: "الفواتير", icon: "receipt", href: "/sales" },
+      { id: "admin", label: "الإدارة", icon: "branch", href: "/admin", featured: true },
+      inventoryEnabled
+        ? { id: "inventory", label: "المخزون", icon: "inventory", href: "/inventory" }
+        : { id: "setup", label: "الإعداد", icon: "settings", href: "/setup" },
+      { id: "menu", label: "القائمة", icon: "menu", action: "open-menu" },
+    ];
+  }
+
+  // موظف الكاونتر / الفرع (CS_AGENT)
+  if (financeEnabled) {
+    return [
+      { id: "dashboard", label: "الرئيسية", icon: "dashboard", href: "/dashboard" },
+      { id: "sales", label: "الفواتير", icon: "receipt", href: "/sales" },
+      { id: "new-sale", label: "بيع جديد", icon: "plusCircle", href: "/sales/new", featured: true },
+      { id: "custody", label: "عهدتي", icon: "cash", href: "/finance/mine" },
+      { id: "expenses", label: "مصروفاتي", icon: "expenses", href: "/finance/expenses" },
+    ];
+  }
+
+  return [
+    { id: "dashboard", label: "الرئيسية", icon: "dashboard", href: "/dashboard" },
+    { id: "sales", label: "الفواتير", icon: "receipt", href: "/sales" },
+    { id: "new-sale", label: "بيع جديد", icon: "plusCircle", href: "/sales/new", featured: true },
+    inventoryEnabled
+      ? { id: "inventory", label: "المخزون", icon: "inventory", href: "/inventory" }
+      : { id: "password", label: "كلمة المرور", icon: "lock", href: "/change-password" },
+    { id: "menu", label: "القائمة", icon: "menu", action: "open-menu" },
+  ];
+}
+
+/**
+ * يختار التبويب الأدق مطابقةً للمسار الحالي (الأطول بادئةً)،
+ * حتى لا يضيء «الفواتير» (/sales) مع «بيع جديد» (/sales/new) في الوقت نفسه،
+ * ولا يضيء «الحسابات» (/finance) مع «المصروفات» (/finance/expenses) أو «التسليمات» (/finance/transfers).
+ */
+export function resolveActiveBottomDockHref(
+  pathname: string,
+  items: readonly BottomDockItem[],
+): string | null {
+  let bestHref: string | null = null;
+  for (const item of items) {
+    if (!item.href) continue;
+    if (isCurrentPath(pathname, item.href)) {
+      if (!bestHref || item.href.length > bestHref.length) {
+        bestHref = item.href;
+      }
+    }
+  }
+  return bestHref;
 }

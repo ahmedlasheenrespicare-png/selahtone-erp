@@ -22,7 +22,12 @@ export type AppIconName =
   | "check"
   | "theme"
   | "sun"
-  | "moon";
+  | "moon"
+  | "search"
+  | "shield"
+  | "plusCircle"
+  | "plusDoc"
+  | "transfers";
 
 type AppIconProps = SVGProps<SVGSVGElement> & { name: AppIconName };
 
@@ -108,6 +113,48 @@ export function AppIcon({ name, ...props }: AppIconProps) {
       break;
     case "moon":
       content = <path d="M20.4 14.6A8.5 8.5 0 0 1 9.4 3.6a8.5 8.5 0 1 0 11 11Z" />;
+      break;
+    case "search":
+      content = (
+        <>
+          <circle cx="11" cy="11" r="7" />
+          <path d="m20 20-3.8-3.8" />
+        </>
+      );
+      break;
+    case "shield":
+      content = (
+        <>
+          <path d="M12 3 4.5 6.2v5.4c0 4.6 3.2 8.7 7.5 9.9 4.3-1.2 7.5-5.3 7.5-9.9V6.2L12 3Z" />
+          <path d="m9 12.2 2.1 2.1 4-4.1" />
+        </>
+      );
+      break;
+    case "plusCircle":
+      content = (
+        <>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 8v8M8 12h8" />
+        </>
+      );
+      break;
+    case "plusDoc":
+      content = (
+        <>
+          <path d="M14 3.5H6.5A1.5 1.5 0 0 0 5 5v14a1.5 1.5 0 0 0 1.5 1.5h7" />
+          <path d="M8.5 8.5h5M8.5 12h3.5" />
+          <circle cx="17.5" cy="17.5" r="4" />
+          <path d="M17.5 15.6v3.8M15.6 17.5h3.8" />
+        </>
+      );
+      break;
+    case "transfers":
+      content = (
+        <>
+          <path d="m17 4 4 4-4 4M21 8H7" />
+          <path d="m7 20-4-4 4-4M3 16h14" />
+        </>
+      );
       break;
   }
 
