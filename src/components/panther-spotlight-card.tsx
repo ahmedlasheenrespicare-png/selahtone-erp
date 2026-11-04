@@ -1,7 +1,17 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import Link from "next/link";
+
+export type PantherChartVariant =
+  | "area"
+  | "gauge"
+  | "donut"
+  | "columns"
+  | "waterfall"
+  | "bars";
+
+export type PantherPointTone = "accent" | "alt" | "warn" | "danger";
 
 export type PantherMetricBlock = {
   label: string;
@@ -20,12 +30,14 @@ export type PantherChartPoint = {
   secondaryValue?: number;
   secondaryLabel?: string;
   secondaryFormatted?: string;
+  tone?: PantherPointTone;
 };
 
 export type PantherChartSeries = {
   id: string;
   label: string;
   points: PantherChartPoint[];
+  chartVariant?: PantherChartVariant;
 };
 
 export type PantherSpotlightIconName =
@@ -46,12 +58,61 @@ export type PantherSpotlightCardProps = {
   subtitle: string;
   pill?: string;
   icon?: PantherSpotlightIconName;
+  chartVariant?: PantherChartVariant;
   primary: PantherMetricBlock;
   secondary: PantherMetricBlock;
   series?: PantherChartSeries[];
   actionHref: string;
   actionLabel: string;
   layout?: "wallet" | "section";
+};
+
+const SERIES_VARIANT_BY_ID: Record<string, PantherChartVariant> = {
+  "pillar-scores": "gauge",
+  "settlement-state": "donut",
+  "liquidity-mix": "donut",
+  "ledger-stages": "donut",
+  "status-breakdown": "donut",
+  "serial-mix": "donut",
+  "cash-funnel": "waterfall",
+  "profit-bridge": "waterfall",
+  "custody-equation": "waterfall",
+  "cash-equation": "waterfall",
+  "branch-ranking": "bars",
+  "customer-balances": "bars",
+  "top-profit": "bars",
+  "top-revenue": "bars",
+  "top-categories": "bars",
+  "open-accounts": "bars",
+  "pillar-points": "columns",
+  "branch-axes": "columns",
+  "branch-collections": "columns",
+  "branch-conversion": "columns",
+  "branch-operating": "columns",
+  "branch-balance": "columns",
+  "top-items": "columns",
+  "by-category": "columns",
+  "by-branch": "columns",
+  "today-vs-period": "columns",
+  "daily-sales": "area",
+  "daily-expenses": "area",
+  "month-expenses": "area",
+  "daily-conversion": "area",
+  "daily-operating": "area",
+};
+
+const ICON_DEFAULT_VARIANT: Record<PantherSpotlightIconName, PantherChartVariant> = {
+  efficiencyGauge: "gauge",
+  customerCollection: "donut",
+  balanceScale: "donut",
+  approvalFlow: "donut",
+  cashConversion: "waterfall",
+  netProfit: "waterfall",
+  branchScorecard: "bars",
+  inventoryCube: "columns",
+  serialScan: "columns",
+  salesGrowth: "area",
+  expenseReceipt: "area",
 };
 
 function resolveSpotlightIcon(
@@ -83,13 +144,29 @@ function resolveSpotlightIcon(
   if (title.includes("مصروفات")) {
     return "expenseReceipt";
   }
-  if (title.includes("الميزان النقدي") || title.includes("حركة العهدة")) {
+  if (title.includes("حركة العهدة")) {
+    return "cashConversion";
+  }
+  if (title.includes("الميزان النقدي")) {
     return "balanceScale";
   }
   if (title.includes("المخزون")) {
     return "inventoryCube";
   }
   return "salesGrowth";
+}
+
+function resolveActiveChartVariant(
+  activeSeries: PantherChartSeries | undefined,
+  explicitVariant: PantherChartVariant | undefined,
+  resolvedIcon: PantherSpotlightIconName,
+): PantherChartVariant {
+  if (activeSeries?.chartVariant) return activeSeries.chartVariant;
+  if (activeSeries?.id && SERIES_VARIANT_BY_ID[activeSeries.id]) {
+    return SERIES_VARIANT_BY_ID[activeSeries.id];
+  }
+  if (explicitVariant) return explicitVariant;
+  return ICON_DEFAULT_VARIANT[resolvedIcon] ?? "area";
 }
 
 function SpotlightSvgIcon({ name }: { name: PantherSpotlightIconName }) {
@@ -308,10 +385,14 @@ type PlottedPoint = PantherChartPoint & {
   secondaryY: number | null;
 };
 
-/**
- * منحنى هيرميت الرتيب (Monotone Cubic Spline) ليمرّ بدقة عبر كل نقطة حقيقية
- * دون قفزات وهمية فوق أعلى قيمة أو تحت الصفر.
- */
+type WaterfallStep = {
+  idx: number;
+  point: PantherChartPoint;
+  startVal: number;
+  endVal: number;
+  kind: "start" | "plus" | "minus" | "subtotal" | "total";
+};
+
 function buildMonotonePath(coords: Array<{ x: number; y: number }>): string {
   if (coords.length === 0) return "";
   if (coords.length === 1) {
@@ -378,8 +459,12 @@ function buildMonotonePath(coords: Array<{ x: number; y: number }>): string {
 }
 
 function parseNumericFallback(raw: string): number {
-  const cleaned = raw.replace(/[^\d.-]/g, "");
-  const num = Number(cleaned);
+  const normalized = raw
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[٬,]/g, "")
+    .replace(/٫/g, ".")
+    .replace(/[^\d.-]/g, "");
+  const num = Number.parseFloat(normalized);
   return Number.isFinite(num) ? num : 0;
 }
 
@@ -421,7 +506,16 @@ function buildFallbackSeries(
   ];
 }
 
-function normalizePoints(rawPoints: PantherChartPoint[]): PantherChartPoint[] {
+function isSyntheticPaddingPoint(pt: PantherChartPoint): boolean {
+  return (
+    pt.value === 0 &&
+    (pt.label === "نقطة الأساس" ||
+      pt.label === "نقطة البداية" ||
+      pt.label === "بداية القياس")
+  );
+}
+
+function normalizeAreaPoints(rawPoints: PantherChartPoint[]): PantherChartPoint[] {
   if (rawPoints.length === 0) {
     return [
       { label: "بداية الفترة", shortLabel: "البداية", value: 0, formattedValue: "0" },
@@ -446,16 +540,35 @@ function normalizePoints(rawPoints: PantherChartPoint[]): PantherChartPoint[] {
   return rawPoints;
 }
 
-function plotSeriesPoints(points: PantherChartPoint[]): {
+function prepareVariantPoints(
+  rawPoints: PantherChartPoint[],
+  variant: PantherChartVariant,
+): PantherChartPoint[] {
+  if (variant === "area") {
+    return normalizeAreaPoints(rawPoints);
+  }
+  if (rawPoints.length === 0) {
+    return [{ label: "الآن", shortLabel: "الآن", value: 0, formattedValue: "0" }];
+  }
+  const cleaned = rawPoints.filter((p) => !isSyntheticPaddingPoint(p));
+  const base = cleaned.length > 0 ? cleaned : [rawPoints[rawPoints.length - 1]];
+  if (variant === "gauge") return base.slice(0, 5);
+  if (variant === "donut") return base.slice(0, 5);
+  if (variant === "bars") return base.slice(0, 4);
+  if (variant === "waterfall") return base.slice(0, 6);
+  if (variant === "columns") return base.slice(0, 10);
+  return base;
+}
+
+function plotAreaSeriesPoints(points: PantherChartPoint[]): {
   plotted: PlottedPoint[];
   maxVal: number;
   minVal: number;
   zeroY: number;
 } {
-  const normalized = normalizePoints(points);
   let minVal = 0;
   let maxVal = 0;
-  for (const pt of normalized) {
+  for (const pt of points) {
     const v = Number.isFinite(pt.value) ? pt.value : 0;
     minVal = Math.min(minVal, v);
     maxVal = Math.max(maxVal, v);
@@ -473,9 +586,9 @@ function plotSeriesPoints(points: PantherChartPoint[]): {
     return TOP_Y + (1 - (safe - minVal) / span) * plotHeight;
   };
 
-  const count = normalized.length;
+  const count = points.length;
   const usableWidth = SVG_W - PAD_X * 2;
-  const plotted: PlottedPoint[] = normalized.map((pt, idx) => ({
+  const plotted: PlottedPoint[] = points.map((pt, idx) => ({
     ...pt,
     x: count === 1 ? SVG_W / 2 : PAD_X + (idx / (count - 1)) * usableWidth,
     y: toY(pt.value),
@@ -493,6 +606,98 @@ function plotSeriesPoints(points: PantherChartPoint[]): {
   };
 }
 
+function buildWaterfallSteps(points: PantherChartPoint[]): WaterfallStep[] {
+  const n = points.length;
+  const steps: WaterfallStep[] = [];
+  let running = 0;
+
+  for (let i = 0; i < n; i += 1) {
+    const pt = points[i];
+    const v = Number.isFinite(pt.value) ? pt.value : 0;
+    const text = `${pt.shortLabel ?? ""} ${pt.label}`;
+
+    if (i === 0) {
+      running = v;
+      steps.push({ idx: i, point: pt, startVal: 0, endVal: v, kind: "start" });
+      continue;
+    }
+
+    if (i === n - 1 && n >= 3) {
+      running = v;
+      steps.push({ idx: i, point: pt, startVal: 0, endVal: v, kind: "total" });
+      continue;
+    }
+
+    const isOutflow =
+      pt.tone === "danger" ||
+      /مدفوع|مصروف|منصرف|خصم|تكلفة|^−|-/.test(text);
+    const isAdditive =
+      pt.tone === "alt" || /^\+|إضافة|العُهَد|مقبوضات/.test(text);
+
+    if (isOutflow) {
+      const nextRun = running - Math.abs(v);
+      steps.push({
+        idx: i,
+        point: pt,
+        startVal: running,
+        endVal: nextRun,
+        kind: "minus",
+      });
+      running = nextRun;
+    } else if (isAdditive) {
+      const nextRun = running + Math.abs(v);
+      steps.push({
+        idx: i,
+        point: pt,
+        startVal: running,
+        endVal: nextRun,
+        kind: "plus",
+      });
+      running = nextRun;
+    } else {
+      running = v;
+      steps.push({
+        idx: i,
+        point: pt,
+        startVal: 0,
+        endVal: v,
+        kind: "subtotal",
+      });
+    }
+  }
+
+  return steps;
+}
+
+function resolvePointColorVar(
+  pt: PantherChartPoint,
+  idx: number,
+  variant: PantherChartVariant,
+): string {
+  if (pt.tone === "danger") return "var(--mp-danger)";
+  if (pt.tone === "warn") return "var(--mp-warn)";
+  if (pt.tone === "alt") return "var(--mp-alt)";
+  if (pt.tone === "accent") return "var(--mp-accent)";
+
+  const txt = `${pt.label} ${pt.shortLabel ?? ""}`;
+  if (/متبق|للاعتماد|معلق|نواقص|عجز|ملغ/.test(txt) || pt.value < 0) {
+    return "var(--mp-danger)";
+  }
+  if (/للصرف|معتمد بانتظار|مرتجع|خصم/.test(txt)) {
+    return "var(--mp-warn)";
+  }
+  if (variant === "donut") {
+    const palette = [
+      "var(--mp-accent)",
+      "var(--mp-alt)",
+      "var(--mp-warn)",
+      "var(--mp-danger)",
+    ];
+    return palette[idx % palette.length];
+  }
+  return idx === 0 ? "var(--mp-accent)" : "var(--mp-alt)";
+}
+
 function shouldShowTick(index: number, total: number): boolean {
   if (total <= 6) return true;
   if (index === 0 || index === total - 1) return true;
@@ -500,15 +705,12 @@ function shouldShowTick(index: number, total: number): boolean {
   return index % step === 0;
 }
 
-/**
- * بطاقة المؤشرات المزدوجة المضيئة ذات المؤشر التفاعلي الحي — مبنية على تصميم Gidarx «clever-panther-6» (MIT)
- * ومتكيّفة تلقائيًا مع ثيمَي الحافظة (الافتراضي الأخضر الليموني، وصلة تون السماوي الكحلي).
- */
 export default function PantherSpotlightCard({
   title,
   subtitle,
   pill,
   icon,
+  chartVariant,
   primary,
   secondary,
   series,
@@ -527,47 +729,763 @@ export default function PantherSpotlightCard({
   const safeSeriesIdx = Math.min(seriesIndex, resolvedSeries.length - 1);
   const currentSeries = resolvedSeries[safeSeriesIdx];
 
-  const { plotted, zeroY } = plotSeriesPoints(currentSeries.points);
-  const lastIndex = plotted.length - 1;
+  const activeVariant = resolveActiveChartVariant(
+    currentSeries,
+    chartVariant,
+    resolvedIcon,
+  );
+
+  const displayPoints = useMemo(
+    () => prepareVariantPoints(currentSeries.points, activeVariant),
+    [currentSeries.points, activeVariant],
+  );
+  const lastIndex = Math.max(0, displayPoints.length - 1);
+
+  const defaultIndex = useMemo(() => {
+    if (activeVariant === "area" || activeVariant === "waterfall") {
+      return lastIndex;
+    }
+    if (activeVariant === "donut") {
+      const firstPos = displayPoints.findIndex((p) => p.value > 0);
+      return firstPos >= 0 ? firstPos : 0;
+    }
+    return 0;
+  }, [activeVariant, displayPoints, lastIndex]);
 
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [pinnedIndex, setPinnedIndex] = useState<number | null>(null);
 
-  const rawActiveIndex = hoverIndex ?? pinnedIndex ?? lastIndex;
+  const rawActiveIndex = hoverIndex ?? pinnedIndex ?? defaultIndex;
   const activeIndex = Math.max(0, Math.min(rawActiveIndex, lastIndex));
-  const activePoint = plotted[activeIndex];
+  const activePoint = displayPoints[activeIndex] ?? displayPoints[0];
 
-  const primaryLinePath = buildMonotonePath(plotted.map((p) => ({ x: p.x, y: p.y })));
-  const areaPath = `${primaryLinePath} L${plotted[lastIndex].x.toFixed(2)},${zeroY.toFixed(2)} L${plotted[0].x.toFixed(2)},${zeroY.toFixed(2)} Z`;
+  const isInteractiveSvgLane =
+    activeVariant === "area" ||
+    activeVariant === "columns" ||
+    activeVariant === "waterfall";
 
-  const hasSecondaryLine = plotted.every((p) => p.secondaryY !== null);
-  const secondaryLinePath = hasSecondaryLine
-    ? buildMonotonePath(plotted.map((p) => ({ x: p.x, y: p.secondaryY ?? zeroY })))
-    : "";
-
-  const dotLeftPct = (activePoint.x / SVG_W) * 100;
-  const dotTopPct = (activePoint.y / SVG_H) * 100;
+  const areaPlot = useMemo(
+    () => (activeVariant === "area" ? plotAreaSeriesPoints(displayPoints) : null),
+    [activeVariant, displayPoints],
+  );
 
   function resolveIndexFromClientX(clientX: number, target: HTMLElement): number {
     const rect = target.getBoundingClientRect();
-    if (rect.width <= 0) return lastIndex;
-    const relX = ((clientX - rect.left) / rect.width) * SVG_W;
-    let bestIdx = 0;
-    let bestDist = Infinity;
-    for (let i = 0; i < plotted.length; i += 1) {
-      const dist = Math.abs(plotted[i].x - relX);
-      if (dist < bestDist) {
-        bestDist = dist;
-        bestIdx = i;
+    if (rect.width <= 0 || displayPoints.length === 0) return defaultIndex;
+    if (activeVariant === "area" && areaPlot) {
+      const relX = ((clientX - rect.left) / rect.width) * SVG_W;
+      let bestIdx = 0;
+      let bestDist = Infinity;
+      for (let i = 0; i < areaPlot.plotted.length; i += 1) {
+        const dist = Math.abs(areaPlot.plotted[i].x - relX);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestIdx = i;
+        }
       }
+      return bestIdx;
     }
-    return bestIdx;
+    const ratio = Math.max(0, Math.min(0.9999, (clientX - rect.left) / rect.width));
+    return Math.floor(ratio * displayPoints.length);
+  }
+
+  function togglePin(idx: number) {
+    setPinnedIndex((prev) => (prev === idx ? null : idx));
+  }
+
+  function renderChartBody() {
+    if (activeVariant === "gauge") {
+      const headlineScore = Math.max(
+        0,
+        Math.min(100, parseNumericFallback(primary.value)),
+      );
+      const isInspectingPillar = hoverIndex !== null || pinnedIndex !== null;
+      const gaugePct = Math.max(
+        0,
+        Math.min(100, isInspectingPillar ? activePoint.value : headlineScore),
+      );
+      const R = 52;
+      const CX = 160;
+      const CY = 72;
+      const arcLen = Math.PI * R;
+      const filledLen = (gaugePct / 100) * arcLen;
+      const rad = (gaugePct / 100) * Math.PI;
+      const dotX = CX - R * Math.cos(rad);
+      const dotY = CY - R * Math.sin(rad);
+      const gaugeStroke =
+        gaugePct >= 75
+          ? "var(--mp-accent)"
+          : gaugePct >= 50
+            ? "var(--mp-warn)"
+            : "var(--mp-danger)";
+
+      return (
+        <div className="monthly-panther__gauge">
+          <svg
+            viewBox="0 0 320 82"
+            preserveAspectRatio="xMidYMid meet"
+            className="monthly-panther__gauge-svg"
+          >
+            {[0, 0.25, 0.5, 0.75, 1].map((t) => {
+              const a = t * Math.PI;
+              const x1 = CX - (R + 7) * Math.cos(a);
+              const y1 = CY - (R + 7) * Math.sin(a);
+              const x2 = CX - (R + 11) * Math.cos(a);
+              const y2 = CY - (R + 11) * Math.sin(a);
+              return (
+                <line
+                  key={t}
+                  x1={x1}
+                  y1={y1}
+                  x2={x2}
+                  y2={y2}
+                  stroke="var(--mp-muted)"
+                  strokeWidth="1.35"
+                  opacity="0.45"
+                />
+              );
+            })}
+            <path
+              d={`M ${CX - R} ${CY} A ${R} ${R} 0 0 1 ${CX + R} ${CY}`}
+              fill="none"
+              stroke="var(--mp-track)"
+              strokeWidth="10.5"
+              strokeLinecap="round"
+            />
+            <path
+              d={`M ${CX - R} ${CY} A ${R} ${R} 0 0 1 ${CX + R} ${CY}`}
+              fill="none"
+              stroke={gaugeStroke}
+              strokeWidth="10.5"
+              strokeLinecap="round"
+              strokeDasharray={`${filledLen.toFixed(2)} ${arcLen.toFixed(2)}`}
+              className="monthly-panther__gauge-arc"
+            />
+            <circle
+              cx={dotX}
+              cy={dotY}
+              r="5"
+              fill={gaugeStroke}
+              stroke="var(--mp-node-bg, var(--mp-bg))"
+              strokeWidth="2"
+            />
+            <text
+              x={CX}
+              y="53"
+              textAnchor="middle"
+              className="monthly-panther__gauge-score"
+            >
+              {Math.round(gaugePct)}%
+            </text>
+            <text
+              x={CX}
+              y="69"
+              textAnchor="middle"
+              className="monthly-panther__gauge-caption"
+            >
+              {isInspectingPillar
+                ? (activePoint.shortLabel ?? activePoint.label).slice(0, 14)
+                : "المؤشر المركّب"}
+            </text>
+          </svg>
+
+          <div className="monthly-panther__gauge-pillars" dir="rtl">
+            {displayPoints.map((pt, idx) => {
+              const isAct = idx === activeIndex;
+              return (
+                <button
+                  key={`pillar-${pt.label}-${idx}`}
+                  type="button"
+                  className={`monthly-panther__gauge-chip${isAct ? " is-active" : ""}`}
+                  onMouseEnter={() => setHoverIndex(idx)}
+                  onMouseLeave={() => setHoverIndex(null)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    togglePin(idx);
+                  }}
+                >
+                  <span className="monthly-panther__gauge-chip-label">
+                    {pt.shortLabel ?? pt.label.slice(0, 8)}
+                  </span>
+                  <bdi dir="ltr" className="monthly-panther__gauge-chip-val">
+                    {Math.round(pt.value)}
+                  </bdi>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    if (activeVariant === "donut") {
+      const R = 36;
+      const C = 2 * Math.PI * R;
+      const magnitudes = displayPoints.map((p) => Math.max(0, p.value));
+      const totalMag = magnitudes.reduce((a, b) => a + b, 0);
+      const nonZeroCount = magnitudes.filter((m) => m > 0).length;
+
+      let cumFrac = 0;
+      const slices = displayPoints.map((pt, idx) => {
+        const mag = magnitudes[idx];
+        const frac = totalMag > 0 ? mag / totalMag : 0;
+        const startFrac = cumFrac;
+        cumFrac += frac;
+        const rawLen = frac * C;
+        const visibleLen =
+          nonZeroCount > 1 && rawLen > 4 ? Math.max(1.6, rawLen - 2.4) : rawLen;
+        return {
+          idx,
+          point: pt,
+          frac,
+          pct: totalMag > 0 ? Math.round(frac * 100) : 0,
+          dashArray: `${visibleLen.toFixed(2)} ${C.toFixed(2)}`,
+          dashOffset: -(startFrac * C),
+          color: resolvePointColorVar(pt, idx, "donut"),
+        };
+      });
+
+      const activeSlice = slices[activeIndex] ?? slices[0];
+
+      return (
+        <div className="monthly-panther__donut" dir="rtl">
+          <svg
+            viewBox="0 0 104 104"
+            className="monthly-panther__donut-ring"
+            aria-hidden="true"
+          >
+            <circle
+              cx="52"
+              cy="52"
+              r={R}
+              fill="none"
+              stroke="var(--mp-track)"
+              strokeWidth="10.5"
+            />
+            {totalMag > 0
+              ? slices.map((s) =>
+                  s.frac > 0 ? (
+                    <circle
+                      key={`slice-${s.idx}`}
+                      cx="52"
+                      cy="52"
+                      r={R}
+                      fill="none"
+                      stroke={s.color}
+                      strokeWidth={s.idx === activeIndex ? 13.5 : 10.5}
+                      strokeDasharray={s.dashArray}
+                      strokeDashoffset={s.dashOffset}
+                      transform="rotate(-90 52 52)"
+                      className="monthly-panther__donut-slice"
+                      opacity={s.idx === activeIndex ? 1 : 0.78}
+                      onMouseEnter={() => setHoverIndex(s.idx)}
+                      onMouseLeave={() => setHoverIndex(null)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        togglePin(s.idx);
+                      }}
+                    />
+                  ) : null,
+                )
+              : null}
+            <text
+              x="52"
+              y="49"
+              textAnchor="middle"
+              className="monthly-panther__donut-pct"
+            >
+              {activeSlice ? `${activeSlice.pct}%` : "0%"}
+            </text>
+            <text
+              x="52"
+              y="64"
+              textAnchor="middle"
+              className="monthly-panther__donut-sub"
+            >
+              {(activeSlice?.point.shortLabel ?? activeSlice?.point.label ?? "").slice(
+                0,
+                9,
+              )}
+            </text>
+          </svg>
+
+          <div className="monthly-panther__donut-legend">
+            {slices.slice(0, 4).map((s) => {
+              const isAct = s.idx === activeIndex;
+              return (
+                <button
+                  key={`legend-${s.point.label}-${s.idx}`}
+                  type="button"
+                  className={`monthly-panther__donut-item${isAct ? " is-active" : ""}`}
+                  onMouseEnter={() => setHoverIndex(s.idx)}
+                  onMouseLeave={() => setHoverIndex(null)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    togglePin(s.idx);
+                  }}
+                >
+                  <span
+                    className="monthly-panther__donut-dot"
+                    style={{ background: s.color }}
+                    aria-hidden="true"
+                  />
+                  <span className="monthly-panther__donut-name">
+                    {s.point.shortLabel ?? s.point.label}
+                  </span>
+                  <bdi dir="ltr" className="monthly-panther__donut-share">
+                    {s.pct}%
+                  </bdi>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    if (activeVariant === "bars") {
+      const rawMax = Math.max(
+        1,
+        ...displayPoints.map((p) =>
+          Math.max(Math.abs(p.value), p.secondaryValue ?? 0),
+        ),
+      );
+      const isScoreScale =
+        rawMax <= 100 &&
+        displayPoints.some(
+          (p) =>
+            p.formattedValue.includes("١٠٠") ||
+            p.formattedValue.includes("100") ||
+            (p.secondaryLabel ?? "").includes("المستهدف"),
+        );
+      const scaleMax = isScoreScale ? 100 : rawMax;
+
+      return (
+        <div className="monthly-panther__bars" dir="rtl">
+          {displayPoints.map((pt, idx) => {
+            const isAct = idx === activeIndex;
+            const pct = Math.max(
+              4,
+              Math.min(100, (Math.abs(pt.value) / scaleMax) * 100),
+            );
+            const targetPct =
+              pt.secondaryValue !== undefined &&
+              pt.secondaryValue > 0 &&
+              pt.secondaryValue <= scaleMax
+                ? Math.min(100, (pt.secondaryValue / scaleMax) * 100)
+                : null;
+            const fillVar =
+              pt.value < 0
+                ? "var(--mp-danger)"
+                : idx === 0
+                  ? "var(--mp-accent)"
+                  : "var(--mp-alt)";
+
+            return (
+              <button
+                key={`bar-${pt.label}-${idx}`}
+                type="button"
+                className={`monthly-panther__bar-row${isAct ? " is-active" : ""}`}
+                onMouseEnter={() => setHoverIndex(idx)}
+                onMouseLeave={() => setHoverIndex(null)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  togglePin(idx);
+                }}
+              >
+                <span className="monthly-panther__bar-rank" aria-hidden="true">
+                  {idx + 1}
+                </span>
+                <span className="monthly-panther__bar-name">
+                  {pt.shortLabel ?? pt.label}
+                </span>
+                <span className="monthly-panther__bar-track" dir="ltr">
+                  <span
+                    className="monthly-panther__bar-fill"
+                    style={{ width: `${pct.toFixed(1)}%`, background: fillVar }}
+                  />
+                  {targetPct !== null ? (
+                    <span
+                      className="monthly-panther__bar-target"
+                      style={{ left: `${targetPct.toFixed(1)}%` }}
+                      aria-hidden="true"
+                    />
+                  ) : null}
+                </span>
+                <bdi dir="ltr" className="monthly-panther__bar-val">
+                  {pt.formattedValue}
+                </bdi>
+              </button>
+            );
+          })}
+        </div>
+      );
+    }
+
+    if (activeVariant === "waterfall") {
+      const steps = buildWaterfallSteps(displayPoints);
+      const n = steps.length;
+      const allLevels = steps.flatMap((s) => [s.startVal, s.endVal, 0]);
+      const minV = Math.min(...allLevels);
+      const maxV = Math.max(...allLevels);
+      const span = maxV - minV || 1;
+      const plotH = BOTTOM_Y - TOP_Y;
+      const toY = (v: number) => BOTTOM_Y - ((v - minV) / span) * plotH;
+      const zeroY = toY(0);
+      const laneW = (SVG_W - PAD_X * 2) / Math.max(1, n);
+      const barW = Math.min(34, Math.max(12, laneW * 0.56));
+
+      return (
+        <>
+          <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} preserveAspectRatio="none">
+            <line
+              x1={PAD_X}
+              y1={TOP_Y}
+              x2={SVG_W - PAD_X}
+              y2={TOP_Y}
+              className="monthly-panther__grid-line"
+            />
+            <line
+              x1={PAD_X}
+              y1={zeroY}
+              x2={SVG_W - PAD_X}
+              y2={zeroY}
+              className="monthly-panther__grid-baseline"
+            />
+            {steps.map((s, i) => {
+              const cx = PAD_X + (i + 0.5) * laneW;
+              const bx = cx - barW / 2;
+              const yA = toY(s.startVal);
+              const yB = toY(s.endVal);
+              const barTop = Math.min(yA, yB);
+              const barH = Math.max(4, Math.abs(yB - yA));
+              const isAct = i === activeIndex;
+              const fill =
+                s.kind === "minus" || (s.kind === "total" && s.endVal < 0)
+                  ? "var(--mp-danger)"
+                  : s.kind === "total"
+                    ? "var(--mp-alt)"
+                    : "var(--mp-accent)";
+
+              const nextCx = i < n - 1 ? PAD_X + (i + 1.5) * laneW : null;
+              const connY = toY(s.endVal);
+
+              return (
+                <g key={`wf-${s.idx}`}>
+                  {nextCx !== null ? (
+                    <line
+                      x1={bx + barW}
+                      y1={connY}
+                      x2={nextCx - barW / 2}
+                      y2={connY}
+                      stroke="var(--mp-muted)"
+                      strokeWidth="1.15"
+                      strokeDasharray="3 3"
+                      opacity="0.58"
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  ) : null}
+                  <rect
+                    x={bx}
+                    y={barTop}
+                    width={barW}
+                    height={barH}
+                    rx="4"
+                    fill={fill}
+                    opacity={isAct ? 1 : 0.72}
+                  />
+                  {isAct ? (
+                    <line
+                      x1={cx}
+                      y1={TOP_Y - 4}
+                      x2={cx}
+                      y2={BOTTOM_Y}
+                      className="monthly-panther__crosshair"
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  ) : null}
+                </g>
+              );
+            })}
+          </svg>
+
+          <div className="monthly-panther__x-axis" aria-hidden="true">
+            {steps.map((s, idx) => {
+              if (!shouldShowTick(idx, n)) return null;
+              const tickText = s.point.shortLabel ?? s.point.label.slice(0, 7);
+              const cx = PAD_X + (idx + 0.5) * laneW;
+              return (
+                <span
+                  key={`wf-tick-${idx}`}
+                  className={`monthly-panther__x-tick${idx === activeIndex ? " is-active" : ""}`}
+                  style={{ left: `${(cx / SVG_W) * 100}%` }}
+                >
+                  {tickText}
+                </span>
+              );
+            })}
+          </div>
+        </>
+      );
+    }
+
+    if (activeVariant === "columns") {
+      const n = displayPoints.length;
+      const vals = displayPoints.map((p) => (Number.isFinite(p.value) ? p.value : 0));
+      const minV = Math.min(0, ...vals);
+      const maxV = Math.max(0, ...vals);
+      const span = maxV - minV || 1;
+      const plotH = BOTTOM_Y - TOP_Y;
+      const toY = (v: number) => BOTTOM_Y - ((v - minV) / span) * plotH;
+      const zeroY = toY(0);
+      const avgV = vals.reduce((a, b) => a + b, 0) / Math.max(1, n);
+      const showAvg = n >= 2 && (maxV > 0 || minV < 0);
+      const avgY = toY(avgV);
+      const laneW = (SVG_W - PAD_X * 2) / Math.max(1, n);
+      const barW = Math.min(28, Math.max(8, laneW * 0.56));
+
+      return (
+        <>
+          <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} preserveAspectRatio="none">
+            <line
+              x1={PAD_X}
+              y1={TOP_Y}
+              x2={SVG_W - PAD_X}
+              y2={TOP_Y}
+              className="monthly-panther__grid-line"
+            />
+            <line
+              x1={PAD_X}
+              y1={zeroY}
+              x2={SVG_W - PAD_X}
+              y2={zeroY}
+              className="monthly-panther__grid-baseline"
+            />
+            {displayPoints.map((pt, i) => {
+              const cx = PAD_X + (i + 0.5) * laneW;
+              const bx = cx - barW / 2;
+              const yVal = toY(vals[i]);
+              const barTop = Math.min(zeroY, yVal);
+              const barH = Math.max(3.5, Math.abs(zeroY - yVal));
+              const isAct = i === activeIndex;
+              const fill =
+                vals[i] < 0
+                  ? "var(--mp-danger)"
+                  : isAct
+                    ? "var(--mp-accent)"
+                    : "var(--mp-alt)";
+
+              return (
+                <g key={`col-${i}`}>
+                  <rect
+                    x={bx}
+                    y={TOP_Y}
+                    width={barW}
+                    height={plotH}
+                    rx="4"
+                    fill="var(--mp-track)"
+                  />
+                  <rect
+                    x={bx}
+                    y={barTop}
+                    width={barW}
+                    height={barH}
+                    rx="4"
+                    fill={fill}
+                    opacity={isAct ? 1 : 0.72}
+                  />
+                </g>
+              );
+            })}
+            {showAvg ? (
+              <line
+                x1={PAD_X}
+                y1={avgY}
+                x2={SVG_W - PAD_X}
+                y2={avgY}
+                stroke="var(--mp-warn)"
+                strokeWidth="1.35"
+                strokeDasharray="4 3"
+                opacity="0.82"
+                vectorEffect="non-scaling-stroke"
+              />
+            ) : null}
+          </svg>
+
+          <div className="monthly-panther__x-axis" aria-hidden="true">
+            {displayPoints.map((pt, idx) => {
+              if (!shouldShowTick(idx, n)) return null;
+              const tickText = pt.shortLabel ?? pt.label.slice(0, 7);
+              const cx = PAD_X + (idx + 0.5) * laneW;
+              return (
+                <span
+                  key={`col-tick-${idx}`}
+                  className={`monthly-panther__x-tick${idx === activeIndex ? " is-active" : ""}`}
+                  style={{ left: `${(cx / SVG_W) * 100}%` }}
+                >
+                  {tickText}
+                </span>
+              );
+            })}
+          </div>
+        </>
+      );
+    }
+
+    // Default: "area" (Smooth Monotone Cubic Spline)
+    const { plotted, zeroY } = areaPlot!;
+    const areaLastIdx = plotted.length - 1;
+    const areaActivePt = plotted[activeIndex] ?? plotted[areaLastIdx];
+    const primaryLinePath = buildMonotonePath(
+      plotted.map((p) => ({ x: p.x, y: p.y })),
+    );
+    const areaPath = `${primaryLinePath} L${plotted[areaLastIdx].x.toFixed(2)},${zeroY.toFixed(2)} L${plotted[0].x.toFixed(2)},${zeroY.toFixed(2)} Z`;
+    const hasSecondaryLine = plotted.every((p) => p.secondaryY !== null);
+    const secondaryLinePath = hasSecondaryLine
+      ? buildMonotonePath(
+          plotted.map((p) => ({ x: p.x, y: p.secondaryY ?? zeroY })),
+        )
+      : "";
+    const dotLeftPct = (areaActivePt.x / SVG_W) * 100;
+    const dotTopPct = (areaActivePt.y / SVG_H) * 100;
+
+    return (
+      <>
+        <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} preserveAspectRatio="none">
+          <defs>
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop
+                offset="0%"
+                style={{ stopColor: "var(--mp-accent)", stopOpacity: 0.3 }}
+              />
+              <stop
+                offset="100%"
+                style={{ stopColor: "var(--mp-accent)", stopOpacity: 0.01 }}
+              />
+            </linearGradient>
+          </defs>
+
+          <line
+            x1={PAD_X}
+            y1={TOP_Y}
+            x2={SVG_W - PAD_X}
+            y2={TOP_Y}
+            className="monthly-panther__grid-line"
+          />
+          <line
+            x1={PAD_X}
+            y1={(TOP_Y + BOTTOM_Y) / 2}
+            x2={SVG_W - PAD_X}
+            y2={(TOP_Y + BOTTOM_Y) / 2}
+            className="monthly-panther__grid-line"
+          />
+          <line
+            x1={PAD_X}
+            y1={zeroY}
+            x2={SVG_W - PAD_X}
+            y2={zeroY}
+            className="monthly-panther__grid-baseline"
+          />
+
+          <path d={areaPath} fill={`url(#${gradientId})`} />
+
+          {hasSecondaryLine ? (
+            <path
+              d={secondaryLinePath}
+              fill="none"
+              className="monthly-panther__secondary-path"
+              vectorEffect="non-scaling-stroke"
+            />
+          ) : null}
+
+          <path
+            d={primaryLinePath}
+            fill="none"
+            style={{ stroke: "var(--mp-accent)" }}
+            strokeWidth="2.4"
+            strokeLinecap="round"
+            vectorEffect="non-scaling-stroke"
+          />
+
+          <line
+            x1={areaActivePt.x}
+            y1={TOP_Y - 4}
+            x2={areaActivePt.x}
+            y2={BOTTOM_Y}
+            className="monthly-panther__crosshair"
+            vectorEffect="non-scaling-stroke"
+          />
+        </svg>
+
+        {hasSecondaryLine && areaActivePt.secondaryY !== null ? (
+          <span
+            className="monthly-panther__sec-dot"
+            style={{
+              left: `${(areaActivePt.x / SVG_W) * 100}%`,
+              top: `${(areaActivePt.secondaryY / SVG_H) * 100}%`,
+            }}
+            aria-hidden="true"
+          />
+        ) : null}
+
+        {plotted.map((pt, idx) => {
+          const isCurrent = idx === activeIndex;
+          return (
+            <span
+              key={`node-${pt.label}-${idx}`}
+              className={`monthly-panther__node${isCurrent ? " is-active" : ""}`}
+              style={{
+                left: `${(pt.x / SVG_W) * 100}%`,
+                top: `${(pt.y / SVG_H) * 100}%`,
+              }}
+              aria-hidden="true"
+            />
+          );
+        })}
+
+        <div
+          className="monthly-panther__dot-anchor"
+          style={{
+            left: `${dotLeftPct}%`,
+            top: `${dotTopPct}%`,
+          }}
+          aria-hidden="true"
+        >
+          <span className="monthly-panther__dot-pulse" />
+          <span className="monthly-panther__dot" />
+        </div>
+
+        <div className="monthly-panther__x-axis" aria-hidden="true">
+          {plotted.map((pt, idx) => {
+            if (!shouldShowTick(idx, plotted.length)) return null;
+            const tickText = pt.shortLabel ?? pt.label;
+            if (!tickText) return null;
+            const edgeClass =
+              idx === 0
+                ? " is-start"
+                : idx === plotted.length - 1
+                  ? " is-end"
+                  : "";
+            return (
+              <span
+                key={`tick-${pt.label}-${idx}`}
+                className={`monthly-panther__x-tick${edgeClass}${idx === activeIndex ? " is-active" : ""}`}
+                style={{ left: `${(pt.x / SVG_W) * 100}%` }}
+              >
+                {tickText}
+              </span>
+            );
+          })}
+        </div>
+      </>
+    );
   }
 
   return (
     <section
       className={`monthly-panther${layout === "section" ? " is-section" : ""}`}
       aria-labelledby={titleId}
+      data-chart-variant={activeVariant}
     >
       <div className="monthly-panther__glow" aria-hidden="true" />
 
@@ -685,21 +1603,39 @@ export default function PantherSpotlightCard({
           </div>
 
           <div
-            className="monthly-panther__chart"
+            className={`monthly-panther__chart is-variant-${activeVariant}`}
+            data-chart-variant={activeVariant}
             dir="ltr"
             tabIndex={0}
             role="group"
             aria-label={`مؤشر تفاعلي لـ ${title} — حرّك المؤشر أو الأسهم لاستعراض القيم`}
-            onPointerMove={(event) => {
-              setHoverIndex(resolveIndexFromClientX(event.clientX, event.currentTarget));
-            }}
-            onPointerLeave={() => {
-              setHoverIndex(null);
-            }}
-            onClick={(event) => {
-              const idx = resolveIndexFromClientX(event.clientX, event.currentTarget);
-              setPinnedIndex((prev) => (prev === idx ? null : idx));
-            }}
+            onPointerMove={
+              isInteractiveSvgLane
+                ? (event) => {
+                    setHoverIndex(
+                      resolveIndexFromClientX(event.clientX, event.currentTarget),
+                    );
+                  }
+                : undefined
+            }
+            onPointerLeave={
+              isInteractiveSvgLane
+                ? () => {
+                    setHoverIndex(null);
+                  }
+                : undefined
+            }
+            onClick={
+              isInteractiveSvgLane
+                ? (event) => {
+                    const idx = resolveIndexFromClientX(
+                      event.clientX,
+                      event.currentTarget,
+                    );
+                    setPinnedIndex((prev) => (prev === idx ? null : idx));
+                  }
+                : undefined
+            }
             onKeyDown={(event) => {
               if (event.key === "ArrowRight") {
                 event.preventDefault();
@@ -719,139 +1655,7 @@ export default function PantherSpotlightCard({
               }
             }}
           >
-            <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} preserveAspectRatio="none">
-              <defs>
-                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                  <stop
-                    offset="0%"
-                    style={{ stopColor: "var(--mp-accent)", stopOpacity: 0.3 }}
-                  />
-                  <stop
-                    offset="100%"
-                    style={{ stopColor: "var(--mp-accent)", stopOpacity: 0.01 }}
-                  />
-                </linearGradient>
-              </defs>
-
-              {/* خطوط القياس المرجعية */}
-              <line
-                x1={PAD_X}
-                y1={TOP_Y}
-                x2={SVG_W - PAD_X}
-                y2={TOP_Y}
-                className="monthly-panther__grid-line"
-              />
-              <line
-                x1={PAD_X}
-                y1={(TOP_Y + BOTTOM_Y) / 2}
-                x2={SVG_W - PAD_X}
-                y2={(TOP_Y + BOTTOM_Y) / 2}
-                className="monthly-panther__grid-line"
-              />
-              <line
-                x1={PAD_X}
-                y1={zeroY}
-                x2={SVG_W - PAD_X}
-                y2={zeroY}
-                className="monthly-panther__grid-baseline"
-              />
-
-              {/* المساحة المظلّلة والمنحنى الرئيسي */}
-              <path d={areaPath} fill={`url(#${gradientId})`} />
-
-              {hasSecondaryLine ? (
-                <path
-                  d={secondaryLinePath}
-                  fill="none"
-                  className="monthly-panther__secondary-path"
-                  vectorEffect="non-scaling-stroke"
-                />
-              ) : null}
-
-              <path
-                d={primaryLinePath}
-                fill="none"
-                style={{ stroke: "var(--mp-accent)" }}
-                strokeWidth="2.4"
-                strokeLinecap="round"
-                vectorEffect="non-scaling-stroke"
-              />
-
-              {/* خط المؤشر العمودي المتحرّك */}
-              <line
-                x1={activePoint.x}
-                y1={TOP_Y - 4}
-                x2={activePoint.x}
-                y2={BOTTOM_Y}
-                className="monthly-panther__crosshair"
-                vectorEffect="non-scaling-stroke"
-              />
-            </svg>
-
-            {/* نقطة المؤشر على المنحنى المقارن بطبقة HTML دائرية */}
-            {hasSecondaryLine && activePoint.secondaryY !== null ? (
-              <span
-                className="monthly-panther__sec-dot"
-                style={{
-                  left: `${(activePoint.x / SVG_W) * 100}%`,
-                  top: `${(activePoint.secondaryY / SVG_H) * 100}%`,
-                }}
-                aria-hidden="true"
-              />
-            ) : null}
-
-            {/* النقاط الفعلية على المنحنى بطبقة HTML تحافظ على دائريتها التامة مهما تغيّر عرض البطاقة */}
-            {plotted.map((pt, idx) => {
-              const isCurrent = idx === activeIndex;
-              return (
-                <span
-                  key={`node-${pt.label}-${idx}`}
-                  className={`monthly-panther__node${isCurrent ? " is-active" : ""}`}
-                  style={{
-                    left: `${(pt.x / SVG_W) * 100}%`,
-                    top: `${(pt.y / SVG_H) * 100}%`,
-                  }}
-                  aria-hidden="true"
-                />
-              );
-            })}
-
-            {/* النقطة المضيئة النابضة المتحرّكة مع القيمة النشطة */}
-            <div
-              className="monthly-panther__dot-anchor"
-              style={{
-                left: `${dotLeftPct}%`,
-                top: `${dotTopPct}%`,
-              }}
-              aria-hidden="true"
-            >
-              <span className="monthly-panther__dot-pulse" />
-              <span className="monthly-panther__dot" />
-            </div>
-
-            {/* تسميات المحور الأفقي */}
-            <div className="monthly-panther__x-axis" aria-hidden="true">
-              {plotted.map((pt, idx) => {
-                if (!shouldShowTick(idx, plotted.length)) return null;
-                const tickText = pt.shortLabel ?? pt.label;
-                if (!tickText) return null;
-                const edgeClass =
-                  idx === 0
-                    ? " is-start"
-                    : idx === plotted.length - 1
-                      ? " is-end"
-                      : "";
-                return (
-                  <span
-                    key={`tick-${pt.label}-${idx}`}
-                    className={`monthly-panther__x-tick${edgeClass}${idx === activeIndex ? " is-active" : ""}`}
-                    style={{ left: `${(pt.x / SVG_W) * 100}%` }}
-                  >
-                    {tickText}
-                  </span>
-                );
-              })}
-            </div>
+            {renderChartBody()}
           </div>
         </div>
 

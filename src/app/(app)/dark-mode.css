@@ -674,6 +674,9 @@
   --mp-value: #0d1d0d;
   --mp-muted: #465f46;
   --mp-danger: #b42a2a;
+  --mp-alt: #0f5878;
+  --mp-warn: #8a4b08;
+  --mp-track: rgba(38, 99, 25, 0.12);
 
   box-shadow:
     0 18px 38px -18px rgba(22, 48, 22, 0.16),
@@ -702,6 +705,9 @@
   --mp-value: #04122e;
   --mp-muted: #345772;
   --mp-danger: #b42a2a;
+  --mp-alt: #166534;
+  --mp-warn: #8a4b08;
+  --mp-track: rgba(12, 91, 122, 0.12);
 
   box-shadow:
     0 18px 38px -18px rgba(8, 32, 68, 0.15),

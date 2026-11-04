@@ -293,6 +293,29 @@ export default async function FinancePage() {
     const expectedCustodyCents = moneyToCents(summary.totalExpected);
     const totalLiquidityCents = vaultTotalCents + expectedCustodyCents;
     const netSurplusCents = totalLiquidityCents - monthExpensesCents;
+    financeSpotlightSeries.unshift({
+      id: "liquidity-mix",
+      label: "توزيع السيولة",
+      chartVariant: "donut",
+      points: [
+        {
+          label: "أرصدة الخزائن المفتوحة",
+          shortLabel: "الخزائن",
+          value: Number(vaultTotalCents) / 100,
+          formattedValue: `${displayMoney(vaultTotalCents)} ج.م`,
+          detail: `موزعة على ${openVaultCount} خزنة فرع نشطة`,
+          tone: "accent",
+        },
+        {
+          label: "المستحق بالعُهَد المفتوحة",
+          shortLabel: "العُهَد",
+          value: Number(expectedCustodyCents) / 100,
+          formattedValue: `${displayMoney(expectedCustodyCents)} ج.م`,
+          detail: `عبر ${openCustodyCount} عهدة موظف مفتوحة`,
+          tone: "alt",
+        },
+      ],
+    });
     financeSpotlightSeries.push({
       id: "cash-equation",
       label: "معادلة السيولة",
@@ -524,6 +547,7 @@ export default async function FinancePage() {
               <PantherSpotlightCard
                 layout="wallet"
                 icon="balanceScale"
+                chartVariant="donut"
                 title="الميزان النقدي ومصروفات الشهر"
                 subtitle="محدّث الآن · إجمالي السيولة مقابل مصروفات الشهر الحالي"
                 pill={`${openVaultCount + openCustodyCount} حساب نشط`}

@@ -396,6 +396,7 @@ export default async function SalesPage() {
               <PantherSpotlightCard
                 layout="wallet"
                 icon="customerCollection"
+                chartVariant="donut"
                 title={collectionsSpotlight.title}
                 subtitle={collectionsSpotlight.subtitle}
                 pill={collectionsSpotlight.pill}

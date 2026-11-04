@@ -2625,6 +2625,9 @@
   --mp-value: #f5f9f5;
   --mp-muted: #98a898;
   --mp-danger: #f87171;
+  --mp-alt: #38bdf8;
+  --mp-warn: #fbbf24;
+  --mp-track: rgba(152, 168, 152, 0.16);
 
   position: relative;
   width: min(100%, 560px);
@@ -2893,6 +2896,9 @@
   --mp-value: #ffffff;
   --mp-muted: #9dc7db;
   --mp-danger: #fca5a5;
+  --mp-alt: #6ee7b7;
+  --mp-warn: #fcd34d;
+  --mp-track: rgba(129, 205, 229, 0.16);
 
   box-shadow:
     0 25px 50px -16px rgba(4, 11, 58, 0.58),
@@ -3318,6 +3324,280 @@
     transform: scale(1.45);
     opacity: 0.18;
   }
+}
+
+/* أنماط التصوير البصري المتخصصة الستة داخل إطار .monthly-panther__chart (118px) */
+.monthly-panther__chart.is-variant-gauge,
+.monthly-panther__chart.is-variant-donut,
+.monthly-panther__chart.is-variant-bars {
+  cursor: default;
+}
+
+/* 1) عدّاد القوس النصفي 180° + أزرار المحاور (gauge) */
+.monthly-panther__gauge {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 100%;
+  height: 100%;
+  gap: 4px;
+}
+
+.monthly-panther__chart .monthly-panther__gauge-svg {
+  width: 100%;
+  height: 82px;
+  flex: 0 0 82px;
+}
+
+.monthly-panther__gauge-arc {
+  transition: stroke-dasharray 0.28s ease, stroke 0.22s ease;
+}
+
+.monthly-panther__gauge-score {
+  fill: var(--mp-value);
+  font-size: 20px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.monthly-panther__gauge-caption {
+  fill: var(--mp-muted);
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.monthly-panther__gauge-pillars {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 30px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.monthly-panther__gauge-pillars::-webkit-scrollbar {
+  display: none;
+}
+
+.monthly-panther__gauge-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--mp-divider);
+  background: var(--mp-tab-bg, rgba(255, 255, 255, 0.03));
+  color: var(--mp-muted);
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease;
+}
+
+.monthly-panther__gauge-chip-val {
+  color: var(--mp-title);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.monthly-panther__gauge-chip:hover,
+.monthly-panther__gauge-chip.is-active {
+  border-color: var(--mp-accent-border);
+  background: var(--mp-accent-soft);
+  color: var(--mp-title);
+}
+
+.monthly-panther__gauge-chip.is-active .monthly-panther__gauge-chip-val {
+  color: var(--mp-accent);
+}
+
+/* 2) الحلقة المقسّمة التفاعلية + قائمة الحصص (donut) */
+.monthly-panther__donut {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  height: 100%;
+}
+
+.monthly-panther__chart .monthly-panther__donut-ring {
+  width: 98px;
+  height: 98px;
+  flex: 0 0 98px;
+}
+
+.monthly-panther__donut-slice {
+  cursor: pointer;
+  transition: stroke-width 0.18s ease, opacity 0.18s ease;
+}
+
+.monthly-panther__donut-pct {
+  fill: var(--mp-value);
+  font-size: 15.5px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.monthly-panther__donut-sub {
+  fill: var(--mp-muted);
+  font-size: 9.5px;
+  font-weight: 700;
+}
+
+.monthly-panther__donut-legend {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.monthly-panther__donut-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 3.5px 8px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--mp-muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: start;
+  cursor: pointer;
+  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.monthly-panther__donut-item:hover,
+.monthly-panther__donut-item.is-active {
+  background: var(--mp-accent-soft);
+  border-color: var(--mp-accent-border);
+  color: var(--mp-title);
+}
+
+.monthly-panther__donut-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex: 0 0 8px;
+}
+
+.monthly-panther__donut-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.monthly-panther__donut-share {
+  flex: 0 0 auto;
+  color: var(--mp-value);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 3) أشرطة الترتيب الأفقية المقارِنة (bars) */
+.monthly-panther__bars {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 100%;
+  height: 100%;
+}
+
+.monthly-panther__bar-row {
+  display: grid;
+  grid-template-columns: 18px minmax(54px, 84px) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 3px 6px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--mp-muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: start;
+  cursor: pointer;
+  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.monthly-panther__bar-row:hover,
+.monthly-panther__bar-row.is-active {
+  background: var(--mp-accent-soft);
+  border-color: var(--mp-accent-border);
+  color: var(--mp-title);
+}
+
+.monthly-panther__bar-rank {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--mp-track);
+  color: var(--mp-title);
+  font-size: 10px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.monthly-panther__bar-row.is-active .monthly-panther__bar-rank {
+  background: var(--mp-accent);
+  color: var(--mp-btn-hover-ink);
+}
+
+.monthly-panther__bar-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.monthly-panther__bar-track {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--mp-track);
+  overflow: hidden;
+}
+
+.monthly-panther__bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.24s ease;
+}
+
+.monthly-panther__bar-target {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  width: 2px;
+  background: var(--mp-warn);
+  border-radius: 1px;
+}
+
+.monthly-panther__bar-val {
+  color: var(--mp-value);
+  font-size: 10.5px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .monthly-panther__foot {
@@ -5363,5 +5643,44 @@ a.dashboard-governance__item:hover {
     box-shadow: none !important;
   }
 }
+
+/* ==========================================================================
+   تنظيم القائمة الجانبية المحسّنة (إبراز الإجراء اليومي + شارات العدّاد الحيّة)
+   ========================================================================== */
+.workspace-nav-item.is-featured {
+  background: var(--ws-nav-hover-bg);
+  border-color: var(--ws-action-border);
+  color: var(--ws-nav-hover-ink);
+  font-weight: 700;
+}
+
+.workspace-nav-item.is-featured svg {
+  color: var(--ws-brand-accent);
+}
+
+.workspace-nav-badge {
+  margin-inline-start: auto;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #fffbeb;
+  border: 1px solid #f59e0b;
+  color: #78350f;
+  font-size: 11px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.workspace-nav-item.is-active .workspace-nav-badge {
+  background: #1e293b;
+  border-color: #334155;
+  color: #ffffff;
+}
+
 
 

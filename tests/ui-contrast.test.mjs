@@ -644,6 +644,197 @@ test("حزم تطوير الصفحات الشاملة (١-٣) تحقق تباي�
   }
 });
 
+test("القائمة الجانبية المنظّمة حسب الدور تفصل المدير عن المحاسب والموظف وتمنع تداخل التفعيل وتدعم الشارات", async () => {
+  const { sidebarNavigationGroups, resolveActiveSidebarHref } = await import(
+    "../src/app/(app)/navigation-items.ts"
+  );
+  const navSrc = readFileSync(
+    new URL("../src/app/(app)/app-navigation.tsx", import.meta.url),
+    "utf8",
+  );
+
+  // ١) تباين شارة العدّاد في القائمة الجانبية (>= 4.5:1)
+  assert.ok(contrast("#78350f", "#fffbeb") >= MIN);
+  assert.ok(contrast("#ffffff", "#1e293b") >= MIN);
+
+  // ٢) قسم المظهر مطوي افتراضيًا ومعرّب
+  assert.ok(navSrc.includes("const [themeOpen, setThemeOpen] = useState(false);"));
+  assert.ok(navSrc.includes("المظهر والسمات"));
+
+  // ٣) المدير: «بيع جديد» ظاهر مباشرة في الأعلى، والإعدادات مطويّة تحت «إعدادات البيع» و«تهيئة المالية»
+  const managerGroups = sidebarNavigationGroups("MANAGER", {
+    financeEnabled: true,
+    menuScope: "FULL",
+    inventoryEnabled: true,
+    badges: { pendingExpenses: 4, openSettlements: 2 },
+  });
+  assert.deepEqual(managerGroups.map((g) => g.label), [
+    "المتابعة التنفيذية",
+    "المبيعات والمخزون",
+    "المالية والخزينة",
+    "الإدارة والنظام",
+  ]);
+  const mgrSales = managerGroups.find((g) => g.label === "المبيعات والمخزون").items;
+  assert.equal(mgrSales[0].href, "/sales/new");
+  assert.equal(mgrSales[0].featured, true);
+  assert.equal(mgrSales[1].href, "/sales");
+  assert.equal(mgrSales[2].label, "إعدادات البيع");
+  assert.deepEqual(mgrSales[2].children.map((c) => c.href), ["/sales/catalog", "/sales/settings"]);
+
+  const mgrFinance = managerGroups.find((g) => g.label === "المالية والخزينة").items;
+  assert.equal(mgrFinance.find((i) => i.href === "/finance/transfers").badgeCount, 2);
+  assert.equal(mgrFinance.find((i) => i.href === "/finance/expenses").badgeCount, 4);
+  assert.equal(mgrFinance.find((i) => i.label === "تهيئة المالية").children.length, 2);
+
+  // ٤) المحاسب: لا تظهر له روابط المدير الحصرية (/sales/new, /sales/stats, /sales/catalog, /sales/settings)
+  const accountantGroups = sidebarNavigationGroups("ACCOUNTANT", {
+    financeEnabled: true,
+    menuScope: "FULL",
+    inventoryEnabled: true,
+  });
+  const accAllHrefs = accountantGroups.flatMap((g) =>
+    g.items.flatMap((it) => [it.href, ...(it.children?.map((c) => c.href) ?? [])].filter(Boolean)),
+  );
+  for (const managerOnly of ["/sales/new", "/sales/stats", "/sales/catalog", "/sales/settings", "/inventory/receipts/new"]) {
+    assert.equal(accAllHrefs.includes(managerOnly), false, `ظهور رابط محجوب للمحاسب: ${managerOnly}`);
+  }
+  assert.equal(accAllHrefs.includes("/sales"), true);
+  assert.equal(accAllHrefs.includes("/finance"), true);
+  assert.equal(accAllHrefs.includes("/finance/transfers"), true);
+
+  // ٥) موظف الفرع: رحلة الوردية اليومية («بيع جديد» في الصدارة، وتوريد للخزنة، دون شاشات الإدارة)
+  const staffGroups = sidebarNavigationGroups("CS_AGENT", {
+    financeEnabled: true,
+    menuScope: "FULL",
+    inventoryEnabled: false,
+    badges: { pendingExpenses: 1 },
+  });
+  assert.deepEqual(staffGroups.map((g) => g.label), [
+    "الرئيسية",
+    "الكاونتر والمبيعات",
+    "العهدة والمصروفات",
+  ]);
+  const staffHrefs = staffGroups.flatMap((g) => g.items.map((it) => it.href));
+  assert.equal(staffHrefs.includes("/sales/new"), true);
+  assert.equal(staffHrefs.includes("/finance/mine"), true);
+  assert.equal(staffHrefs.includes("/finance/transfers"), true);
+  for (const forbidden of ["/admin", "/setup", "/finance/accounts", "/finance/counts", "/finance/categories"]) {
+    assert.equal(staffHrefs.includes(forbidden), false);
+  }
+
+  // ٦) دقة التفعيل الوحيد (منع إضاءة رابطين معًا عند تداخل البادئات)
+  assert.equal(resolveActiveSidebarHref("/sales/new", managerGroups), "/sales/new");
+  assert.equal(resolveActiveSidebarHref("/sales/99", managerGroups), "/sales");
+  assert.equal(resolveActiveSidebarHref("/sales/catalog", managerGroups), "/sales/catalog");
+  assert.equal(resolveActiveSidebarHref("/finance/expenses/new", managerGroups), "/finance/expenses/new");
+  assert.equal(resolveActiveSidebarHref("/finance/expenses/15", managerGroups), "/finance/expenses");
+  assert.equal(resolveActiveSidebarHref("/finance", managerGroups), "/finance");
+  assert.equal(resolveActiveSidebarHref("/finance/accounts", managerGroups), "/finance/accounts");
+});
+
+test("الأنماط البصرية الستة للمؤشرات التفاعلية موصولة بالصفحات وتحقق تباين WCAG >= 4.5:1 نهارًا وليلًا", () => {
+  const pantherSrc = readFileSync(
+    new URL("../src/components/panther-spotlight-card.tsx", import.meta.url),
+    "utf8",
+  );
+  const wsCss = readFileSync(
+    new URL("../src/app/(app)/workspace.css", import.meta.url),
+    "utf8",
+  );
+  const dmCss = readFileSync(
+    new URL("../src/app/(app)/dark-mode.css", import.meta.url),
+    "utf8",
+  );
+
+  // ١) توافر الأنماط البصرية الستة في المكوّن الموحّد
+  for (const variant of ["area", "gauge", "donut", "columns", "waterfall", "bars"]) {
+    assert.ok(
+      pantherSrc.includes(`"${variant}"`),
+      `المكوّن PantherSpotlightCard يفتقد نمط الرسم ${variant}`,
+    );
+  }
+  assert.ok(pantherSrc.includes("data-chart-variant={activeVariant}"));
+  assert.ok(pantherSrc.includes("monthly-panther__gauge"));
+  assert.ok(pantherSrc.includes("monthly-panther__donut"));
+  assert.ok(pantherSrc.includes("monthly-panther__bars"));
+
+  // ٢) توصيل الأنماط المتخصّصة بصفحة لوحة القيادة وبقية الوحدات
+  const dashSrc = readFileSync(
+    new URL("../src/app/(app)/dashboard/page.tsx", import.meta.url),
+    "utf8",
+  );
+  for (const expected of [
+    'chartVariant="gauge"',
+    'chartVariant="donut"',
+    'chartVariant="waterfall"',
+    'chartVariant="area"',
+    'chartVariant="bars"',
+    'chartVariant={isEmployee ? "columns" : "waterfall"}',
+  ]) {
+    assert.ok(dashSrc.includes(expected), `لوحة القيادة تفتقد ${expected}`);
+  }
+
+  const pageChecks = [
+    ["../src/app/(app)/sales/page.tsx", 'chartVariant="donut"'],
+    ["../src/app/(app)/sales/stats/page.tsx", 'chartVariant="bars"'],
+    ["../src/app/(app)/finance/page.tsx", 'chartVariant="donut"'],
+    ["../src/app/(app)/finance/expenses/page.tsx", 'chartVariant="donut"'],
+    ["../src/app/(app)/finance/mine/page.tsx", 'chartVariant="waterfall"'],
+    ["../src/app/(app)/inventory/page.tsx", 'chartVariant="columns"'],
+  ];
+  for (const [relPath, snippet] of pageChecks) {
+    const src = readFileSync(new URL(relPath, import.meta.url), "utf8");
+    assert.ok(src.includes(snippet), `الملف ${relPath} يفتقد ${snippet}`);
+  }
+
+  // ٣) تباين الألوان المرافقة للرسوم (--mp-alt و --mp-warn و --mp-accent و --mp-danger) في الثيمين والوضعين
+  function extractBlock(source, selectorRegex) {
+    const m = source.match(selectorRegex);
+    assert.ok(m, `تعذّر العثور على الكتلة: ${selectorRegex}`);
+    return m[1];
+  }
+  function hexVar(block, varName) {
+    const m = block.match(new RegExp(`${varName}:\\s*(#[0-9a-fA-F]{6})`));
+    assert.ok(m, `المتغيّر ${varName} مفقود`);
+    return normalize(m[1]);
+  }
+
+  const walletDarkBlock = extractBlock(wsCss, /\n\.monthly-panther\s*\{([\s\S]*?)\n\}/);
+  const selahtoneDarkBlock = extractBlock(
+    wsCss,
+    /\.workspace-shell\[data-theme="wallet-selahtone"\]\s+\.monthly-panther\s*\{([\s\S]*?)\n\}/,
+  );
+  const walletLightBlock = extractBlock(
+    dmCss,
+    /\.workspace-shell\[data-color-mode="light"\]\s+\.monthly-panther\s*\{([\s\S]*?)\n\}/,
+  );
+  const selahtoneLightBlock = extractBlock(
+    dmCss,
+    /\.workspace-shell\[data-color-mode="light"\]\[data-theme="wallet-selahtone"\]\s+\.monthly-panther\s*\{([\s\S]*?)\n\}/,
+  );
+
+  const matrices = [
+    { name: "wallet (ليلي)", block: walletDarkBlock, surfaces: ["#0a0f0a"] },
+    { name: "wallet-selahtone (ليلي)", block: selahtoneDarkBlock, surfaces: ["#050e29"] },
+    { name: "wallet (نهاري)", block: walletLightBlock, surfaces: ["#ffffff", "#f5faf3", "#eef5eb"] },
+    { name: "wallet-selahtone (نهاري)", block: selahtoneLightBlock, surfaces: ["#ffffff", "#f1f9fd", "#e9f4fa"] },
+  ];
+
+  for (const m of matrices) {
+    for (const tokenName of ["--mp-accent", "--mp-danger", "--mp-alt", "--mp-warn", "--mp-title", "--mp-value", "--mp-muted"]) {
+      const fg = hexVar(m.block, tokenName);
+      for (const bg of m.surfaces) {
+        const ratio = contrast(fg, bg);
+        assert.ok(
+          ratio >= MIN,
+          `تباين ${tokenName} (${fg}) على ${bg} في ${m.name} = ${ratio.toFixed(2)} وهو أقل من ${MIN}`,
+        );
+      }
+    }
+  }
+});
+
+
 
 
 

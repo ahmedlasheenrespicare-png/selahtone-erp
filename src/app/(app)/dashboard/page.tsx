@@ -1068,6 +1068,7 @@ export default async function DashboardPage({
             <PantherSpotlightCard
               layout="wallet"
               icon="efficiencyGauge"
+              chartVariant="gauge"
               title={execSuite.compositeEfficiencySpotlight.title}
               subtitle={execSuite.compositeEfficiencySpotlight.subtitle}
               pill={execSuite.compositeEfficiencySpotlight.pill}
@@ -1123,6 +1124,7 @@ export default async function DashboardPage({
             <PantherSpotlightCard
               layout="wallet"
               icon="customerCollection"
+              chartVariant="donut"
               title={collectionsSpotlight.title}
               subtitle={collectionsSpotlight.subtitle}
               pill={collectionsSpotlight.pill}
@@ -1140,6 +1142,7 @@ export default async function DashboardPage({
             <PantherSpotlightCard
               layout="wallet"
               icon="cashConversion"
+              chartVariant="waterfall"
               title={execSuite.cashConversionSpotlight.title}
               subtitle={execSuite.cashConversionSpotlight.subtitle}
               pill={execSuite.cashConversionSpotlight.pill}
@@ -1165,6 +1168,7 @@ export default async function DashboardPage({
             <PantherSpotlightCard
               layout="wallet"
               icon="balanceScale"
+              chartVariant="donut"
               title={financeSpotlights.cashBalance.title}
               subtitle={financeSpotlights.cashBalance.subtitle}
               pill={financeSpotlights.cashBalance.pill}
@@ -1190,6 +1194,7 @@ export default async function DashboardPage({
             <PantherSpotlightCard
               layout="wallet"
               icon="expenseReceipt"
+              chartVariant="area"
               title={financeSpotlights.monthlyExpenses.title}
               subtitle={financeSpotlights.monthlyExpenses.subtitle}
               pill={financeSpotlights.monthlyExpenses.pill}
@@ -1211,6 +1216,7 @@ export default async function DashboardPage({
             <PantherSpotlightCard
               layout="wallet"
               icon={isEmployee ? "serialScan" : "netProfit"}
+              chartVariant={isEmployee ? "columns" : "waterfall"}
               title={execSuite.fifthSpotlight.title}
               subtitle={execSuite.fifthSpotlight.subtitle}
               pill={execSuite.fifthSpotlight.pill}
@@ -1236,6 +1242,7 @@ export default async function DashboardPage({
             <PantherSpotlightCard
               layout="wallet"
               icon="branchScorecard"
+              chartVariant="bars"
               title={execSuite.branchEfficiencySpotlight.title}
               subtitle={execSuite.branchEfficiencySpotlight.subtitle}
               pill={execSuite.branchEfficiencySpotlight.pill}

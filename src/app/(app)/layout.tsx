@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { AppIcon } from "@/components/app-icon";
 import ColorModeToggle from "@/components/color-mode-toggle";
 import { getSession, canSeeAllBranches } from "@/lib/auth";
-import { financeEnabled } from "@/lib/finance/db";
+import { financeDb, financeEnabled } from "@/lib/finance/db";
 import { inventoryEnabled } from "@/lib/feature-flags";
 import {
   getWorkspaceClockSnapshot,
@@ -50,6 +50,38 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const roleLabel = ROLE_LABEL[session.role] ?? session.role;
   const branchLabel = session.branchName ?? "كل الفروع";
+  const isFinanceEnabled = financeEnabled();
+  const canManage = canSeeAllBranches(session);
+
+  let pendingExpenses = 0;
+  let openSettlements = 0;
+  if (isFinanceEnabled) {
+    try {
+      await financeDb.serializable(async (tx) => {
+        if (canManage) {
+          const expRes = await tx.query<{ n: number }>(
+            `SELECT count(*)::int AS n FROM finance.expenses WHERE status='PENDING'`,
+          );
+          pendingExpenses = Number(expRes.rows[0]?.n ?? 0);
+          if (session.menuScope === "FULL") {
+            const setRes = await tx.query<{ n: number }>(
+              `SELECT count(*)::int AS n FROM finance.settlements WHERE status='OPEN'`,
+            );
+            openSettlements = Number(setRes.rows[0]?.n ?? 0);
+          }
+        } else {
+          const expRes = await tx.query<{ n: number }>(
+            `SELECT count(*)::int AS n FROM finance.expenses WHERE status='PENDING' AND requested_by=$1::bigint`,
+            [session.id],
+          );
+          pendingExpenses = Number(expRes.rows[0]?.n ?? 0);
+        }
+      });
+    } catch {
+      pendingExpenses = 0;
+      openSettlements = 0;
+    }
+  }
 
   return (
     <WorkspaceThemeProvider
@@ -61,11 +93,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     >
       <a className="workspace-skip" href="#workspace-content">تخطي إلى المحتوى</a>
       <AppNavigation
-        canViewAllBranches={canSeeAllBranches(session)}
+        canViewAllBranches={canManage}
         role={session.role}
-        financeEnabled={financeEnabled()}
+        financeEnabled={isFinanceEnabled}
         menuScope={session.menuScope}
         inventoryEnabled={inventoryEnabled()}
+        badges={{ pendingExpenses, openSettlements }}
         userName={session.name}
         roleLabel={roleLabel}
         branchLabel={branchLabel}
