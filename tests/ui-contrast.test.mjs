@@ -1252,8 +1252,12 @@ test("تصميم الدمج الأخير يضع الحافظة داخل الشب
   }
   assert.ok(switcherCss.includes(".dashboard-all-panel"));
   assert.ok(switcherCss.includes(".dashboard-all-wallet"));
-  assert.ok(switcherCss.includes("grid-template-columns: repeat(2, minmax(0, 1fr))"), "الشبكة المضغوطة تتكون من عمودين");
+  assert.ok(switcherCss.includes("grid-template-columns: repeat(2, minmax(0, 1fr))"), "الشبكة المضغوطة تتكون من عمودين على المقاسات المتوسطة");
+  assert.ok(switcherCss.includes('@media (min-width: 1280px) {\n  .dash-single-stage--all[data-dashboard-layout="compact"] .dashboard-all-panel .dashboard-cards-grid.dashboard-all-panel__spotlights {\n    grid-template-columns: repeat(4, minmax(0, 1fr));'), "أربعة أعمدة على الشاشات الكبيرة");
   assert.ok(switcherCss.includes('.dash-single-stage--all[data-dashboard-layout="compact"] .dashboard-all-panel .monthly-panther__chart { height: 96px; }'), "تصغير الرسوم محصور بخيار الشبكة المضغوطة");
+  assert.ok(switcherCss.includes('.dash-single-stage--all[data-dashboard-layout="compact"] .dashboard-all-panel .monthly-panther__metrics,'), "ملخص الأرقام مخفي في الشبكة المضغوطة فقط");
+  assert.ok(switcherCss.includes('.dash-single-stage--all[data-dashboard-layout="compact"] .dashboard-all-panel .monthly-panther__foot,'), "روابط إجراءات المؤشر مخفية في الشبكة المضغوطة فقط");
+  assert.ok(switcherCss.includes('.dash-single-stage--all[data-dashboard-layout="compact"] .dashboard-all-panel .monthly-panther__subtitle { display: none !important; }'), "الوصف أسفل اسم المؤشر مخفي في الشبكة المضغوطة فقط");
   assert.ok(switcherCss.includes("@media (max-width: 760px)"), "تعود الشبكة إلى عمود واحد على الهاتف");
   assert.ok(switcherCss.includes(".dash-all-layout-picker"));
 });
