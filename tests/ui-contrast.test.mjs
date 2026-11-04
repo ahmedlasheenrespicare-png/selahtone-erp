@@ -834,6 +834,50 @@ test("الأنماط البصرية الستة للمؤشرات التفاعلي
   }
 });
 
+test("صفحة تسليم وتحويل النقد تدعم تمكين الموظف بأمان واستبعاد المقفلة وأرشيف التسويات وسند الطباعة وتباين WCAG >= 4.5:1", () => {
+  const pageSrc = readFileSync(
+    new URL("../src/app/(app)/finance/transfers/page.tsx", import.meta.url),
+    "utf8",
+  );
+  const formSrc = readFileSync(
+    new URL("../src/app/(app)/finance/transfers/transfer-form.tsx", import.meta.url),
+    "utf8",
+  );
+  const ledgerSrc = readFileSync(
+    new URL("../src/app/(app)/finance/transfers/transfers-ledger-view.tsx", import.meta.url),
+    "utf8",
+  );
+  const voucherSrc = readFileSync(
+    new URL("../src/app/(app)/finance/transfers/handover-voucher.tsx", import.meta.url),
+    "utf8",
+  );
+
+  // ١) استبعاد الحسابات المقفلة وعدم كشف رصيد الخزنة للموظف (balance: null)
+  assert.ok(pageSrc.includes("!account.closedAt"));
+  assert.ok(pageSrc.includes("balance: null"));
+  assert.ok(pageSrc.includes("PantherSpotlightCard"));
+  assert.ok(pageSrc.includes("fin-kpi-strip"));
+  assert.ok(pageSrc.includes('id="pending-settlements"'));
+
+  // ٢) نموذج ذكي باتجاه الحركة وجسر محاكاة حي وسند رسمي بعد الحفظ
+  assert.ok(formSrc.includes("CUSTODY_TO_VAULT"));
+  assert.ok(formSrc.includes("VAULT_TO_CUSTODY"));
+  assert.ok(formSrc.includes("fin-transfer-bridge"));
+  assert.ok(formSrc.includes("HandoverVoucher"));
+
+  // ٣) سجل رقابي قابل للتصفية وتصدير CSV + أرشيف قرارات التسوية + سند توقيعين
+  assert.ok(ledgerSrc.includes("downloadCsvFile"));
+  assert.ok(ledgerSrc.includes("أرشيف التسويات"));
+  assert.ok(voucherSrc.includes("توقيع المسلِّم"));
+  assert.ok(voucherSrc.includes("توقيع المستلِم"));
+
+  // ٤) تباين ألوان جسر المحاكاة نهارًا وليلًا >= 4.5:1
+  assert.ok(contrast("#166534", "#f5f9f3") >= MIN);
+  assert.ok(contrast("#b42a2a", "#f5f9f3") >= MIN);
+  assert.ok(contrast("#86efac", "#0f1c11") >= MIN);
+  assert.ok(contrast("#fca5a5", "#0f1c11") >= MIN);
+});
+
 
 
 

@@ -1144,3 +1144,11 @@
   background: rgba(148, 163, 184, 0.22);
 }
 
+.workspace-shell[data-color-mode="dark"] .finance-suite .fin-transfer-bridge__bal .is-pos {
+  color: #86efac;
+}
+
+.workspace-shell[data-color-mode="dark"] .finance-suite .fin-transfer-bridge__bal .is-neg {
+  color: #fca5a5;
+}
+
