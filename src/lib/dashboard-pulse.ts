@@ -92,8 +92,8 @@ export async function loadDashboardOperationalData(
     Array<{ todayStart: Date; yesterdayStart: Date }>
   >`
     SELECT
-      (CURRENT_DATE AT TIME ZONE 'Africa/Cairo') AS "todayStart",
-      (CURRENT_DATE AT TIME ZONE 'Africa/Cairo') - INTERVAL '1 day' AS "yesterdayStart"`;
+      date_trunc('day', CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo' AS "todayStart",
+      date_trunc('day', CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo' - INTERVAL '1 day' AS "yesterdayStart"`;
 
   const todayStart = bounds[0].todayStart;
   const yesterdayStart = bounds[0].yesterdayStart;
