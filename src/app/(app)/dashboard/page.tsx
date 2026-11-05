@@ -264,9 +264,48 @@ export default async function DashboardPage({
     ? cash.approvedUnpaid
     : summary?.approvedUnpaid ?? 0;
 
+  const todaySalesTrend =
+    pulseData?.todayGrowthPct == null
+      ? undefined
+      : {
+          direction: pulseData.todayGrowthDirection,
+          label: `${pulseData.todayGrowthPct >= 0 ? "↑ +" : "↓ "}${nf.format(pulseData.todayGrowthPct)}% عن الأمس`,
+        };
+
+  const monthPacePocket = execSuite?.monthPace;
+  const paceTrend =
+    monthPacePocket?.paceVsLastMonthPct == null
+      ? undefined
+      : {
+          direction: monthPacePocket.paceDirection,
+          label:
+            monthPacePocket.paceVsLastMonthPct > 0
+              ? `↑ متقدّم +${nf.format(monthPacePocket.paceVsLastMonthPct)}%`
+              : monthPacePocket.paceVsLastMonthPct < 0
+                ? `↓ أقل ${nf.format(monthPacePocket.paceVsLastMonthPct)}%`
+                : "نفس وتيرة الشهر الماضي",
+        };
+
   const pocketItems: WalletPocketItem[] = [
     { key: "expected", label: "المستحق للخزنة", value: expectedBalanceValue, kind: "money" },
-    { key: "today-sales", label: "مبيعات اليوم", value: todayNetSalesValue, kind: "money" },
+    { key: "today-sales", label: "مبيعات اليوم", value: todayNetSalesValue, kind: "money", trend: todaySalesTrend },
+    ...(monthPacePocket && !isEmployee
+      ? [
+          {
+            key: "pace-daily",
+            label: "متوسط البيع اليومي",
+            value: `${monthPacePocket.dailyAverageFormatted} ج.م`,
+            kind: "money" as const,
+          },
+          {
+            key: "pace-close",
+            label: "الإغلاق المتوقّع",
+            value: `${monthPacePocket.projectedCloseFormatted} ج.م`,
+            kind: "money" as const,
+            trend: paceTrend,
+          },
+        ]
+      : []),
     ...(unapprovedSettlements > 0
       ? [{ key: "settlements", label: "تسويات", value: nf.format(unapprovedSettlements), kind: "count" as const }]
       : []),
@@ -1079,6 +1118,39 @@ export default async function DashboardPage({
                 </div>
               </div>
             </article>
+
+            {(isEmployee || session.role === "MANAGER") && pulseData ? (
+              <article
+                className="stat-card dashboard-wallet__compact-collections"
+                aria-labelledby="wallet-today-collections-title"
+              >
+                <div className="stat-card__head">
+                  <h3 id="wallet-today-collections-title">تحصيلات اليوم الفعلية</h3>
+                  <p>المبالغ المحصّلة اليوم بحسب وسيلة التحصيل.</p>
+                </div>
+                <div className="stat-card__body">
+                  <div className="stat-grid">
+                    <div className="stat-grid__item is-primary">
+                      <span className="stat-grid__label">إجمالي التحصيلات</span>
+                      <span className="stat-grid__value">{pulseData.todayNetCollectedFormatted} ج.م</span>
+                    </div>
+                    <div className="stat-grid__item">
+                      <span className="stat-grid__label">نقدي</span>
+                      <span className="stat-grid__value">{pulseData.todayCashCollectedFormatted} ج.م</span>
+                    </div>
+                    <div className="stat-grid__item">
+                      <span className="stat-grid__label">بطاقة/تحويل</span>
+                      <span className="stat-grid__value">{pulseData.todayElectronicCollectedFormatted} ج.م</span>
+                    </div>
+                  </div>
+                </div>
+                {canOpen("/sales") ? (
+                  <div className="dashboard-panel__footer">
+                    <Link href="/sales">عرض سجل المبيعات والتحصيلات</Link>
+                  </div>
+                ) : null}
+              </article>
+            ) : null}
           </DashboardWallet>
         );
 
@@ -1892,6 +1964,7 @@ export default async function DashboardPage({
             fullView={fullDashboardView}
             compactView={compactDashboardView}
             fullViewWallet={fullDashboardWallet}
+            compactCollectionsAvailable={isEmployee || session.role === "MANAGER"}
             headerContent={dashboardHeaderContent}
             headerTools={dashboardHeaderTools}
             beforeContent={dashboardPrelude}

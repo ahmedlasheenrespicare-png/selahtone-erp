@@ -1265,6 +1265,34 @@ test("تصميم الدمج الأخير يضع الحافظة داخل الشب
   assert.ok(switcherCss.includes(".dashboard-design-menu"));
 });
 
+test("اتجاه مبيعات اليوم يظهر في ملخص الجيب فقط عند التصميم المضغوط للوضع المركّز", () => {
+  const dashboard = readFileSync(new URL("../src/app/(app)/dashboard/page.tsx", import.meta.url), "utf8");
+  const switcher = readFileSync(new URL("../src/app/(app)/dashboard/dashboard-section-switcher.tsx", import.meta.url), "utf8");
+  const switcherCss = readFileSync(new URL("../src/app/(app)/dashboard/dashboard-switcher.css", import.meta.url), "utf8");
+  const wallet = readFileSync(new URL("../src/app/(app)/dashboard/dashboard-wallet.tsx", import.meta.url), "utf8");
+  const workspaceCss = readFileSync(new URL("../src/app/(app)/workspace.css", import.meta.url), "utf8");
+  assert.ok(switcher.includes('data-dashboard-layout={allLayout}'), "التصميم الحالي متاح للقسم المركّز");
+  assert.ok(switcherCss.includes('.dash-single-stage--pulse-wallet[data-dashboard-layout="compact"] .dashboard-pulse-strip > :nth-child(1)'), "بطاقة صافي مبيعات اليوم مخفية فقط في المركّز المضغوط");
+  assert.ok(dashboard.includes('`${pulseData.todayGrowthPct >= 0 ? "↑ +" : "↓ "}${nf.format(pulseData.todayGrowthPct)}% عن الأمس`'), "النسبة والسهم يستخدمان صيغة المقارنة نفسها مع الأمس");
+  assert.ok(wallet.includes('data-pocket-item={item.key}') && wallet.includes('dashboard-pocket__trend'), "اتجاه المبيعات مرتبط بعنصر مبيعات اليوم داخل الجيب");
+  assert.ok(workspaceCss.includes(".dashboard-pocket__trend {\n  display: none;"), "الاتجاه مخفي خارج السياق المطلوب");
+  assert.ok(switcherCss.includes('.dashboard-wallet.is-revealed .dashboard-pocket__metric[data-pocket-item="today-sales"] .dashboard-pocket__trend') && switcherCss.includes('.dashboard-pocket:focus-visible .dashboard-pocket__metric[data-pocket-item="today-sales"] .dashboard-pocket__trend'), "النسبة تظهر مع كشف أرقام الجيب أو تركيز لوحة المفاتيح");
+});
+
+test("بطاقة تحصيلات الحافظة محصورة بالموظف والمدير والوضع المركّز المضغوط", () => {
+  const dashboard = readFileSync(new URL("../src/app/(app)/dashboard/page.tsx", import.meta.url), "utf8");
+  const switcher = readFileSync(new URL("../src/app/(app)/dashboard/dashboard-section-switcher.tsx", import.meta.url), "utf8");
+  const switcherCss = readFileSync(new URL("../src/app/(app)/dashboard/dashboard-switcher.css", import.meta.url), "utf8");
+  const wallet = readFileSync(new URL("../src/app/(app)/dashboard/dashboard-wallet.tsx", import.meta.url), "utf8");
+  assert.ok(dashboard.includes('(isEmployee || session.role === "MANAGER") && pulseData ?'));
+  assert.ok(dashboard.includes("wallet-today-collections-title"));
+  assert.ok(dashboard.includes("pulseData.todayNetCollectedFormatted") && dashboard.includes("pulseData.todayCashCollectedFormatted") && dashboard.includes("pulseData.todayElectronicCollectedFormatted"));
+  assert.ok(switcher.includes('data-collection-wallet={compactCollectionsAvailable ? "true" : "false"}'));
+  assert.ok(switcherCss.includes('.dash-single-stage--pulse-wallet[data-dashboard-layout="compact"][data-collection-wallet="true"] .dashboard-wallet__compact-collections'));
+  assert.ok(switcherCss.includes('.dash-single-stage--pulse-wallet[data-dashboard-layout="compact"][data-collection-wallet="true"] .dashboard-pulse-strip > :nth-child(2)'), "بطاقة النبض لا تتكرر حين تنتقل التحصيلات إلى الحافظة");
+  assert.ok(wallet.includes("visibleWalletSlides(el)") && wallet.includes("new MutationObserver(refreshSlides)"), "مؤشر شرائح الحافظة يتحدّث عند تبديل التصميم");
+});
+
 test("ترويسة صفحة لوحة القيادة تمتد بعرض مساحة العمل مع مراعاة القائمة الجانبية والجوال", () => {
   const switcherCss = readFileSync(new URL("../src/app/(app)/dashboard/dashboard-switcher.css", import.meta.url), "utf8");
   assert.ok(switcherCss.includes(".dashboard > .dashboard-heading"));

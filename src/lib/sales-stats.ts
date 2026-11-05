@@ -129,7 +129,7 @@ export async function loadSalesStats(db: PrismaClient, branchId: string | null, 
         WHERE s.cancelled_at IS NULL
           AND (${branch}::bigint IS NULL OR s.branch_id = ${branch}::bigint)
           AND s.created_at >= ${start}::timestamptz
-          AND l.name_snapshot IN (${Prisma.join(names)})
+          AND l.name_snapshot IN (${Prisma.sql(names.map((_, i) => Prisma.sql`${names[i]}`).join(", "))})
         GROUP BY l.name_snapshot`
     : [];
   const costByName = new Map(costs.map((row) => [row.name, row.cost]));

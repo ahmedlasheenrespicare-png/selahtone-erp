@@ -2359,6 +2359,21 @@
   white-space: nowrap;
 }
 
+.dashboard-pocket__trend {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  color: var(--wallet-pocket-value);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.dashboard-pocket__trend.is-up { color: #d5f5cf; }
+.dashboard-pocket__trend.is-down { color: #ffd6d6; }
+.dashboard-pocket__trend.is-flat { color: #edf3eb; }
+
 /* أيقونة العين الموحّدة للجميع كما في rude-bat-50 */
 .dashboard-pocket__eye-wrap {
   margin-top: 1px;
@@ -2543,25 +2558,34 @@
     gap: 5px;
   }
   .dashboard-pocket__metrics[data-count="3"],
-  .dashboard-pocket__metrics[data-count="4"] {
+  .dashboard-pocket__metrics[data-count="4"],
+  .dashboard-pocket__metrics[data-count="5"],
+  .dashboard-pocket__metrics[data-count="6"] {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     row-gap: 6px;
   }
   .dashboard-pocket__metrics[data-count="3"] .dashboard-pocket__metric,
-  .dashboard-pocket__metrics[data-count="4"] .dashboard-pocket__metric {
+  .dashboard-pocket__metrics[data-count="4"] .dashboard-pocket__metric,
+  .dashboard-pocket__metrics[data-count="5"] .dashboard-pocket__metric,
+  .dashboard-pocket__metrics[data-count="6"] .dashboard-pocket__metric {
     border-inline-start: 0;
   }
   .dashboard-pocket__metrics[data-count="3"] .dashboard-pocket__metric:nth-child(2),
-  .dashboard-pocket__metrics[data-count="4"] .dashboard-pocket__metric:nth-child(even) {
+  .dashboard-pocket__metrics[data-count="4"] .dashboard-pocket__metric:nth-child(even),
+  .dashboard-pocket__metrics[data-count="5"] .dashboard-pocket__metric:nth-child(even),
+  .dashboard-pocket__metrics[data-count="6"] .dashboard-pocket__metric:nth-child(even) {
     border-inline-start: 1px solid rgba(167, 197, 158, 0.22);
   }
   .dashboard-pocket__metrics[data-count="3"] .dashboard-pocket__metric:nth-child(n + 3),
-  .dashboard-pocket__metrics[data-count="4"] .dashboard-pocket__metric:nth-child(n + 3) {
+  .dashboard-pocket__metrics[data-count="4"] .dashboard-pocket__metric:nth-child(n + 3),
+  .dashboard-pocket__metrics[data-count="5"] .dashboard-pocket__metric:nth-child(n + 3),
+  .dashboard-pocket__metrics[data-count="6"] .dashboard-pocket__metric:nth-child(n + 3) {
     border-top: 1px dashed rgba(167, 197, 158, 0.2);
     padding-top: 5px;
   }
-  .dashboard-pocket__metrics[data-count="3"] .dashboard-pocket__metric:nth-child(3) {
+  .dashboard-pocket__metrics[data-count="3"] .dashboard-pocket__metric:nth-child(3),
+  .dashboard-pocket__metrics[data-count="5"] .dashboard-pocket__metric:nth-child(5) {
     grid-column: 1 / -1;
   }
   .dashboard-pocket__value {
@@ -2789,25 +2813,34 @@
     gap: 5px;
   }
   .dashboard-pocket__metrics[data-count="3"],
-  .dashboard-pocket__metrics[data-count="4"] {
+  .dashboard-pocket__metrics[data-count="4"],
+  .dashboard-pocket__metrics[data-count="5"],
+  .dashboard-pocket__metrics[data-count="6"] {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     row-gap: 6px;
   }
   .dashboard-pocket__metrics[data-count="3"] .dashboard-pocket__metric,
-  .dashboard-pocket__metrics[data-count="4"] .dashboard-pocket__metric {
+  .dashboard-pocket__metrics[data-count="4"] .dashboard-pocket__metric,
+  .dashboard-pocket__metrics[data-count="5"] .dashboard-pocket__metric,
+  .dashboard-pocket__metrics[data-count="6"] .dashboard-pocket__metric {
     border-inline-start: 0;
   }
   .dashboard-pocket__metrics[data-count="3"] .dashboard-pocket__metric:nth-child(2),
-  .dashboard-pocket__metrics[data-count="4"] .dashboard-pocket__metric:nth-child(even) {
+  .dashboard-pocket__metrics[data-count="4"] .dashboard-pocket__metric:nth-child(even),
+  .dashboard-pocket__metrics[data-count="5"] .dashboard-pocket__metric:nth-child(even),
+  .dashboard-pocket__metrics[data-count="6"] .dashboard-pocket__metric:nth-child(even) {
     border-inline-start: 1px solid var(--wallet-pocket-divider);
   }
   .dashboard-pocket__metrics[data-count="3"] .dashboard-pocket__metric:nth-child(n + 3),
-  .dashboard-pocket__metrics[data-count="4"] .dashboard-pocket__metric:nth-child(n + 3) {
+  .dashboard-pocket__metrics[data-count="4"] .dashboard-pocket__metric:nth-child(n + 3),
+  .dashboard-pocket__metrics[data-count="5"] .dashboard-pocket__metric:nth-child(n + 3),
+  .dashboard-pocket__metrics[data-count="6"] .dashboard-pocket__metric:nth-child(n + 3) {
     border-top: 1px dashed var(--wallet-pocket-divider);
     padding-top: 5px;
   }
-  .dashboard-pocket__metrics[data-count="3"] .dashboard-pocket__metric:nth-child(3) {
+  .dashboard-pocket__metrics[data-count="3"] .dashboard-pocket__metric:nth-child(3),
+  .dashboard-pocket__metrics[data-count="5"] .dashboard-pocket__metric:nth-child(5) {
     grid-column: 1 / -1;
   }
   .dashboard-pocket__value {

@@ -9,8 +9,8 @@ import { AppIcon } from "@/components/app-icon";
       (#ffffff الأبيض، #9bd86a الأخضر، #635bff البنفسجي) مع شريحة البطاقة،
       ترتفع وتميل عند التمرير، وتُقلَّب أفقيًّا بالسحب أو بالأسهم.
    ٣. الجيب الجلدي الأمامي المنحني بتجويف المنتصف والغرز المتقطعة،
-      يعرض المستحق للخزنة وصافي مبيعات اليوم والتسويات والمصروفات غير المعتمدة (إن وجدت)
-      مستورةً بالنجوم، وتكشفها جميعًا عينٌ واحدة عند التمرير أو اللمس. */
+      يعرض المستحق للخزنة ومبيعات اليوم والتسويات والمصروفات غير المعتمدة (إن وجدت)
+      مستورةً بالنجوم، وتكشفها جميعًا عينٌ واحدة عند التمرير أو اللمس؛ ويظهر اتجاه المبيعات في الوضع المركّز المضغوط. */
 
 const TONES = ["paypal", "wise", "stripe"] as const;
 
@@ -18,11 +18,21 @@ function toneFor(i: number) {
   return TONES[((i % 3) + 3) % 3];
 }
 
+function visibleWalletSlides(track: HTMLElement) {
+  return (Array.from(track.children) as HTMLElement[]).filter(
+    (slide) => window.getComputedStyle(slide).display !== "none",
+  );
+}
+
 export type WalletPocketItem = {
   key: string;
   label: string;
   value: string;
   kind?: "money" | "count";
+  trend?: {
+    label: string;
+    direction: "up" | "down" | "flat";
+  };
 };
 
 export default function DashboardWallet({
@@ -53,20 +63,31 @@ export default function DashboardWallet({
   useEffect(() => {
     const el = trackRef.current;
     if (!el) return;
-    const slides = Array.from(el.children) as HTMLElement[];
-    setCount(slides.length);
-    setTitles(
-      slides.map((slide) => {
-        const heading = slide.querySelector(".stat-card__head h3, .stat-card__head h2");
-        return heading?.textContent?.trim() ?? "";
-      }),
-    );
+
+    const refreshSlides = () => {
+      const slides = visibleWalletSlides(el);
+      setCount(slides.length);
+      setTitles(
+        slides.map((slide) => {
+          const heading = slide.querySelector(".stat-card__head h3, .stat-card__head h2");
+          return heading?.textContent?.trim() ?? "";
+        }),
+      );
+      setIndex((current) => Math.min(current, Math.max(0, slides.length - 1)));
+    };
+
+    refreshSlides();
+    const stage = el.closest("[data-dashboard-layout]");
+    if (!stage) return;
+    const observer = new MutationObserver(refreshSlides);
+    observer.observe(stage, { attributes: true, attributeFilter: ["data-dashboard-layout"] });
+    return () => observer.disconnect();
   }, [children]);
 
   const goTo = useCallback((next: number) => {
     const el = trackRef.current;
     if (!el) return;
-    const slides = Array.from(el.children) as HTMLElement[];
+    const slides = visibleWalletSlides(el);
     if (slides.length === 0) return;
     const clamped = Math.max(0, Math.min(next, slides.length - 1));
     setIndex(clamped);
@@ -81,7 +102,7 @@ export default function DashboardWallet({
   const handleScroll = useCallback(() => {
     const el = trackRef.current;
     if (!el) return;
-    const slides = Array.from(el.children) as HTMLElement[];
+    const slides = visibleWalletSlides(el);
     if (slides.length === 0) return;
     const start = el.getBoundingClientRect().right;
     let best = 0;
@@ -204,6 +225,7 @@ export default function DashboardWallet({
                 <div
                   key={item.key}
                   className={`dashboard-pocket__metric${item.kind === "count" ? " is-count" : ""}`}
+                  data-pocket-item={item.key}
                 >
                   <div className="dashboard-pocket__stat">
                     <span className="dashboard-pocket__stars" aria-hidden="true">
@@ -212,6 +234,11 @@ export default function DashboardWallet({
                     <span className="dashboard-pocket__value">{item.value}</span>
                   </div>
                   <span className="dashboard-pocket__label">{item.label}</span>
+                  {item.trend ? (
+                    <span className={`dashboard-pocket__trend is-${item.trend.direction}`}>
+                      {item.trend.label}
+                    </span>
+                  ) : null}
                 </div>
               ))}
             </div>
