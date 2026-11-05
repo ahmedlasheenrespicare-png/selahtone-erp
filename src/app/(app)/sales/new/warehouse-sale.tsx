@@ -19,14 +19,25 @@ export const dynamic = "force-dynamic";
 type Props = { warehouseParam?: string | string[] };
 
 function cairoDate(): Date {
-  const parts = new Intl.DateTimeFormat("en-US", {
+  const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Africa/Cairo",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
   }).formatToParts(new Date());
-  const part = (name: string) => parts.find((p) => p.type === name)?.value;
-  return new Date(`${part("year")}-${part("month")}-${part("day")}T00:00:00.000Z`);
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0);
+  const asUtcMs = Date.UTC(
+    get("year"), get("month") - 1, get("day"),
+    get("hour"), get("minute"), get("second"),
+  );
+  const offsetMs = asUtcMs - Date.now();
+  return new Date(
+    Date.UTC(get("year"), get("month") - 1, get("day"), 0, 0, 0) - offsetMs,
+  );
 }
 
 function cairoStartOfTodayUtc(now = new Date()): Date {

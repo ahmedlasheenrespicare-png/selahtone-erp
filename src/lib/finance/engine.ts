@@ -708,8 +708,8 @@ export async function requestCountFromHolder(db: FinanceDatabase, actorId: strin
     const saved = await tx.query<IdRow>(
       `INSERT INTO finance.cash_counts (account_id,counted_amount,observed_balance,difference,account_revision,
          counted_on,reason,created_by,requested_by,request_reason)
-       VALUES ($1::bigint,'0.00','0.00','0.00',$2::bigint,CURRENT_DATE,$3,$4::bigint,$4::bigint,$3)
-       RETURNING id::text AS id`, [account.id, account.revision, input.reason, actor.id]);
+       VALUES ($1::bigint,'0.00','0.00','0.00',$2::bigint,$5::date,$3,$4::bigint,$4::bigint,$3)
+       RETURNING id::text AS id`, [account.id, account.revision, input.reason, actor.id, today]);
     const id = saved.rows[0].id;
     await audit(tx, "CASH_COUNT", id, "REQUEST", actor.id, input.reason, null,
       { accountId: account.id, holderId: account.holderId });
