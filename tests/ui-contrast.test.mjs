@@ -466,7 +466,8 @@ test("دمج عناصر الشريط العلوي داخل شريط صلة تو�
   assert.ok(layoutSrc.includes("branchLabel={branchLabel}"));
   assert.ok(layoutSrc.includes('className="workspace-topbar"'));
 
-  // وجود كافة عناصر الشريط العلوي داخل .workspace-sidebar__brand-row
+  // شريط الجوال الموحد والقائمة المنبثقة للحساب تُرسم في طبقة مساحة العمل لتتجاوز التراكب.
+  assert.ok(navSrc.includes("createPortal(") && navSrc.includes('closest(".workspace-shell")'));
   for (const snippet of [
     'className="workspace-mobile-strip"',
     "نظام إدارة صلة تون",
@@ -490,6 +491,8 @@ test("دمج عناصر الشريط العلوي داخل شريط صلة تو�
   assert.ok(mobileBlock.includes("max-height: 48px;"));
   assert.ok(mobileBlock.includes("flex-wrap: nowrap;"));
   assert.ok(mobileBlock.includes(".workspace-topbar {\n    display: none !important;\n  }"));
+  assert.match(mobileBlock, /\.workspace-mobile-popover \{[\s\S]*?position: fixed;/);
+  assert.ok(mobileBlock.includes("z-index: 2000;"));
 
   // النسخة المدمجة لودجت التاريخ ودورة السماء دون الاعتماد على وضع الجهاز التلقائي
   assert.ok(darkModeCss.includes(".workspace-topbar__skydate.is-compact"));
@@ -1312,9 +1315,16 @@ test("ترويسة لوحة القيادة تحتوي محدد نطاق الفر
   const designMenuPosition = sectionSwitcher.indexOf('<details className="dashboard-design-menu">');
   assert.ok(modeButtonPosition < designMenuPosition, "أيقونة التصميم تأتي بعد زر العودة إلى العرض المركّز");
   assert.ok(switcherCss.includes("direction: rtl;"), "أيقونة التصميم تقع بصريًا إلى يسار زر العرض المركّز");
+  assert.ok(switcherCss.includes("stroke-width: 2.35;") && switcherCss.includes("color: currentColor;"), "أيقونات التنقل واضحة وتحافظ على تباين لون الزر");
+  assert.ok(switcherCss.includes("color: #17324d;") && switcherCss.includes("background: #ffffff;"), "أزرار الأيقونات لها خلفية ولون ثابتان عاليَا التباين عند تغيير خلفية الصفحة");
   assert.ok(sectionSwitcher.includes('className="dash-step-btn dash-step-btn--previous"'));
   assert.ok(sectionSwitcher.includes('className="dash-step-btn dash-step-btn--next"'));
-  assert.ok(sectionSwitcher.includes('<AppIcon name="arrow" aria-hidden="true" />'));
+  assert.ok(sectionSwitcher.includes('<AppIcon name="chevronRight" aria-hidden="true" />'));
+  assert.ok(sectionSwitcher.includes('<AppIcon name="chevronLeft" aria-hidden="true" />'));
+  assert.ok(sectionSwitcher.includes('name={selectedId === "all" ? "focus" : "dashboard"}'), "يتبدل الرمز بين التركيز والشبكة بحسب العرض الحالي");
+  assert.ok(appIcon.includes('case "focus"') && appIcon.includes('case "chevronLeft"') && appIcon.includes('case "chevronRight"'));
   assert.ok(sectionSwitcher.includes('aria-label={selectedId === "all" ? "العودة إلى العرض المركّز" : "عرض شامل، كل الأقسام"}'));
   assert.ok(switcherCss.includes(".dashboard-heading > .dash-switcher-bar--header"));
+  assert.ok(switcherCss.includes("@media (max-width: 760px)") && switcherCss.includes(".dashboard-mobile-tools__panel") && switcherCss.includes(".dash-switcher-controls--desktop { display: none; }"), "أدوات التنقل والتصميم تظهر في قائمة منبثقة على الشاشات الصغيرة");
+  assert.ok(sectionSwitcher.includes('className="dashboard-mobile-tools"') && sectionSwitcher.includes('renderSwitcherControls("mobile")'));
 });

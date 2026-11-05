@@ -244,6 +244,67 @@ export default function DashboardSectionSwitcher({
     return groupDashboardSections(matching);
   }, [items, filterText]);
 
+  const renderSwitcherControls = (variant: "desktop" | "mobile") => (
+    <div className={`dash-switcher-controls dash-switcher-controls--${variant}`}>
+      <div className="dash-step-group" role="group" aria-label="التنقل بين الأقسام">
+        <button
+          type="button"
+          className="dash-step-btn dash-step-btn--previous"
+          onClick={() => selectSection(stepDashboardSection(selectedId, availableIds, -1))}
+          title="القسم السابق"
+          aria-label="القسم السابق"
+        >
+          <AppIcon name="chevronRight" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className="dash-step-btn dash-step-btn--next"
+          onClick={() => selectSection(stepDashboardSection(selectedId, availableIds, 1))}
+          title="القسم التالي"
+          aria-label="القسم التالي"
+        >
+          <AppIcon name="chevronLeft" aria-hidden="true" />
+        </button>
+      </div>
+      <button
+        type="button"
+        className={`dash-mode-toggle${selectedId === "all" ? " is-active" : ""}`}
+        onClick={() => selectSection(selectedId === "all" ? "pulse-wallet" : "all")}
+        title={selectedId === "all" ? "العودة إلى العرض المركّز" : "عرض شامل (الكل)"}
+        aria-label={selectedId === "all" ? "العودة إلى العرض المركّز" : "عرض شامل، كل الأقسام"}
+      >
+        <AppIcon name={selectedId === "all" ? "focus" : "dashboard"} aria-hidden="true" />
+      </button>
+      <details className="dashboard-design-menu">
+        <summary aria-label="اختيار تصميم لوحة القيادة" title="اختيار تصميم لوحة القيادة">
+          <AppIcon name={allLayout === "spacious" ? "layoutWide" : "layoutCompact"} aria-hidden="true" />
+        </summary>
+        <div className="dashboard-design-menu__panel" role="group" aria-label="تصميمات لوحة القيادة">
+          <button
+            type="button"
+            className={`dashboard-design-menu__option${allLayout === "spacious" ? " is-active" : ""}`}
+            aria-pressed={allLayout === "spacious"}
+            onClick={() => chooseAllLayout("spacious")}
+          >
+            <AppIcon name="layoutWide" aria-hidden="true" />
+            <span>واسع</span>
+            {allLayout === "spacious" ? <AppIcon name="check" aria-hidden="true" /> : null}
+          </button>
+          <button
+            type="button"
+            className={`dashboard-design-menu__option${allLayout === "compact" ? " is-active" : ""}`}
+            aria-pressed={allLayout === "compact"}
+            onClick={() => chooseAllLayout("compact")}
+          >
+            <AppIcon name="layoutCompact" aria-hidden="true" />
+            <span>مضغوط</span>
+            {allLayout === "compact" ? <AppIcon name="check" aria-hidden="true" /> : null}
+          </button>
+        </div>
+      </details>
+    </div>
+  );
+
   return (
     <>
       <div className="dashboard-heading">
@@ -362,71 +423,15 @@ export default function DashboardSectionSwitcher({
             ) : null}
           </div>
 
-          <div className="dash-switcher-controls">
-            <div className="dash-step-group" role="group" aria-label="التنقل بين الأقسام">
-              <button
-                type="button"
-                className="dash-step-btn dash-step-btn--previous"
-                onClick={() =>
-                  selectSection(stepDashboardSection(selectedId, availableIds, -1))
-                }
-                title="القسم السابق"
-                aria-label="القسم السابق"
-              >
-                <AppIcon name="arrow" aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                className="dash-step-btn dash-step-btn--next"
-                onClick={() =>
-                  selectSection(stepDashboardSection(selectedId, availableIds, 1))
-                }
-                title="القسم التالي"
-                aria-label="القسم التالي"
-              >
-                <AppIcon name="arrow" aria-hidden="true" />
-              </button>
-            </div>
-
-            <button
-              type="button"
-              className={`dash-mode-toggle${selectedId === "all" ? " is-active" : ""}`}
-              onClick={() =>
-                selectSection(selectedId === "all" ? "pulse-wallet" : "all")
-              }
-              title={selectedId === "all" ? "العودة إلى العرض المركّز" : "عرض شامل (الكل)"}
-              aria-label={selectedId === "all" ? "العودة إلى العرض المركّز" : "عرض شامل، كل الأقسام"}
-            >
-              <AppIcon name="dashboard" aria-hidden="true" />
-            </button>
-            <details className="dashboard-design-menu">
-            <summary aria-label="اختيار تصميم لوحة القيادة" title="اختيار تصميم لوحة القيادة">
-              <AppIcon name={allLayout === "spacious" ? "layoutWide" : "layoutCompact"} aria-hidden="true" />
+          {renderSwitcherControls("desktop")}
+          <details className="dashboard-mobile-tools">
+            <summary aria-label="أدوات التنقل وتصميم لوحة القيادة" title="أدوات التنقل وتصميم لوحة القيادة">
+              <AppIcon name="tune" aria-hidden="true" />
             </summary>
-              <div className="dashboard-design-menu__panel" role="group" aria-label="تصميمات لوحة القيادة">
-                <button
-                  type="button"
-                  className={`dashboard-design-menu__option${allLayout === "spacious" ? " is-active" : ""}`}
-                  aria-pressed={allLayout === "spacious"}
-                  onClick={() => chooseAllLayout("spacious")}
-                >
-                <AppIcon name="layoutWide" aria-hidden="true" />
-                <span>واسع</span>
-                  {allLayout === "spacious" ? <AppIcon name="check" aria-hidden="true" /> : null}
-                </button>
-                <button
-                  type="button"
-                  className={`dashboard-design-menu__option${allLayout === "compact" ? " is-active" : ""}`}
-                  aria-pressed={allLayout === "compact"}
-                  onClick={() => chooseAllLayout("compact")}
-                >
-                <AppIcon name="layoutCompact" aria-hidden="true" />
-                <span>مضغوط</span>
-                  {allLayout === "compact" ? <AppIcon name="check" aria-hidden="true" /> : null}
-                </button>
-              </div>
-            </details>
-          </div>
+            <div className="dashboard-mobile-tools__panel">
+              {renderSwitcherControls("mobile")}
+            </div>
+          </details>
         </div>
         {headerTools}
       </div>

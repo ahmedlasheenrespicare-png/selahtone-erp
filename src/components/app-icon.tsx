@@ -16,6 +16,10 @@ export type AppIconName =
   | "products"
   | "stockValue"
   | "calendar"
+  | "chevronLeft"
+  | "chevronRight"
+  | "focus"
+  | "tune"
   | "arrow"
   | "logout"
   | "lock"
@@ -87,6 +91,18 @@ export function AppIcon({ name, ...props }: AppIconProps) {
       break;
     case "calendar":
       content = <><rect x="4" y="6" width="16" height="14" rx="2" /><path d="M8 3.5v5M16 3.5v5M4 10h16M8 14h.01M12 14h.01M16 14h.01" /></>;
+      break;
+    case "chevronLeft":
+      content = <path d="m15 5-7 7 7 7" />;
+      break;
+    case "chevronRight":
+      content = <path d="m9 5 7 7-7 7" />;
+      break;
+    case "focus":
+      content = <><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3" /><rect x="8" y="8" width="8" height="8" rx="2" /></>;
+      break;
+    case "tune":
+      content = <><path d="M4 6h16M4 12h16M4 18h16" /><path d="M9 4v4M15 10v4M11 16v4" /></>;
       break;
     case "arrow":
       content = <><path d="M19 12H5M10 7l-5 5 5 5" /></>;
