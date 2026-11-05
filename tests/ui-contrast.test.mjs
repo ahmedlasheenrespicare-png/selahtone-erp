@@ -1316,7 +1316,7 @@ test("ترويسة لوحة القيادة تحتوي محدد نطاق الفر
   assert.ok(modeButtonPosition < designMenuPosition, "أيقونة التصميم تأتي بعد زر العودة إلى العرض المركّز");
   assert.ok(switcherCss.includes("direction: rtl;"), "أيقونة التصميم تقع بصريًا إلى يسار زر العرض المركّز");
   assert.ok(switcherCss.includes("stroke-width: 2.35;") && switcherCss.includes("color: currentColor;"), "أيقونات التنقل واضحة وتحافظ على تباين لون الزر");
-  assert.ok(switcherCss.includes("color: #17324d;") && switcherCss.includes("background: #ffffff;"), "أزرار الأيقونات لها خلفية ولون ثابتان عاليَا التباين عند تغيير خلفية الصفحة");
+  assert.ok(switcherCss.includes("grid-template-columns: minmax(0, 1fr) auto;") && switcherCss.includes("grid-column: 2;") && switcherCss.includes("border: 1.5px solid var(--db-border-strong);"), "محدد القسم يعرض النص والأزرار في صف واحد داخل الإطار نفسه");
   assert.ok(sectionSwitcher.includes('className="dash-step-btn dash-step-btn--previous"'));
   assert.ok(sectionSwitcher.includes('className="dash-step-btn dash-step-btn--next"'));
   assert.ok(sectionSwitcher.includes('<AppIcon name="chevronRight" aria-hidden="true" />'));
@@ -1325,6 +1325,10 @@ test("ترويسة لوحة القيادة تحتوي محدد نطاق الفر
   assert.ok(appIcon.includes('case "focus"') && appIcon.includes('case "chevronLeft"') && appIcon.includes('case "chevronRight"'));
   assert.ok(sectionSwitcher.includes('aria-label={selectedId === "all" ? "العودة إلى العرض المركّز" : "عرض شامل، كل الأقسام"}'));
   assert.ok(switcherCss.includes(".dashboard-heading > .dash-switcher-bar--header"));
-  assert.ok(switcherCss.includes("@media (max-width: 760px)") && switcherCss.includes(".dashboard-mobile-tools__panel") && switcherCss.includes(".dash-switcher-controls--desktop { display: none; }"), "أدوات التنقل والتصميم تظهر في قائمة منبثقة على الشاشات الصغيرة");
-  assert.ok(sectionSwitcher.includes('className="dashboard-mobile-tools"') && sectionSwitcher.includes('renderSwitcherControls("mobile")'));
+  const controlsPosition = sectionSwitcher.indexOf("{renderSwitcherControls()}");
+  const dropdownButtonPosition = sectionSwitcher.indexOf('className="dash-dropdown-trigger"');
+  const menuPosition = sectionSwitcher.indexOf("{open ? (");
+  assert.ok(sectionPickerPosition < dropdownButtonPosition && dropdownButtonPosition < controlsPosition && controlsPosition < menuPosition, "الأزرار بجوار نص محتوى لوحة القيادة داخل محدد القسم");
+  assert.ok(!sectionSwitcher.includes("{renderSwitcherControls()}\n        </div>"), "نسخة الأزرار ليست أسفل محدد القسم");
+  assert.ok(switcherCss.includes(".dashboard-switcher-bar--header .dashboard-heading__selector-controls") && switcherCss.includes("width: 30px;") && switcherCss.includes("@media (max-width: 820px)"), "أزرار محدد القسم مضغوطة ومناسبة للشاشات الصغيرة");
 });
