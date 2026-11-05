@@ -497,6 +497,38 @@
 }
 
 
+/* بطاقة التحصيل الإضافية لا تدخل الحافظة إلا في الوضع المركّز المضغوط وللمدير والموظف. */
+.dashboard-wallet__compact-collections { display: none; }
+.dash-single-stage--pulse-wallet[data-dashboard-layout="compact"][data-collection-wallet="true"] .dashboard-wallet__compact-collections {
+  display: block;
+}
+.dash-single-stage--pulse-wallet[data-dashboard-layout="compact"][data-collection-wallet="true"] .dashboard-pulse-strip > :nth-child(2) {
+  display: none;
+}
+
+/* في الوضع المضغوط المركّز تنتقل مبيعات اليوم إلى ملخص الجيب بدل تكرارها في النبض. */
+.dash-single-stage--pulse-wallet[data-dashboard-layout="compact"] .dashboard-pulse-strip {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.dash-single-stage--pulse-wallet[data-dashboard-layout="compact"] .dashboard-pulse-strip > :nth-child(1) {
+  display: none;
+}
+@media (max-width: 1180px) {
+  .dash-single-stage--pulse-wallet[data-dashboard-layout="compact"] .dashboard-pulse-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 680px) {
+  .dash-single-stage--pulse-wallet[data-dashboard-layout="compact"] .dashboard-pulse-strip {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.dash-single-stage--pulse-wallet[data-dashboard-layout="compact"] .dashboard-wallet:hover .dashboard-pocket__metric[data-pocket-item="today-sales"] .dashboard-pocket__trend,
+.dash-single-stage--pulse-wallet[data-dashboard-layout="compact"] .dashboard-wallet.is-revealed .dashboard-pocket__metric[data-pocket-item="today-sales"] .dashboard-pocket__trend,
+.dash-single-stage--pulse-wallet[data-dashboard-layout="compact"] .dashboard-pocket:focus-visible .dashboard-pocket__metric[data-pocket-item="today-sales"] .dashboard-pocket__trend {
+  display: inline-flex;
+}
+
 /* عناصر الوضع المركّز المركّبة، بالإضافة إلى الأقسام المنفردة */
 .dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="pulse-sales"] .dashboard-pulse-strip > :nth-child(1),
 .dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="pulse-collections"] .dashboard-pulse-strip > :nth-child(2),

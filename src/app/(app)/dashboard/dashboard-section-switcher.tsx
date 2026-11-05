@@ -19,6 +19,7 @@ type Props = {
   fullView: ReactNode;
   compactView: ReactNode;
   fullViewWallet: ReactNode;
+  compactCollectionsAvailable: boolean;
   headerContent: ReactNode;
   headerTools: ReactNode;
   beforeContent: ReactNode;
@@ -34,6 +35,7 @@ export default function DashboardSectionSwitcher({
   fullView,
   compactView,
   fullViewWallet,
+  compactCollectionsAvailable,
   headerContent,
   headerTools,
   beforeContent,
@@ -435,7 +437,7 @@ export default function DashboardSectionSwitcher({
           {allLayout === "compact" ? compactView : fullView}
         </div>
       ) : selectedId === "pulse-wallet" ? (
-        <div key="pulse-wallet" className="dash-single-stage dash-single-stage--pulse-wallet" data-dashboard-section="pulse-wallet" data-hidden-toggles={hiddenToggleAttribute}>
+        <div key="pulse-wallet" className="dash-single-stage dash-single-stage--pulse-wallet" data-dashboard-section="pulse-wallet" data-dashboard-layout={allLayout} data-collection-wallet={compactCollectionsAvailable ? "true" : "false"} data-hidden-toggles={hiddenToggleAttribute}>
           <div data-dash-part="pulse">{slots.pulse}</div>
           <div data-dash-part="pace">{slots.pace}</div>
           <div data-dash-part="governance">{slots.governance}</div>
