@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import { AppIcon } from "@/components/app-icon";
 import { BrandMark } from "@/components/brand-mark";
 import ColorModeToggle from "@/components/color-mode-toggle";
@@ -56,6 +57,7 @@ export function AppNavigation({
   const toggleRef = useRef<HTMLButtonElement>(null);
   const accountTriggerRef = useRef<HTMLButtonElement>(null);
   const accountPopoverRef = useRef<HTMLDivElement>(null);
+  const [accountPopoverPosition, setAccountPopoverPosition] = useState<CSSProperties | null>(null);
 
   const effectiveRole: BottomDockRole = role ?? (canViewAllBranches ? "MANAGER" : "CS_AGENT");
   const navGroups = sidebarNavigationGroups(effectiveRole, {
@@ -126,7 +128,37 @@ export function AppNavigation({
   }, [activeSidebarHref]);
 
   useEffect(() => {
-    if (!accountOpen) return;
+    if (!accountOpen) {
+      setAccountPopoverPosition(null);
+      return;
+    }
+
+    function positionPopover(): void {
+      const trigger = accountTriggerRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const width = Math.max(0, Math.min(304, window.innerWidth - 36));
+      const left = Math.min(
+        Math.max(18, rect.right - width),
+        Math.max(18, window.innerWidth - width - 18),
+      );
+      const naturalHeight = Math.min(
+        accountPopoverRef.current?.offsetHeight || 220,
+        window.innerHeight - 24,
+      );
+      const belowTop = rect.bottom + 10;
+      const top = belowTop + naturalHeight <= window.innerHeight - 12
+        ? belowTop
+        : Math.max(12, rect.top - naturalHeight - 10);
+      setAccountPopoverPosition({
+        position: "fixed",
+        top,
+        left,
+        width,
+        maxHeight: Math.max(120, window.innerHeight - top - 12),
+      });
+    }
+
     function handlePointerDown(event: MouseEvent): void {
       const target = event.target as Node | null;
       if (!target) return;
@@ -134,8 +166,24 @@ export function AppNavigation({
       if (accountPopoverRef.current?.contains(target)) return;
       setAccountOpen(false);
     }
+
+    function handleKeyDown(event: KeyboardEvent): void {
+      if (event.key !== "Escape") return;
+      setAccountOpen(false);
+      accountTriggerRef.current?.focus();
+    }
+
+    positionPopover();
+    window.addEventListener("resize", positionPopover);
+    document.addEventListener("scroll", positionPopover, true);
     document.addEventListener("mousedown", handlePointerDown);
-    return () => document.removeEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("resize", positionPopover);
+      document.removeEventListener("scroll", positionPopover, true);
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, [accountOpen]);
 
   function toggleParent(label: string): void {
@@ -159,6 +207,9 @@ export function AppNavigation({
   const dockListStyle = {
     "--dock-cols": String(dockItems.length),
   } as CSSProperties;
+  const accountPortalTarget = accountOpen && typeof document !== "undefined"
+    ? accountTriggerRef.current?.closest(".workspace-shell") ?? document.body
+    : null;
 
   return (
     <>
@@ -297,9 +348,10 @@ export function AppNavigation({
           <AppIcon name={menuOpen ? "close" : "menu"} />
         </button>
 
-        {accountOpen ? (
+        {accountPortalTarget ? createPortal((
           <div
             ref={accountPopoverRef}
+            style={accountPopoverPosition ?? { visibility: "hidden" }}
             id="workspace-mobile-account-popover"
             className="workspace-mobile-popover"
             role="dialog"
@@ -340,7 +392,7 @@ export function AppNavigation({
               <LogoutButton />
             </div>
           </div>
-        ) : null}
+        ), accountPortalTarget) : null}
       </div>
 
       <nav id="workspace-navigation" className={`workspace-navigation${menuOpen ? " is-open" : ""}`} aria-label="التنقل الرئيسي">

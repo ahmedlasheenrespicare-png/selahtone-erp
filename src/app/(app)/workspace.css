@@ -1187,16 +1187,16 @@
   .workspace-mobile-popover {
     display: grid;
     gap: 10px;
-    position: absolute;
-    top: calc(100% + 10px);
-    inset-inline-end: 0;
+    position: fixed;
     width: min(304px, calc(100vw - 36px));
+    max-height: min(72vh, 440px);
+    overflow-y: auto;
     padding: 13px;
     border-radius: 16px;
     background: var(--ws-sidebar-bg);
     border: 1px solid var(--ws-action-border);
     box-shadow: 0 20px 42px -12px rgba(4, 12, 24, 0.65);
-    z-index: 65;
+    z-index: 2000;
   }
   .workspace-mobile-popover__head {
     display: flex;
