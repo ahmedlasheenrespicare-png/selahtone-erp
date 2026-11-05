@@ -70,8 +70,8 @@ function toCents(value: string): bigint {
 async function periodStart(db: PrismaClient, period: Period): Promise<Date> {
   const rows = await db.$queryRaw<Array<{ start: Date }>>`
     SELECT CASE ${period}
-      WHEN 'today' THEN (CURRENT_DATE AT TIME ZONE 'Africa/Cairo')
-      WHEN '7' THEN (CURRENT_DATE AT TIME ZONE 'Africa/Cairo') - INTERVAL '7 days'
+      WHEN 'today' THEN date_trunc('day', CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo'
+      WHEN '7' THEN date_trunc('day', CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo' - INTERVAL '7 days'
       WHEN 'month' THEN (date_trunc('month', CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo')
       ELSE '1970-01-01T00:00:00Z'::timestamptz
     END AS start`;

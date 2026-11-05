@@ -73,7 +73,7 @@ function toMoney(cents: bigint): string {
 }
 
 /** بداية اليوم بتوقيت القاهرة؛ created_at عمود timestamptz فالمقارنة به تصحّ. */
-const CAIRO_DAY_START = `(CURRENT_DATE AT TIME ZONE 'Africa/Cairo')`;
+const CAIRO_DAY_START = `(date_trunc('day', CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo')`;
 
 async function read<T>(session: SessionUser, work: (tx: FinanceTransaction) => Promise<T>): Promise<T> {
   return financeDb.serializable(async (tx) => {
