@@ -244,8 +244,8 @@ export default function DashboardSectionSwitcher({
     return groupDashboardSections(matching);
   }, [items, filterText]);
 
-  const renderSwitcherControls = (variant: "desktop" | "mobile") => (
-    <div className={`dash-switcher-controls dash-switcher-controls--${variant}`}>
+  const renderSwitcherControls = () => (
+    <div className="dash-switcher-controls dashboard-heading__selector-controls">
       <div className="dash-step-group" role="group" aria-label="التنقل بين الأقسام">
         <button
           type="button"
@@ -310,7 +310,6 @@ export default function DashboardSectionSwitcher({
       <div className="dashboard-heading">
         <div className="dashboard-heading__top">
           {headerContent}
-
         </div>
         <div className="dash-switcher-bar dash-switcher-bar--header no-print" role="region" aria-label="اختيار قسم لوحة القيادة">
           <div className="dash-dropdown-wrap" ref={dropdownWrapRef}>
@@ -357,6 +356,7 @@ export default function DashboardSectionSwitcher({
                 </span>
               </span>
             </button>
+            {renderSwitcherControls()}
 
             {open ? (
               <div className="dash-dropdown-menu" role="listbox" aria-label="كل أقسام ومؤشرات لوحة القيادة">
@@ -423,15 +423,6 @@ export default function DashboardSectionSwitcher({
             ) : null}
           </div>
 
-          {renderSwitcherControls("desktop")}
-          <details className="dashboard-mobile-tools">
-            <summary aria-label="أدوات التنقل وتصميم لوحة القيادة" title="أدوات التنقل وتصميم لوحة القيادة">
-              <AppIcon name="tune" aria-hidden="true" />
-            </summary>
-            <div className="dashboard-mobile-tools__panel">
-              {renderSwitcherControls("mobile")}
-            </div>
-          </details>
         </div>
         {headerTools}
       </div>
