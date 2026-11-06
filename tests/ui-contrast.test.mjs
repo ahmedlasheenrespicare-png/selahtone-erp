@@ -1171,9 +1171,9 @@ test("قائمة أقسام لوحة القيادة المنسدلة (/dashboard
   assert.ok(switcherSrc.includes("stepDashboardSection"));
   assert.ok(switcherSrc.includes("sessionStorage"));
   assert.ok(switcherSrc.includes("replaceState"));
-  assert.ok(navItemsSrc.includes("buildDashboardSidebarChildren"));
-  assert.ok(appNavSrc.includes("selahtone:dashboard-section-select"));
-  assert.ok(appNavSrc.includes("selahtone:dashboard-section-changed"));
+  assert.ok(!navItemsSrc.includes("buildDashboardSidebarChildren"));
+  assert.ok(!appNavSrc.includes("selahtone:dashboard-section-select"));
+  assert.ok(!appNavSrc.includes("selahtone:dashboard-section-changed"));
 
   // ٣) تباين الشارات والخيار المحدّد نهارًا وليلًا >= 4.5:1 وإخفاء الشريط عند الطباعة
   assert.ok(switcherCss.includes("@media print"));
@@ -1249,7 +1249,7 @@ test("تصميم الدمج الأخير يضع الحافظة داخل الشب
   assert.ok(switcher.includes("data-dashboard-layout={allLayout}"));
   assert.ok(switcher.includes('{allLayout === "compact" ? fullViewWallet : null}'));
   assert.ok(switcher.includes('{allLayout === "compact" ? compactView : fullView}'));
-  assert.ok(spacious.includes("allPanelBeforeCards") && spacious.includes("allPanelAfterCards"));
+  assert.ok(spacious.includes("allPanelAfterCards"));
   for (const content of ["pulseNode", "paceNode", "governanceNode", "agingRadarNode", "liveFeedNode", "branchHealthNode"]) {
     assert.ok(dashboard.includes(content), `${content} يجب أن يبقى موصولًا بلوحة المتابعة`);
   }

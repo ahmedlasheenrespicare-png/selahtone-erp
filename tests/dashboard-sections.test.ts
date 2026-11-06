@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  buildDashboardSidebarChildren,
   resolveActiveSidebarHref,
   sidebarNavigationGroups,
 } from "../src/app/(app)/navigation-items";
@@ -60,16 +59,18 @@ test("كل خيار في لوحة القيادة موثق وله إعدادات 
   assert.ok(getDashboardSectionGuide("pulse").toggles.some((item) => item.key === "pulse-comparison"));
 });
 
-test("لوحة القيادة في الشريط الجانبي تضم قائمة منسدلة بجميع أقسام اللوحة حسب الدور وتفعّل القسم النشط بدقة", () => {
+test("لوحة القيادة في الشريط الجانبي رابط واحد بدون قائمة منسدلة لأي دور", () => {
+  for (const role of ["MANAGER", "ACCOUNTANT", "CS_AGENT"] as const) {
+    const groups = sidebarNavigationGroups(role, { financeEnabled: true, menuScope: "FULL", inventoryEnabled: true });
+    const item = groups.flatMap((group) => group.items).find((entry) => entry.href === "/dashboard");
+    assert.ok(item, `بند لوحة القيادة مفقود للدور ${role}`);
+    assert.equal(item.children, undefined, "لا تُنشأ قائمة منسدلة تحت لوحة القيادة");
+  }
+  const limitedGroups = sidebarNavigationGroups("MANAGER", { financeEnabled: true, menuScope: "LIMITED", inventoryEnabled: true });
+  const limitedDash = limitedGroups.flatMap((group) => group.items).find((entry) => entry.href === "/dashboard");
+  assert.ok(limitedDash);
+  assert.equal(limitedDash.children, undefined);
   const managerGroups = sidebarNavigationGroups("MANAGER", { financeEnabled: true, menuScope: "FULL", inventoryEnabled: true });
-  const dashboardItem = managerGroups[0]?.items.find((i) => i.label === "لوحة القيادة");
-  assert.ok(dashboardItem?.children && dashboardItem.children.length >= 16);
-  assert.ok(dashboardItem.children.some((c) => c.href === "/dashboard?section=aging-radar"));
-  assert.ok(dashboardItem.children.some((c) => c.href === "/dashboard?section=governance"));
-  const staffChildren = buildDashboardSidebarChildren("CS_AGENT", true);
-  assert.equal(staffChildren.some((c) => c.href === "/dashboard?section=governance"), false);
-  assert.ok(staffChildren.some((c) => c.label === "حركة الأصناف والسيريالات"));
   assert.equal(resolveActiveSidebarHref("/dashboard", managerGroups), "/dashboard");
-  assert.equal(resolveActiveSidebarHref("/dashboard", managerGroups, "pulse-wallet"), "/dashboard");
-  assert.equal(resolveActiveSidebarHref("/dashboard", managerGroups, "aging-radar"), "/dashboard?section=aging-radar");
+  assert.equal(resolveActiveSidebarHref("/sales/new", managerGroups), "/sales/new");
 });
