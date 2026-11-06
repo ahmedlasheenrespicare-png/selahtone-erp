@@ -129,3 +129,29 @@
   .signin-card-frame::before { animation: none; }
   .signin-page .auth-form .auth-submit { transition: none; }
 }
+
+/* ===== أزرار الدخول التجريبي (معاينة محلية فقط — خلف بوابة PREVIEW_QUICK_LOGIN) ===== */
+.signin-page .preview-accounts { margin-top: 14px; }
+.preview-accounts__title {
+  margin: 0 0 8px; color: #6b8288; font-size: 11px; font-weight: 600;
+  letter-spacing: .04em; text-align: center;
+}
+.preview-accounts__row { display: flex; gap: 8px; }
+.preview-accounts__btn {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 9px 6px 10px; border-radius: 12px; cursor: pointer; text-align: center;
+  border: 1px solid #d8e6e2; background: linear-gradient(180deg, #f4faf8 0%, #e9f4f0 100%);
+  color: #143c33; transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+  font-family: inherit;
+}
+.preview-accounts__btn strong { font-size: 12.5px; font-weight: 700; }
+.preview-accounts__btn small { font-size: 9.5px; color: #5b7079; font-weight: 500; line-height: 1.35; }
+.preview-accounts__btn:hover { transform: translateY(-1px); border-color: #79b7aa; box-shadow: 0 6px 16px rgba(14, 124, 107, .18); }
+.preview-accounts__btn:active { transform: translateY(0); }
+.preview-accounts__btn:focus-visible { outline: 2px solid #0e7c6b; outline-offset: 2px; }
+.preview-accounts__btn--manager strong { color: #0e5a4e; }
+.preview-accounts__btn--accountant strong { color: #25425f; }
+.preview-accounts__btn--agent strong { color: #59351a; }
+@media (prefers-reduced-motion: reduce) {
+  .preview-accounts__btn { transition: none; }
+}

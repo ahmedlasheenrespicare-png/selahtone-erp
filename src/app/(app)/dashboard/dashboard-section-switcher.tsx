@@ -19,6 +19,7 @@ type Props = {
   fullView: ReactNode;
   compactView: ReactNode;
   fullViewWallet: ReactNode;
+  belowWalletSlot?: ReactNode;
   headerContent: ReactNode;
   headerTools: ReactNode;
   beforeContent: ReactNode;
@@ -34,6 +35,7 @@ export default function DashboardSectionSwitcher({
   fullView,
   compactView,
   fullViewWallet,
+  belowWalletSlot,
   headerContent,
   headerTools,
   beforeContent,
@@ -436,12 +438,10 @@ export default function DashboardSectionSwitcher({
         </div>
       ) : selectedId === "pulse-wallet" ? (
         <div key="pulse-wallet" className="dash-single-stage dash-single-stage--pulse-wallet" data-dashboard-section="pulse-wallet" data-hidden-toggles={hiddenToggleAttribute}>
-          <div data-dash-part="pulse">{slots.pulse}</div>
-          <div data-dash-part="pace">{slots.pace}</div>
-          <div data-dash-part="governance">{slots.governance}</div>
           {slots.wallet ? (
             <div className="dash-pulse-wallet-center" data-dash-part="wallet">{slots.wallet}</div>
           ) : null}
+          {belowWalletSlot}
           <div className="dash-focus-hint no-print" data-dash-part="focus-hint">
             <span>
               تستعرض الآن الوضع المركّز السريع. افتح القائمة المنسدلة بالأعلى لاستعراض أي مؤشر أو رادار على حدة.

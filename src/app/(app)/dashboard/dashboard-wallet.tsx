@@ -12,6 +12,13 @@ import { AppIcon } from "@/components/app-icon";
       يعرض المستحق للخزنة وصافي مبيعات اليوم والتسويات والمصروفات غير المعتمدة (إن وجدت)
       مستورةً بالنجوم، وتكشفها جميعًا عينٌ واحدة عند التمرير أو اللمس. */
 
+/* استبعاد الشرائح المخفية عبر مفاتيح العرض (data-hidden-toggles) من عدّ
+   الشرائح والقشور والتنقل — حتى تتبع الحافظة ما يراه المستخدم فعلًا */
+function visibleSlides(el: HTMLElement | null): HTMLElement[] {
+  if (!el) return [];
+  return (Array.from(el.children) as HTMLElement[]).filter((slide) => slide.offsetParent !== null);
+}
+
 const TONES = ["paypal", "wise", "stripe"] as const;
 
 function toneFor(i: number) {
@@ -53,7 +60,7 @@ export default function DashboardWallet({
   useEffect(() => {
     const el = trackRef.current;
     if (!el) return;
-    const slides = Array.from(el.children) as HTMLElement[];
+    const slides = visibleSlides(el);
     setCount(slides.length);
     setTitles(
       slides.map((slide) => {
@@ -66,7 +73,7 @@ export default function DashboardWallet({
   const goTo = useCallback((next: number) => {
     const el = trackRef.current;
     if (!el) return;
-    const slides = Array.from(el.children) as HTMLElement[];
+    const slides = visibleSlides(el);
     if (slides.length === 0) return;
     const clamped = Math.max(0, Math.min(next, slides.length - 1));
     setIndex(clamped);
@@ -81,7 +88,7 @@ export default function DashboardWallet({
   const handleScroll = useCallback(() => {
     const el = trackRef.current;
     if (!el) return;
-    const slides = Array.from(el.children) as HTMLElement[];
+    const slides = visibleSlides(el);
     if (slides.length === 0) return;
     const start = el.getBoundingClientRect().right;
     let best = 0;

@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { AppIcon, type AppIconName } from "@/components/app-icon";
 import PantherSpotlightCard from "@/components/panther-spotlight-card";
+import TodayInvoiceRail from "./today-invoice-rail";
 import PrintPageButton from "@/components/print-page-button";
 // عميلٌ لا خادم: فإنّ التمريرَ تفاعل، والصفحةُ نفسها تُبنى على الخادم.
 import DashboardSectionSwitcher from "./dashboard-section-switcher";
@@ -916,6 +917,274 @@ export default async function DashboardPage({
         </section>
         ) : null;
 
+        /* شريحة «نبض اليوم» داخل الحافظة — دمج بطاقات النبض الأربع (Option B) */
+        const pulseSlideNode: ReactNode = (
+          <article className="stat-card is-pulse-slide" data-dash-part="pulse" aria-labelledby="pulse-slide-title">
+            <div className="stat-card__head">
+              <h3 id="pulse-slide-title">نبض اليوم</h3>
+              <p>صافي المبيعات، التحصيلات، المهام والمخزون الآن.</p>
+              <span className="stat-card__badge">اليوم</span>
+            </div>
+            <div className="stat-card__body">
+              <div className="stat-grid pulse-slide__grid">
+                <Link href="/sales" className="stat-grid__item is-link pulse-cell pulse-cell--sales">
+                  <span className="stat-grid__label">
+                    <span className="stat-grid__icon is-blue" aria-hidden="true">
+                      <AppIcon name="sales" />
+                    </span>
+                    صافي مبيعات اليوم
+                  </span>
+                  <span className="stat-grid__value">
+                    <bdi dir="ltr">{pulseData?.todayNetSalesFormatted ?? "0.00"}</bdi> <small>ج.م</small>
+                  </span>
+                  <span className="stat-grid__detail pulse-cell__sub">
+                    {pulseData && pulseData.todayGrowthPct !== null ? (
+                      <span className={`dashboard-pulse-delta is-${pulseData.todayGrowthDirection}`}>
+                        {pulseData.todayGrowthPct >= 0 ? "↑ +" : "↓ "}
+                        {nf.format(pulseData.todayGrowthPct)}% عن الأمس
+                      </span>
+                    ) : (
+                      `${nf.format(pulseData?.todayInvoicesCount ?? 0)} فاتورة نشطة اليوم · أمس ${pulseData?.yesterdayNetSalesFormatted ?? "0.00"} ج.م`
+                    )}
+                  </span>
+                </Link>
+
+                <Link href="/sales" className="stat-grid__item is-link pulse-cell pulse-cell--collections">
+                  <span className="stat-grid__label">
+                    <span className="stat-grid__icon is-cyan" aria-hidden="true">
+                      <AppIcon name="cash" />
+                    </span>
+                    تحصيلات اليوم الفعلية
+                  </span>
+                  <span className="stat-grid__value">
+                    <bdi dir="ltr">{pulseData?.todayNetCollectedFormatted ?? "0.00"}</bdi> <small>ج.م</small>
+                  </span>
+                  <span className="stat-grid__detail pulse-cell__sub">
+                    نقدي <bdi dir="ltr">{pulseData?.todayCashCollectedFormatted ?? "0.00"}</bdi> · بطاقة/تحويل{" "}
+                    <bdi dir="ltr">{pulseData?.todayElectronicCollectedFormatted ?? "0.00"}</bdi>
+                  </span>
+                </Link>
+
+                <Link
+                  href={urgentTaskHref}
+                  className={`stat-grid__item is-link pulse-cell pulse-cell--tasks${urgentTaskCount > 0 ? " pulse-cell--alert" : ""}`}
+                >
+                  <span className="stat-grid__label">
+                    <span className="stat-grid__icon is-blue" aria-hidden="true">
+                      <AppIcon name="expenses" />
+                    </span>
+                    {isAccountant ? "مهام تنتظر التنفيذ" : isEmployee ? "مهام عهدتك اليوم" : "بانتظار قرارك الآن"}
+                  </span>
+                  <span className="stat-grid__value">
+                    {nf.format(urgentTaskCount)} <small>{urgentTaskCount === 1 ? "مهمة" : "مهام"}</small>
+                  </span>
+                  <span className="stat-grid__detail pulse-cell__sub">{urgentTaskSub}</span>
+                </Link>
+
+                {invOn && canOpen("/inventory") ? (
+                  <Link
+                    href="/inventory"
+                    className={`stat-grid__item is-link pulse-cell pulse-cell--stock${lowStockTotalCount > 0 ? " pulse-cell--alert" : ""}`}
+                  >
+                    <span className="stat-grid__label">
+                      <span className="stat-grid__icon is-cyan" aria-hidden="true">
+                        <AppIcon name={isEmployee ? "products" : "stockValue"} />
+                      </span>
+                      {isEmployee ? "مخزون فرعك والنواقص" : "قيمة المخزون والنواقص"}
+                    </span>
+                    <span className="stat-grid__value">
+                      {isEmployee ? (
+                        <>
+                          {nf.format(lowStockTotalCount)} <small>تنبيه نقص</small>
+                        </>
+                      ) : (
+                        <>
+                          <bdi dir="ltr">{formatInventoryDecimal(stockValue, 6)}</bdi> <small>ج.م</small>
+                        </>
+                      )}
+                    </span>
+                    <span className="stat-grid__detail pulse-cell__sub">
+                      {lowStockTotalCount > 0
+                        ? `${nf.format(outOfStockCount)} نافد · ${nf.format(lowStockTotalCount)} صنف يحتاج توريدًا`
+                        : `${nf.format(productCount)} صنف نشط · الأرصدة آمنة`}
+                    </span>
+                  </Link>
+                ) : (
+                  <div className={`stat-grid__item pulse-cell pulse-cell--stock${lowStockTotalCount > 0 ? " pulse-cell--alert" : ""}`}>
+                    <span className="stat-grid__label">
+                      <span className="stat-grid__icon is-cyan" aria-hidden="true">
+                        <AppIcon name={isEmployee ? "products" : "stockValue"} />
+                      </span>
+                      {isEmployee ? "الأصناف ومستودع فرعك" : "قيمة المخزون والأصناف"}
+                    </span>
+                    <span className="stat-grid__value">
+                      {isEmployee ? (
+                        <>
+                          {nf.format(productCount)} <small>صنف نشط</small>
+                        </>
+                      ) : (
+                        <>
+                          <bdi dir="ltr">{formatInventoryDecimal(stockValue, 6)}</bdi> <small>ج.م</small>
+                        </>
+                      )}
+                    </span>
+                    <span className="stat-grid__detail pulse-cell__sub">
+                      {lowStockTotalCount > 0
+                        ? `${nf.format(lowStockTotalCount)} رصيد مخزوني منخفض · ${nf.format(warehouseCount)} مستودع`
+                        : `${nf.format(productCount)} صنف نشط عبر ${nf.format(warehouseCount)} مستودع`}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </article>
+        );
+
+        /* شريحة «وتيرة الشهر» داخل الحافظة */
+        const paceSlideNode: ReactNode = execSuite?.monthPace ? (
+          <article className="stat-card is-pace-slide" data-dash-part="pace" aria-labelledby="pace-slide-title">
+            <div className="stat-card__head">
+              <h3 id="pace-slide-title">وتيرة {currentMonthLabel}</h3>
+              <p>تقدّم الشهر والإغلاق المتوقّع مقارنةً بنفس الفترة الماضية.</p>
+              <span className="stat-card__badge">{nf.format(execSuite.monthPace.monthProgressPct)}%</span>
+            </div>
+            <div className="stat-card__body">
+              <div className="dashboard-pace-strip__progress pace-slide__progress">
+                <div className="dashboard-pace-strip__progress-top">
+                  <strong>وتيرة {currentMonthLabel}</strong>
+                  <span>
+                    اليوم {nf.format(execSuite.monthPace.dayOfMonth)} من{" "}
+                    {nf.format(execSuite.monthPace.daysInMonth)} (
+                    {nf.format(execSuite.monthPace.monthProgressPct)}%)
+                  </span>
+                </div>
+                <div
+                  className="dashboard-pace-strip__bar"
+                  role="progressbar"
+                  aria-valuenow={execSuite.monthPace.monthProgressPct}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label="نسبة الأيام المنقضية من الشهر"
+                >
+                  <span style={{ width: `${execSuite.monthPace.monthProgressPct}%` }} />
+                </div>
+              </div>
+              <div className="dashboard-pace-strip__metrics pace-slide__metrics">
+                <div className="dashboard-pace-metric">
+                  <span>متوسط البيع اليومي</span>
+                  <strong>
+                    <bdi dir="ltr">{execSuite.monthPace.dailyAverageFormatted}</bdi> <small>ج.م/يوم</small>
+                  </strong>
+                </div>
+                <div className="dashboard-pace-metric">
+                  <span>الإغلاق المتوقّع لنهاية الشهر</span>
+                  <strong>
+                    <bdi dir="ltr">{execSuite.monthPace.projectedCloseFormatted}</bdi> <small>ج.م</small>
+                  </strong>
+                </div>
+                <div className="dashboard-pace-metric">
+                  <span>مقارنة بنفس الفترة من الشهر الماضي</span>
+                  <div className="dashboard-pace-metric__row">
+                    {execSuite.monthPace.paceVsLastMonthPct !== null ? (
+                      <span className={`dashboard-pace-badge is-${execSuite.monthPace.paceDirection}`}>
+                        {execSuite.monthPace.paceVsLastMonthPct > 0
+                          ? `↑ متقدّم +${nf.format(execSuite.monthPace.paceVsLastMonthPct)}%`
+                          : execSuite.monthPace.paceVsLastMonthPct < 0
+                            ? `↓ أقل ${nf.format(execSuite.monthPace.paceVsLastMonthPct)}%`
+                            : "نفس وتيرة الشهر الماضي"}
+                      </span>
+                    ) : (
+                      <span className="dashboard-pace-badge is-flat">
+                        الشهر الماضي: <bdi dir="ltr">{execSuite.monthPace.prevFullMonthFormatted}</bdi> ج.م
+                      </span>
+                    )}
+                    <small>
+                      مقابل <bdi dir="ltr">{execSuite.monthPace.prevSameSpanFormatted}</bdi> ج.م لنفس الأيام
+                    </small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
+        ) : null;
+
+        /* شريحة «درع الرقابة» داخل الحافظة — بحد أقصى ٣ تنبيهات مع «عرض الكل» */
+        const governanceSlideNode: ReactNode =
+          !isEmployee && execSuite?.governance ? (
+            <article className="stat-card is-governance-slide" data-dash-part="governance" aria-labelledby="governance-slide-title">
+              <div className="stat-card__head">
+                <h3 id="governance-slide-title">درع الرقابة</h3>
+                <p>
+                  {execSuite.governance.isClean
+                    ? `الضوابط سليمة ضمن ${activeScopeLabel}`
+                    : `حالات رقابية تستوجب المراجعة ضمن ${activeScopeLabel}`}
+                </p>
+                <span className={`stat-card__badge${execSuite.governance.isClean ? "" : " is-alert"}`}>
+                  {execSuite.governance.isClean ? "سليمة" : `${nf.format(execSuite.governance.alerts.length)} تنبيه`}
+                </span>
+              </div>
+              <div className="stat-card__body">
+                <div
+                  className={`dashboard-governance governance-slide__body${execSuite.governance.isClean ? " is-clean" : " has-alerts"}`}
+                >
+                  <div className="dashboard-governance__head">
+                    <span className="dashboard-governance__icon" aria-hidden="true">
+                      <AppIcon name="shield" />
+                    </span>
+                    <div>
+                      <strong>تنبيهات الرقابة المالية والخصومات</strong>
+                      {execSuite.governance.isClean ? (
+                        <p>
+                          ضوابط التشغيل سليمة اليوم — لا إلغاءات أو مرتجعات مسجّلة اليوم، ولا تجاوزات لسقف خصم الكاونتر (
+                          {execSuite.governance.staffDiscountPctLabel})، ولا فروقات جرد معلّقة.
+                        </p>
+                      ) : (
+                        <p>الأحدث يحتاج مراجعتك الآن:</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {!execSuite.governance.isClean ? (
+                    <div className="dashboard-governance__list">
+                      {execSuite.governance.alerts.slice(0, 3).map((al) => {
+                        const allowed = canOpen(al.href);
+                        const content = (
+                          <>
+                            <div>
+                              <strong>{al.title}</strong>
+                              <small>{al.detail}</small>
+                            </div>
+                            <span className={`dashboard-feed__badge is-${al.tone === "danger" ? "danger" : "warning"}`}>
+                              مراجعة
+                            </span>
+                          </>
+                        );
+                        return allowed ? (
+                          <Link
+                            key={al.key}
+                            href={al.href}
+                            className={`dashboard-governance__item is-${al.tone}`}
+                          >
+                            {content}
+                          </Link>
+                        ) : (
+                          <div key={al.key} className={`dashboard-governance__item is-${al.tone}`}>
+                            {content}
+                          </div>
+                        );
+                      })}
+                      {execSuite.governance.alerts.length > 3 ? (
+                        <Link href="/dashboard?section=governance" className="governance-more">
+                          عرض الكل ({nf.format(execSuite.governance.alerts.length)} تنبيه)
+                        </Link>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </article>
+          ) : null;
+
         const walletNode: ReactNode = (
           <DashboardWallet
             balanceValue={expectedBalanceValue}
@@ -1003,6 +1272,10 @@ export default async function DashboardPage({
               </article>
             ) : null}
 
+            {pulseSlideNode}
+
+            {paceSlideNode}
+
             {/* الشريحة ٢: شريحة موحّدة للمهام والقرارات المعلّقة (بدل شريحتين مكرّرتين) */}
             <article className="stat-card is-todo" aria-labelledby="unified-todo-title">
               <div className="stat-card__head">
@@ -1040,7 +1313,9 @@ export default async function DashboardPage({
               </div>
             </article>
 
-            {/* الشريحة ٣: صورة النطاق وإعدادات النظام */}
+            {governanceSlideNode}
+
+            {/* الشريحة الأخيرة: صورة النطاق وإعدادات النظام */}
             <article className="stat-card is-overview" aria-labelledby="overview-title">
               <div className="stat-card__head">
                 <h3 id="overview-title">صورة النطاق السريعة</h3>
@@ -1792,6 +2067,231 @@ export default async function DashboardPage({
           },
         ];
 
+        /* بطاقتا «فواتير اليوم» و«تفاصيل تحصيلات اليوم» — تظهران تحت الحافظة في الوضع المركّز فقط */
+        const todayPanelsNode: ReactNode = pulseData ? (
+          <div className="dash-today-grid dash-today-grid--stack" data-dash-part="today" aria-label="فواتير اليوم وتحصيلاته">
+            <article className="dashboard-surface-card dash-today-card" data-dash-part="today-invoices" aria-labelledby="today-invoices-title">
+              <div className="dashboard-surface-card__head">
+                <div>
+                  <h2 id="today-invoices-title">
+                    فواتير اليوم{pulseData.todayInvoicesCount > 0 ? ` (${nf.format(pulseData.todayInvoicesCount)})` : ""}
+                  </h2>
+                  <p>كل فواتير اليوم بترتيب الأحدث — إيصال لكل فاتورة؛ مرّر يمينًا ويسارًا أو استخدم الأسهم.</p>
+                </div>
+                <Link href="/sales" className="dashboard-surface-card__link">
+                  سجل المبيعات <AppIcon name="arrow" />
+                </Link>
+              </div>
+
+              {pulseData.todayInvoicesList.length === 0 ? (
+                <div className="dashboard-empty">
+                  <AppIcon name="receipt" />
+                  <strong>لا توجد فواتير اليوم بعد</strong>
+                  <p>ستظهر أحدث الفواتير الصادرة اليوم فور تسجيلها.</p>
+                </div>
+              ) : (
+                <TodayInvoiceRail invoices={pulseData.todayInvoicesList} canOpen={canOpen("/sales/1")} />
+              )}
+            </article>
+
+            <article className="dashboard-surface-card dash-today-card" data-dash-part="today-collections" aria-labelledby="today-collections-title">
+              <div className="dashboard-surface-card__head">
+                <div>
+                  <h2 id="today-collections-title">
+                    تفاصيل تحصيلات اليوم
+                    {pulseData.todaySplitDistinctInvoices > 0
+                      ? ` (${nf.format(pulseData.todaySplitDistinctInvoices)} فاتورة)`
+                      : ""}
+                  </h2>
+                  <p>صافي تحصيلات اليوم وإجمالي اليوم والمتبقّي، مع فصل فواتير النقدي عن البطاقة.</p>
+                </div>
+                <Link href="/sales" className="dashboard-surface-card__link">
+                  سجل المبيعات <AppIcon name="arrow" />
+                </Link>
+              </div>
+
+              <div className="dash-today-kpis" role="group" aria-label="ملخص تحصيلات اليوم">
+                <div className="dash-today-kpi">
+                  <span className="dash-today-kpi__label">
+                    صافي تحصيلات اليوم
+                    <small>بعد المرتجعات</small>
+                  </span>
+                  <strong className="dash-today-kpi__value">
+                    <bdi dir="ltr">{pulseData.todayNetCollectedFormatted}</bdi> ج.م
+                  </strong>
+                  <span className="dash-today-kpi__note">
+                    {pulseData.todayRefundsMovesCount > 0
+                      ? `مرتجعات −${pulseData.todayRefundsTotalFormatted} ج.م (${nf.format(pulseData.todayRefundsMovesCount)} حركة)`
+                      : `${nf.format(pulseData.todaySplitDistinctInvoices)} فاتورة مسددة جزئيًا أو كليًا`}
+                  </span>
+                </div>
+                <div className="dash-today-kpi">
+                  <span className="dash-today-kpi__label">
+                    إجمالي اليوم
+                    <small>مبيعات اليوم الصافية</small>
+                  </span>
+                  <strong className="dash-today-kpi__value">
+                    <bdi dir="ltr">{pulseData.todayNetSalesFormatted}</bdi> ج.م
+                  </strong>
+                  <span className="dash-today-kpi__note">{nf.format(pulseData.todayInvoicesCount)} فاتورة</span>
+                </div>
+                <div className="dash-today-kpi">
+                  <span className="dash-today-kpi__label">
+                    إجمالي المتبقي
+                    <small>متبقي تحصيل فواتير اليوم</small>
+                  </span>
+                  <strong className={`dash-today-kpi__value${pulseData.todayRemainingCount > 0 ? " is-outstanding" : ""}`}>
+                    <bdi dir="ltr">{pulseData.todayRemainingFormatted}</bdi> ج.م
+                  </strong>
+                  <span className={`dash-today-kpi__note${pulseData.todayRemainingCount > 0 ? " is-warn" : ""}`}>
+                    {pulseData.todayRemainingCount > 0
+                      ? `${nf.format(pulseData.todayRemainingCount)} فاتورة آجلة`
+                      : "كل فواتير اليوم مسددة"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="dash-today-split">
+                {pulseData.todaySplitSections.map((section) => {
+                  const sectionTitle =
+                    section.method === "CASH"
+                      ? "فواتير نقدي"
+                      : section.method === "CARD"
+                        ? "فواتير بطاقة"
+                        : `فواتير ${section.label}`;
+                  const slug =
+                    section.method === "CASH" ? "cash" : section.method === "CARD" ? "card" : "other";
+                  const icon: AppIconName =
+                    section.method === "CASH"
+                      ? "cash"
+                      : section.method === "CARD"
+                        ? "receipt"
+                        : "transfers";
+                  return (
+                    <section
+                      key={section.method}
+                      className={`dash-today-section dash-today-section--${slug}`}
+                      aria-label={sectionTitle}
+                    >
+                      <header className="dash-today-section__head">
+                        <span className="dash-today-section__icon" aria-hidden="true">
+                          <AppIcon name={icon} />
+                        </span>
+                        <h3>{sectionTitle}</h3>
+                        <span className="dash-today-section__count">{nf.format(section.invoiceCount)} فاتورة</span>
+                        <strong className="dash-today-section__sum">
+                          <bdi dir="ltr">{section.totalFormatted}</bdi> ج.م
+                        </strong>
+                      </header>
+                      {section.rows.length === 0 ? (
+                        <p className="dash-today-section__empty">لا توجد تحصيلات {section.label} اليوم.</p>
+                      ) : (
+                        <ul className="dash-today-invoice-list">
+                          {section.rows.map((row) => {
+                            const href = `/sales/${row.saleId}`;
+                            const allowed = canOpen(href);
+                            const inner = (
+                              <>
+                                <span className="dash-today-invoice__id" dir="ltr">
+                                  <bdi>ST-{row.saleId}</bdi>
+                                </span>
+                                <span className="dash-today-invoice__main">
+                                  <span className="dash-today-invoice__customer">{row.customerName}</span>
+                                  <span className="dash-today-invoice__meta">
+                                    من إجمالي {row.invoiceTotalFormatted} ج.م
+                                    {row.hasRemaining
+                                      ? ` · متبقٍّ ${row.remainingFormatted} ج.م`
+                                      : " · مسددة"}
+                                  </span>
+                                </span>
+                                <span className="dash-today-invoice__amount">
+                                  <bdi dir="ltr">{row.amountFormatted}</bdi> ج.م
+                                </span>
+                              </>
+                            );
+                            return (
+                              <li key={row.key} className="dash-today-invoice">
+                                {allowed ? (
+                                  <Link href={href} className="dash-today-invoice__link">
+                                    {inner}
+                                  </Link>
+                                ) : (
+                                  <div className="dash-today-invoice__link is-static">{inner}</div>
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </section>
+                  );
+                })}
+              </div>
+              {pulseData.todayRefundsList.length > 0 ? (
+                <section className="dash-today-section dash-today-section--refund" aria-label="مرتجعات اليوم">
+                  <header className="dash-today-section__head">
+                    <span className="dash-today-section__icon dash-today-section__icon--refund" aria-hidden="true">
+                      <AppIcon name="arrow" />
+                    </span>
+                    <h3>مرتجعات اليوم</h3>
+                    <span className="dash-today-section__count">
+                      {pulseData.todayRefundsList.length === 1
+                        ? "مرتجعة واحدة"
+                        : `${nf.format(pulseData.todayRefundsList.length)} مرتجعات`}
+                    </span>
+                    <strong className="dash-today-section__sum is-refund">
+                      <bdi dir="ltr">−{pulseData.todayRefundsTotalFormatted}</bdi> ج.م
+                    </strong>
+                  </header>
+                  <ul className="dash-today-invoice-list">
+                    {pulseData.todayRefundsList.map((refund) => {
+                      const href = `/sales/${refund.saleId}`;
+                      const allowed = canOpen(href);
+                      const inner = (
+                        <>
+                          <span className="dash-today-invoice__id" dir="ltr">
+                            <bdi>ST-{refund.saleId}</bdi>
+                          </span>
+                          <span className="dash-today-invoice__main">
+                            <span className="dash-today-invoice__customer">{refund.customerName}</span>
+                            <span className="dash-today-invoice__meta">
+                              {refund.methodLabel} · سجّلها {refund.staffName} ·{" "}
+                              <time dateTime={refund.timestampIso}>
+                                {activityTimeFormatter.format(new Date(refund.timestampIso))}
+                              </time>
+                            </span>
+                          </span>
+                          <span className="dash-today-refund__amount">
+                            <bdi dir="ltr">−{refund.amountFormatted}</bdi> ج.م
+                          </span>
+                        </>
+                      );
+                      return (
+                        <li key={refund.key} className="dash-today-invoice">
+                          {allowed ? (
+                            <Link href={href} className="dash-today-invoice__link">
+                              {inner}
+                            </Link>
+                          ) : (
+                            <div className="dash-today-invoice__link is-static">{inner}</div>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <p className="dash-today-note dash-today-note--tight">
+                    تُخصم المرتجعات من تحصيلات اليوم في خانة «صافي تحصيلات اليوم» أعلاه وتُوزَّع نقصًا على وسيلة الدفع.
+                  </p>
+                </section>
+              ) : null}
+
+              <p className="dash-today-note">
+                المبالغ في الأقسام = تحصيلات كل وسيلة بعد خصم مرتجعاتها · الفاتورة الواحدة تتوزّع مبالغها على الوسائل التي سُدّد بها منها.
+              </p>
+            </article>
+          </div>
+        ) : null;
+
         const sectionSlots: Partial<Record<DashboardSectionId, ReactNode>> = {
           pulse: pulseNode,
           pace: paceNode,
@@ -1829,13 +2329,6 @@ export default async function DashboardPage({
             </div>
           </header>
         );
-        const allPanelBeforeCards: ReactNode = (
-          <>
-            {pulseNode}
-            {paceNode}
-            {governanceNode}
-          </>
-        );
         const allSpotlightCards: ReactNode = (
           <>
             {efficiencyNode ? <div className="dashboard-cards-grid__item">{efficiencyNode}</div> : null}
@@ -1862,7 +2355,6 @@ export default async function DashboardPage({
         const fullDashboardView: ReactNode = (
           <section className="dashboard-all-panel" aria-labelledby="dashboard-all-title">
             {allPanelHeader}
-            {allPanelBeforeCards}
             <div className="dashboard-cards-grid">
               {fullDashboardWallet}
               {allSpotlightCards}
@@ -1875,7 +2367,6 @@ export default async function DashboardPage({
         const compactDashboardView: ReactNode = (
           <section className="dashboard-all-panel" aria-labelledby="dashboard-all-title">
             {allPanelHeader}
-            {allPanelBeforeCards}
             <div className="dashboard-cards-grid dashboard-all-panel__spotlights">
               {allSpotlightCards}
             </div>
@@ -1892,6 +2383,7 @@ export default async function DashboardPage({
             fullView={fullDashboardView}
             compactView={compactDashboardView}
             fullViewWallet={fullDashboardWallet}
+            belowWalletSlot={todayPanelsNode}
             headerContent={dashboardHeaderContent}
             headerTools={dashboardHeaderTools}
             beforeContent={dashboardPrelude}

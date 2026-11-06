@@ -494,24 +494,121 @@
   .dash-focus-hint {
     display: none !important;
   }
+
+  /* الحافظة كشبكة عمودية: كل الشرائح تظهر متتالية على الورق — الأرقام المموّهة تُكشف */
+  .dash-single-stage .dashboard-wallet {
+    width: auto;
+    height: auto;
+    margin: 0 0 12px;
+    perspective: none;
+    transform: none !important;
+  }
+  .dash-single-stage .dashboard-wallet:hover {
+    transform: none;
+  }
+  .dash-single-stage .dashboard-wallet__back,
+  .dash-single-stage .dashboard-wallet__peek,
+  .dash-single-stage .dashboard-wallet__controls,
+  .dash-single-stage .dashboard-wallet__hint,
+  .dash-single-stage .dashboard-pocket__eye-wrap {
+    display: none !important;
+  }
+  .dash-single-stage .dashboard-wallet__viewport {
+    position: static;
+    inset: auto;
+    bottom: auto;
+    height: auto;
+    overflow: visible;
+    border-radius: 0;
+    box-shadow: none;
+    animation: none;
+  }
+  .dash-single-stage .dashboard-wallet__track {
+    display: grid;
+    grid-auto-flow: row;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    height: auto;
+    overflow: visible;
+  }
+  .dash-single-stage .dashboard-wallet__track > .stat-card {
+    flex: none;
+    width: auto;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    scroll-snap-align: none;
+    transform: none !important;
+    box-shadow: none;
+    color: #111 !important;
+    background: #fff !important;
+    border: 1px solid #cbd5e1;
+  }
+  .dash-single-stage .dashboard-wallet__track .stat-card__head,
+  .dash-single-stage .dashboard-wallet__track .stat-card__head p,
+  .dash-single-stage .dashboard-wallet__track .stat-grid__label,
+  .dash-single-stage .dashboard-wallet__track .stat-grid__value,
+  .dash-single-stage .dashboard-wallet__track .stat-grid__value small,
+  .dash-single-stage .dashboard-wallet__track .stat-grid__detail,
+  .dash-single-stage .dashboard-wallet__track .dashboard-pace-metric > span,
+  .dash-single-stage .dashboard-wallet__track .dashboard-pace-metric > strong,
+  .dash-single-stage .dashboard-wallet__track .dashboard-governance__head strong,
+  .dash-single-stage .dashboard-wallet__track .dashboard-governance__head p {
+    color: #111 !important;
+  }
+  .dash-single-stage .dashboard-pocket-wrap {
+    position: static;
+    height: auto;
+    filter: none;
+  }
+  .dash-single-stage .dashboard-pocket {
+    border: 1px dashed #94a3b8;
+    border-radius: 12px;
+    background: #fff !important;
+  }
+  .dash-single-stage .dashboard-pocket__svg {
+    display: none;
+  }
+  .dash-single-stage .dashboard-pocket__content {
+    position: static;
+    inset: auto;
+    top: auto;
+  }
+  .dash-single-stage .dashboard-pocket__stars {
+    display: none !important;
+  }
+  .dash-single-stage .dashboard-pocket__value {
+    visibility: visible !important;
+    opacity: 1 !important;
+    color: #111 !important;
+  }
+  .dash-single-stage .dashboard-pocket__label {
+    color: #334155 !important;
+  }
 }
 
 
-/* عناصر الوضع المركّز المركّبة، بالإضافة إلى الأقسام المنفردة */
-.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="pulse-sales"] .dashboard-pulse-strip > :nth-child(1),
-.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="pulse-collections"] .dashboard-pulse-strip > :nth-child(2),
-.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="pulse-tasks"] .dashboard-pulse-strip > :nth-child(3),
-.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="pulse-stock"] .dashboard-pulse-strip > :nth-child(4),
-.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="pace-progress"] .dashboard-pace-strip__progress,
-.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="pace-average"] .dashboard-pace-metric:nth-child(1),
-.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="pace-projection"] .dashboard-pace-metric:nth-child(2),
-.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="pace-comparison"] .dashboard-pace-metric:nth-child(3),
-.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="governance-summary"] .dashboard-governance__head,
-.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="governance-alerts"] .dashboard-governance__list,
-.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="wallet-cards"] .dashboard-wallet__viewport,
-.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="wallet-pocket"] .dashboard-pocket-wrap,
-.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="wallet-controls"] .dashboard-wallet__controls,
-.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="wallet-hint"] .dashboard-wallet__hint {
+/* إخفاء مكوّنات «الوضع المركّز» والحافظة المدمجة — يعمل على كل الأقسام (الوضع المركّز، قسم الحافظة، وضع الكل مضغوط/واسع، والأقسام المنفردة) */
+.dash-single-stage[data-hidden-toggles~="pulse-sales"] .dashboard-pulse-strip > :nth-child(1),
+.dash-single-stage[data-hidden-toggles~="pulse-sales"] .pulse-cell--sales,
+.dash-single-stage[data-hidden-toggles~="pulse-collections"] .dashboard-pulse-strip > :nth-child(2),
+.dash-single-stage[data-hidden-toggles~="pulse-collections"] .pulse-cell--collections,
+.dash-single-stage[data-hidden-toggles~="pulse-tasks"] .dashboard-pulse-strip > :nth-child(3),
+.dash-single-stage[data-hidden-toggles~="pulse-tasks"] .pulse-cell--tasks,
+.dash-single-stage[data-hidden-toggles~="pulse-stock"] .dashboard-pulse-strip > :nth-child(4),
+.dash-single-stage[data-hidden-toggles~="pulse-stock"] .pulse-cell--stock,
+.dash-single-stage[data-hidden-toggles~="pace-progress"] .dashboard-pace-strip__progress,
+.dash-single-stage[data-hidden-toggles~="pace-average"] .dashboard-pace-metric:nth-child(1),
+.dash-single-stage[data-hidden-toggles~="pace-projection"] .dashboard-pace-metric:nth-child(2),
+.dash-single-stage[data-hidden-toggles~="pace-comparison"] .dashboard-pace-metric:nth-child(3),
+.dash-single-stage[data-hidden-toggles~="governance-summary"] .dashboard-governance__head,
+.dash-single-stage[data-hidden-toggles~="governance-alerts"] .dashboard-governance__list,
+.dash-single-stage[data-hidden-toggles~="pulse-comparison"] .dashboard-pulse-card__sub,
+.dash-single-stage[data-hidden-toggles~="pulse-comparison"] .pulse-cell__sub,
+.dash-single-stage[data-hidden-toggles~="wallet-cards"] .dashboard-wallet__viewport,
+.dash-single-stage[data-hidden-toggles~="wallet-pocket"] .dashboard-pocket-wrap,
+.dash-single-stage[data-hidden-toggles~="wallet-controls"] .dashboard-wallet__controls,
+.dash-single-stage[data-hidden-toggles~="wallet-hint"] .dashboard-wallet__hint {
   display: none !important;
 }
 
@@ -547,37 +644,24 @@
 .dash-settings-all-guides__list small{display:block;margin-top:4px}
 
 /* إخفاء المكوّنات فورًا، مع حفظ حالة مستقلة لكل خيار */
-.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="part-pulse"] [data-dash-part="pulse"],
-.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="part-pace"] [data-dash-part="pace"],
-.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="part-governance"] [data-dash-part="governance"],
-.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="part-wallet"] [data-dash-part="wallet"],
-.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="part-focus-hint"] [data-dash-part="focus-hint"],
-.dash-single-stage[data-dashboard-section="pulse"][data-hidden-toggles~="pulse-sales"] .dashboard-pulse-strip>:nth-child(1),
-.dash-single-stage[data-dashboard-section="pulse"][data-hidden-toggles~="pulse-collections"] .dashboard-pulse-strip>:nth-child(2),
-.dash-single-stage[data-dashboard-section="pulse"][data-hidden-toggles~="pulse-tasks"] .dashboard-pulse-strip>:nth-child(3),
-.dash-single-stage[data-dashboard-section="pulse"][data-hidden-toggles~="pulse-stock"] .dashboard-pulse-strip>:nth-child(4),
-.dash-single-stage[data-dashboard-section="pulse"][data-hidden-toggles~="pulse-comparison"] .dashboard-pulse-card__sub,
-.dash-single-stage[data-dashboard-section="pulse-wallet"][data-hidden-toggles~="pulse-comparison"] .dashboard-pulse-card__sub,
-.dash-single-stage[data-dashboard-section="all"][data-hidden-toggles~="pulse-comparison"] .dashboard-pulse-card__sub,
-.dash-single-stage[data-dashboard-section="pace"][data-hidden-toggles~="pace-progress"] .dashboard-pace-strip__progress,
-.dash-single-stage[data-dashboard-section="pace"][data-hidden-toggles~="pace-average"] .dashboard-pace-metric:nth-child(1),
-.dash-single-stage[data-dashboard-section="pace"][data-hidden-toggles~="pace-projection"] .dashboard-pace-metric:nth-child(2),
-.dash-single-stage[data-dashboard-section="pace"][data-hidden-toggles~="pace-comparison"] .dashboard-pace-metric:nth-child(3),
-.dash-single-stage[data-dashboard-section="governance"][data-hidden-toggles~="governance-summary"] .dashboard-governance__head,
-.dash-single-stage[data-dashboard-section="governance"][data-hidden-toggles~="governance-alerts"] .dashboard-governance__list,
-.dash-single-stage[data-dashboard-section="wallet"][data-hidden-toggles~="wallet-cards"] .dashboard-wallet__viewport,
-.dash-single-stage[data-dashboard-section="wallet"][data-hidden-toggles~="wallet-pocket"] .dashboard-pocket-wrap,
-.dash-single-stage[data-dashboard-section="wallet"][data-hidden-toggles~="wallet-controls"] .dashboard-wallet__controls,
-.dash-single-stage[data-dashboard-section="wallet"][data-hidden-toggles~="wallet-hint"] .dashboard-wallet__hint,
+.dash-single-stage[data-hidden-toggles~="part-pulse"] [data-dash-part="pulse"],
+.dash-single-stage[data-hidden-toggles~="part-pace"] [data-dash-part="pace"],
+.dash-single-stage[data-hidden-toggles~="part-governance"] [data-dash-part="governance"],
+.dash-single-stage[data-hidden-toggles~="part-wallet"] [data-dash-part="wallet"],
+.dash-single-stage[data-hidden-toggles~="part-focus-hint"] [data-dash-part="focus-hint"],
+.dash-single-stage[data-hidden-toggles~="part-today"] [data-dash-part="today"],
+.dash-single-stage[data-hidden-toggles~="today-invoices"] [data-dash-part="today-invoices"],
+.dash-single-stage[data-hidden-toggles~="today-collections"] [data-dash-part="today-collections"],
+.dash-single-stage[data-hidden-toggles~="dashboard-section-pace"] .dashboard-pace-strip__metrics,
 .dash-single-stage[data-dashboard-section="aging-radar"][data-hidden-toggles~="aging-buckets"] .dashboard-aging-buckets,
 .dash-single-stage[data-dashboard-section="aging-radar"][data-hidden-toggles~="aging-priority"] .dashboard-aging-priority,
 .dash-single-stage[data-dashboard-section="live-feed"][data-hidden-toggles~="feed-heading"] .dashboard-surface-card__head,
 .dash-single-stage[data-dashboard-section="live-feed"][data-hidden-toggles~="feed-rows"] .dashboard-feed,
 .dash-single-stage[data-dashboard-section="branch-health"][data-hidden-toggles~="branch-stock-alerts"] .dashboard-stock-box,
 .dash-single-stage[data-dashboard-section="branch-health"][data-hidden-toggles~="branch-cards"] .dashboard-branches-box,
-.dash-single-stage[data-dashboard-section="all"][data-hidden-toggles~="all-pulse"] .dashboard-pulse-strip,
-.dash-single-stage[data-dashboard-section="all"][data-hidden-toggles~="all-pace"] .dashboard-pace-strip,
-.dash-single-stage[data-dashboard-section="all"][data-hidden-toggles~="all-governance"] .dashboard-governance,
+.dash-single-stage[data-dashboard-section="all"][data-hidden-toggles~="all-pulse"] [data-dash-part="pulse"],
+.dash-single-stage[data-dashboard-section="all"][data-hidden-toggles~="all-pace"] [data-dash-part="pace"],
+.dash-single-stage[data-dashboard-section="all"][data-hidden-toggles~="all-governance"] [data-dash-part="governance"],
 .dash-single-stage[data-dashboard-section="all"][data-hidden-toggles~="all-wallet"] .dashboard-cards-grid__wallet,
 .dash-single-stage[data-dashboard-section="all"][data-hidden-toggles~="all-spotlights"] .dashboard-cards-grid__item,
 .dash-single-stage[data-dashboard-section="all"][data-hidden-toggles~="all-aging"] .dashboard-aging-card,
