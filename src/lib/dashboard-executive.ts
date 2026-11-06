@@ -188,7 +188,7 @@ export async function loadDashboardExecutiveSuite(
     }>
   >`
     SELECT
-      (CURRENT_DATE AT TIME ZONE 'Africa/Cairo') AS "todayStart",
+      (DATE_TRUNC('day', NOW() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo') AS "todayStart",
       (DATE_TRUNC('month', NOW() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo') AS "monthStart",
       ((DATE_TRUNC('month', NOW() AT TIME ZONE 'Africa/Cairo') - INTERVAL '1 month') AT TIME ZONE 'Africa/Cairo') AS "prevMonthStart",
       LEAST(

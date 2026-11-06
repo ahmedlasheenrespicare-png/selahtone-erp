@@ -4,8 +4,9 @@ import { useActionState, useState } from "react";
 import { loginAction } from "./actions";
 import { initialLoginState } from "./login-state";
 import { PasswordField } from "./password-field";
+import { PreviewAccounts, type PreviewAccount } from "./preview-accounts";
 
-export function LoginForm({ next, logoutUnconfirmed = false }: { next: string; logoutUnconfirmed?: boolean }) {
+export function LoginForm({ next, logoutUnconfirmed = false, previewAccounts = [] }: { next: string; logoutUnconfirmed?: boolean; previewAccounts?: PreviewAccount[] }) {
   const [state, action, pending] = useActionState(loginAction, initialLoginState);
   const [email, setEmail] = useState("");
   const [remember, setRemember] = useState(false);
@@ -41,6 +42,7 @@ export function LoginForm({ next, logoutUnconfirmed = false }: { next: string; l
         </button>
         <span className="sr-only" role="status" aria-live="polite">{pending ? "جارٍ تسجيل الدخول" : ""}</span>
       </form>
+      <PreviewAccounts accounts={previewAccounts} />
       <div className="auth-support">
         <span className="auth-support-icon" aria-hidden="true">؟</span>
         <p><strong>تواجه مشكلة في الدخول؟</strong><br />تواصل مع مسؤول النظام لمساعدتك.</p>
