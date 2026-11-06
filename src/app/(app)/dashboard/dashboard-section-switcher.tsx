@@ -413,10 +413,21 @@ export default function DashboardSectionSwitcher({
         </div>
       ) : selectedId === "pulse-wallet" ? (
         <div key="pulse-wallet" className="dash-single-stage dash-single-stage--pulse-wallet" data-dashboard-section="pulse-wallet" data-hidden-toggles={hiddenToggleAttribute}>
-          {slots.wallet ? (
-            <div className="dash-pulse-wallet-center" data-dash-part="wallet">{slots.wallet}</div>
+          {/* شبكة واحدة: الحافظة عمود جانبي بارتفاع كامل بجوار بطاقات اليوم الثلاث */}
+          {slots.wallet || belowWalletSlot ? (
+            <div className="dash-focus-grid">
+              {slots.wallet ? (
+                <div className="dash-focus-grid__wallet" data-dash-part="wallet">
+                  {slots.wallet}
+                </div>
+              ) : null}
+              {belowWalletSlot ? (
+                <div className="dash-focus-grid__cards" data-dash-part="today" role="group" aria-label="فواتير اليوم وتحصيلاته">
+                  {belowWalletSlot}
+                </div>
+              ) : null}
+            </div>
           ) : null}
-          {belowWalletSlot}
           <div className="dash-focus-hint no-print" data-dash-part="focus-hint">
             <span>
               تستعرض الآن الوضع المركّز السريع. افتح القائمة المنسدلة بالأعلى لاستعراض أي مؤشر أو رادار على حدة.

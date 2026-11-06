@@ -5859,11 +5859,30 @@ a.dashboard-governance__item:hover {
    «فواتير اليوم» + «تفاصيل تحصيلات اليوم» (التوزيع حسب الوسيلة + آخر الحركات)
    ========================================================================== */
 
-.dash-today-grid {
+/* شبكة الوضع المركّز — «نبض اليوم» فقط: الحافظة عمود جانبي بارتفاع كامل
+   بجوار بطاقات اليوم الثلاث (فواتير اليوم ← تحصيلات اليوم ← مصروفات اليوم) */
+.dash-focus-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.dash-focus-grid__wallet {
+  min-width: 0;
+  display: flex;
+}
+
+.dash-focus-grid__wallet .dashboard-wallet {
+  flex: 1 1 auto;
+  width: 100%;
+}
+
+.dash-focus-grid__cards {
+  min-width: 0;
+  display: grid;
+  grid-auto-rows: minmax(0, 1fr);
   gap: 14px;
-  margin-top: 18px;
 }
 
 .dash-today-card {
@@ -6157,8 +6176,13 @@ a.dashboard-governance__item:hover {
 }
 
 @media (max-width: 1100px) {
-  .dash-today-grid {
+  .dash-focus-grid {
     grid-template-columns: 1fr;
+  }
+
+  /* على الجوال والأجهزة الصغيرة: ترتيب الـ DOM نفسه (الحافظة ثم فواتير اليوم ثم تحصيلات اليوم ثم مصروفات اليوم) */
+  .dash-focus-grid__cards {
+    grid-auto-rows: auto;
   }
 }
 
@@ -6172,10 +6196,6 @@ a.dashboard-governance__item:hover {
    شريط إيصالات فواتير اليوم (داخل بطاقة «فواتير اليوم»)
    تمرير أفقي بالأسهم والسحب — كل إيصال ورقة بيضاء تفتح الفاتورة
    ========================================================================== */
-
-.dash-today-grid--stack > * {
-  grid-column: 1 / -1;
-}
 
 .dash-invoice-rail-wrap {
   display: flex;

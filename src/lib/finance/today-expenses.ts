@@ -3,7 +3,8 @@ import "server-only";
 /**
  * مصروفات اليوم للوحة القيادة: نفس بيانات «سجل المصروفات» (/finance/expenses)
  * لكن مخصصة للبطاقات — لا تعيد استخدام listExpenses لأن حدود رؤيتها (الخاصة لكل موظف)
- * لا تطابق القاعدة المطلوبة هنا: المدير والمحاسب لكل الفروع، وموظف الكاونتر فرعه فقط.
+ * لا تطابق القاعدة المطلوبة هنا: المدير والمحاسب لكل الفروع أو للفرع المختار في نطاق
+ * اللوحة (عبر المعامل `scopeBranchId`)، وموظف الكاونتر فرعه فقط.
  *
  * «اليوم» = عمود expense_date بتوقيت القاهرة، بأي حالة (بانتظار الاعتماد/معتمد/مدفوع).
  * المبالغ تُعرض بعد آخر تصحيح مالي إن وجد (نفس COALESCE المعتمد في listExpenses).
@@ -60,14 +61,25 @@ function toCents(value: string): bigint {
   return (negative ? -1n : 1n) * (BigInt(whole || "0") * 100n + BigInt((fraction + "00").slice(0, 2) || "0"));
 }
 
+/**
+ * @param session حساب المشاهد الحالي.
+ * @param scopeBranchId فرع نطاق العرض (مثل وضع اللوحة المركّزة)؛ للمدير/المحاسب فقط.
+ *   مرّر `null` لعرض كل الفروع (سلوك «كل الفروع النشطة»)، وتجاهل المعامل للكاونتر (فرعه دائمًا).
+ */
 export async function loadTodayExpenses(
   session: SessionUser,
+  scopeBranchId?: string | null,
 ): Promise<TodayExpensesSummary | null> {
   if (!financeEnabled()) return null;
 
   const isManager = session.role === "MANAGER" || session.role === "ACCOUNTANT";
-  // الموظف يرى مصروفات فرعه فقط؛ أي دور/حساب بلا فرع لا يرى شيئًا (حالة فارغة طبيعية).
-  const branchFilterId = isManager ? null : session.role === "CS_AGENT" ? session.branchId ?? null : undefined;
+  // الموظف يرى مصروفات فرعه فقط ولا يتأثر بالمعامل؛ أي دور/حساب بلا فرع لا يرى شيئًا
+  // (حالة فارغة طبيعية). المدير/المحاسب بلا معامل يرون كل الفروع كما هو اليوم.
+  const branchFilterId = isManager
+    ? scopeBranchId ?? null
+    : session.role === "CS_AGENT"
+      ? session.branchId ?? null
+      : undefined;
   if (branchFilterId === undefined) return null;
 
   const today = cairoDate();

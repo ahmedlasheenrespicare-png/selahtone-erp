@@ -19,9 +19,13 @@ function createClient(): PrismaClient {
     const req = eval("require") as NodeJS.Require;
     const { PrismaPGlite } = req("pglite-prisma-adapter") as typeof import("pglite-prisma-adapter");
     const { PGlite } = req("@electric-sql/pglite") as typeof import("@electric-sql/pglite");
-    // النوع الاسمي للمحوّل مختلف عن حزمتين فرعيتين؛ التوافق مُثبت بالتشغيل.
-    const adapter = new PrismaPGlite(new PGlite(pgliteDir)) as unknown as ConstructorParameters<typeof PrismaClient>[0] extends { adapter?: infer A } ? A : never;
-    return new PrismaClient({ adapter } as ConstructorParameters<typeof PrismaClient>[0]);
+    // وضع المعاينة المحلية يدخل عبر نسخة WASM من العميل: لا ثنائيات محرّك أصلية
+    // تُنزَّل في هذه البيئة؛ الإنتاج لا يمر من هنا ولا يتغير.
+    const { PrismaClient: WasmPrismaClient } = req("@prisma/client/wasm") as {
+      PrismaClient: new (options: { adapter: unknown }) => unknown;
+    };
+    const adapter = new PrismaPGlite(new PGlite(pgliteDir));
+    return new WasmPrismaClient({ adapter }) as unknown as PrismaClient;
   }
   return new PrismaClient({
     log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
