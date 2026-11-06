@@ -413,19 +413,16 @@ export default function DashboardSectionSwitcher({
         </div>
       ) : selectedId === "pulse-wallet" ? (
         <div key="pulse-wallet" className="dash-single-stage dash-single-stage--pulse-wallet" data-dashboard-section="pulse-wallet" data-hidden-toggles={hiddenToggleAttribute}>
-          {/* شبكة واحدة: الحافظة عمود جانبي بارتفاع كامل بجوار بطاقات اليوم الثلاث */}
+          {/* شبكة واحدة بآلية «التصميم الواسع» للعرض الشامل: الحافظة أول خلية
+              بين فواتير اليوم وتحصيلات اليوم ومصروفات اليوم — بلا أعمدة فرعية ثابتة */}
           {slots.wallet || belowWalletSlot ? (
-            <div className="dash-focus-grid">
+            <div className="dashboard-cards-grid">
               {slots.wallet ? (
-                <div className="dash-focus-grid__wallet" data-dash-part="wallet">
+                <div className="dashboard-cards-grid__wallet" data-dash-part="wallet">
                   {slots.wallet}
                 </div>
               ) : null}
-              {belowWalletSlot ? (
-                <div className="dash-focus-grid__cards" data-dash-part="today" role="group" aria-label="فواتير اليوم وتحصيلاته">
-                  {belowWalletSlot}
-                </div>
-              ) : null}
+              {belowWalletSlot}
             </div>
           ) : null}
           <div className="dash-focus-hint no-print" data-dash-part="focus-hint">

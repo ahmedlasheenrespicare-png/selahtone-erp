@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 
 export type PantherChartVariant =
@@ -31,6 +31,8 @@ export type PantherChartPoint = {
   secondaryLabel?: string;
   secondaryFormatted?: string;
   tone?: PantherPointTone;
+  /** مفتاح التثبيت: عند تثبيت هذه النقطة يُخفى كل عنصر في التفاصيل لا يحمل data-pin-part مطابقًا (التوسعة اختيارية، بلا أثر لباقي المستخدمين) */
+  pinKey?: string;
 };
 
 export type PantherChartSeries = {
@@ -65,6 +67,10 @@ export type PantherSpotlightCardProps = {
   actionHref: string;
   actionLabel: string;
   layout?: "wallet" | "section";
+  /** محتوى إضافي (مثل قوائم البنود التفصيلية) يُرسم داخل البطاقة بين الرسم وزر الإجراء */
+  children?: ReactNode;
+  /** علامة تبويب تبويبية اختيارية تُصق على الجذر — تبقي أدوات التحقق والاختبار كما هي */
+  dataDashPart?: string;
 };
 
 const SERIES_VARIANT_BY_ID: Record<string, PantherChartVariant> = {
@@ -717,6 +723,8 @@ export default function PantherSpotlightCard({
   actionHref,
   actionLabel,
   layout = "section",
+  children,
+  dataDashPart,
 }: PantherSpotlightCardProps) {
   const titleId = useId();
   const gradientId = useId();
@@ -758,6 +766,19 @@ export default function PantherSpotlightCard({
   const rawActiveIndex = hoverIndex ?? pinnedIndex ?? defaultIndex;
   const activeIndex = Math.max(0, Math.min(rawActiveIndex, lastIndex));
   const activePoint = displayPoints[activeIndex] ?? displayPoints[0];
+
+  const detailsRef = useRef<HTMLDivElement | null>(null);
+  const pinnedPointForFilter = pinnedIndex !== null ? (displayPoints[pinnedIndex] ?? null) : null;
+  const pinnedKey = pinnedPointForFilter?.pinKey ?? null;
+
+  useEffect(() => {
+    const root = detailsRef.current;
+    if (!root) return;
+    root.querySelectorAll<HTMLElement>("[data-pin-part]").forEach((el) => {
+      const keys = (el.dataset.pinPart ?? "").split(/\s+/).filter(Boolean);
+      el.hidden = pinnedKey !== null && !keys.includes(pinnedKey);
+    });
+  }, [pinnedKey, children]);
 
   const isInteractiveSvgLane =
     activeVariant === "area" ||
@@ -1486,6 +1507,7 @@ export default function PantherSpotlightCard({
       className={`monthly-panther${layout === "section" ? " is-section" : ""}`}
       aria-labelledby={titleId}
       data-chart-variant={activeVariant}
+      data-dash-part={dataDashPart}
     >
       <div className="monthly-panther__glow" aria-hidden="true" />
 
@@ -1658,6 +1680,12 @@ export default function PantherSpotlightCard({
             {renderChartBody()}
           </div>
         </div>
+
+        {children ? (
+          <div className="monthly-panther__details" ref={detailsRef} data-pin-key={pinnedKey ?? undefined}>
+            {children}
+          </div>
+        ) : null}
 
         <div className="monthly-panther__foot">
           <Link href={actionHref} className="monthly-panther__btn">
