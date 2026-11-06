@@ -2,6 +2,7 @@
 
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { AppIcon } from "@/components/app-icon";
+import CollapsiblePanel from "@/components/collapsible-panel";
 import {
   type DashboardSectionId,
   type DashboardSectionMeta,
@@ -115,9 +116,6 @@ export default function DashboardSectionSwitcher({
       setSelectedId(resolved);
       try {
         window.sessionStorage.setItem(storageKey, resolved);
-        window.dispatchEvent(
-          new CustomEvent("selahtone:dashboard-section-changed", { detail: resolved }),
-        );
       } catch {
         // ignore
       }
@@ -129,9 +127,6 @@ export default function DashboardSectionSwitcher({
       if (saved) {
         const resolved = resolveDashboardSectionId(saved, availableIds, "pulse-wallet");
         setSelectedId(resolved);
-        window.dispatchEvent(
-          new CustomEvent("selahtone:dashboard-section-changed", { detail: resolved }),
-        );
       }
     } catch {
       // ignore
@@ -152,30 +147,10 @@ export default function DashboardSectionSwitcher({
         url.searchParams.set("section", valid);
       }
       window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
-      window.dispatchEvent(
-        new CustomEvent("selahtone:dashboard-section-changed", { detail: valid }),
-      );
     } catch {
       // ignore
     }
   }
-
-  // الاستماع لاختيار قسم لوحة القيادة مباشرةً من القائمة المنسدلة الجانبية بدون إعادة تحميل
-  const selectSectionRef = useRef(selectSection);
-  selectSectionRef.current = selectSection;
-
-  useEffect(() => {
-    function handleSidebarSelect(event: Event) {
-      const detail = (event as CustomEvent<string>).detail;
-      if (typeof detail === "string") {
-        selectSectionRef.current(detail as DashboardSectionId);
-      }
-    }
-    window.addEventListener("selahtone:dashboard-section-select", handleSidebarSelect);
-    return () => {
-      window.removeEventListener("selahtone:dashboard-section-select", handleSidebarSelect);
-    };
-  }, []);
 
   // إغلاق القائمة عند النقر خارجها أو الضغط على Escape
   useEffect(() => {
@@ -464,13 +439,13 @@ export default function DashboardSectionSwitcher({
         </div>
       )}
 
-      <section className="dash-settings-panel no-print" aria-labelledby="dash-settings-title">
-        <div className="dash-settings-panel__head">
-          <div>
-            <span className="dash-settings-panel__eyebrow">شرح وتخصيص</span>
-            <h2 id="dash-settings-title">إعدادات وشرح الخيار المعروض</h2>
-            <p>الخيار الحالي: <strong>{activeMeta?.label}</strong></p>
-          </div>
+      <CollapsiblePanel
+        storageKey="dashboard-settings"
+        iconName="settings"
+        className="dash-settings-panel"
+        title={`شرح وتخصيص — الخيار الحالي: ${activeMeta?.label ?? "الوضع المركّز"}`}
+      >
+        <div className="dash-settings-toolbar">
           <button
             type="button"
             className="dash-settings-reset"
@@ -523,7 +498,7 @@ export default function DashboardSectionSwitcher({
             ))}
           </div>
         </details>
-      </section>
+      </CollapsiblePanel>
     </>
   );
 }

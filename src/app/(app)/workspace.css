@@ -6113,6 +6113,37 @@ a.dashboard-governance__item:hover {
 
 .dash-today-note--tight { margin-top: 8px; }
 
+/* بطاقة «مصروفات اليوم» — تلي «تفاصيل تحصيلات اليوم» مباشرة */
+.dash-today-expenses__notice { margin-top: 12px; }
+
+.dash-today-expense-list { margin-top: 6px; }
+
+.dash-today-expense { min-width: 0; }
+
+.dash-today-expense__chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 84px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+.dash-today-expense__chip--pending { color: #b45309; background: #fffbeb; }
+.dash-today-expense__chip--approved { color: #1e40af; background: #eff6ff; }
+.dash-today-expense__chip--paid { color: #1e5c2a; background: #eef7ef; }
+
+@media print {
+  .dash-today-expense {
+    break-inside: avoid;
+  }
+}
+
 @media print {
   .dash-today-kpi,
   .dash-today-section,
@@ -6423,4 +6454,106 @@ a.dash-receipt:focus-visible {
     box-shadow: none;
     border: 1px solid #94a3b8;
   }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   اللوحات القابلة للطي — نمط عام (CollapsiblePanel)
+   يُرفق بشرط .no-print فلا تُطبع بأي حالة.
+   ══════════════════════════════════════════════════════════════ */
+.collapse-panel {
+  --cp-padding: 12px 14px;
+  --cp-radius: 14px;
+  --cp-accent: var(--db-muted, #476049);
+  min-width: 0;
+  border: 1px solid var(--db-border, #d4e3d0);
+  border-radius: var(--cp-radius);
+  background: var(--db-surface, #ffffff);
+  color: var(--db-ink, #132515);
+  overflow: hidden;
+}
+
+.collapse-panel > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: var(--cp-padding);
+  user-select: none;
+  transition: background 0.15s ease;
+}
+
+.collapse-panel > summary::-webkit-details-marker { display: none; }
+
+.collapse-panel > summary:hover { background: var(--db-surface-soft, #f5f9f4); }
+
+.collapse-panel > summary:focus-visible {
+  outline: 2px solid var(--cp-accent);
+  outline-offset: -2px;
+  border-radius: var(--cp-radius);
+}
+
+.collapse-panel__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.collapse-panel__title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.collapse-panel__icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  background: var(--db-surface-tint, #ebf3e9);
+  color: var(--cp-accent);
+}
+
+.collapse-panel__icon svg { width: 15px; height: 15px; }
+
+.collapse-panel__text {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--db-ink, #132515);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+.collapse-panel__chevron {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  color: var(--cp-accent);
+  background: var(--db-surface-tint, #ebf3e9);
+}
+
+.collapse-panel__chevron svg {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.18s ease;
+  transform: rotate(-90deg);
+}
+
+.collapse-panel[open] > summary .collapse-panel__chevron svg {
+  transform: rotate(0deg);
+}
+
+.collapse-panel__body {
+  border-top: 1px solid var(--db-border, #d4e3d0);
+  padding: 14px 16px 16px;
+}
+
+@media print {
+  .collapse-panel { display: none !important; }
 }

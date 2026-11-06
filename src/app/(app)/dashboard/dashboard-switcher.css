@@ -612,13 +612,10 @@
   display: none !important;
 }
 
-/* لوحة شرح المؤشر وإعدادات الظهور */
-.dash-settings-panel{margin-top:20px;padding:20px;border:1px solid var(--db-border-strong);border-radius:18px;background:var(--db-surface);color:var(--db-ink);box-shadow:0 10px 26px -20px rgba(8,22,14,.34)}
-.dash-settings-panel__head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
-.dash-settings-panel__eyebrow{color:var(--db-muted);font-size:11px;font-weight:800}
-.dash-settings-panel h2{margin:3px 0 4px;color:var(--db-ink);font-size:19px}
-.dash-settings-panel__head p,.dash-settings-guide p{margin:0;color:var(--db-muted);font-size:13px;line-height:1.7}
-.dash-settings-panel__head p strong{color:var(--db-ink)}
+/* لوحة شرح المؤشر وإعدادات الظهور — جسمها صار قابلاً للطي (CollapsiblePanel) */
+.dash-settings-panel{margin-top:20px;border-radius:18px;background:var(--db-surface);color:var(--db-ink);box-shadow:0 10px 26px -20px rgba(8,22,14,.34)}
+.dash-settings-toolbar{display:flex;justify-content:flex-start;gap:8px;margin-bottom:12px}
+.dash-settings-guide p{margin:0;color:var(--db-muted);font-size:13px;line-height:1.7}
 .dash-settings-reset{flex:0 0 auto;min-height:38px;padding:7px 12px;border:1px solid var(--db-border-strong);border-radius:10px;background:var(--db-surface-soft);color:var(--db-ink);font:inherit;font-size:12px;font-weight:800;cursor:pointer}
 .dash-settings-reset:hover:not(:disabled){background:var(--db-surface-tint)}
 .dash-settings-reset:disabled{opacity:.58;cursor:not-allowed}

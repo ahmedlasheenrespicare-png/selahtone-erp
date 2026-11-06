@@ -67,43 +67,13 @@ export function AppNavigation({
     badges,
   });
 
-  const [dashboardSection, setDashboardSection] = useState<string>("pulse-wallet");
-  useEffect(() => {
-    try {
-      const param = new URLSearchParams(window.location.search).get("section");
-      if (param) setDashboardSection(param);
-      else if (pathname !== "/dashboard") setDashboardSection("pulse-wallet");
-    } catch {
-      // ignore
-    }
-  }, [pathname]);
+  const activeSidebarHref = resolveActiveSidebarHref(pathname, navGroups);
 
-  useEffect(() => {
-    function handleSectionChanged(event: Event) {
-      const detail = (event as CustomEvent<string>).detail;
-      if (typeof detail === "string") {
-        setDashboardSection(detail);
-      }
-    }
-    window.addEventListener("selahtone:dashboard-section-changed", handleSectionChanged);
-    return () => {
-      window.removeEventListener("selahtone:dashboard-section-changed", handleSectionChanged);
-    };
-  }, []);
-
-  const activeSidebarHref = resolveActiveSidebarHref(pathname, navGroups, dashboardSection);
-  const isDashboardParentItem = (label: string) =>
-    label === "لوحة القيادة" || label === "لوحة فرعي";
-
-  // يُفتح الأب منسدلًا إن كان المسار الفعّال داخل أحد أبنائه، وتبقى «لوحة القيادة» مطوية افتراضيًا حتى ينقرها المستخدم أو يفتح قسمًا فرعيًا محددًا.
+  // يُفتح الأب منسدلًا فقط إن كان المسار الفعّال داخل أحد أبنائه (قوائم المبيعات والمخزون والتهيئة).
   const [openParents, setOpenParents] = useState<string[]>(() =>
     navGroups
       .flatMap((group) => group.items)
-      .filter(
-        (item) =>
-          item.children?.some((child) => child.href === activeSidebarHref) &&
-          (!isDashboardParentItem(item.label) || activeSidebarHref?.startsWith("/dashboard?section=")),
-      )
+      .filter((item) => item.children?.some((child) => child.href === activeSidebarHref))
       .map((item) => item.label),
   );
 
@@ -115,11 +85,7 @@ export function AppNavigation({
     if (!activeSidebarHref) return;
     const matchingParent = navGroups
       .flatMap((group) => group.items)
-      .find(
-        (item) =>
-          item.children?.some((child) => child.href === activeSidebarHref) &&
-          (!isDashboardParentItem(item.label) || activeSidebarHref.startsWith("/dashboard?section=")),
-      );
+      .find((item) => item.children?.some((child) => child.href === activeSidebarHref));
     if (matchingParent) {
       setOpenParents((prev) =>
         prev.includes(matchingParent.label) ? prev : [...prev, matchingParent.label],
@@ -442,27 +408,7 @@ export function AppNavigation({
                                         childActive ? " is-active" : ""
                                       }`}
                                       aria-current={childActive ? "page" : undefined}
-                                      onClick={(event) => {
-                                        setMenuOpen(false);
-                                        if (
-                                          pathname === "/dashboard" &&
-                                          (child.href === "/dashboard" ||
-                                            child.href?.startsWith("/dashboard?section="))
-                                        ) {
-                                          event.preventDefault();
-                                          const targetSection = child.href.startsWith(
-                                            "/dashboard?section=",
-                                          )
-                                            ? child.href.slice("/dashboard?section=".length)
-                                            : "pulse-wallet";
-                                          window.dispatchEvent(
-                                            new CustomEvent(
-                                              "selahtone:dashboard-section-select",
-                                              { detail: targetSection },
-                                            ),
-                                          );
-                                        }
-                                      }}
+                                      onClick={() => setMenuOpen(false)}
                                     >
                                       <AppIcon name={child.icon} />
                                       <span>{child.label}</span>
