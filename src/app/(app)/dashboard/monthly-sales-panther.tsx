@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import PantherSpotlightCard, {
   type PantherChartSeries,
 } from "@/components/panther-spotlight-card";
@@ -16,6 +17,9 @@ export type MonthlySalesPantherProps = {
   series: PantherChartSeries[];
   reportHref: string;
   reportLabel: string;
+  /** عند تفعيلها ضغطُ المستخدم على الـHUD يُظهِر/يُخفي التفاصيل (accordion) */
+  detailsHudToggle?: boolean;
+  children?: ReactNode;
 };
 
 export default function MonthlySalesPanther({
@@ -32,6 +36,8 @@ export default function MonthlySalesPanther({
   series,
   reportHref,
   reportLabel,
+  detailsHudToggle,
+  children,
 }: MonthlySalesPantherProps) {
   return (
     <PantherSpotlightCard
@@ -62,6 +68,9 @@ export default function MonthlySalesPanther({
       series={series}
       actionHref={reportHref}
       actionLabel={reportLabel}
-    />
+      detailsHudToggle={detailsHudToggle}
+    >
+      {children}
+    </PantherSpotlightCard>
   );
 }
