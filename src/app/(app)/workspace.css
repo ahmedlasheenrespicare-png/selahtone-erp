@@ -2733,9 +2733,11 @@
   flex: 1 1 auto;
 }
 
+/* الرسم التفاعلي يبقى في موضعه تحت المقاييس دائمًا؛ الفراغ الفائض يلتقطه
+   margin: auto على الزر تلقائيًا فيُثبته في أسفل الكرت (فوق زر الإجراء مباشرةً) */
 .dashboard-cards-grid__item > .monthly-panther .monthly-panther__chart-block {
-  flex: 1 1 auto;
-  justify-content: flex-end;
+  flex: 0 0 auto;
+  justify-content: flex-start;
 }
 
 .dashboard-cards-grid__item > .monthly-panther .monthly-panther__foot {
@@ -5859,30 +5861,10 @@ a.dashboard-governance__item:hover {
    «فواتير اليوم» + «تفاصيل تحصيلات اليوم» (التوزيع حسب الوسيلة + آخر الحركات)
    ========================================================================== */
 
-/* شبكة الوضع المركّز — «نبض اليوم» فقط: الحافظة عمود جانبي بارتفاع كامل
-   بجوار بطاقات اليوم الثلاث (فواتير اليوم ← تحصيلات اليوم ← مصروفات اليوم) */
-.dash-focus-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-  gap: 16px;
-  align-items: stretch;
-}
-
-.dash-focus-grid__wallet {
-  min-width: 0;
-  display: flex;
-}
-
-.dash-focus-grid__wallet .dashboard-wallet {
-  flex: 1 1 auto;
+/* الوضع المركّز — «نبض اليوم» — بنفس آلية «التصميم الواسع» للعرض الشامل:
+   شبكة واحدة auto-fit تتدفق فيها الحافظة كأول خلية ثم فواتير اليوم ← تحصيلات اليوم ← مصروفات اليوم */
+.dashboard-cards-grid__item > .dash-today-card {
   width: 100%;
-}
-
-.dash-focus-grid__cards {
-  min-width: 0;
-  display: grid;
-  grid-auto-rows: minmax(0, 1fr);
-  gap: 14px;
 }
 
 .dash-today-card {
@@ -5898,62 +5880,6 @@ a.dashboard-governance__item:hover {
 .dash-today-card .dashboard-feed {
   display: grid;
   gap: 4px;
-}
-
-.dash-today-kpis {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin: 2px 0 12px;
-}
-
-.dash-today-kpi {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-  padding: 10px 11px;
-  border-radius: 12px;
-  border: 1px solid var(--db-border);
-  background: var(--db-surface-soft);
-}
-
-.dash-today-kpi__label {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  font-size: 10.5px;
-  font-weight: 800;
-  color: var(--db-muted);
-  line-height: 1.45;
-}
-
-.dash-today-kpi__label small {
-  font-size: 9.5px;
-  font-weight: 600;
-  opacity: 0.85;
-}
-
-.dash-today-kpi__value {
-  font-size: 16px;
-  font-weight: 800;
-  color: var(--db-ink);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.dash-today-kpi__value.is-outstanding {
-  color: #b4232b;
-}
-
-.dash-today-kpi__note {
-  font-size: 10px;
-  color: var(--db-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.dash-today-kpi__note.is-warn {
-  color: #b4232b;
-  font-weight: 700;
 }
 
 .dash-today-split {
@@ -6164,25 +6090,9 @@ a.dashboard-governance__item:hover {
 }
 
 @media print {
-  .dash-today-kpi,
   .dash-today-section,
   .dash-today-invoice {
     break-inside: avoid;
-  }
-}
-
-@media (max-width: 640px) {
-  .dash-today-kpis { grid-template-columns: 1fr; }
-}
-
-@media (max-width: 1100px) {
-  .dash-focus-grid {
-    grid-template-columns: 1fr;
-  }
-
-  /* على الجوال والأجهزة الصغيرة: ترتيب الـ DOM نفسه (الحافظة ثم فواتير اليوم ثم تحصيلات اليوم ثم مصروفات اليوم) */
-  .dash-focus-grid__cards {
-    grid-auto-rows: auto;
   }
 }
 
@@ -6576,4 +6486,105 @@ a.dash-receipt:focus-visible {
 
 @media print {
   .collapse-panel { display: none !important; }
+}
+/* ==========================================================================
+   «نبض اليوم»: منطقتا التفاصيل داخل مؤشرَي Spotlight (تحصيلات اليوم · مصروفات اليوم)
+   — نفس هوية المؤشرات، والقوائم الفاتورة-لكل-فاتورة/البند-لكل-بند تبقى كما هي بألوان داكنة
+   ========================================================================== */
+.monthly-panther__details {
+  display: grid;
+  gap: 10px;
+  padding-top: 14px;
+  margin-top: 2px;
+  border-top: 1px solid var(--mp-divider);
+}
+
+.monthly-panther__details .dash-today-split { gap: 8px; }
+
+.monthly-panther__details .dash-today-section {
+  border: 1px solid var(--mp-divider);
+  border-inline-start: 3px solid var(--mp-alt);
+  background: rgba(163, 230, 53, 0.04);
+  padding: 8px 10px;
+}
+
+.monthly-panther__details .dash-today-section--cash { border-inline-start-color: #34d399; }
+.monthly-panther__details .dash-today-section--card { border-inline-start-color: #7dd3fc; }
+.monthly-panther__details .dash-today-section--other { border-inline-start-color: #fbbf24; }
+.monthly-panther__details .dash-today-section--refund { border-inline-start-color: #fca5a5; }
+
+.monthly-panther__details .dash-today-section__icon {
+  background: rgba(163, 230, 53, 0.12);
+  color: var(--mp-accent);
+}
+
+.monthly-panther__details .dash-today-section--refund .dash-today-section__icon {
+  background: rgba(248, 113, 113, 0.12);
+  color: #fca5a5;
+}
+
+.monthly-panther__details .dash-today-section h3 { color: var(--mp-title); }
+
+.monthly-panther__details .dash-today-section__count {
+  color: var(--mp-accent);
+  border-color: rgba(163, 230, 53, 0.35);
+  background: rgba(163, 230, 53, 0.1);
+}
+
+.monthly-panther__details .dash-today-section__sum { color: var(--mp-value); }
+
+.monthly-panther__details .dash-today-section__sum.is-refund,
+.monthly-panther__details .dash-today-refund__amount { color: #fca5a5; }
+
+.monthly-panther__details .dash-today-section__empty {
+  color: var(--mp-muted);
+  border-color: var(--mp-divider);
+  background: transparent;
+}
+
+.monthly-panther__details .dash-today-invoice__link:hover {
+  background: rgba(163, 230, 53, 0.07);
+  border-color: rgba(163, 230, 53, 0.3);
+}
+
+.monthly-panther__details .dash-today-invoice__id {
+  color: var(--mp-muted);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.monthly-panther__details .dash-today-invoice__customer { color: var(--mp-title); }
+
+.monthly-panther__details .dash-today-invoice__meta { color: var(--mp-muted); }
+
+.monthly-panther__details .dash-today-invoice__amount { color: var(--mp-value); }
+
+.monthly-panther__details .dash-today-note {
+  margin: 4px 2px 0;
+  color: var(--mp-muted);
+}
+
+.monthly-panther__details .dash-today-expense { min-width: 0; }
+
+.monthly-panther__details .dash-today-expense__chip--pending { color: #fde68a; background: rgba(251, 191, 36, 0.13); }
+.monthly-panther__details .dash-today-expense__chip--approved { color: #a5d8ff; background: rgba(56, 189, 248, 0.13); }
+.monthly-panther__details .dash-today-expense__chip--paid { color: #bbf7d0; background: rgba(52, 211, 153, 0.13); }
+
+.monthly-panther__details .dashboard-empty {
+  background: transparent;
+  border: 1px dashed var(--mp-divider);
+}
+.monthly-panther__details .dashboard-empty strong { color: var(--mp-title); }
+.monthly-panther__details .dashboard-empty p { color: var(--mp-muted); }
+
+@media print {
+  .monthly-panther__details .dash-today-section,
+  .monthly-panther__details .dash-today-invoice,
+  .monthly-panther__details .dash-today-expense {
+    break-inside: avoid;
+  }
+}
+
+/* عند تثبيت شريحة في مؤشر «نبض اليوم»: تُخفى العناصر التفصيلية غير المطابقة (data-pin-part) */
+.monthly-panther__details [hidden] {
+  display: none !important;
 }

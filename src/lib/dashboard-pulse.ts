@@ -94,6 +94,8 @@ export type DashboardTodaySplitSection = {
   method: string;
   label: string;
   totalFormatted: string;
+  /** مجموع المبالغ الخام (بقدرات) بعد خصم مرتجعات الوسيلة — للرسم البياني في بطاقة تحصيلات اليوم */
+  totalCents: bigint;
   invoiceCount: number;
   rows: DashboardTodaySplitRow[];
 };
@@ -103,6 +105,7 @@ export type DashboardTodayRefundItem = {
   saleId: string;
   customerName: string;
   staffName: string;
+  method: string;
   methodLabel: string;
   amountFormatted: string;
   timestampMs: number;
@@ -645,6 +648,7 @@ export async function loadDashboardOperationalData(
       method,
       label: METHOD_LABELS[method],
       totalFormatted: displayMoney(totalsByMethod.get(method) ?? 0n),
+      totalCents: totalsByMethod.get(method) ?? 0n,
       invoiceCount: rows.length,
       rows,
     });
@@ -656,6 +660,7 @@ export async function loadDashboardOperationalData(
     saleId: r.saleId,
     customerName: r.customerName,
     staffName: r.staffName,
+    method: r.method,
     methodLabel: METHOD_LABELS[r.method as PaymentMethod] ?? r.method,
     amountFormatted: displayMoney(toCents(r.amount)),
     timestampMs: r.createdAt.getTime(),

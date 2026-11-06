@@ -1,7 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { AppIcon, type AppIconName } from "@/components/app-icon";
-import PantherSpotlightCard from "@/components/panther-spotlight-card";
+import PantherSpotlightCard, { type PantherChartPoint } from "@/components/panther-spotlight-card";
+import { displayMoney } from "@/lib/commerce-display";
 import TodayInvoiceRail from "./today-invoice-rail";
 import PrintPageButton from "@/components/print-page-button";
 // عميلٌ لا خادم: فإنّ التمريرَ تفاعل، والصفحةُ نفسها تُبنى على الخادم.
@@ -2093,8 +2094,69 @@ export default async function DashboardPage({
           },
         ];
 
-        /* بطاقة «مصروفات اليوم» — نفس مصدر سجل المصروفات بأي حالة، تأتي بعد «تفاصيل تحصيلات اليوم» */
-        const todayExpensesNode: ReactNode = (
+        /* نقاط الرسوم البيانية للبطاقتين: مشتقة من نفس مصادر الكروت بلا استعلامات جديدة.
+           التحصيلات: توزيع تحصيلات اليوم الصافية (بعد خصم المرتجعات من كل وسيلة).
+           المصروفات: توزيع مبالغ بنود اليوم حسب الحالة (مدفوع/معتمد/بانتظار الاعتماد). */
+        const todayCollectionsChartPoints: PantherChartPoint[] = pulseData
+          ? pulseData.todaySplitSections
+              .filter((section) => section.totalCents > 0n)
+              .map((section) => ({
+                label:
+                  section.method === "CASH"
+                    ? "فواتير نقدي"
+                    : section.method === "CARD"
+                      ? "فواتير بطاقة"
+                      : `فواتير ${section.label}`,
+                shortLabel: section.label,
+                value: Number(section.totalCents) / 100,
+                formattedValue: `${section.totalFormatted} ج.م`,
+                detail: `${nf.format(section.invoiceCount)} ${
+                  section.invoiceCount === 1 ? "فاتورة مسدّدة" : "فواتير مسدّدة"
+                } اليوم بهذه الوسيلة`,
+                pinKey: section.method,
+                secondaryLabel: `إجمالي اليوم · ${nf.format(pulseData.todayInvoicesCount)} فاتورة`,
+                secondaryFormatted: `${pulseData.todayNetSalesFormatted} ج.م`,
+              }))
+          : [];
+
+        const todayExpensesChartPoints: PantherChartPoint[] = (() => {
+          if (!todayExpenses || todayExpenses.rows.length === 0) return [];
+          const sumByStatus: Record<"PAID" | "APPROVED" | "PENDING", bigint> = {
+            PAID: 0n,
+            APPROVED: 0n,
+            PENDING: 0n,
+          };
+          const countByStatus: Record<"PAID" | "APPROVED" | "PENDING", number> = {
+            PAID: 0,
+            APPROVED: 0,
+            PENDING: 0,
+          };
+          for (const row of todayExpenses.rows) {
+            sumByStatus[row.status] += row.amount;
+            countByStatus[row.status] += 1;
+          }
+          const meta = [
+            { status: "PAID" as const, label: "مدفوع", tone: "accent" as const },
+            { status: "APPROVED" as const, label: "معتمد", tone: "alt" as const },
+            { status: "PENDING" as const, label: "بانتظار الاعتماد", tone: "warn" as const },
+          ];
+          return meta
+            .filter(({ status }) => sumByStatus[status] > 0n)
+            .map(({ status, label, tone }) => ({
+              label,
+              shortLabel: label,
+              tone,
+              value: Number(sumByStatus[status]) / 100,
+              formattedValue: `${displayMoney(sumByStatus[status])} ج.م`,
+              detail: `${nf.format(countByStatus[status])} ${
+                countByStatus[status] === 1 ? "بند" : "بنود"
+              } من بنود اليوم`,
+              pinKey: status,
+            }));
+        })();
+
+        /* بطاقة «مصروفات اليوم» — مؤشر داكن بأسلوب لوحة القيادة (Spotlight) مع الإبقاء على بنود اليوم تفصيليًا */
+        const todayExpensesNode: ReactNode = todayExpensesError ? (
           <article
             className="dashboard-surface-card dash-today-card dash-today-expenses"
             data-dash-part="today-expenses"
@@ -2102,75 +2164,87 @@ export default async function DashboardPage({
           >
             <div className="dashboard-surface-card__head">
               <div>
-                <h2 id="today-expenses-title">
-                  مصروفات اليوم
-                  {todayExpenses && todayExpenses.count > 0 ? ` (${nf.format(todayExpenses.count)})` : ""}
-                </h2>
+                <h2 id="today-expenses-title">مصروفات اليوم</h2>
                 <p>بنود اليوم بكل حالاتها (انتظار الاعتماد · معتمدة · مدفوعة) — المبالغ بعد آخر تصحيح معتمد.</p>
               </div>
-              {finOn && canOpen("/finance/expenses") ? (
+            </div>
+            <div className="dashboard-empty dash-today-expenses__notice dash-today-expenses__notice--error">
+              <AppIcon name="expenses" />
+              <strong>تعذّرت قراءة مصروفات اليوم</strong>
+              <p>حدّث الصفحة؛ إن تكرر الخلل فأبلغ مدير النظام.</p>
+            </div>
+          </article>
+        ) : !finOn ? (
+          <article
+            className="dashboard-surface-card dash-today-card dash-today-expenses"
+            data-dash-part="today-expenses"
+            aria-labelledby="today-expenses-title"
+          >
+            <div className="dashboard-surface-card__head">
+              <div>
+                <h2 id="today-expenses-title">مصروفات اليوم</h2>
+                <p>بنود اليوم بكل حالاتها (انتظار الاعتماد · معتمدة · مدفوعة) — المبالغ بعد آخر تصحيح معتمد.</p>
+              </div>
+              {canOpen("/finance/expenses") ? (
                 <Link href="/finance/expenses" className="dashboard-surface-card__link">
                   سجل المصروفات <AppIcon name="arrow" />
                 </Link>
               ) : null}
             </div>
-
-            {!finOn ? (
-              <div className="dashboard-empty dash-today-expenses__notice">
-                <AppIcon name="expenses" />
-                <strong>تتطلب هذه البطاقة وحدة المالية</strong>
-                <p>تظهر مصروفات اليوم وتفاصيلها هنا تلقائيًا بعد تفعيل وحدة المالية وتطبيق ترحيلها المعتمد على الإنتاج.</p>
-              </div>
-            ) : todayExpensesError ? (
-              <div className="dashboard-empty dash-today-expenses__notice dash-today-expenses__notice--error">
-                <AppIcon name="expenses" />
-                <strong>تعذّرت قراءة مصروفات اليوم</strong>
-                <p>حدّث الصفحة؛ إن تكرر الخلل فأبلغ مدير النظام.</p>
-              </div>
-            ) : !todayExpenses || todayExpenses.count === 0 ? (
+            <div className="dashboard-empty dash-today-expenses__notice">
+              <AppIcon name="expenses" />
+              <strong>تتطلب هذه البطاقة وحدة المالية</strong>
+              <p>تظهر مصروفات اليوم وتفاصيلها هنا تلقائيًا بعد تفعيل وحدة المالية وتطبيق ترحيلها المعتمد على الإنتاج.</p>
+            </div>
+          </article>
+        ) : (
+          <PantherSpotlightCard
+            layout="wallet"
+            icon="expenseReceipt"
+            chartVariant="donut"
+            title="مصروفات اليوم"
+            subtitle="بنود اليوم بكل حالاتها (بانتظار الاعتماد · معتمدة · مدفوعة) — المبالغ بعد آخر تصحيح معتمد."
+            pill="اليوم"
+            primary={{
+              label: "إجمالي مصروفات اليوم",
+              value: todayExpenses?.totalFormatted ?? "0.00",
+              unit: "ج.م",
+              delta:
+                todayExpenses && todayExpenses.count > 0
+                  ? `${nf.format(todayExpenses.count)} ${todayExpenses.count === 1 ? "بند" : "بنود"} · ${nf.format(todayExpenses.paidCount)} مدفوعة`
+                  : "لا بنود بعد",
+              tone: "positive",
+            }}
+            secondary={{
+              label: "بانتظار الدفع",
+              value: todayExpenses?.waitingFormatted ?? "0.00",
+              unit: "ج.م",
+              delta:
+                todayExpenses && todayExpenses.waitingCents > 0n
+                  ? `${nf.format(todayExpenses.pendingCount)} بانتظار · ${nf.format(todayExpenses.approvedCount)} معتمدة`
+                  : "كل البنود مصروفة",
+              tone: todayExpenses && todayExpenses.waitingCents > 0n ? "negative" : "positive",
+            }}
+            series={[
+              {
+                id: "expense-status",
+                label: "حسب الحالة",
+                chartVariant: "donut",
+                points: todayExpensesChartPoints,
+              },
+            ]}
+            actionHref="/finance/expenses"
+            actionLabel="سجل المصروفات"
+            dataDashPart="today-expenses"
+          >
+            {!todayExpenses || todayExpenses.count === 0 ? (
               <div className="dashboard-empty">
                 <AppIcon name="receipt" />
                 <strong>لا توجد مصروفات اليوم بعد</strong>
                 <p>تُسجّل من «تسجيل مصروف» وتظهر هنا فور حفظها.</p>
               </div>
             ) : (
-              <>
-                <div className="dash-today-kpis" role="group" aria-label="ملخص مصروفات اليوم">
-                  <div className="dash-today-kpi">
-                    <span className="dash-today-kpi__label">
-                      إجمالي مصروفات اليوم
-                      <small>كل الحالات</small>
-                    </span>
-                    <strong className="dash-today-kpi__value">
-                      <bdi dir="ltr">{todayExpenses.totalFormatted}</bdi> ج.م
-                    </strong>
-                    <span className="dash-today-kpi__note">{nf.format(todayExpenses.count)} بنود</span>
-                  </div>
-                  <div className="dash-today-kpi">
-                    <span className="dash-today-kpi__label">
-                      المدفوع
-                      <small>صُرفت فعليًا</small>
-                    </span>
-                    <strong className="dash-today-kpi__value">
-                      <bdi dir="ltr">{todayExpenses.paidFormatted}</bdi> ج.م
-                    </strong>
-                    <span className="dash-today-kpi__note">{nf.format(todayExpenses.paidCount)} مدفوعة</span>
-                  </div>
-                  <div className="dash-today-kpi">
-                    <span className="dash-today-kpi__label">
-                      بانتظار الدفع
-                      <small>معتمدة وبانتظار الاعتماد</small>
-                    </span>
-                    <strong className={`dash-today-kpi__value${todayExpenses.waitingCents > 0n ? " is-outstanding" : ""}`}>
-                      <bdi dir="ltr">{todayExpenses.waitingFormatted}</bdi> ج.م
-                    </strong>
-                    <span className={`dash-today-kpi__note${todayExpenses.waitingCents > 0n ? " is-warn" : ""}`}>
-                      {nf.format(todayExpenses.pendingCount)} بانتظار · {nf.format(todayExpenses.approvedCount)} معتمدة
-                    </span>
-                  </div>
-                </div>
-
-                <ul className="dash-today-invoice-list dash-today-expense-list">
+              <ul className="dash-today-invoice-list dash-today-expense-list">
                   {todayExpenses.rows.map((row) => {
                     const detailHref = `/finance/expenses/${row.id}`;
                     const allowed = canManageExpenses && canOpen(detailHref);
@@ -2195,7 +2269,7 @@ export default async function DashboardPage({
                       </>
                     );
                     return (
-                      <li key={row.id} className="dash-today-invoice dash-today-expense">
+                      <li key={row.id} className="dash-today-invoice dash-today-expense" data-pin-part={row.status}>
                         {allowed ? (
                           <Link href={detailHref} className="dash-today-invoice__link">
                             {inner}
@@ -2207,17 +2281,17 @@ export default async function DashboardPage({
                     );
                   })}
                 </ul>
-                <p className="dash-today-note">
+            )}
+            <p className="dash-today-note">
                   المبالغ بعد آخر تصحيح مالي معتمد (إن وُجد) · تُحتسب بنود اليوم بتاريخ المصروف لا بتاريخ الصرف.
                 </p>
-              </>
-            )}
-          </article>
+          </PantherSpotlightCard>
         );
 
-        /* بطاقتا «فواتير اليوم» و«تفاصيل تحصيلات اليوم» — تظهران داخل شبكة الوضع المركّز الموحدة بجوار الحافظة */
+        /* فواتير اليوم ← تحصيلات اليوم ← مصروفات اليوم: خلايا مباشرة داخل شبكة «التصميم الواسع» الموحدة بجوار الحافظة */
         const todayPanelsNode: ReactNode = pulseData ? (
           <>
+            <div className="dashboard-cards-grid__item">
             <article className="dashboard-surface-card dash-today-card" data-dash-part="today-invoices" aria-labelledby="today-invoices-title">
               <div className="dashboard-surface-card__head">
                 <div>
@@ -2241,64 +2315,46 @@ export default async function DashboardPage({
                 <TodayInvoiceRail invoices={pulseData.todayInvoicesList} canOpen={canOpen("/sales/1")} />
               )}
             </article>
+            </div>
 
-            <article className="dashboard-surface-card dash-today-card" data-dash-part="today-collections" aria-labelledby="today-collections-title">
-              <div className="dashboard-surface-card__head">
-                <div>
-                  <h2 id="today-collections-title">
-                    تفاصيل تحصيلات اليوم
-                    {pulseData.todaySplitDistinctInvoices > 0
-                      ? ` (${nf.format(pulseData.todaySplitDistinctInvoices)} فاتورة)`
-                      : ""}
-                  </h2>
-                  <p>صافي تحصيلات اليوم وإجمالي اليوم والمتبقّي، مع فصل فواتير النقدي عن البطاقة.</p>
-                </div>
-                <Link href="/sales" className="dashboard-surface-card__link">
-                  سجل المبيعات <AppIcon name="arrow" />
-                </Link>
-              </div>
-
-              <div className="dash-today-kpis" role="group" aria-label="ملخص تحصيلات اليوم">
-                <div className="dash-today-kpi">
-                  <span className="dash-today-kpi__label">
-                    صافي تحصيلات اليوم
-                    <small>بعد المرتجعات</small>
-                  </span>
-                  <strong className="dash-today-kpi__value">
-                    <bdi dir="ltr">{pulseData.todayNetCollectedFormatted}</bdi> ج.م
-                  </strong>
-                  <span className="dash-today-kpi__note">
-                    {pulseData.todayRefundsMovesCount > 0
-                      ? `مرتجعات −${pulseData.todayRefundsTotalFormatted} ج.م (${nf.format(pulseData.todayRefundsMovesCount)} حركة)`
-                      : `${nf.format(pulseData.todaySplitDistinctInvoices)} فاتورة مسددة جزئيًا أو كليًا`}
-                  </span>
-                </div>
-                <div className="dash-today-kpi">
-                  <span className="dash-today-kpi__label">
-                    إجمالي اليوم
-                    <small>مبيعات اليوم الصافية</small>
-                  </span>
-                  <strong className="dash-today-kpi__value">
-                    <bdi dir="ltr">{pulseData.todayNetSalesFormatted}</bdi> ج.م
-                  </strong>
-                  <span className="dash-today-kpi__note">{nf.format(pulseData.todayInvoicesCount)} فاتورة</span>
-                </div>
-                <div className="dash-today-kpi">
-                  <span className="dash-today-kpi__label">
-                    إجمالي المتبقي
-                    <small>متبقي تحصيل فواتير اليوم</small>
-                  </span>
-                  <strong className={`dash-today-kpi__value${pulseData.todayRemainingCount > 0 ? " is-outstanding" : ""}`}>
-                    <bdi dir="ltr">{pulseData.todayRemainingFormatted}</bdi> ج.م
-                  </strong>
-                  <span className={`dash-today-kpi__note${pulseData.todayRemainingCount > 0 ? " is-warn" : ""}`}>
-                    {pulseData.todayRemainingCount > 0
-                      ? `${nf.format(pulseData.todayRemainingCount)} فاتورة آجلة`
-                      : "كل فواتير اليوم مسددة"}
-                  </span>
-                </div>
-              </div>
-
+            <div className="dashboard-cards-grid__item">
+<PantherSpotlightCard
+              layout="wallet"
+              icon="customerCollection"
+              chartVariant="donut"
+              title="تفاصيل تحصيلات اليوم"
+              subtitle="صافي تحصيلات اليوم وإجمالي اليوم والمتبقّي — موزّعة على وسائل التحصيل."
+              pill="اليوم"
+              primary={{
+                label: "صافي تحصيلات اليوم",
+                value: pulseData.todayNetCollectedFormatted,
+                unit: "ج.م",
+                delta: pulseData.todayRefundsMovesCount > 0
+                  ? `خصم مرتجعات −${pulseData.todayRefundsTotalFormatted} ج.م (${nf.format(pulseData.todayRefundsMovesCount)} حركة)`
+                  : `${nf.format(pulseData.todaySplitDistinctInvoices)} فاتورة مسددة جزئيًا أو كليًا`,
+                tone: pulseData.todayRefundsMovesCount > 0 ? "negative" : "positive",
+              }}
+              secondary={{
+                label: "إجمالي المتبقي",
+                value: pulseData.todayRemainingFormatted,
+                unit: "ج.م",
+                delta: pulseData.todayRemainingCount > 0
+                  ? `${nf.format(pulseData.todayRemainingCount)} فاتورة آجلة`
+                  : "كل فواتير اليوم مسددة",
+                tone: pulseData.todayRemainingCount > 0 ? "negative" : "positive",
+              }}
+              series={[
+                {
+                  id: "pay-methods",
+                  label: "وسائل التحصيل",
+                  chartVariant: "donut",
+                  points: todayCollectionsChartPoints,
+                },
+              ]}
+              actionHref="/sales"
+              actionLabel="سجل المبيعات"
+              dataDashPart="today-collections"
+            >
               <div className="dash-today-split">
                 {pulseData.todaySplitSections.map((section) => {
                   const sectionTitle =
@@ -2320,6 +2376,7 @@ export default async function DashboardPage({
                       key={section.method}
                       className={`dash-today-section dash-today-section--${slug}`}
                       aria-label={sectionTitle}
+                      data-pin-part={section.method}
                     >
                       <header className="dash-today-section__head">
                         <span className="dash-today-section__icon" aria-hidden="true">
@@ -2375,7 +2432,8 @@ export default async function DashboardPage({
                   );
                 })}
               </div>
-              {pulseData.todayRefundsList.length > 0 ? (
+
+                            {pulseData.todayRefundsList.length > 0 ? (
                 <section className="dash-today-section dash-today-section--refund" aria-label="مرتجعات اليوم">
                   <header className="dash-today-section__head">
                     <span className="dash-today-section__icon dash-today-section__icon--refund" aria-hidden="true">
@@ -2415,7 +2473,7 @@ export default async function DashboardPage({
                         </>
                       );
                       return (
-                        <li key={refund.key} className="dash-today-invoice">
+                        <li key={refund.key} className="dash-today-invoice" data-pin-part={refund.method}>
                           {allowed ? (
                             <Link href={href} className="dash-today-invoice__link">
                               {inner}
@@ -2436,9 +2494,12 @@ export default async function DashboardPage({
               <p className="dash-today-note">
                 المبالغ في الأقسام = تحصيلات كل وسيلة بعد خصم مرتجعاتها · الفاتورة الواحدة تتوزّع مبالغها على الوسائل التي سُدّد بها منها.
               </p>
-            </article>
+            </PantherSpotlightCard>
+            </div>
 
-            {todayExpensesNode}
+            <div className="dashboard-cards-grid__item">
+              {todayExpensesNode}
+            </div>
           </>
         ) : null;
 
