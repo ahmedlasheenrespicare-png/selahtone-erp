@@ -98,7 +98,8 @@ export default Promise.resolve({ default: engineWasmModule });
 Run the preview:
   PRISMA_PGLITE_DIR=${PGLITE_DIR} AUTH_SECRET=<32+ char secret> npm run dev
 
-Mint a manager session cookie:
+Mint a manager session cookie (do it BEFORE starting the dev server, or restart
+afterwards — PGlite is single-process and won't see auth_sessions rows inserted while it runs):
   PREVIEW_PGLITE_DIR=${PGLITE_DIR} AUTH_SECRET=<same secret> npm run preview:local:session 1
 
 Demo logins: manager@selahtone.local / accountant@selahtone.local / arh@selahtone.local
