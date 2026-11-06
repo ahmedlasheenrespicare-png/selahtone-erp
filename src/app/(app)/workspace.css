@@ -6588,3 +6588,181 @@ a.dash-receipt:focus-visible {
 .monthly-panther__details [hidden] {
   display: none !important;
 }
+
+/* ==========================================================================
+   مؤشرات الـSpotlight — «لوحة التفاعل الحي» كزر يكشف «التفاصيل الخاصة»
+   ========================================================================== */
+.monthly-panther__hud--toggle {
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 0.18s ease, background-color 0.18s ease;
+}
+
+.monthly-panther__hud--toggle:hover {
+  border-color: var(--mp-accent-border);
+}
+
+.monthly-panther__hud--toggle:focus-visible {
+  outline: 2px solid var(--mp-accent);
+  outline-offset: 2px;
+}
+
+.monthly-panther__hud--toggle[aria-expanded="true"] {
+  border-color: var(--mp-accent-border);
+  background: rgba(163, 230, 53, 0.06);
+}
+
+.monthly-panther__hud-toggle {
+  display: grid;
+  place-items: center;
+  align-self: center;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  color: var(--mp-muted);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.monthly-panther__hud--toggle[aria-expanded="true"] .monthly-panther__hud-toggle {
+  color: var(--mp-accent);
+}
+
+.monthly-panther__hud-toggle svg {
+  transition: transform 0.2s ease;
+}
+
+.monthly-panther__hud--toggle[aria-expanded="true"] .monthly-panther__hud-toggle svg {
+  transform: rotate(180deg);
+}
+
+.monthly-panther__details[hidden] {
+  display: none !important;
+}
+
+/* مجموعات «التفاصيل الخاصة» لكل مؤشر — نفس هوية التحصيل والعملاء */
+.collections-pins {
+  display: grid;
+  gap: 10px;
+}
+
+.collections-pin-group {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--mp-divider);
+  border-inline-start: 3px solid var(--mp-alt);
+  background: rgba(163, 230, 53, 0.04);
+}
+
+.collections-pin-group--warn { border-inline-start-color: var(--mp-warn); }
+.collections-pin-group--danger { border-inline-start-color: var(--mp-danger); }
+
+.collections-pin-group__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--mp-title);
+}
+
+.collections-pin-group__count {
+  margin-inline-start: auto;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--mp-accent);
+  background: var(--mp-accent-soft);
+  border: 1px solid rgba(163, 230, 53, 0.35);
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.collections-pin-group__count--warn {
+  color: #fde68a;
+  background: rgba(251, 191, 36, 0.13);
+  border-color: rgba(251, 191, 36, 0.4);
+}
+
+.collections-pin-group__count--danger {
+  color: #fca5a5;
+  background: rgba(248, 113, 113, 0.13);
+  border-color: rgba(248, 113, 113, 0.4);
+}
+
+.collections-pin-group__tab {
+  margin-inline-start: auto;
+  font-size: 9.5px;
+  font-weight: 800;
+  color: var(--mp-muted);
+  border: 1px solid var(--mp-divider);
+  border-radius: 999px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.collections-pin-group__note {
+  margin: 0;
+  font-size: 10px;
+  color: var(--mp-muted);
+  line-height: 1.6;
+}
+
+.collections-pin-group__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.collections-pin-group__stats--rows {
+  grid-template-columns: 1fr;
+  gap: 5px;
+}
+
+.collections-pin-group__stats--rows > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px dashed var(--mp-divider);
+  padding-bottom: 5px;
+}
+
+.collections-pin-group__stats--rows > div:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.collections-pin-group__stats dt {
+  font-size: 9.5px;
+  font-weight: 800;
+  color: var(--mp-muted);
+  line-height: 1.45;
+}
+
+.collections-pin-group__stats dd {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--mp-value);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.collections-pin-group__stats--rows dd {
+  font-size: 12.5px;
+}
+
+.collections-pin-group__stats .is-outstanding { color: #fca5a5; }
+
+@media print {
+  .collections-pin-group {
+    break-inside: avoid;
+  }
+}
