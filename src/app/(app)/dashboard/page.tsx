@@ -196,7 +196,7 @@ export default async function DashboardPage({
   let todayExpensesError = false;
   if (finOn) {
     try {
-      todayExpenses = await loadTodayExpenses(session);
+      todayExpenses = await loadTodayExpenses(session, effectiveBranchId);
     } catch (error) {
       console.error("dashboard: today expenses failed", error);
       todayExpensesError = true;
@@ -2215,9 +2215,9 @@ export default async function DashboardPage({
           </article>
         );
 
-        /* بطاقتا «فواتير اليوم» و«تفاصيل تحصيلات اليوم» — تظهران تحت الحافظة في الوضع المركّز فقط */
+        /* بطاقتا «فواتير اليوم» و«تفاصيل تحصيلات اليوم» — تظهران داخل شبكة الوضع المركّز الموحدة بجوار الحافظة */
         const todayPanelsNode: ReactNode = pulseData ? (
-          <div className="dash-today-grid dash-today-grid--stack" data-dash-part="today" aria-label="فواتير اليوم وتحصيلاته">
+          <>
             <article className="dashboard-surface-card dash-today-card" data-dash-part="today-invoices" aria-labelledby="today-invoices-title">
               <div className="dashboard-surface-card__head">
                 <div>
@@ -2439,7 +2439,7 @@ export default async function DashboardPage({
             </article>
 
             {todayExpensesNode}
-          </div>
+          </>
         ) : null;
 
         const sectionSlots: Partial<Record<DashboardSectionId, ReactNode>> = {
