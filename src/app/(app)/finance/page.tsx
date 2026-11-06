@@ -109,7 +109,7 @@ export default async function FinancePage() {
     };
   });
 
-  const walletAccounts = rows.slice(0, 12);
+  const walletAccounts = rows;
   const pendingActionExpenses = summary ? summary.pendingExpenses + summary.approvedUnpaid : 0;
 
   const EXPENSE_STATUS_AR: Record<string, string> = {

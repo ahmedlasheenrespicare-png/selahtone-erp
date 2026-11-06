@@ -98,7 +98,7 @@ export default async function ExpensesPage({
     };
   });
 
-  const latestExpenses = rows.slice(0, 12);
+  const walletExpenses = rows;
   const currentMonthPrefix = cairoDate().slice(0, 7);
 
   let monthTotalCents = 0n;
@@ -437,7 +437,7 @@ export default async function ExpensesPage({
       </div>
 
       <div className="dashboard-cards-grid" aria-label="حافظة المصروفات ومؤشرات الصرف والاعتماد">
-        {latestExpenses.length > 0 ? (
+        {walletExpenses.length > 0 ? (
           <div className="dashboard-cards-grid__wallet">
             <DashboardWallet
               balanceValue={`${displayMoney(totalCents)} ج.م`}
@@ -445,7 +445,7 @@ export default async function ExpensesPage({
               pocketItems={pocketItems}
               hint="اسحب البطاقات أفقيًا لتقليب أحدث المصروفات، ومرّر على الجيب لإظهار الإجماليات"
             >
-              {latestExpenses.map((expense) => (
+              {walletExpenses.map((expense) => (
                 <article key={expense.id} className="stat-card">
                   <div className="stat-card__head">
                     <h3>{expense.description}</h3>

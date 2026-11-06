@@ -266,19 +266,14 @@ export default function DashboardWallet({
                 <AppIcon name="arrow" />
               </button>
 
-              <div className="dashboard-wallet__dots" role="tablist" aria-label="بطاقات الحافظة">
-                {Array.from({ length: count }, (_, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    role="tab"
-                    aria-selected={i === index}
-                    aria-label={titles[i] ? `بطاقة ${i + 1}: ${titles[i]}` : `بطاقة ${i + 1}`}
-                    className={i === index ? "is-active" : undefined}
-                    onClick={() => goTo(i)}
-                  />
-                ))}
-              </div>
+              <span
+                className="dashboard-wallet__counter"
+                role="status"
+                aria-live="polite"
+                aria-label={`الشريحة ${index + 1} من ${count}`}
+              >
+                <bdi dir="ltr">{`${index + 1} / ${count}`}</bdi>
+              </span>
 
               <button
                 type="button"
