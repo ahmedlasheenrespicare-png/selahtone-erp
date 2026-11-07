@@ -115,8 +115,7 @@ export async function loadTodayExpenses(
          LEFT JOIN finance.payments p ON p.expense_id = e.id
         WHERE e.expense_date = $1::date
           AND ($2::text IS NULL OR e.branch_id = $2::bigint)
-        ORDER BY e.created_at DESC, e.id DESC
-        LIMIT 100`,
+        ORDER BY e.created_at DESC, e.id DESC`,
       [today, branchFilterId],
     );
 
