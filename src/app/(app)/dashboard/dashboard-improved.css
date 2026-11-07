@@ -1,0 +1,429 @@
+/* ==========================================================================
+   تحسينات إضافية للفلسفة الجديدة - لوحة تحكم بسيطة وواضحة
+   يُستخدم بالإضافة إلى dashboard-switcher.css الحالي
+   ========================================================================== */
+
+/* ============================================================
+   ١. هيدر بسيط وأوضح
+   ============================================================ */
+.dash-improved-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: var(--db-surface);
+  border-bottom: 1px solid var(--db-border);
+}
+
+.dash-improved-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dash-improved-header__search {
+  flex: 1;
+  max-width: 400px;
+  margin: 0 20px;
+}
+
+.dash-improved-header__right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ============================================================
+   ٢. لوحة KPI مركزية
+   ============================================================ */
+.dash-improved-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.dash-improved-kpi-card {
+  padding: 16px;
+  background: var(--db-surface-soft);
+  border-radius: 14px;
+  border: 1px solid var(--db-border);
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
+}
+
+.dash-improved-kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px -8px rgba(0, 0, 0, 0.12);
+}
+
+.dash-improved-kpi-card__label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--db-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.dash-improved-kpi-card__value {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--db-ink);
+  margin-bottom: 4px;
+}
+
+.dash-improved-kpi-card__change {
+  font-size: 12px;
+  color: var(--db-muted);
+}
+
+.dash-improved-kpi-card__change.positive {
+  color: #10b981;
+  font-weight: 600;
+}
+
+.dash-improved-kpi-card__change.negative {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+/* ============================================================
+   ٣. الإجراءات السريعة البارزة
+   ============================================================ */
+.dash-improved-quick-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.dash-improved-quick-action-btn {
+  flex: 1;
+  min-width: 140px;
+  padding: 12px 16px;
+  background: var(--db-primary);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.dash-improved-quick-action-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px -6px rgba(14, 124, 107, 0.4);
+}
+
+.dash-improved-quick-action-btn:active {
+  transform: translateY(0);
+}
+
+.dash-improved-quick-action-btn__icon {
+  font-size: 20px;
+  opacity: 0.9;
+}
+
+.dash-improved-quick-action-btn__label {
+  font-size: 13px;
+}
+
+/* الإجراءات الثانوية */
+.dash-improved-quick-action-btn--secondary {
+  background: var(--db-surface-soft);
+  color: var(--db-ink);
+  border: 1px solid var(--db-border);
+}
+
+.dash-improved-quick-action-btn--secondary:hover {
+  background: var(--db-surface-tint);
+  border-color: var(--db-primary);
+}
+
+/* ============================================================
+   ٤. لوحة سير العمل اليومي
+   ============================================================ */
+.dash-improved-workflow-panel {
+  padding: 16px;
+  background: var(--db-surface);
+  border-radius: 14px;
+  border: 1px solid var(--db-border);
+  margin-bottom: 20px;
+}
+
+.dash-improved-workflow-panel__title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--db-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 14px;
+}
+
+.dash-improved-workflow-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.dash-improved-workflow-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--db-border-soft);
+}
+
+.dash-improved-workflow-item:last-child {
+  border-bottom: none;
+}
+
+.dash-improved-workflow-item__status {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dash-improved-workflow-item__status.done {
+  background: #10b981;
+  color: white;
+}
+
+.dash-improved-workflow-item__status.pending {
+  background: #f59e0b;
+  color: white;
+}
+
+.dash-improved-workflow-item__status.skipped {
+  background: var(--db-border);
+  color: var(--db-muted);
+}
+
+.dash-improved-workflow-item__label {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--db-ink);
+}
+
+.dash-improved-workflow-item__time {
+  font-size: 12px;
+  color: var(--db-muted);
+}
+
+/* ============================================================
+   ٥. تنقل أبسط
+   ============================================================ */
+.dash-improved-main-nav {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px;
+  background: var(--db-surface-soft);
+  border-radius: 12px;
+  border: 1px solid var(--db-border);
+}
+
+.dash-improved-main-nav__item {
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--db-ink);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+
+.dash-improved-main-nav__item:hover {
+  background: var(--db-surface-tint);
+}
+
+.dash-improved-main-nav__item.active {
+  background: var(--db-primary);
+  color: white;
+}
+
+.dash-improved-main-nav__item svg {
+  width: 18px;
+  height: 18px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+/* ============================================================
+   ٦. تحسينات إضافية على البطاقات
+   ============================================================ */
+.dash-improved-card {
+  background: var(--db-surface-soft);
+  border-radius: 14px;
+  border: 1px solid var(--db-border);
+  padding: 20px;
+  box-shadow: 0 2px 8px -4px rgba(0, 0, 0, 0.06);
+}
+
+.dash-improved-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.dash-improved-card__title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--db-ink);
+}
+
+.dash-improved-card__subtitle {
+  font-size: 12px;
+  color: var(--db-muted);
+  margin-top: 2px;
+}
+
+/* ============================================================
+   ٧. أزرار محسّنة
+   ============================================================ */
+.dash-improved-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.dash-improved-btn--primary {
+  background: var(--db-primary);
+  color: white;
+}
+
+.dash-improved-btn--primary:hover {
+  background: #0c5f53;
+  transform: translateY(-1px);
+}
+
+.dash-improved-btn--secondary {
+  background: var(--db-surface-soft);
+  color: var(--db-ink);
+  border: 1px solid var(--db-border);
+}
+
+.dash-improved-btn--secondary:hover {
+  background: var(--db-surface-tint);
+  border-color: var(--db-primary);
+}
+
+.dash-improved-btn--danger {
+  background: #ef4444;
+  color: white;
+}
+
+.dash-improved-btn--danger:hover {
+  background: #dc2626;
+}
+
+/* ============================================================
+   ٨. محتوى مرفق (Appendix)
+   ============================================================ */
+
+/* استخدامات مقترحة:
+   
+   <!-- هيدر محسّن -->
+   <header class="dash-improved-header">
+     <div class="dash-improved-header__brand">
+       <svg>...</svg>
+       <span> صلة تون </span>
+     </div>
+     <div class="dash-improved-header__search">
+       <input type="text" placeholder="بحث..." />
+     </div>
+     <div class="dash-improved-header__right">
+       <span class="dash-date">٥ نوفمبر ٢٠٢٦</span>
+       <button class="dash-improved-btn dash-improved-btn--secondary">حسابي</button>
+     </div>
+   </header>
+   
+   <!-- لوحة KPI -->
+   <div class="dash-improved-kpi-grid">
+     <div class="dash-improved-kpi-card">
+       <div class="dash-improved-kpi-card__label">الحافظة المالية</div>
+       <div class="dash-improved-kpi-card__value">٥٬٠٠٠ ج.م</div>
+       <div class="dash-improved-kpi-card__change positive">+٢٪ اليوم</div>
+     </div>
+     <div class="dash-improved-kpi-card">
+       <div class="dash-improved-kpi-card__label">مبيعات اليوم</div>
+       <div class="dash-improved-kpi-card__value">٢٬٥٠٠ ج.م</div>
+       <div class="dash-improved-kpi-card__change positive">+٥٪ من المخزون</div>
+     </div>
+     <div class="dash-improved-kpi-card">
+       <div class="dash-improved-kpi-card__label">مصروفات اليوم</div>
+       <div class="dash-improved-kpi-card__value">٨٠٠ ج.م</div>
+       <div class="dash-improved-kpi-card__change">٠٪ من الحافظة</div>
+     </div>
+     <div class="dash-improved-kpi-card">
+       <div class="dash-improved-kpi-card__label">الذمم المتبقية</div>
+       <div class="dash-improved-kpi-card__value">١٥٬٠٠٠ ج.م</div>
+       <div class="dash-improved-kpi-card__change">١٢ عميل</div>
+     </div>
+   </div>
+   
+   <!-- إجراءات سريعة -->
+   <div class="dash-improved-quick-actions">
+     <button class="dash-improved-quick-action-btn">
+       <span class="dash-improved-quick-action-btn__icon">📄</span>
+       <span class="dash-improved-quick-action-btn__label">فاتورة جديدة</span>
+     </button>
+     <button class="dash-improved-quick-action-btn dash-improved-quick-action-btn--secondary">
+       <span class="dash-improved-quick-action-btn__icon">💰</span>
+       <span class="dash-improved-quick-action-btn__label">مصروف جديد</span>
+     </button>
+     <button class="dash-improved-quick-action-btn dash-improved-quick-action-btn--secondary">
+       <span class="dash-improved-quick-action-btn__icon">🔄</span>
+       <span class="dash-improved-quick-action-btn__label">تحويل نقدي</span>
+     </button>
+   </div>
+   
+   <!-- سير العمل -->
+   <div class="dash-improved-workflow-panel">
+     <div class="dash-improved-workflow-panel__title">سير العمل اليوم</div>
+     <div class="dash-improved-workflow-list">
+       <div class="dash-improved-workflow-item">
+         <div class="dash-improved-workflow-item__status done">✓</div>
+         <div class="dash-improved-workflow-item__label">جرد الصباح</div>
+         <div class="dash-improved-workflow-item__time">٩:٠٠ ص</div>
+       </div>
+       <div class="dash-improved-workflow-item">
+         <div class="dash-improved-workflow-item__status done">✓</div>
+         <div class="dash-improved-workflow-item__label">مصروفات اليوم</div>
+         <div class="dash-improved-workflow-item__time">٢:٠٠ م</div>
+       </div>
+       <div class="dash-improved-workflow-item">
+         <div class="dash-improved-workflow-item__status pending">⏳</div>
+         <div class="dash-improved-workflow-item__label">تسوية المساء</div>
+         <div class="dash-improved-workflow-item__time">٥:٠٠ م</div>
+       </div>
+     </div>
+   </div>
+   
+   <!-- تنقل أبسط -->
+   <nav class="dash-improved-main-nav">
+     <button class="dash-improved-main-nav__item active">⚙️ لوحة القيادة</button>
+     <button class="dash-improved-main-nav__item">📊 المالية</button>
+     <button class="dash-improved-main-nav__item">🛒 المبيعات</button>
+     <button class="dash-improved-main-nav__item">📦 المخزون</button>
+     <button class="dash-improved-main-nav__item">📋 التقارير</button>
+   </nav>
+*/
