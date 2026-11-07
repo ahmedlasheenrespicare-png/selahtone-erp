@@ -130,7 +130,7 @@ npm run auth:cleanup
 - `npm run check:tax` — اختبارات محرك الضريبة.
 - `npm run check:setup:safety` — يتحقق من عدم توجيه صفحة الإعداد إلى تشغيل التهيئة على قاعدة قائمة.
 - `npm run typecheck` — فحص TypeScript.
-- `scripts/backup-to-r2.sh` و`.github/workflows/nightly-backup.yml` — إعداد نسخ `pg_dump` مشفّر إلى R2، ويتطلب ضبط أسرار GitHub: `DATABASE_URL`, `R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `BACKUP_PASSPHRASE`. تحقق من نجاح كل تشغيل؛ قسم `restore-drill` الحالي مجرد نص توضيحي ولا ينفّذ استعادة فعلية. اختبر الاستعادة على قاعدة منفصلة، ولا تعتمد على وجود مهمة النسخ وحده.
+- `scripts/backup-to-r2.sh` و`.github/workflows/nightly-backup.yml` — إعداد نسخ `pg_dump` مشفّر إلى R2، ويتطلب ضبط أسرار GitHub: `DATABASE_URL`, `R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `BACKUP_PASSPHRASE`. **ويجب أن يكون `DATABASE_URL` هنا هو الرابط المباشر من Neon لا الرابط المجمَّع (`-pooler`)؛ فـ`pg_dump` لا يعمل على المجمّع.** تحقق من نجاح كل تشغيل؛ قسم `restore-drill` الحالي مجرد نص توضيحي ولا ينفّذ استعادة فعلية. اختبر الاستعادة على قاعدة منفصلة، ولا تعتمد على وجود مهمة النسخ وحده.
 
 تصحيح الرصيد ونقل المخزون بين المستودعات ليسا ضمن التنفيذ الحالي.
 
