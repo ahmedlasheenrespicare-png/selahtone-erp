@@ -1,0 +1,91 @@
+# ============================================================
+#  تصدير نسخة من قاعدة البيانات عند الطلب (مرة واحدة)
+#
+#  كيف يُستخدم:
+#    GitHub ← Actions ← «تصدير قاعدة البيانات» ← Run workflow
+#    ثم نزّل الملف من أسفل صفحة التشغيل (قسم Artifacts).
+#
+#  لا يحتاج تثبيت شيء على جهازك، ولا يحتاج Cloudflare R2.
+#  يحتاج سرًّا واحدًا: DATABASE_URL (الرابط المباشر من Neon).
+# ============================================================
+name: تصدير قاعدة البيانات
+
+on:
+  workflow_dispatch:
+    inputs:
+      retention_days:
+        description: "مدة بقاء الملف على GitHub (أيام، ١ إلى ٩٠)"
+        required: false
+        default: "7"
+      encrypt:
+        description: "تشفير الملف بـ BACKUP_PASSPHRASE (يُتجاهل إن لم يكن مضبوطًا)"
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+
+      - name: تفريغ القاعدة وتجهيز الملف
+        env:
+          DATABASE_URL:      ${{ secrets.DATABASE_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+          ENCRYPT:           ${{ inputs.encrypt }}
+          ALLOW_POOLED_URL:  "0"
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${DATABASE_URL:-}" ]]; then
+            echo "::error::سر DATABASE_URL غير مضبوط ← Settings › Secrets and variables › Actions"
+            exit 1
+          fi
+          if [[ "$DATABASE_URL" == *pooler* && "${ALLOW_POOLED_URL:-0}" != "1" ]]; then
+            echo "::error::الرابط مجمَّع (pooler) وpg_dump يحتاج المباشر — بدّله أو فعّل ALLOW_POOLED_URL"
+            exit 1
+          fi
+          if [[ "$DATABASE_URL" != *sslmode=* ]]; then
+            echo "::notice::الرابط بلا sslmode — إن فشل الاتصال أضف ?sslmode=require"
+          fi
+
+          STAMP="$(date -u +%Y%m%d-%H%M)"
+          mkdir -p out
+
+          pg_dump "$DATABASE_URL" \
+            --no-owner --no-privileges --format=plain --clean --if-exists \
+            | gzip -9 > "out/selahtone-${STAMP}.sql.gz"
+
+          if [[ "$ENCRYPT" == "true" ]]; then
+            if [[ -z "${BACKUP_PASSPHRASE:-}" ]]; then
+              echo "::warning::التشفير مطلوب لكن BACKUP_PASSPHRASE غير مضبوط — سيُرفع الملف غير مشفَّر"
+            else
+              openssl enc -aes-256-cbc -salt -pbkdf2 -iter 200000 \
+                -pass env:BACKUP_PASSPHRASE \
+                -in "out/selahtone-${STAMP}.sql.gz" \
+                -out "out/selahtone-${STAMP}.sql.gz.enc"
+              rm "out/selahtone-${STAMP}.sql.gz"
+            fi
+          fi
+
+          echo "الملف الناتج:"
+          ls -lh out
+
+      - name: رفع الملف لتنزيله
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-export-${{ github.run_number }}
+          path: out/*
+          retention-days: ${{ fromJSON(inputs.retention_days) }}
+
+      - name: تنبيه وتعليمات الاسترجاع
+        run: |
+          echo "::warning::هذا الملف يحوي بيانات حقيقية — نزّله على جهازك واحذفه بعد الاستخدام، ولا تضعه في Git."
+          echo "للاسترجاع على قاعدة منفصلة (لا الإنتاج):"
+          echo "  غير مشفَّر: gunzip -c FILE.sql.gz | psql \"postgres://…/drilldb?sslmode=require\""
+          echo "  مشفَّر:    openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:BACKUP_PASSPHRASE -in FILE.sql.gz.enc | gunzip | psql \"postgres://…/drilldb?sslmode=require\""

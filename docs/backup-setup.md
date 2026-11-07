@@ -128,3 +128,54 @@
 يُرفع النسخ كملف **artifact** على GitHub مجانًا (مدة الاحتفاظ قابلة للضبط حتى ٩٠ يومًا)، ويُنزَّل من صفحة التشغيل. يكفي لقاعدة صغيرة، وحده الأهم: **نسخة موجودة تستطيع استرجاعها**. التحويل تغييرٌ صغير في `.github/workflows/nightly-backup.yml` (استبدال خطوة الرفع بـ`actions/upload-artifact@v4`) — يُنفَّذ عند الطلب.
 
 > تنبيه دائم: قسم `restore-drill` في سير العمل **نصٌّ توضيحي فقط** ولا ينفّذ استعادة فعلية. النسخة غير المُختبرة ليست نسخة.
+
+---
+
+## ١٠. تصدير نسخة الآن (مرة واحدة) — قبل ضبط R2
+
+طريقان: الأول بالمتصفح وحده (من الجوال أو الماك)، والثاني بطرفية الماك.
+
+### الطريق أ — من المتصفح، بلا تثبيت شيء
+
+يستخدم سير العمل `.github/workflows/manual-db-export.yml` (تشغيل يدوي فقط، لا جدولة، ولا يرفع إلى R2).
+
+1. **بعد دمج هذا الفرع في `main`**: `Actions` ← «تصدير قاعدة البيانات» ← **Run workflow** ← اختر:
+   - `retention_days`: مدة بقاء الملف على GitHub (٧ افتراضيًا، حتى ٩٠).
+   - `encrypt`: صح ⇠ يُشفَّر الملف بـ`BACKUP_PASSPHRASE` إن كان مضبوطًا.
+2. انتظر نحو دقيقة، ثم من أسفل صفحة التشغيل: قسم **Artifacts** ← `db-export-<رقم التشغيل>` ← تنزيل.
+3. يلزمه سرّ واحد على الأقل: `DATABASE_URL` (المباشر). و`BACKUP_PASSPHRASE` إن أردت التشفير.
+4. **الملف يحوي بيانات حقيقية**: نزّله، استخدمه، ثم احذفه. لا ترفعه إلى Git ولا تضعه في مجلد مشترك.
+
+> ملاحظة: لا يظهر سير العمل في قائمة Actions إلا بعد وجوده على الفرع الافتراضي `main`؛ فادمج الفرع أولًا.
+
+### الطريق ب — من طرفية الماك (بلا GitHub)
+
+```bash
+# مرة واحدة: تثبيت عميل PostgreSQL بلا خادم
+brew install libpq
+export PATH="/opt/homebrew/opt/libpq/bin:$PATH"      # ماك بمعالج Intel: /usr/local/opt/libpq/bin
+
+# التفريغ
+pg_dump "الرابط_المباشر?sslmode=require" \
+  --no-owner --no-privileges --format=plain --clean --if-exists \
+  | gzip -9 > ~/Desktop/selahtone-$(date +%F).sql.gz
+```
+
+- الرابط **المباشر** لا المجمَّع: `pg_dump` يستخدم أوامر على مستوى الجلسة، وPgBouncer في Neon لا يدعمها، فالتفريغ عبر الرابط المجمَّع يفشل. [1](https://neon.com/faqs/export-database-sql-file)
+- لا يصلح هذا الطريق من الجوال؛ استخدم الطريق أ.
+
+### استرجاع الملف على قاعدة منفصلة (لا الإنتاج أبدًا)
+
+```bash
+# غير مشفَّر
+gunzip -c selahtone-2026-11-07.sql.gz | psql "postgres://…/drilldb?sslmode=require"
+
+# مشفَّر
+openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:BACKUP_PASSPHRASE \
+  -in selahtone-2026-11-07.sql.gz.enc | gunzip | psql "postgres://…/drilldb?sslmode=require"
+
+# أو بالسكربت الجاهز (يرفض أي هدف على نطاق neon.tech إلا بـ--allow-neon-target)
+bash scripts/restore-drill.sh --file selahtone-2026-11-07.sql.gz.enc --target "postgres://…/drilldb?sslmode=require"
+```
+
+[1] Neon FAQ — تصدير قاعدة البيانات: https://neon.com/faqs/export-database-sql-file
