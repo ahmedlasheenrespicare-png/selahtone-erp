@@ -162,18 +162,19 @@ export default async function ExpenseDetailPage({ params }: Props) {
         </div>
         <div className="fin-table-wrap">
           <table className="fin-table">
+            <caption>بيانات المصروف الموثّقة بعد أي تصحيح مؤكد</caption>
             <tbody>
-              <tr><th>الفرع</th><td>{branchNames.get(expense.branchId) ?? "الفرع"}</td></tr>
-              <tr><th>البند</th><td>{expense.categorySnapshot}</td></tr>
-              <tr><th>المبلغ الفعال</th><td>{formatMoney(expense.amount)}</td></tr>
-              {expense.amount !== expense.originalAmount ? <tr><th>المبلغ الأصلي</th><td>{formatMoney(expense.originalAmount)}</td></tr> : null}
-              <tr><th>الضريبة</th><td>{expense.taxAmount === null ? "غير مُدخلة" : formatMoney(expense.taxAmount)}</td></tr>
-              <tr><th>تاريخ المصروف</th><td>{expense.expenseDate}</td></tr>
-              <tr><th>وقت التسجيل</th><td>{expense.createdAt}</td></tr>
-              <tr><th>المستفيد</th><td>{expense.beneficiary ?? "—"}</td></tr>
-              <tr><th>رقم المستند</th><td>{expense.documentNumber ?? "—"}</td></tr>
-              <tr><th>المُدخل</th><td>{userNames.get(expense.requestedBy) ?? expense.requestedBy}</td></tr>
-              <tr><th>المعتمد</th><td>{expense.approvedBy ? userNames.get(expense.approvedBy) ?? expense.approvedBy : "لم يُعتمد بعد"}</td></tr>
+              <tr><th scope="row">الفرع</th><td>{branchNames.get(expense.branchId) ?? "الفرع"}</td></tr>
+              <tr><th scope="row">البند</th><td>{expense.categorySnapshot}</td></tr>
+              <tr><th scope="row">المبلغ الفعال</th><td>{formatMoney(expense.amount)}</td></tr>
+              {expense.amount !== expense.originalAmount ? <tr><th scope="row">المبلغ الأصلي</th><td>{formatMoney(expense.originalAmount)}</td></tr> : null}
+              <tr><th scope="row">الضريبة</th><td>{expense.taxAmount === null ? "غير مُدخلة" : formatMoney(expense.taxAmount)}</td></tr>
+              <tr><th scope="row">تاريخ المصروف</th><td>{expense.expenseDate}</td></tr>
+              <tr><th scope="row">وقت التسجيل</th><td>{expense.createdAt}</td></tr>
+              <tr><th scope="row">المستفيد</th><td>{expense.beneficiary ?? "—"}</td></tr>
+              <tr><th scope="row">رقم المستند</th><td>{expense.documentNumber ?? "—"}</td></tr>
+              <tr><th scope="row">المُدخل</th><td>{userNames.get(expense.requestedBy) ?? expense.requestedBy}</td></tr>
+              <tr><th scope="row">المعتمد</th><td>{expense.approvedBy ? userNames.get(expense.approvedBy) ?? expense.approvedBy : "لم يُعتمد بعد"}</td></tr>
             </tbody>
           </table>
         </div>
@@ -225,8 +226,9 @@ export default async function ExpenseDetailPage({ params }: Props) {
           </div>
           <div className="fin-table-wrap">
             <table className="fin-table">
+              <caption>بيانات الصرف — من أين خرج المال وكيف ومَن صرفه</caption>
               <thead>
-                <tr><th>المبلغ</th><th>المصدر</th><th>الحساب</th><th>الطريقة</th><th>التاريخ</th><th>صرفه</th></tr>
+                <tr><th scope="col">المبلغ</th><th scope="col">المصدر</th><th scope="col">الحساب</th><th scope="col">الطريقة</th><th scope="col">التاريخ</th><th scope="col">صرفه</th></tr>
               </thead>
               <tbody>
                 {payments.rows.map((payment) => (

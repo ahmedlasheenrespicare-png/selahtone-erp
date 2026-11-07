@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppIcon } from "@/components/app-icon";
+import { FinKpiStrip } from "@/components/finance/fin-kpi-strip";
 import { getSession } from "@/lib/auth";
 import { assertFinanceActor, financeDb, financeEnabled } from "@/lib/finance/db";
 import { listAccounts, listCustodyRequests } from "@/lib/finance/engine";
@@ -141,77 +142,64 @@ export default async function FinanceAccountsPage({
       </div>
 
       {/* شريط نبض التغطية النقدية والطلبات */}
-      <section className="fin-kpi-strip no-print" aria-label="تغطية الخزائن والعهد">
-        <div className="fin-kpi-card is-accent">
-          <span className="fin-kpi-card__icon" aria-hidden="true">
-            <AppIcon name="shield" />
-          </span>
-          <div className="fin-kpi-card__body">
-            <span className="fin-kpi-card__label">تغطية خزائن الفروع النشطة</span>
-            <strong className="fin-kpi-card__value">
-              {coverage.openVaultCount} <small>من {coverage.totalActiveBranches}</small>
-            </strong>
-            <small className="fin-kpi-card__sub">
-              {coverage.missingVaultBranches.length === 0
+      <FinKpiStrip
+        label="تغطية الخزائن والعهد"
+        className="no-print"
+        items={[
+          {
+            icon: "shield",
+            label: "تغطية خزائن الفروع النشطة",
+            value: (
+              <>
+                {coverage.openVaultCount} <small>من {coverage.totalActiveBranches}</small>
+              </>
+            ),
+            sub:
+              coverage.missingVaultBranches.length === 0
                 ? "كل الفروع النشطة مغطّاة بخزنة رئيسية"
-                : `${coverage.missingVaultBranches.length} فرع بانتظار فتح خزنته`}
-            </small>
-          </div>
-        </div>
-
-        <div
-          className={`fin-kpi-card${
-            coverage.missingVaultBranches.length > 0 ? " is-alert" : ""
-          }`}
-        >
-          <span className="fin-kpi-card__icon" aria-hidden="true">
-            <AppIcon name="branch" />
-          </span>
-          <div className="fin-kpi-card__body">
-            <span className="fin-kpi-card__label">فروع تفتقر إلى خزنة</span>
-            <strong className="fin-kpi-card__value">
-              {coverage.missingVaultBranches.length} <small>فرع</small>
-            </strong>
-            <small className="fin-kpi-card__sub">
-              {coverage.missingVaultBranches.length > 0
+                : `${coverage.missingVaultBranches.length} فرع بانتظار فتح خزنته`,
+            tone: "accent",
+          },
+          {
+            icon: "branch",
+            label: "فروع تفتقر إلى خزنة",
+            value: (
+              <>
+                {coverage.missingVaultBranches.length} <small>فرع</small>
+              </>
+            ),
+            sub:
+              coverage.missingVaultBranches.length > 0
                 ? coverage.missingVaultBranches.map((b) => b.name).join(" · ")
-                : "لا توجد فروع نشطة بلا خزنة"}
-            </small>
-          </div>
-        </div>
-
-        <div className="fin-kpi-card">
-          <span className="fin-kpi-card__icon" aria-hidden="true">
-            <AppIcon name="transfers" />
-          </span>
-          <div className="fin-kpi-card__body">
-            <span className="fin-kpi-card__label">العُهَد المفتوحة للموظفين</span>
-            <strong className="fin-kpi-card__value">
-              {coverage.openCustodyCount} <small>عهدة قائمة</small>
-            </strong>
-            <small className="fin-kpi-card__sub">
-              {coverage.availableStaffCount} موظف نشط متاح لفتح عهدة
-            </small>
-          </div>
-        </div>
-
-        <div className={`fin-kpi-card${custodyRequests.length > 0 ? " is-alert" : ""}`}>
-          <span className="fin-kpi-card__icon" aria-hidden="true">
-            <AppIcon name="cash" />
-          </span>
-          <div className="fin-kpi-card__body">
-            <span className="fin-kpi-card__label">طلبات عهدة بانتظار القرار</span>
-            <strong className="fin-kpi-card__value">
-              {custodyRequests.length} <small>طلب</small>
-            </strong>
-            <small className="fin-kpi-card__sub">
-              {custodyRequests.length > 0
+                : "لا توجد فروع نشطة بلا خزنة",
+            tone: coverage.missingVaultBranches.length > 0 ? "alert" : "default",
+          },
+          {
+            icon: "transfers",
+            label: "العُهَد المفتوحة للموظفين",
+            value: (
+              <>
+                {coverage.openCustodyCount} <small>عهدة قائمة</small>
+              </>
+            ),
+            sub: `${coverage.availableStaffCount} موظف نشط متاح لفتح عهدة`,
+          },
+          {
+            icon: "cash",
+            label: "طلبات عهدة بانتظار القرار",
+            value: (
+              <>
+                {custodyRequests.length} <small>طلب</small>
+              </>
+            ),
+            sub:
+              custodyRequests.length > 0
                 ? "واردة من موظفي الفروع لاعتمادها أو رفضها"
-                : "لا توجد طلبات عهدة معلّقة حاليًا"}
-            </small>
-          </div>
-        </div>
-      </section>
+                : "لا توجد طلبات عهدة معلّقة حاليًا",
+            tone: custodyRequests.length > 0 ? "alert" : "default",
+          },
+        ]}
+      />
 
       <ol className="fin-stepper no-print" aria-label="خطوات تأسيس الحساب النقدي">
         <li className="fin-stepper__step is-current">
@@ -286,15 +274,16 @@ export default async function FinanceAccountsPage({
             </div>
             <div className="fin-table-wrap">
               <table className="fin-table">
+                <caption>الخزائن والعُهَد المفتوحة وأرصدتها الدفترية الحالية</caption>
                 <thead>
                   <tr>
-                    <th>#</th>
-                    <th>النوع</th>
-                    <th>الفرع</th>
-                    <th>صاحب العهدة</th>
-                    <th>تاريخ الافتتاح</th>
-                    <th>رصيد البداية</th>
-                    <th>الرصيد الدفتري الحالي</th>
+                    <th scope="col">#</th>
+                    <th scope="col">النوع</th>
+                    <th scope="col">الفرع</th>
+                    <th scope="col">صاحب العهدة</th>
+                    <th scope="col">تاريخ الافتتاح</th>
+                    <th scope="col">رصيد البداية</th>
+                    <th scope="col">الرصيد الدفتري الحالي</th>
                   </tr>
                 </thead>
                 <tbody>

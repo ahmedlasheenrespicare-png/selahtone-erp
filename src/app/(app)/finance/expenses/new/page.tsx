@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { AppIcon } from "@/components/app-icon";
+import { FinKpiStrip } from "@/components/finance/fin-kpi-strip";
 import { displayMoney } from "@/lib/commerce-display";
 import { listExpenses, listSelectableCategories } from "@/lib/finance/engine";
 import { parsePositiveMoneyCents } from "@/lib/finance/new-expense-helpers";
@@ -169,69 +170,66 @@ export default async function NewExpensePage({
       </div>
 
       {/* شريط نبض المصروفات العلوي */}
-      <section className="fin-kpi-strip no-print" aria-label="نبض المصروفات والاعتمادات">
-        <div className="fin-kpi-card is-accent">
-          <span className="fin-kpi-card__icon" aria-hidden="true">
-            <AppIcon name="calendar" />
-          </span>
-          <div className="fin-kpi-card__body">
-            <span className="fin-kpi-card__label">
-              {canManage ? "مصروفات مسجّلة اليوم" : "مصروفاتك المسجّلة اليوم"}
-            </span>
-            <strong className="fin-kpi-card__value">
-              {todayCount} <small>قيد</small>
-            </strong>
-            <small className="fin-kpi-card__sub">
-              بإجمالي <bdi dir="ltr">{displayMoney(todayCents)}</bdi> ج.م اليوم
-            </small>
-          </div>
-        </div>
-
-        <div className={`fin-kpi-card${pendingCount > 0 ? " is-alert" : ""}`}>
-          <span className="fin-kpi-card__icon" aria-hidden="true">
-            <AppIcon name="expenses" />
-          </span>
-          <div className="fin-kpi-card__body">
-            <span className="fin-kpi-card__label">بانتظار الاعتماد</span>
-            <strong className="fin-kpi-card__value">
-              {pendingCount} <small>طلب</small>
-            </strong>
-            <small className="fin-kpi-card__sub">
-              بقيمة <bdi dir="ltr">{displayMoney(pendingCents)}</bdi> ج.م قيد المراجعة
-            </small>
-          </div>
-        </div>
-
-        <div className="fin-kpi-card">
-          <span className="fin-kpi-card__icon" aria-hidden="true">
-            <AppIcon name="check" />
-          </span>
-          <div className="fin-kpi-card__body">
-            <span className="fin-kpi-card__label">معتمدة بانتظار الصرف</span>
-            <strong className="fin-kpi-card__value">
-              {approvedCount} <small>معتمد</small>
-            </strong>
-            <small className="fin-kpi-card__sub">
-              بقيمة <bdi dir="ltr">{displayMoney(approvedCents)}</bdi> ج.م جاهزة للصرف
-            </small>
-          </div>
-        </div>
-
-        <div className="fin-kpi-card">
-          <span className="fin-kpi-card__icon" aria-hidden="true">
-            <AppIcon name="shield" />
-          </span>
-          <div className="fin-kpi-card__body">
-            <span className="fin-kpi-card__label">البنود المحاسبية النشطة</span>
-            <strong className="fin-kpi-card__value">
-              {activeCategoriesCount} <small>بند</small>
-            </strong>
-            <small className="fin-kpi-card__sub">
-              {canManage ? "متاحة لكل الفروع النشطة" : "متاحة للتسجيل في فرعك"}
-            </small>
-          </div>
-        </div>
-      </section>
+      <FinKpiStrip
+        label="نبض المصروفات والاعتمادات"
+        className="no-print"
+        items={[
+          {
+            icon: "calendar",
+            label: canManage ? "مصروفات مسجّلة اليوم" : "مصروفاتك المسجّلة اليوم",
+            value: (
+              <>
+                {todayCount} <small>قيد</small>
+              </>
+            ),
+            sub: (
+              <>
+                بإجمالي <bdi dir="ltr">{displayMoney(todayCents)}</bdi> ج.م اليوم
+              </>
+            ),
+            tone: "accent",
+          },
+          {
+            icon: "expenses",
+            label: "بانتظار الاعتماد",
+            value: (
+              <>
+                {pendingCount} <small>طلب</small>
+              </>
+            ),
+            sub: (
+              <>
+                بقيمة <bdi dir="ltr">{displayMoney(pendingCents)}</bdi> ج.م قيد المراجعة
+              </>
+            ),
+            tone: pendingCount > 0 ? "alert" : "default",
+          },
+          {
+            icon: "check",
+            label: "معتمدة بانتظار الصرف",
+            value: (
+              <>
+                {approvedCount} <small>معتمد</small>
+              </>
+            ),
+            sub: (
+              <>
+                بقيمة <bdi dir="ltr">{displayMoney(approvedCents)}</bdi> ج.م جاهزة للصرف
+              </>
+            ),
+          },
+          {
+            icon: "shield",
+            label: "البنود المحاسبية النشطة",
+            value: (
+              <>
+                {activeCategoriesCount} <small>بند</small>
+              </>
+            ),
+            sub: canManage ? "متاحة لكل الفروع النشطة" : "متاحة للتسجيل في فرعك",
+          },
+        ]}
+      />
 
       <ol className="fin-stepper no-print" aria-label="دورة الرقابة على المصروف">
         <li className="fin-stepper__step is-current">
@@ -294,15 +292,16 @@ export default async function NewExpensePage({
             </div>
             <div className="fin-table-wrap">
               <table className="fin-table">
+                <caption>آخر خمسة مصروفات مسجّلة لتفادي التكرار ومتابعة الحال</caption>
                 <thead>
                   <tr>
-                    <th>#</th>
-                    <th>التاريخ</th>
-                    {canManage ? <th>الفرع</th> : null}
-                    <th>البند</th>
-                    <th>البيان والمستفيد</th>
-                    <th>المبلغ</th>
-                    <th>الحالة</th>
+                    <th scope="col">#</th>
+                    <th scope="col">التاريخ</th>
+                    {canManage ? <th scope="col">الفرع</th> : null}
+                    <th scope="col">البند</th>
+                    <th scope="col">البيان والمستفيد</th>
+                    <th scope="col">المبلغ</th>
+                    <th scope="col">الحالة</th>
                   </tr>
                 </thead>
                 <tbody>

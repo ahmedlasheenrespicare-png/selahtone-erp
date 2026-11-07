@@ -252,14 +252,15 @@ export default function FinanceAccountsView({
         ) : (
           <div className="fin-table-wrap">
             <table className="fin-table">
+              <caption>الحسابات النقدية — الجرد والرصيد الحالي لكل خزنة وعهدة</caption>
               <thead>
                 <tr>
-                  <th>الحساب</th>
-                  <th>النوع</th>
-                  <th>تاريخ الجرد</th>
-                  <th>رصيد الجرد</th>
-                  <th>الرصيد الحالي</th>
-                  {canManage ? <th>إجراء</th> : null}
+                  <th scope="col">الحساب</th>
+                  <th scope="col">النوع</th>
+                  <th scope="col">تاريخ الجرد</th>
+                  <th scope="col">رصيد الجرد</th>
+                  <th scope="col">الرصيد الحالي</th>
+                  {canManage ? <th scope="col">إجراء</th> : null}
                 </tr>
               </thead>
               <tbody>
