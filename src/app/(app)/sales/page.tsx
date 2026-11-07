@@ -48,7 +48,7 @@ export default async function SalesPage() {
     prisma.commerceSale.findMany({
       where: scope.branchId ? { branchId: BigInt(scope.branchId) } : {},
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: 100,
+      take: 1000,
       include: {
         branch: { select: { nameAr: true } },
         collections: { select: { amount: true } },
@@ -175,7 +175,7 @@ export default async function SalesPage() {
   const rows: SalesInvoiceRow[] = cards.map(
     ({ netCollectedFormatted: _net, itemPills: _pills, extraItemsCount: _extra, ...row }) => row,
   );
-  const latestWalletInvoices = cards.slice(0, 12);
+  const walletInvoices = cards;
   const branches = Array.from(branchSet);
 
   const pocketItems: WalletPocketItem[] = [
@@ -248,9 +248,9 @@ export default async function SalesPage() {
         </div>
       </div>
 
-      {(latestWalletInvoices.length > 0 || monthSales) && (
+      {(walletInvoices.length > 0 || monthSales) && (
         <div className="dashboard-cards-grid" aria-label="حافظة الفواتير ومؤشرات المبيعات والتحصيل">
-          {latestWalletInvoices.length > 0 ? (
+          {walletInvoices.length > 0 ? (
             <div className="dashboard-cards-grid__wallet">
               <DashboardWallet
                 balanceValue={`${displayMoney(netInvoicedCents)} ج.م`}
@@ -258,7 +258,7 @@ export default async function SalesPage() {
                 pocketItems={pocketItems}
                 hint="اسحب البطاقات أفقيًا أو استخدم الأسهم لتقليب أحدث الفواتير، ومرّر على الجيب لإظهار الملخص"
               >
-                {latestWalletInvoices.map((invoice) => {
+                {walletInvoices.map((invoice) => {
                   const settlementNote = invoice.hasDueFromCustomer
                     ? "متبقٍ على العميل"
                     : invoice.hasDueToCustomer

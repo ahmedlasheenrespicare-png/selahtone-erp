@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import Link from "next/link";
 
 export type PantherChartVariant =
@@ -31,6 +31,8 @@ export type PantherChartPoint = {
   secondaryLabel?: string;
   secondaryFormatted?: string;
   tone?: PantherPointTone;
+  /** مفتاح التثبيت: عند تثبيت هذه النقطة يُخفى كل عنصر في التفاصيل لا يحمل data-pin-part مطابقًا (التوسعة اختيارية، بلا أثر لباقي المستخدمين) */
+  pinKey?: string;
 };
 
 export type PantherChartSeries = {
@@ -65,6 +67,12 @@ export type PantherSpotlightCardProps = {
   actionHref: string;
   actionLabel: string;
   layout?: "wallet" | "section";
+  /** محتوى إضافي (مثل قوائم البنود التفصيلية) يُرسم داخل البطاقة بين الرسم وزر الإجراء */
+  children?: ReactNode;
+  /** علامة تبويب تبويبية اختيارية تُصق على الجذر — تبقي أدوات التحقق والاختبار كما هي */
+  dataDashPart?: string;
+  /** عند تفعيلها والبطاقة تحوي تفاصيل: يضغط المستخدم على الـHUD فتظهر/تختفي التفاصيل (accordion) بدل ظهورها دائمًا */
+  detailsHudToggle?: boolean;
 };
 
 const SERIES_VARIANT_BY_ID: Record<string, PantherChartVariant> = {
@@ -717,6 +725,9 @@ export default function PantherSpotlightCard({
   actionHref,
   actionLabel,
   layout = "section",
+  children,
+  dataDashPart,
+  detailsHudToggle,
 }: PantherSpotlightCardProps) {
   const titleId = useId();
   const gradientId = useId();
@@ -758,6 +769,28 @@ export default function PantherSpotlightCard({
   const rawActiveIndex = hoverIndex ?? pinnedIndex ?? defaultIndex;
   const activeIndex = Math.max(0, Math.min(rawActiveIndex, lastIndex));
   const activePoint = displayPoints[activeIndex] ?? displayPoints[0];
+
+  const detailsRef = useRef<HTMLDivElement | null>(null);
+  const pinnedPointForFilter = pinnedIndex !== null ? (displayPoints[pinnedIndex] ?? null) : null;
+  const pinnedKey = pinnedPointForFilter?.pinKey ?? null;
+  const hudToggleable = Boolean(detailsHudToggle) && Boolean(children);
+  const detailsHudId = useId();
+  const [detailsHudOpen, setDetailsHudOpen] = useState(false);
+  // متى تُظهر البطاقة منطقة التفاصيل لكل نقطة؟
+  // - البطاقات العادية (اليوم): تُفلتر حسب المثبّت فقط، والكل يظهر دون تثبيت.
+  // - البطاقات الضاغطة على HUD: التفاصيل تتبع النقطة المعروضة في HUD (المثبّتة وإلا الافتراضية) دائمًا.
+  const effectivePinKey = hudToggleable
+    ? (pinnedKey ?? displayPoints[defaultIndex]?.pinKey ?? null)
+    : pinnedKey;
+
+  useEffect(() => {
+    const root = detailsRef.current;
+    if (!root) return;
+    root.querySelectorAll<HTMLElement>("[data-pin-part]").forEach((el) => {
+      const keys = (el.dataset.pinPart ?? "").split(/\s+/).filter(Boolean);
+      el.hidden = effectivePinKey !== null && !keys.includes(effectivePinKey);
+    });
+  }, [effectivePinKey, children]);
 
   const isInteractiveSvgLane =
     activeVariant === "area" ||
@@ -1486,6 +1519,7 @@ export default function PantherSpotlightCard({
       className={`monthly-panther${layout === "section" ? " is-section" : ""}`}
       aria-labelledby={titleId}
       data-chart-variant={activeVariant}
+      data-dash-part={dataDashPart}
     >
       <div className="monthly-panther__glow" aria-hidden="true" />
 
@@ -1573,7 +1607,24 @@ export default function PantherSpotlightCard({
             </div>
           ) : null}
 
-          <div className="monthly-panther__hud" aria-live="polite">
+          <div
+            className={`monthly-panther__hud${hudToggleable ? " monthly-panther__hud--toggle" : ""}`}
+            {...(hudToggleable
+              ? ({
+                  role: "button",
+                  tabIndex: 0,
+                  "aria-expanded": detailsHudOpen,
+                  "aria-controls": detailsHudId,
+                  onClick: () => setDetailsHudOpen((v) => !v),
+                  onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setDetailsHudOpen((v) => !v);
+                    }
+                  },
+                } as const)
+              : ({ "aria-live": "polite" } as const))}
+          >
             <div className="monthly-panther__hud-info">
               <span className="monthly-panther__hud-point">
                 <span className="monthly-panther__hud-live-dot" aria-hidden="true" />
@@ -1600,6 +1651,23 @@ export default function PantherSpotlightCard({
                 </span>
               ) : null}
             </div>
+
+            {hudToggleable ? (
+              <span className="monthly-panther__hud-toggle" aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  width="14"
+                  height="14"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </span>
+            ) : null}
           </div>
 
           <div
@@ -1658,6 +1726,18 @@ export default function PantherSpotlightCard({
             {renderChartBody()}
           </div>
         </div>
+
+        {children ? (
+          <div
+            className="monthly-panther__details"
+            ref={detailsRef}
+            id={detailsHudId}
+            data-pin-key={effectivePinKey ?? undefined}
+            hidden={hudToggleable && !detailsHudOpen}
+          >
+            {children}
+          </div>
+        ) : null}
 
         <div className="monthly-panther__foot">
           <Link href={actionHref} className="monthly-panther__btn">

@@ -1,7 +1,9 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { AppIcon, type AppIconName } from "@/components/app-icon";
-import PantherSpotlightCard from "@/components/panther-spotlight-card";
+import PantherSpotlightCard, { type PantherChartPoint } from "@/components/panther-spotlight-card";
+import { displayMoney } from "@/lib/commerce-display";
+import TodayInvoiceRail from "./today-invoice-rail";
 import PrintPageButton from "@/components/print-page-button";
 // عميلٌ لا خادم: فإنّ التمريرَ تفاعل، والصفحةُ نفسها تُبنى على الخادم.
 import DashboardSectionSwitcher from "./dashboard-section-switcher";
@@ -30,6 +32,10 @@ import {
   loadDashboardFinanceSpotlights,
   loadEmployeeCash,
 } from "@/lib/finance/dashboard";
+import {
+  loadTodayExpenses,
+  type TodayExpensesSummary,
+} from "@/lib/finance/today-expenses";
 import { formatInventoryDecimal, stockValueScaled } from "@/lib/inventory-math";
 import { isPathAllowedForScope } from "@/lib/menu-scope";
 import {
@@ -37,6 +43,7 @@ import {
   loadSalesChartSeries,
   loadSalesStats,
 } from "@/lib/sales-stats";
+import { CollectionsPinGroups, PinGroups, withPinKeys } from "@/components/panther-pin-groups";
 
 export const dynamic = "force-dynamic";
 
@@ -155,12 +162,23 @@ export default async function DashboardPage({
 
   const isEmployee = session.role === "CS_AGENT";
   const isAccountant = session.role === "ACCOUNTANT";
+  const canManageExpenses = session.role === "MANAGER" || session.role === "ACCOUNTANT";
   const finOn = financeEnabled();
   const canOpen = (href: string) => isPathAllowedForScope(session.menuScope, href);
   const invOn = inventoryEnabled() && canOpen("/inventory");
 
-  const cash = isEmployee ? await loadEmployeeCash(session) : null;
-  const summary = isEmployee ? null : await loadCashSummary(session, effectiveBranchId);
+  let cash: Awaited<ReturnType<typeof loadEmployeeCash>> = null;
+  try {
+    cash = isEmployee ? await loadEmployeeCash(session) : null;
+  } catch (error) {
+    console.error("dashboard: employee cash failed", error);
+  }
+  let summary: Awaited<ReturnType<typeof loadCashSummary>> = null;
+  try {
+    summary = isEmployee ? null : await loadCashSummary(session, effectiveBranchId);
+  } catch (error) {
+    console.error("dashboard: cash summary failed", error);
+  }
   const currentMonthLabel = monthFormatter.format(now);
 
   let financeSpotlights: Awaited<ReturnType<typeof loadDashboardFinanceSpotlights>> = null;
@@ -174,6 +192,17 @@ export default async function DashboardPage({
     });
   } catch (error) {
     console.error("dashboard: finance spotlights failed", error);
+  }
+
+  let todayExpenses: TodayExpensesSummary | null = null;
+  let todayExpensesError = false;
+  if (finOn) {
+    try {
+      todayExpenses = await loadTodayExpenses(session, effectiveBranchId);
+    } catch (error) {
+      console.error("dashboard: today expenses failed", error);
+      todayExpensesError = true;
+    }
   }
 
   let monthSales: Awaited<ReturnType<typeof loadSalesStats>> | null = null;
@@ -300,13 +329,13 @@ export default async function DashboardPage({
       ? []
       : (isAccountant
           ? [
-              summary.pendingSettlements > 0 && { key: "settle", tone: "warning", icon: "cash" as AppIconName, text: `${nf.format(summary.pendingSettlements)} طلب تسوية عهدة بانتظار تأكيدك.`, href: "/finance/settlements" },
+              summary.pendingSettlements > 0 && { key: "settle", tone: "warning", icon: "cash" as AppIconName, text: `${nf.format(summary.pendingSettlements)} طلب تسوية عهدة بانتظار تأكيدك.`, href: "/finance/transfers" },
               summary.approvedUnpaid > 0 && { key: "pay", tone: "warning", icon: "expenses" as AppIconName, text: `${nf.format(summary.approvedUnpaid)} مصروفًا معتمدًا بانتظار تسجيل صرفه.`, href: "/finance/expenses" },
               summary.pendingExpenses > 0 && { key: "pending", tone: "info", icon: "expenses" as AppIconName, text: `${nf.format(summary.pendingExpenses)} مصروفًا بانتظار اعتماد المدير.`, href: "/finance/expenses" },
             ]
           : [
               summary.pendingExpenses > 0 && { key: "approve", tone: "warning", icon: "expenses" as AppIconName, text: `${nf.format(summary.pendingExpenses)} مصروفًا بانتظار اعتمادك الآن.`, href: "/finance/expenses" },
-              summary.pendingSettlements > 0 && { key: "settle", tone: "warning", icon: "cash" as AppIconName, text: `${nf.format(summary.pendingSettlements)} طلب تسوية عهدة بانتظار مراجعتك.`, href: "/finance/settlements" },
+              summary.pendingSettlements > 0 && { key: "settle", tone: "warning", icon: "cash" as AppIconName, text: `${nf.format(summary.pendingSettlements)} طلب تسوية عهدة بانتظار مراجعتك.`, href: "/finance/transfers" },
               summary.approvedUnpaid > 0 && { key: "pay", tone: "info", icon: "expenses" as AppIconName, text: `${nf.format(summary.approvedUnpaid)} مصروفًا معتمدًا بانتظار الصرف.`, href: "/finance/expenses" },
             ]
         ).filter(
@@ -344,7 +373,7 @@ export default async function DashboardPage({
       ]
     : isAccountant
       ? [
-          ...(finOn ? [{ key: "settlements", label: "تسويات العهد", href: "/finance/settlements", icon: "cash" as AppIconName, primary: true, badge: summary?.pendingSettlements ?? 0 }] : []),
+          ...(finOn ? [{ key: "settlements", label: "تسويات العهد", href: "/finance/transfers", icon: "cash" as AppIconName, primary: true, badge: summary?.pendingSettlements ?? 0 }] : []),
           ...(finOn ? [{ key: "expenses", label: "صرف المصروفات", href: "/finance/expenses", icon: "expenses" as AppIconName, badge: summary?.approvedUnpaid ?? 0 }] : []),
           ...(finOn ? [{ key: "finance", label: "لوحة المالية", href: "/finance", icon: "stockValue" as AppIconName }] : []),
           { key: "sales", label: "سجل الفواتير", href: "/sales", icon: "receipt" },
@@ -352,7 +381,7 @@ export default async function DashboardPage({
       : [
           { key: "new-sale", label: "فاتورة بيع", href: "/sales/new", icon: "sales", primary: true },
           ...(finOn ? [{ key: "new-exp", label: "تسجيل مصروف", href: "/finance/expenses/new", icon: "expenses" as AppIconName }] : []),
-          ...(finOn ? [{ key: "settlements", label: "تسويات العهد", href: "/finance/settlements", icon: "cash" as AppIconName, badge: summary?.pendingSettlements ?? 0 }] : []),
+          ...(finOn ? [{ key: "settlements", label: "تسويات العهد", href: "/finance/transfers", icon: "cash" as AppIconName, badge: summary?.pendingSettlements ?? 0 }] : []),
           { key: "stats", label: "إحصائيات المبيعات", href: effectiveBranchId ? `/sales/stats?period=month&branch=${effectiveBranchId}` : "/sales/stats?period=month", icon: "reports" },
         ];
   const quickActions = candidateQuickActions.filter((a) => canOpen(a.href.split("?")[0]));
@@ -916,6 +945,274 @@ export default async function DashboardPage({
         </section>
         ) : null;
 
+        /* شريحة «نبض اليوم» داخل الحافظة — دمج بطاقات النبض الأربع (Option B) */
+        const pulseSlideNode: ReactNode = (
+          <article className="stat-card is-pulse-slide" data-dash-part="pulse" aria-labelledby="pulse-slide-title">
+            <div className="stat-card__head">
+              <h3 id="pulse-slide-title">نبض اليوم</h3>
+              <p>صافي المبيعات، التحصيلات، المهام والمخزون الآن.</p>
+              <span className="stat-card__badge">اليوم</span>
+            </div>
+            <div className="stat-card__body">
+              <div className="stat-grid pulse-slide__grid">
+                <Link href="/sales" className="stat-grid__item is-link pulse-cell pulse-cell--sales">
+                  <span className="stat-grid__label">
+                    <span className="stat-grid__icon is-blue" aria-hidden="true">
+                      <AppIcon name="sales" />
+                    </span>
+                    صافي مبيعات اليوم
+                  </span>
+                  <span className="stat-grid__value">
+                    <bdi dir="ltr">{pulseData?.todayNetSalesFormatted ?? "0.00"}</bdi> <small>ج.م</small>
+                  </span>
+                  <span className="stat-grid__detail pulse-cell__sub">
+                    {pulseData && pulseData.todayGrowthPct !== null ? (
+                      <span className={`dashboard-pulse-delta is-${pulseData.todayGrowthDirection}`}>
+                        {pulseData.todayGrowthPct >= 0 ? "↑ +" : "↓ "}
+                        {nf.format(pulseData.todayGrowthPct)}% عن الأمس
+                      </span>
+                    ) : (
+                      `${nf.format(pulseData?.todayInvoicesCount ?? 0)} فاتورة نشطة اليوم · أمس ${pulseData?.yesterdayNetSalesFormatted ?? "0.00"} ج.م`
+                    )}
+                  </span>
+                </Link>
+
+                <Link href="/sales" className="stat-grid__item is-link pulse-cell pulse-cell--collections">
+                  <span className="stat-grid__label">
+                    <span className="stat-grid__icon is-cyan" aria-hidden="true">
+                      <AppIcon name="cash" />
+                    </span>
+                    تحصيلات اليوم الفعلية
+                  </span>
+                  <span className="stat-grid__value">
+                    <bdi dir="ltr">{pulseData?.todayNetCollectedFormatted ?? "0.00"}</bdi> <small>ج.م</small>
+                  </span>
+                  <span className="stat-grid__detail pulse-cell__sub">
+                    نقدي <bdi dir="ltr">{pulseData?.todayCashCollectedFormatted ?? "0.00"}</bdi> · بطاقة/تحويل{" "}
+                    <bdi dir="ltr">{pulseData?.todayElectronicCollectedFormatted ?? "0.00"}</bdi>
+                  </span>
+                </Link>
+
+                <Link
+                  href={urgentTaskHref}
+                  className={`stat-grid__item is-link pulse-cell pulse-cell--tasks${urgentTaskCount > 0 ? " pulse-cell--alert" : ""}`}
+                >
+                  <span className="stat-grid__label">
+                    <span className="stat-grid__icon is-blue" aria-hidden="true">
+                      <AppIcon name="expenses" />
+                    </span>
+                    {isAccountant ? "مهام تنتظر التنفيذ" : isEmployee ? "مهام عهدتك اليوم" : "بانتظار قرارك الآن"}
+                  </span>
+                  <span className="stat-grid__value">
+                    {nf.format(urgentTaskCount)} <small>{urgentTaskCount === 1 ? "مهمة" : "مهام"}</small>
+                  </span>
+                  <span className="stat-grid__detail pulse-cell__sub">{urgentTaskSub}</span>
+                </Link>
+
+                {invOn && canOpen("/inventory") ? (
+                  <Link
+                    href="/inventory"
+                    className={`stat-grid__item is-link pulse-cell pulse-cell--stock${lowStockTotalCount > 0 ? " pulse-cell--alert" : ""}`}
+                  >
+                    <span className="stat-grid__label">
+                      <span className="stat-grid__icon is-cyan" aria-hidden="true">
+                        <AppIcon name={isEmployee ? "products" : "stockValue"} />
+                      </span>
+                      {isEmployee ? "مخزون فرعك والنواقص" : "قيمة المخزون والنواقص"}
+                    </span>
+                    <span className="stat-grid__value">
+                      {isEmployee ? (
+                        <>
+                          {nf.format(lowStockTotalCount)} <small>تنبيه نقص</small>
+                        </>
+                      ) : (
+                        <>
+                          <bdi dir="ltr">{formatInventoryDecimal(stockValue, 6)}</bdi> <small>ج.م</small>
+                        </>
+                      )}
+                    </span>
+                    <span className="stat-grid__detail pulse-cell__sub">
+                      {lowStockTotalCount > 0
+                        ? `${nf.format(outOfStockCount)} نافد · ${nf.format(lowStockTotalCount)} صنف يحتاج توريدًا`
+                        : `${nf.format(productCount)} صنف نشط · الأرصدة آمنة`}
+                    </span>
+                  </Link>
+                ) : (
+                  <div className={`stat-grid__item pulse-cell pulse-cell--stock${lowStockTotalCount > 0 ? " pulse-cell--alert" : ""}`}>
+                    <span className="stat-grid__label">
+                      <span className="stat-grid__icon is-cyan" aria-hidden="true">
+                        <AppIcon name={isEmployee ? "products" : "stockValue"} />
+                      </span>
+                      {isEmployee ? "الأصناف ومستودع فرعك" : "قيمة المخزون والأصناف"}
+                    </span>
+                    <span className="stat-grid__value">
+                      {isEmployee ? (
+                        <>
+                          {nf.format(productCount)} <small>صنف نشط</small>
+                        </>
+                      ) : (
+                        <>
+                          <bdi dir="ltr">{formatInventoryDecimal(stockValue, 6)}</bdi> <small>ج.م</small>
+                        </>
+                      )}
+                    </span>
+                    <span className="stat-grid__detail pulse-cell__sub">
+                      {lowStockTotalCount > 0
+                        ? `${nf.format(lowStockTotalCount)} رصيد مخزوني منخفض · ${nf.format(warehouseCount)} مستودع`
+                        : `${nf.format(productCount)} صنف نشط عبر ${nf.format(warehouseCount)} مستودع`}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </article>
+        );
+
+        /* شريحة «وتيرة الشهر» داخل الحافظة */
+        const paceSlideNode: ReactNode = execSuite?.monthPace ? (
+          <article className="stat-card is-pace-slide" data-dash-part="pace" aria-labelledby="pace-slide-title">
+            <div className="stat-card__head">
+              <h3 id="pace-slide-title">وتيرة {currentMonthLabel}</h3>
+              <p>تقدّم الشهر والإغلاق المتوقّع مقارنةً بنفس الفترة الماضية.</p>
+              <span className="stat-card__badge">{nf.format(execSuite.monthPace.monthProgressPct)}%</span>
+            </div>
+            <div className="stat-card__body">
+              <div className="dashboard-pace-strip__progress pace-slide__progress">
+                <div className="dashboard-pace-strip__progress-top">
+                  <strong>وتيرة {currentMonthLabel}</strong>
+                  <span>
+                    اليوم {nf.format(execSuite.monthPace.dayOfMonth)} من{" "}
+                    {nf.format(execSuite.monthPace.daysInMonth)} (
+                    {nf.format(execSuite.monthPace.monthProgressPct)}%)
+                  </span>
+                </div>
+                <div
+                  className="dashboard-pace-strip__bar"
+                  role="progressbar"
+                  aria-valuenow={execSuite.monthPace.monthProgressPct}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label="نسبة الأيام المنقضية من الشهر"
+                >
+                  <span style={{ width: `${execSuite.monthPace.monthProgressPct}%` }} />
+                </div>
+              </div>
+              <div className="dashboard-pace-strip__metrics pace-slide__metrics">
+                <div className="dashboard-pace-metric">
+                  <span>متوسط البيع اليومي</span>
+                  <strong>
+                    <bdi dir="ltr">{execSuite.monthPace.dailyAverageFormatted}</bdi> <small>ج.م/يوم</small>
+                  </strong>
+                </div>
+                <div className="dashboard-pace-metric">
+                  <span>الإغلاق المتوقّع لنهاية الشهر</span>
+                  <strong>
+                    <bdi dir="ltr">{execSuite.monthPace.projectedCloseFormatted}</bdi> <small>ج.م</small>
+                  </strong>
+                </div>
+                <div className="dashboard-pace-metric">
+                  <span>مقارنة بنفس الفترة من الشهر الماضي</span>
+                  <div className="dashboard-pace-metric__row">
+                    {execSuite.monthPace.paceVsLastMonthPct !== null ? (
+                      <span className={`dashboard-pace-badge is-${execSuite.monthPace.paceDirection}`}>
+                        {execSuite.monthPace.paceVsLastMonthPct > 0
+                          ? `↑ متقدّم +${nf.format(execSuite.monthPace.paceVsLastMonthPct)}%`
+                          : execSuite.monthPace.paceVsLastMonthPct < 0
+                            ? `↓ أقل ${nf.format(execSuite.monthPace.paceVsLastMonthPct)}%`
+                            : "نفس وتيرة الشهر الماضي"}
+                      </span>
+                    ) : (
+                      <span className="dashboard-pace-badge is-flat">
+                        الشهر الماضي: <bdi dir="ltr">{execSuite.monthPace.prevFullMonthFormatted}</bdi> ج.م
+                      </span>
+                    )}
+                    <small>
+                      مقابل <bdi dir="ltr">{execSuite.monthPace.prevSameSpanFormatted}</bdi> ج.م لنفس الأيام
+                    </small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
+        ) : null;
+
+        /* شريحة «درع الرقابة» داخل الحافظة — بحد أقصى ٣ تنبيهات مع «عرض الكل» */
+        const governanceSlideNode: ReactNode =
+          !isEmployee && execSuite?.governance ? (
+            <article className="stat-card is-governance-slide" data-dash-part="governance" aria-labelledby="governance-slide-title">
+              <div className="stat-card__head">
+                <h3 id="governance-slide-title">درع الرقابة</h3>
+                <p>
+                  {execSuite.governance.isClean
+                    ? `الضوابط سليمة ضمن ${activeScopeLabel}`
+                    : `حالات رقابية تستوجب المراجعة ضمن ${activeScopeLabel}`}
+                </p>
+                <span className={`stat-card__badge${execSuite.governance.isClean ? "" : " is-alert"}`}>
+                  {execSuite.governance.isClean ? "سليمة" : `${nf.format(execSuite.governance.alerts.length)} تنبيه`}
+                </span>
+              </div>
+              <div className="stat-card__body">
+                <div
+                  className={`dashboard-governance governance-slide__body${execSuite.governance.isClean ? " is-clean" : " has-alerts"}`}
+                >
+                  <div className="dashboard-governance__head">
+                    <span className="dashboard-governance__icon" aria-hidden="true">
+                      <AppIcon name="shield" />
+                    </span>
+                    <div>
+                      <strong>تنبيهات الرقابة المالية والخصومات</strong>
+                      {execSuite.governance.isClean ? (
+                        <p>
+                          ضوابط التشغيل سليمة اليوم — لا إلغاءات أو مرتجعات مسجّلة اليوم، ولا تجاوزات لسقف خصم الكاونتر (
+                          {execSuite.governance.staffDiscountPctLabel})، ولا فروقات جرد معلّقة.
+                        </p>
+                      ) : (
+                        <p>الأحدث يحتاج مراجعتك الآن:</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {!execSuite.governance.isClean ? (
+                    <div className="dashboard-governance__list">
+                      {execSuite.governance.alerts.slice(0, 3).map((al) => {
+                        const allowed = canOpen(al.href);
+                        const content = (
+                          <>
+                            <div>
+                              <strong>{al.title}</strong>
+                              <small>{al.detail}</small>
+                            </div>
+                            <span className={`dashboard-feed__badge is-${al.tone === "danger" ? "danger" : "warning"}`}>
+                              مراجعة
+                            </span>
+                          </>
+                        );
+                        return allowed ? (
+                          <Link
+                            key={al.key}
+                            href={al.href}
+                            className={`dashboard-governance__item is-${al.tone}`}
+                          >
+                            {content}
+                          </Link>
+                        ) : (
+                          <div key={al.key} className={`dashboard-governance__item is-${al.tone}`}>
+                            {content}
+                          </div>
+                        );
+                      })}
+                      {execSuite.governance.alerts.length > 3 ? (
+                        <Link href="/dashboard?section=governance" className="governance-more">
+                          عرض الكل ({nf.format(execSuite.governance.alerts.length)} تنبيه)
+                        </Link>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </article>
+          ) : null;
+
         const walletNode: ReactNode = (
           <DashboardWallet
             balanceValue={expectedBalanceValue}
@@ -1003,6 +1300,10 @@ export default async function DashboardPage({
               </article>
             ) : null}
 
+            {pulseSlideNode}
+
+            {paceSlideNode}
+
             {/* الشريحة ٢: شريحة موحّدة للمهام والقرارات المعلّقة (بدل شريحتين مكرّرتين) */}
             <article className="stat-card is-todo" aria-labelledby="unified-todo-title">
               <div className="stat-card__head">
@@ -1040,7 +1341,9 @@ export default async function DashboardPage({
               </div>
             </article>
 
-            {/* الشريحة ٣: صورة النطاق وإعدادات النظام */}
+            {governanceSlideNode}
+
+            {/* الشريحة الأخيرة: صورة النطاق وإعدادات النظام */}
             <article className="stat-card is-overview" aria-labelledby="overview-title">
               <div className="stat-card__head">
                 <h3 id="overview-title">صورة النطاق السريعة</h3>
@@ -1082,6 +1385,9 @@ export default async function DashboardPage({
           </DashboardWallet>
         );
 
+        const efficiencySeries = execSuite?.compositeEfficiencySpotlight
+          ? withPinKeys(execSuite.compositeEfficiencySpotlight.series)
+          : [];
         const efficiencyNode: ReactNode = execSuite?.compositeEfficiencySpotlight ? (
           <PantherSpotlightCard
             layout="wallet"
@@ -1092,7 +1398,7 @@ export default async function DashboardPage({
             pill={execSuite.compositeEfficiencySpotlight.pill}
             primary={execSuite.compositeEfficiencySpotlight.primary}
             secondary={execSuite.compositeEfficiencySpotlight.secondary}
-            series={execSuite.compositeEfficiencySpotlight.series}
+            series={efficiencySeries}
             actionHref={
               canOpen(execSuite.compositeEfficiencySpotlight.actionHref.split("?")[0])
                 ? execSuite.compositeEfficiencySpotlight.actionHref
@@ -1103,9 +1409,13 @@ export default async function DashboardPage({
                 ? execSuite.compositeEfficiencySpotlight.actionLabel
                 : "مراجعة سجل العمليات"
             }
-          />
+            detailsHudToggle
+          >
+            <PinGroups series={efficiencySeries} />
+          </PantherSpotlightCard>
         ) : null;
 
+        const monthSalesPinnedSeries = withPinKeys(monthSalesSeries);
         const monthlySalesNode: ReactNode = monthSales ? (
           <MonthlySalesPanther
             monthLabel={currentMonthLabel}
@@ -1118,7 +1428,7 @@ export default async function DashboardPage({
             collectedPercent={monthCollectedPct}
             outstandingPercent={monthOutstandingPct}
             hasSales={monthSales.invoiceCount > 0}
-            series={monthSalesSeries}
+            series={monthSalesPinnedSeries}
             reportHref={
               session.role === "MANAGER"
                 ? effectiveBranchId
@@ -1131,9 +1441,18 @@ export default async function DashboardPage({
                 ? "عرض التقرير الكامل لمبيعات الشهر"
                 : "عرض سجل فواتير الشهر"
             }
-          />
+            detailsHudToggle
+          >
+            <PinGroups series={monthSalesPinnedSeries} />
+          </MonthlySalesPanther>
         ) : null;
 
+        const collectionsPinGroups = collectionsSpotlight ? (
+          <CollectionsPinGroups
+            details={collectionsSpotlight.details}
+            canOpenInvoice={canOpen("/sales/1")}
+          />
+        ) : null;
         const collectionsNode: ReactNode = collectionsSpotlight ? (
           <PantherSpotlightCard
             layout="wallet"
@@ -1147,9 +1466,15 @@ export default async function DashboardPage({
             series={collectionsSpotlight.series}
             actionHref={collectionsSpotlight.actionHref}
             actionLabel={collectionsSpotlight.actionLabel}
-          />
+            detailsHudToggle
+          >
+            {collectionsPinGroups}
+          </PantherSpotlightCard>
         ) : null;
 
+        const cashConvSeries = execSuite?.cashConversionSpotlight
+          ? withPinKeys(execSuite.cashConversionSpotlight.series)
+          : [];
         const cashConversionNode: ReactNode = execSuite?.cashConversionSpotlight ? (
           <PantherSpotlightCard
             layout="wallet"
@@ -1160,7 +1485,7 @@ export default async function DashboardPage({
             pill={execSuite.cashConversionSpotlight.pill}
             primary={execSuite.cashConversionSpotlight.primary}
             secondary={execSuite.cashConversionSpotlight.secondary}
-            series={execSuite.cashConversionSpotlight.series}
+            series={cashConvSeries}
             actionHref={
               canOpen(execSuite.cashConversionSpotlight.actionHref.split("?")[0])
                 ? execSuite.cashConversionSpotlight.actionHref
@@ -1171,9 +1496,15 @@ export default async function DashboardPage({
                 ? execSuite.cashConversionSpotlight.actionLabel
                 : "مراجعة الفواتير والتحصيلات"
             }
-          />
+            detailsHudToggle
+          >
+            <PinGroups series={cashConvSeries} />
+          </PantherSpotlightCard>
         ) : null;
 
+        const cashBalanceSeries = financeSpotlights?.cashBalance
+          ? withPinKeys(financeSpotlights.cashBalance.series)
+          : [];
         const cashBalanceNode: ReactNode = financeSpotlights?.cashBalance ? (
           <PantherSpotlightCard
             layout="wallet"
@@ -1184,7 +1515,7 @@ export default async function DashboardPage({
             pill={financeSpotlights.cashBalance.pill}
             primary={financeSpotlights.cashBalance.primary}
             secondary={financeSpotlights.cashBalance.secondary}
-            series={financeSpotlights.cashBalance.series}
+            series={cashBalanceSeries}
             actionHref={
               canOpen(financeSpotlights.cashBalance.actionHref)
                 ? financeSpotlights.cashBalance.actionHref
@@ -1195,9 +1526,15 @@ export default async function DashboardPage({
                 ? financeSpotlights.cashBalance.actionLabel
                 : "سجل المبيعات"
             }
-          />
+            detailsHudToggle
+          >
+            <PinGroups series={cashBalanceSeries} />
+          </PantherSpotlightCard>
         ) : null;
 
+        const monthlyExpensesSeries = financeSpotlights?.monthlyExpenses
+          ? withPinKeys(financeSpotlights.monthlyExpenses.series)
+          : [];
         const monthlyExpensesNode: ReactNode = financeSpotlights?.monthlyExpenses ? (
           <PantherSpotlightCard
             layout="wallet"
@@ -1208,16 +1545,22 @@ export default async function DashboardPage({
             pill={financeSpotlights.monthlyExpenses.pill}
             primary={financeSpotlights.monthlyExpenses.primary}
             secondary={financeSpotlights.monthlyExpenses.secondary}
-            series={financeSpotlights.monthlyExpenses.series}
+            series={monthlyExpensesSeries}
             actionHref={
               canOpen(financeSpotlights.monthlyExpenses.actionHref)
                 ? financeSpotlights.monthlyExpenses.actionHref
                 : "/finance/expenses"
             }
             actionLabel={financeSpotlights.monthlyExpenses.actionLabel}
-          />
+            detailsHudToggle
+          >
+            <PinGroups series={monthlyExpensesSeries} />
+          </PantherSpotlightCard>
         ) : null;
 
+        const fifthSeries = execSuite?.fifthSpotlight
+          ? withPinKeys(execSuite.fifthSpotlight.series)
+          : [];
         const profitabilityNode: ReactNode = execSuite?.fifthSpotlight ? (
           <PantherSpotlightCard
             layout="wallet"
@@ -1228,7 +1571,7 @@ export default async function DashboardPage({
             pill={execSuite.fifthSpotlight.pill}
             primary={execSuite.fifthSpotlight.primary}
             secondary={execSuite.fifthSpotlight.secondary}
-            series={execSuite.fifthSpotlight.series}
+            series={fifthSeries}
             actionHref={
               canOpen(execSuite.fifthSpotlight.actionHref.split("?")[0])
                 ? execSuite.fifthSpotlight.actionHref
@@ -1239,9 +1582,15 @@ export default async function DashboardPage({
                 ? execSuite.fifthSpotlight.actionLabel
                 : "مراجعة سجل المبيعات"
             }
-          />
+            detailsHudToggle
+          >
+            <PinGroups series={fifthSeries} />
+          </PantherSpotlightCard>
         ) : null;
 
+        const branchEffSeries = execSuite?.branchEfficiencySpotlight
+          ? withPinKeys(execSuite.branchEfficiencySpotlight.series)
+          : [];
         const branchEfficiencyNode: ReactNode = execSuite?.branchEfficiencySpotlight ? (
           <PantherSpotlightCard
             layout="wallet"
@@ -1252,7 +1601,7 @@ export default async function DashboardPage({
             pill={execSuite.branchEfficiencySpotlight.pill}
             primary={execSuite.branchEfficiencySpotlight.primary}
             secondary={execSuite.branchEfficiencySpotlight.secondary}
-            series={execSuite.branchEfficiencySpotlight.series}
+            series={branchEffSeries}
             actionHref={
               canOpen(execSuite.branchEfficiencySpotlight.actionHref.split("?")[0])
                 ? execSuite.branchEfficiencySpotlight.actionHref
@@ -1263,7 +1612,10 @@ export default async function DashboardPage({
                 ? execSuite.branchEfficiencySpotlight.actionLabel
                 : "استعراض فواتير الفرع"
             }
-          />
+            detailsHudToggle
+          >
+            <PinGroups series={branchEffSeries} />
+          </PantherSpotlightCard>
         ) : null;
 
         const agingRadarNode: ReactNode = execSuite?.agingRadar ? (
@@ -1792,6 +2144,415 @@ export default async function DashboardPage({
           },
         ];
 
+        /* نقاط الرسوم البيانية للبطاقتين: مشتقة من نفس مصادر الكروت بلا استعلامات جديدة.
+           التحصيلات: توزيع تحصيلات اليوم الصافية (بعد خصم المرتجعات من كل وسيلة).
+           المصروفات: توزيع مبالغ بنود اليوم حسب الحالة (مدفوع/معتمد/بانتظار الاعتماد). */
+        const todayCollectionsChartPoints: PantherChartPoint[] = pulseData
+          ? pulseData.todaySplitSections
+              .filter((section) => section.totalCents > 0n)
+              .map((section) => ({
+                label:
+                  section.method === "CASH"
+                    ? "فواتير نقدي"
+                    : section.method === "CARD"
+                      ? "فواتير بطاقة"
+                      : `فواتير ${section.label}`,
+                shortLabel: section.label,
+                value: Number(section.totalCents) / 100,
+                formattedValue: `${section.totalFormatted} ج.م`,
+                detail: `${nf.format(section.invoiceCount)} ${
+                  section.invoiceCount === 1 ? "فاتورة مسدّدة" : "فواتير مسدّدة"
+                } اليوم بهذه الوسيلة`,
+                pinKey: section.method,
+                secondaryLabel: `إجمالي اليوم · ${nf.format(pulseData.todayInvoicesCount)} فاتورة`,
+                secondaryFormatted: `${pulseData.todayNetSalesFormatted} ج.م`,
+              }))
+          : [];
+
+        const todayExpensesChartPoints: PantherChartPoint[] = (() => {
+          if (!todayExpenses || todayExpenses.rows.length === 0) return [];
+          const sumByStatus: Record<"PAID" | "APPROVED" | "PENDING", bigint> = {
+            PAID: 0n,
+            APPROVED: 0n,
+            PENDING: 0n,
+          };
+          const countByStatus: Record<"PAID" | "APPROVED" | "PENDING", number> = {
+            PAID: 0,
+            APPROVED: 0,
+            PENDING: 0,
+          };
+          for (const row of todayExpenses.rows) {
+            sumByStatus[row.status] += row.amount;
+            countByStatus[row.status] += 1;
+          }
+          const meta = [
+            { status: "PAID" as const, label: "مدفوع", tone: "accent" as const },
+            { status: "APPROVED" as const, label: "معتمد", tone: "alt" as const },
+            { status: "PENDING" as const, label: "بانتظار الاعتماد", tone: "warn" as const },
+          ];
+          return meta
+            .filter(({ status }) => sumByStatus[status] > 0n)
+            .map(({ status, label, tone }) => ({
+              label,
+              shortLabel: label,
+              tone,
+              value: Number(sumByStatus[status]) / 100,
+              formattedValue: `${displayMoney(sumByStatus[status])} ج.م`,
+              detail: `${nf.format(countByStatus[status])} ${
+                countByStatus[status] === 1 ? "بند" : "بنود"
+              } من بنود اليوم`,
+              pinKey: status,
+            }));
+        })();
+
+        /* بطاقة «مصروفات اليوم» — مؤشر داكن بأسلوب لوحة القيادة (Spotlight) مع الإبقاء على بنود اليوم تفصيليًا */
+        const todayExpensesNode: ReactNode = todayExpensesError ? (
+          <article
+            className="dashboard-surface-card dash-today-card dash-today-expenses"
+            data-dash-part="today-expenses"
+            aria-labelledby="today-expenses-title"
+          >
+            <div className="dashboard-surface-card__head">
+              <div>
+                <h2 id="today-expenses-title">مصروفات اليوم</h2>
+                <p>بنود اليوم بكل حالاتها (انتظار الاعتماد · معتمدة · مدفوعة) — المبالغ بعد آخر تصحيح معتمد.</p>
+              </div>
+            </div>
+            <div className="dashboard-empty dash-today-expenses__notice dash-today-expenses__notice--error">
+              <AppIcon name="expenses" />
+              <strong>تعذّرت قراءة مصروفات اليوم</strong>
+              <p>حدّث الصفحة؛ إن تكرر الخلل فأبلغ مدير النظام.</p>
+            </div>
+          </article>
+        ) : !finOn ? (
+          <article
+            className="dashboard-surface-card dash-today-card dash-today-expenses"
+            data-dash-part="today-expenses"
+            aria-labelledby="today-expenses-title"
+          >
+            <div className="dashboard-surface-card__head">
+              <div>
+                <h2 id="today-expenses-title">مصروفات اليوم</h2>
+                <p>بنود اليوم بكل حالاتها (انتظار الاعتماد · معتمدة · مدفوعة) — المبالغ بعد آخر تصحيح معتمد.</p>
+              </div>
+              {canOpen("/finance/expenses/today") ? (
+                <Link href="/finance/expenses/today" className="dashboard-surface-card__link">
+                  مصروفات اليوم <AppIcon name="arrow" />
+                </Link>
+              ) : null}
+            </div>
+            <div className="dashboard-empty dash-today-expenses__notice">
+              <AppIcon name="expenses" />
+              <strong>تتطلب هذه البطاقة وحدة المالية</strong>
+              <p>تظهر مصروفات اليوم وتفاصيلها هنا تلقائيًا بعد تفعيل وحدة المالية وتطبيق ترحيلها المعتمد على الإنتاج.</p>
+            </div>
+          </article>
+        ) : (
+          <PantherSpotlightCard
+            layout="wallet"
+            icon="expenseReceipt"
+            chartVariant="donut"
+            title="مصروفات اليوم"
+            subtitle="بنود اليوم بكل حالاتها (بانتظار الاعتماد · معتمدة · مدفوعة) — المبالغ بعد آخر تصحيح معتمد."
+            pill="اليوم"
+            primary={{
+              label: "إجمالي مصروفات اليوم",
+              value: todayExpenses?.totalFormatted ?? "0.00",
+              unit: "ج.م",
+              delta:
+                todayExpenses && todayExpenses.count > 0
+                  ? `${nf.format(todayExpenses.count)} ${todayExpenses.count === 1 ? "بند" : "بنود"} · ${nf.format(todayExpenses.paidCount)} مدفوعة`
+                  : "لا بنود بعد",
+              tone: "positive",
+            }}
+            secondary={{
+              label: "بانتظار الدفع",
+              value: todayExpenses?.waitingFormatted ?? "0.00",
+              unit: "ج.م",
+              delta:
+                todayExpenses && todayExpenses.waitingCents > 0n
+                  ? `${nf.format(todayExpenses.pendingCount)} بانتظار · ${nf.format(todayExpenses.approvedCount)} معتمدة`
+                  : "كل البنود مصروفة",
+              tone: todayExpenses && todayExpenses.waitingCents > 0n ? "negative" : "positive",
+            }}
+            series={[
+              {
+                id: "expense-status",
+                label: "حسب الحالة",
+                chartVariant: "donut",
+                points: todayExpensesChartPoints,
+              },
+            ]}
+            actionHref="/finance/expenses/today"
+            actionLabel="مصروفات اليوم"
+            dataDashPart="today-expenses"
+          >
+            {!todayExpenses || todayExpenses.count === 0 ? (
+              <div className="dashboard-empty">
+                <AppIcon name="receipt" />
+                <strong>لا توجد مصروفات اليوم بعد</strong>
+                <p>تُسجّل من «تسجيل مصروف» وتظهر هنا فور حفظها.</p>
+              </div>
+            ) : (
+              <ul className="dash-today-invoice-list dash-today-expense-list">
+                  {todayExpenses.rows.map((row) => {
+                    const detailHref = `/finance/expenses/${row.id}`;
+                    const allowed = canManageExpenses && canOpen(detailHref);
+                    const tone = row.status === "PAID" ? "paid" : row.status === "APPROVED" ? "approved" : "pending";
+                    const inner = (
+                      <>
+                        <span className={`dash-today-expense__chip dash-today-expense__chip--${tone}`}>
+                          {row.statusLabel}
+                        </span>
+                        <span className="dash-today-invoice__main">
+                          <span className="dash-today-invoice__customer">{row.categorySnapshot}</span>
+                          <span className="dash-today-invoice__meta">
+                            {row.description}
+                            {row.beneficiary ? ` · ${row.beneficiary}` : ""}
+                            {` · ${row.branchName} · سجّلها ${row.requestedByName}`}
+                            {row.status === "PAID" && row.paymentMethodLabel ? ` · صُرفت ${row.paymentMethodLabel}` : ""}
+                          </span>
+                        </span>
+                        <span className="dash-today-invoice__amount">
+                          <bdi dir="ltr">{row.amountFormatted}</bdi> ج.م
+                        </span>
+                      </>
+                    );
+                    return (
+                      <li key={row.id} className="dash-today-invoice dash-today-expense" data-pin-part={row.status}>
+                        {allowed ? (
+                          <Link href={detailHref} className="dash-today-invoice__link">
+                            {inner}
+                          </Link>
+                        ) : (
+                          <div className="dash-today-invoice__link is-static">{inner}</div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+            )}
+            <p className="dash-today-note">
+                  المبالغ بعد آخر تصحيح مالي معتمد (إن وُجد) · تُحتسب بنود اليوم بتاريخ المصروف لا بتاريخ الصرف.
+                </p>
+          </PantherSpotlightCard>
+        );
+
+        /* فواتير اليوم ← تحصيلات اليوم ← مصروفات اليوم: خلايا مباشرة داخل شبكة «التصميم الواسع» الموحدة بجوار الحافظة */
+        const todayPanelsNode: ReactNode = pulseData ? (
+          <>
+            <div className="dashboard-cards-grid__item">
+            <article className="dashboard-surface-card dash-today-card" data-dash-part="today-invoices" aria-labelledby="today-invoices-title">
+              <div className="dashboard-surface-card__head">
+                <div>
+                  <h2 id="today-invoices-title">
+                    فواتير اليوم{pulseData.todayInvoicesCount > 0 ? ` (${nf.format(pulseData.todayInvoicesCount)})` : ""}
+                  </h2>
+                  <p>كل فواتير اليوم بترتيب الأحدث — إيصال لكل فاتورة؛ مرّر يمينًا ويسارًا أو استخدم الأسهم.</p>
+                </div>
+                <Link href="/sales/today" className="dashboard-surface-card__link">
+                  سجل مبيعات اليوم <AppIcon name="arrow" />
+                </Link>
+              </div>
+
+              {pulseData.todayInvoicesList.length === 0 ? (
+                <div className="dashboard-empty">
+                  <AppIcon name="receipt" />
+                  <strong>لا توجد فواتير اليوم بعد</strong>
+                  <p>ستظهر أحدث الفواتير الصادرة اليوم فور تسجيلها.</p>
+                </div>
+              ) : (
+                <TodayInvoiceRail invoices={pulseData.todayInvoicesList} canOpen={canOpen("/sales/1")} />
+              )}
+            </article>
+            </div>
+
+            <div className="dashboard-cards-grid__item">
+<PantherSpotlightCard
+              layout="wallet"
+              icon="customerCollection"
+              chartVariant="donut"
+              title="تفاصيل تحصيلات اليوم"
+              subtitle="صافي تحصيلات اليوم وإجمالي اليوم والمتبقّي — موزّعة على وسائل التحصيل."
+              pill="اليوم"
+              primary={{
+                label: "صافي تحصيلات اليوم",
+                value: pulseData.todayNetCollectedFormatted,
+                unit: "ج.م",
+                delta: pulseData.todayRefundsMovesCount > 0
+                  ? `خصم مرتجعات −${pulseData.todayRefundsTotalFormatted} ج.م (${nf.format(pulseData.todayRefundsMovesCount)} حركة)`
+                  : `${nf.format(pulseData.todaySplitDistinctInvoices)} فاتورة مسددة جزئيًا أو كليًا`,
+                tone: pulseData.todayRefundsMovesCount > 0 ? "negative" : "positive",
+              }}
+              secondary={{
+                label: "إجمالي المتبقي",
+                value: pulseData.todayRemainingFormatted,
+                unit: "ج.م",
+                delta: pulseData.todayRemainingCount > 0
+                  ? `${nf.format(pulseData.todayRemainingCount)} فاتورة آجلة`
+                  : "كل فواتير اليوم مسددة",
+                tone: pulseData.todayRemainingCount > 0 ? "negative" : "positive",
+              }}
+              series={[
+                {
+                  id: "pay-methods",
+                  label: "وسائل التحصيل",
+                  chartVariant: "donut",
+                  points: todayCollectionsChartPoints,
+                },
+              ]}
+              actionHref="/sales"
+              actionLabel="سجل المبيعات"
+              dataDashPart="today-collections"
+            >
+              <div className="dash-today-split">
+                {pulseData.todaySplitSections.map((section) => {
+                  const sectionTitle =
+                    section.method === "CASH"
+                      ? "فواتير نقدي"
+                      : section.method === "CARD"
+                        ? "فواتير بطاقة"
+                        : `فواتير ${section.label}`;
+                  const slug =
+                    section.method === "CASH" ? "cash" : section.method === "CARD" ? "card" : "other";
+                  const icon: AppIconName =
+                    section.method === "CASH"
+                      ? "cash"
+                      : section.method === "CARD"
+                        ? "receipt"
+                        : "transfers";
+                  return (
+                    <section
+                      key={section.method}
+                      className={`dash-today-section dash-today-section--${slug}`}
+                      aria-label={sectionTitle}
+                      data-pin-part={section.method}
+                    >
+                      <header className="dash-today-section__head">
+                        <span className="dash-today-section__icon" aria-hidden="true">
+                          <AppIcon name={icon} />
+                        </span>
+                        <h3>{sectionTitle}</h3>
+                        <span className="dash-today-section__count">{nf.format(section.invoiceCount)} فاتورة</span>
+                        <strong className="dash-today-section__sum">
+                          <bdi dir="ltr">{section.totalFormatted}</bdi> ج.م
+                        </strong>
+                      </header>
+                      {section.rows.length === 0 ? (
+                        <p className="dash-today-section__empty">لا توجد تحصيلات {section.label} اليوم.</p>
+                      ) : (
+                        <ul className="dash-today-invoice-list">
+                          {section.rows.map((row) => {
+                            const href = `/sales/${row.saleId}`;
+                            const allowed = canOpen(href);
+                            const inner = (
+                              <>
+                                <span className="dash-today-invoice__id" dir="ltr">
+                                  <bdi>ST-{row.saleId}</bdi>
+                                </span>
+                                <span className="dash-today-invoice__main">
+                                  <span className="dash-today-invoice__customer">{row.customerName}</span>
+                                  <span className="dash-today-invoice__meta">
+                                    من إجمالي {row.invoiceTotalFormatted} ج.م
+                                    {row.hasRemaining
+                                      ? ` · متبقٍّ ${row.remainingFormatted} ج.م`
+                                      : " · مسددة"}
+                                  </span>
+                                </span>
+                                <span className="dash-today-invoice__amount">
+                                  <bdi dir="ltr">{row.amountFormatted}</bdi> ج.م
+                                </span>
+                              </>
+                            );
+                            return (
+                              <li key={row.key} className="dash-today-invoice">
+                                {allowed ? (
+                                  <Link href={href} className="dash-today-invoice__link">
+                                    {inner}
+                                  </Link>
+                                ) : (
+                                  <div className="dash-today-invoice__link is-static">{inner}</div>
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </section>
+                  );
+                })}
+              </div>
+
+                            {pulseData.todayRefundsList.length > 0 ? (
+                <section className="dash-today-section dash-today-section--refund" aria-label="مرتجعات اليوم">
+                  <header className="dash-today-section__head">
+                    <span className="dash-today-section__icon dash-today-section__icon--refund" aria-hidden="true">
+                      <AppIcon name="arrow" />
+                    </span>
+                    <h3>مرتجعات اليوم</h3>
+                    <span className="dash-today-section__count">
+                      {pulseData.todayRefundsList.length === 1
+                        ? "مرتجعة واحدة"
+                        : `${nf.format(pulseData.todayRefundsList.length)} مرتجعات`}
+                    </span>
+                    <strong className="dash-today-section__sum is-refund">
+                      <bdi dir="ltr">−{pulseData.todayRefundsTotalFormatted}</bdi> ج.م
+                    </strong>
+                  </header>
+                  <ul className="dash-today-invoice-list">
+                    {pulseData.todayRefundsList.map((refund) => {
+                      const href = `/sales/${refund.saleId}`;
+                      const allowed = canOpen(href);
+                      const inner = (
+                        <>
+                          <span className="dash-today-invoice__id" dir="ltr">
+                            <bdi>ST-{refund.saleId}</bdi>
+                          </span>
+                          <span className="dash-today-invoice__main">
+                            <span className="dash-today-invoice__customer">{refund.customerName}</span>
+                            <span className="dash-today-invoice__meta">
+                              {refund.methodLabel} · سجّلها {refund.staffName} ·{" "}
+                              <time dateTime={refund.timestampIso}>
+                                {activityTimeFormatter.format(new Date(refund.timestampIso))}
+                              </time>
+                            </span>
+                          </span>
+                          <span className="dash-today-refund__amount">
+                            <bdi dir="ltr">−{refund.amountFormatted}</bdi> ج.م
+                          </span>
+                        </>
+                      );
+                      return (
+                        <li key={refund.key} className="dash-today-invoice" data-pin-part={refund.method}>
+                          {allowed ? (
+                            <Link href={href} className="dash-today-invoice__link">
+                              {inner}
+                            </Link>
+                          ) : (
+                            <div className="dash-today-invoice__link is-static">{inner}</div>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <p className="dash-today-note dash-today-note--tight">
+                    تُخصم المرتجعات من تحصيلات اليوم في خانة «صافي تحصيلات اليوم» أعلاه وتُوزَّع نقصًا على وسيلة الدفع.
+                  </p>
+                </section>
+              ) : null}
+
+              <p className="dash-today-note">
+                المبالغ في الأقسام = تحصيلات كل وسيلة بعد خصم مرتجعاتها · الفاتورة الواحدة تتوزّع مبالغها على الوسائل التي سُدّد بها منها.
+              </p>
+            </PantherSpotlightCard>
+            </div>
+
+            <div className="dashboard-cards-grid__item">
+              {todayExpensesNode}
+            </div>
+          </>
+        ) : null;
+
         const sectionSlots: Partial<Record<DashboardSectionId, ReactNode>> = {
           pulse: pulseNode,
           pace: paceNode,
@@ -1829,13 +2590,6 @@ export default async function DashboardPage({
             </div>
           </header>
         );
-        const allPanelBeforeCards: ReactNode = (
-          <>
-            {pulseNode}
-            {paceNode}
-            {governanceNode}
-          </>
-        );
         const allSpotlightCards: ReactNode = (
           <>
             {efficiencyNode ? <div className="dashboard-cards-grid__item">{efficiencyNode}</div> : null}
@@ -1862,7 +2616,6 @@ export default async function DashboardPage({
         const fullDashboardView: ReactNode = (
           <section className="dashboard-all-panel" aria-labelledby="dashboard-all-title">
             {allPanelHeader}
-            {allPanelBeforeCards}
             <div className="dashboard-cards-grid">
               {fullDashboardWallet}
               {allSpotlightCards}
@@ -1875,7 +2628,6 @@ export default async function DashboardPage({
         const compactDashboardView: ReactNode = (
           <section className="dashboard-all-panel" aria-labelledby="dashboard-all-title">
             {allPanelHeader}
-            {allPanelBeforeCards}
             <div className="dashboard-cards-grid dashboard-all-panel__spotlights">
               {allSpotlightCards}
             </div>
@@ -1892,6 +2644,7 @@ export default async function DashboardPage({
             fullView={fullDashboardView}
             compactView={compactDashboardView}
             fullViewWallet={fullDashboardWallet}
+            belowWalletSlot={todayPanelsNode}
             headerContent={dashboardHeaderContent}
             headerTools={dashboardHeaderTools}
             beforeContent={dashboardPrelude}

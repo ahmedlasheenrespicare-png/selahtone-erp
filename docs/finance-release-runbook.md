@@ -134,6 +134,19 @@ BACKUP_PASSPHRASE=... bash scripts/restore-drill.sh --file selahtone-20261030-01
 3. صلاحيات الموظف وحجبه على مستوى الخادم.
 4. (ملغى) المرفقات وتخزينها.
 
+**الدرس من المعاينة المحلية (2026-11-07)**: الترقية الأساسية وحدها لا تكفي لتشغيل
+الواجهة على الفرع الحالي — الكود يقرأ `finance.settlements` (42P01) و`finance.accounts.closed_at`
+(42703) ما إن تُضاف وحدها. التفعيل الكامل على قاعدة `/tmp/pglite-preview` تطلب تسلسلًا من
+أربعة ملفات، بالترتيب، ولا يكفي افتراضيًا بملف الحريفة الأساسي وحده:
+
+1. `manual-finance-release-upgrade.sql` — الجداول الـ16 + `finance_release.migrations`.
+2. `manual-settlement-upgrade.sql` — `finance.settlements` + `movements.settlement_id` + `payments.source` + توسيع قيد `movements_kind_check`.
+3. `manual-custody-and-count-requests.sql` — `finance.custody_requests` + أعمدة الجرد الموجَّه على `finance.cash_counts`.
+4. `manual-custody-closure-upgrade.sql` — `finance.accounts.closed_at / closed_by` (الوسم «هجرة إنتاج واجبة»).
+
+ما عدا ذلك لم يُمسّ: لا نُفذ `manual-clear-finance-operational-data.sql` (خطر)، والإنتاج
+لم يُلمس. أي فتح رسمي في الإنتاج يجب أن يمرّ بهذا التسلسل نفسه وبتقدير مراقب لكل خطوة.
+
 ## سجل البروفة
 
 نتائج البروفة الفعلية على الفرع التجريبي (`2026-10-30`) موثّقة بالأرقام في

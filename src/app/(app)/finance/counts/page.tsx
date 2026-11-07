@@ -7,6 +7,7 @@ import { accountLabel, formatMoney } from "../format";
 import { financePage, financeRead } from "../page-context";
 import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
 import { CountRequestForm, CountResolveForm, type CountAccountOption } from "./count-forms";
+import { FinCsvButton } from "@/components/finance/fin-csv-button";
 import { RequestCountFromHolderForm } from "./holder-count-request";
 
 export const dynamic = "force-dynamic";
@@ -120,25 +121,43 @@ export default async function CountsPage() {
       </div>
 
       <div className="fin-panel">
-        <div className="fin-panel__heading">
-          <h2>سجل الجرد</h2>
-          <p>كل جرد محفوظ بحالته ومن أكّده وسببه.</p>
+        <div className="fin-panel__heading fin-panel__heading--split">
+          <div>
+            <h2>سجل الجرد</h2>
+            <p>كل جرد محفوظ بحالته ومن أكّده وسببه.</p>
+          </div>
+          <FinCsvButton
+            filename={`selahtone-cash-counts-${new Date().toISOString().slice(0, 10)}.csv`}
+            label="تصدير سجل الجرد"
+            headers={["الجرد", "الحساب", "التاريخ", "الدفتري", "المعدود", "الفرق", "الحالة", "السبب"]}
+            rows={history.map((count) => [
+              `#${count.id}`,
+              accountLabelById.get(count.accountId) ?? "الحساب",
+              count.countedOn,
+              formatMoney(count.observedBalance),
+              formatMoney(count.countedAmount),
+              formatMoney(count.difference),
+              STATUS_LABEL[count.status] ?? count.status,
+              count.resolutionReason ?? count.reason,
+            ])}
+          />
         </div>
         {history.length === 0 ? (
           <div className="fin-panel__body"><p>لا يوجد جرد مُسوًّى بعد.</p></div>
         ) : (
           <div className="fin-table-wrap">
             <table className="fin-table">
+              <caption>سجل الجرد بحالته ومن أكّده وسببه</caption>
               <thead>
                 <tr>
-                  <th>الجرد</th>
-                  <th>الحساب</th>
-                  <th>التاريخ</th>
-                  <th>الدفتري</th>
-                  <th>المعدود</th>
-                  <th>الفرق</th>
-                  <th>الحالة</th>
-                  <th>السبب</th>
+                  <th scope="col">الجرد</th>
+                  <th scope="col">الحساب</th>
+                  <th scope="col">التاريخ</th>
+                  <th scope="col">الدفتري</th>
+                  <th scope="col">المعدود</th>
+                  <th scope="col">الفرق</th>
+                  <th scope="col">الحالة</th>
+                  <th scope="col">السبب</th>
                 </tr>
               </thead>
               <tbody>

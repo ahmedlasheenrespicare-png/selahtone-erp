@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { AppIcon } from "@/components/app-icon";
 import { downloadCsvFile } from "@/lib/csv-export";
 
@@ -73,6 +73,20 @@ export default function FinanceExpensesView({
     if (status === "APPROVED") return "fin-badge fin-badge--approved";
     if (status === "PAID") return "fin-badge fin-badge--paid";
     return "fin-badge fin-badge--closed";
+  }
+
+  const tabOrder: Array<ExpenseFilter> = ["all", "PENDING", "APPROVED", "PAID"];
+  function handleTabListKeyDown(event: ReactKeyboardEvent<HTMLDivElement>): void {
+    // قائمة العرض RTL: السهم الأيسر ينقل إلى التبويب التالي (ترتيب القراءة)، والأيمن إلى السابق.
+    const delta =
+      event.key === "ArrowLeft" ? 1 : event.key === "ArrowRight" ? -1 : 0;
+    if (delta !== 0) {
+      event.preventDefault();
+      const current = tabOrder.indexOf(filter);
+      const next = tabOrder[(current + delta + tabOrder.length) % tabOrder.length];
+      setFilter(next);
+      document.getElementById(`fin-tab-${next.toLowerCase()}`)?.focus();
+    }
   }
 
   function handleExportCsv(): void {
@@ -163,11 +177,14 @@ export default function FinanceExpensesView({
         </div>
 
         <div className="fin-toolbar__row">
-          <div className="fin-filter-pills" role="tablist" aria-label="حالة المصروف">
+          <div className="fin-filter-pills" role="tablist" aria-label="حالة المصروف" onKeyDown={handleTabListKeyDown}>
             <button
               type="button"
               role="tab"
+              id="fin-tab-all"
+              aria-controls="fin-expenses-panel"
               aria-selected={filter === "all"}
+              tabIndex={filter === "all" ? 0 : -1}
               className={`fin-filter-pill${filter === "all" ? " is-active" : ""}`}
               onClick={() => setFilter("all")}
             >
@@ -177,7 +194,10 @@ export default function FinanceExpensesView({
             <button
               type="button"
               role="tab"
+              id="fin-tab-pending"
+              aria-controls="fin-expenses-panel"
               aria-selected={filter === "PENDING"}
+              tabIndex={filter === "PENDING" ? 0 : -1}
               className={`fin-filter-pill${filter === "PENDING" ? " is-active" : ""}`}
               onClick={() => setFilter("PENDING")}
             >
@@ -187,7 +207,10 @@ export default function FinanceExpensesView({
             <button
               type="button"
               role="tab"
+              id="fin-tab-approved"
+              aria-controls="fin-expenses-panel"
               aria-selected={filter === "APPROVED"}
+              tabIndex={filter === "APPROVED" ? 0 : -1}
               className={`fin-filter-pill${filter === "APPROVED" ? " is-active" : ""}`}
               onClick={() => setFilter("APPROVED")}
             >
@@ -197,7 +220,10 @@ export default function FinanceExpensesView({
             <button
               type="button"
               role="tab"
+              id="fin-tab-paid"
+              aria-controls="fin-expenses-panel"
               aria-selected={filter === "PAID"}
+              tabIndex={filter === "PAID" ? 0 : -1}
               className={`fin-filter-pill${filter === "PAID" ? " is-active" : ""}`}
               onClick={() => setFilter("PAID")}
             >
@@ -208,7 +234,7 @@ export default function FinanceExpensesView({
         </div>
       </div>
 
-      <div className="fin-panel">
+      <div className="fin-panel" role="tabpanel" id="fin-expenses-panel" aria-labelledby={`fin-tab-${filter.toLowerCase()}`}>
         <div className="fin-panel__heading">
           <h2>كل المصروفات</h2>
           <p>المبلغ الظاهر هو المبلغ الفعال بعد أي تصحيح مؤكد.</p>
@@ -219,15 +245,16 @@ export default function FinanceExpensesView({
         ) : (
           <div className="fin-table-wrap">
             <table className="fin-table">
+              <caption>سجل المصروفات المعروض حسب حالة التصفية — المبلغ الفعّال بعد أي تصحيح</caption>
               <thead>
                 <tr>
-                  <th>التاريخ</th>
-                  <th>الفرع</th>
-                  <th>البند</th>
-                  <th>الوصف</th>
-                  <th>المبلغ</th>
-                  <th>الحالة</th>
-                  {canManage ? <th>إجراء</th> : null}
+                  <th scope="col">التاريخ</th>
+                  <th scope="col">الفرع</th>
+                  <th scope="col">البند</th>
+                  <th scope="col">الوصف</th>
+                  <th scope="col">المبلغ</th>
+                  <th scope="col">الحالة</th>
+                  {canManage ? <th scope="col">إجراء</th> : null}
                 </tr>
               </thead>
               <tbody>

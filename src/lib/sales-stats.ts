@@ -70,8 +70,8 @@ function toCents(value: string): bigint {
 async function periodStart(db: PrismaClient, period: Period): Promise<Date> {
   const rows = await db.$queryRaw<Array<{ start: Date }>>`
     SELECT CASE ${period}
-      WHEN 'today' THEN (CURRENT_DATE AT TIME ZONE 'Africa/Cairo')
-      WHEN '7' THEN (CURRENT_DATE AT TIME ZONE 'Africa/Cairo') - INTERVAL '7 days'
+      WHEN 'today' THEN (DATE_TRUNC('day', NOW() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo')
+      WHEN '7' THEN (DATE_TRUNC('day', NOW() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo') - INTERVAL '7 days'
       WHEN 'month' THEN (date_trunc('month', CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo')
       ELSE '1970-01-01T00:00:00Z'::timestamptz
     END AS start`;
@@ -170,6 +170,23 @@ export async function loadSalesStats(db: PrismaClient, branchId: string | null, 
 const arMoney = new Intl.NumberFormat("ar-EG-u-nu-latn", {
   maximumFractionDigits: 2,
 });
+const arDateTime = new Intl.DateTimeFormat("ar-EG-u-nu-latn", {
+  day: "numeric",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+/** تفاصيل فارغة للبطاقات خارج نطاق «العرض الرئيسي» — لا تُستهلك هناك (تُمرَّر بلا children). */
+const EMPTY_COLLECTIONS_DETAILS: CollectionsDetails = {
+  settled: [],
+  due: [],
+  returns: [],
+  settledMore: 0,
+  dueMore: 0,
+  customers: [],
+  branches: [],
+};
 
 function formatCentsAr(cents: bigint): string {
   return arMoney.format(Number(cents) / 100);
@@ -428,6 +445,54 @@ export async function loadSalesChartSeries(
   return series;
 }
 
+export type CollectionsInvoiceRow = {
+  saleId: string;
+  branchName: string;
+  customerName: string;
+  netFormatted: string;
+  remainingFormatted: string;
+  hasRemaining: boolean;
+  createdAtShort: string;
+};
+
+export type CollectionsCustomerDetails = {
+  name: string;
+  invoicedFormatted: string;
+  collectedFormatted: string;
+  dueFormatted: string;
+  count: number;
+  invoices: CollectionsInvoiceRow[];
+};
+
+export type CollectionsBranchDetails = {
+  branchId: string;
+  name: string;
+  invoicedFormatted: string;
+  collectedFormatted: string;
+  dueFormatted: string;
+  collectionRatePct: number;
+  count: number;
+  invoices: CollectionsInvoiceRow[];
+};
+
+export type CollectionsReturnRow = {
+  saleId: string;
+  customerName: string;
+  branchName: string;
+  amountFormatted: string;
+  at: string;
+};
+
+export type CollectionsDetails = {
+  settled: CollectionsInvoiceRow[];
+  due: CollectionsInvoiceRow[];
+  returns: CollectionsReturnRow[];
+  settledMore: number;
+  dueMore: number;
+  customers: CollectionsCustomerDetails[];
+  branches: CollectionsBranchDetails[];
+};
+
 export type CollectionsSpotlightData = {
   title: string;
   subtitle: string;
@@ -437,6 +502,8 @@ export type CollectionsSpotlightData = {
   series: PantherChartSeries[];
   actionHref: string;
   actionLabel: string;
+  /** تفاصيل حقيقية للتبويبات الثلاث (إضافة اختيارية بدل الاستيراد في كل مستهلك) */
+  details: CollectionsDetails;
 };
 
 /**
@@ -446,13 +513,17 @@ export type CollectionsSpotlightData = {
 export async function loadCollectionsSpotlight(
   db: PrismaClient,
   branchId: string | null,
-  opts: { canSell: boolean; context: "dashboard" | "sales" },
+  opts: { canSell: boolean; context: "dashboard" | "sales"; period?: Period },
 ): Promise<CollectionsSpotlightData> {
   const branch = branchId === null ? null : BigInt(branchId);
+  // عند تمرير period تُقيّد جميع بيانات البطاقة (فواتير/عملاؤهم/توزيع التحصيل) بالفترة المحددة —
+  // تُستخدم في صفحة «سجل مبيعات اليوم»؛ بلا period السلوك مطابق للسابق حرفيًا.
+  const start = opts.period ? await periodStart(db, opts.period) : null;
 
-  const [invoiceRows, activeBranches] = await Promise.all([
+  const [invoiceRows, activeBranches, returnRowsRaw] = await Promise.all([
     db.$queryRaw<
       Array<{
+        id: string;
         branchId: string;
         branchName: string;
         customerName: string;
@@ -460,12 +531,15 @@ export async function loadCollectionsSpotlight(
         returned: string;
         collected: string;
         refunded: string;
+        createdAt: Date;
       }>
     >`
       SELECT
+        s.id::text AS id,
         s.branch_id::text AS "branchId",
         b.name_ar AS "branchName",
         s.customer_name AS "customerName",
+        s.created_at AS "createdAt",
         s.total::text AS original,
         COALESCE(
           (SELECT SUM(rl.total) FROM commerce_return_lines rl
@@ -485,6 +559,7 @@ export async function loadCollectionsSpotlight(
       JOIN branches b ON b.id = s.branch_id
       WHERE s.cancelled_at IS NULL
         AND (${branch}::bigint IS NULL OR s.branch_id = ${branch}::bigint)
+        AND (${start}::timestamptz IS NULL OR s.created_at >= ${start}::timestamptz)
       ORDER BY s.created_at DESC, s.id DESC`,
     branch === null
       ? db.branch.findMany({
@@ -493,7 +568,33 @@ export async function loadCollectionsSpotlight(
           orderBy: { code: "asc" },
         })
       : Promise.resolve([]),
+    db.$queryRaw<
+      Array<{
+        saleId: string;
+        branchName: string;
+        customerName: string;
+        returned: string;
+        createdAt: Date;
+      }>
+    >`
+      SELECT
+        r.sale_id::text AS "saleId",
+        b.name_ar AS "branchName",
+        s.customer_name AS "customerName",
+        COALESCE(SUM(rl.total), 0)::text AS returned,
+        MAX(r.created_at) AS "createdAt"
+      FROM commerce_returns r
+      JOIN commerce_sales s ON s.id = r.sale_id
+      JOIN branches b ON b.id = s.branch_id
+      JOIN commerce_return_lines rl ON rl.return_id = r.id
+      WHERE s.cancelled_at IS NULL
+        AND (${branch}::bigint IS NULL OR s.branch_id = ${branch}::bigint)
+        AND (${start}::timestamptz IS NULL OR r.created_at >= ${start}::timestamptz)
+      GROUP BY r.sale_id, b.name_ar, s.customer_name
+      ORDER BY MAX(r.created_at) DESC
+      LIMIT 8`,
   ]);
+  const returnRows = returnRowsRaw;
 
   let activeInvoicesCount = 0;
   let dueInvoicesCount = 0;
@@ -512,7 +613,7 @@ export async function loadCollectionsSpotlight(
   >();
   const branchMap = new Map<
     string,
-    { branchName: string; invoiced: bigint; collected: bigint; count: number }
+    { branchName: string; invoiced: bigint; collected: bigint; due: bigint; count: number }
   >();
 
   for (const row of invoiceRows) {
@@ -558,10 +659,12 @@ export async function loadCollectionsSpotlight(
       branchName: row.branchName,
       invoiced: 0n,
       collected: 0n,
+      due: 0n,
       count: 0,
     };
     bStat.invoiced += netInvoice;
     bStat.collected += netCollected;
+    bStat.due += dueFrom;
     bStat.count += 1;
     branchMap.set(row.branchId, bStat);
   }
@@ -588,6 +691,7 @@ export async function loadCollectionsSpotlight(
           value: Number(settledNetCents) / 100,
           formattedValue: `${displayMoney(settledNetCents)} ج.م`,
           detail: `${arMoney.format(settledInvoicesCount)} فاتورة نشطة مكتملة التحصيل`,
+          pinKey: "settlement:settled",
         },
         {
           label: "فواتير عليها باقٍ للتحصيل",
@@ -598,6 +702,7 @@ export async function loadCollectionsSpotlight(
           secondaryLabel: "صافي الفواتير",
           secondaryFormatted: `${displayMoney(partiallyDueNetCents)} ج.م`,
           detail: `${arMoney.format(dueInvoicesCount)} فاتورة بانتظار استكمال التحصيل`,
+          pinKey: "settlement:due",
         },
         {
           label: "مرتجعات الفواتير النشطة",
@@ -608,6 +713,7 @@ export async function loadCollectionsSpotlight(
             totalDueToCustomerCents > 0n
               ? `مستحق رد للعملاء: ${displayMoney(totalDueToCustomerCents)} ج.م`
               : "لا مبالغ معلّقة للرد للعملاء",
+          pinKey: "settlement:returns",
         },
       ],
     },
@@ -634,6 +740,7 @@ export async function loadCollectionsSpotlight(
         stat.due > 0n
           ? `متبقٍّ ${displayMoney(stat.due)} ج.م من ${displayMoney(stat.invoiced)} ج.م (${stat.count} فاتورة)`
           : `مسدّد بالكامل · ${stat.count} فاتورة`,
+      pinKey: `cust:${encodeURIComponent(custName)}`,
     }));
 
     if (customerPoints.length === 1) {
@@ -661,6 +768,7 @@ export async function loadCollectionsSpotlight(
           branchName: b.nameAr,
           invoiced: 0n,
           collected: 0n,
+          due: 0n,
           count: 0,
         };
         return {
@@ -672,6 +780,7 @@ export async function loadCollectionsSpotlight(
           secondaryLabel: "صافي الفواتير",
           secondaryFormatted: `${displayMoney(stat.invoiced)} ج.م`,
           detail: `${arMoney.format(stat.count)} فاتورة نشطة`,
+          pinKey: `branch:${encodeURIComponent(b.nameAr)}`,
         };
       }),
     });
@@ -685,6 +794,7 @@ export async function loadCollectionsSpotlight(
       secondaryLabel: "صافي الفواتير",
       secondaryFormatted: `${displayMoney(stat.invoiced)} ج.م`,
       detail: `${arMoney.format(stat.count)} فاتورة نشطة`,
+      pinKey: `branch:${encodeURIComponent(stat.branchName)}`,
     }));
     if (branchPoints.length === 1) {
       branchPoints.unshift({
@@ -700,6 +810,122 @@ export async function loadCollectionsSpotlight(
       points: branchPoints,
     });
   }
+
+  /* ── تلخيص التفاصيل الحقيقية للتبويبات الثلاث (التحصيل/العملاء/الفروع) ── */
+  const enrichedRows = invoiceRows.map((row) => {
+    const original = toCents(row.original);
+    const returned = toCents(row.returned);
+    const collected = toCents(row.collected);
+    const refunded = toCents(row.refunded);
+    const netInvoice = original - returned;
+    const remainingCents = netInvoice - (collected - refunded);
+    return {
+      id: row.id,
+      custKey: row.customerName.trim() || "عميل نقدي",
+      branchId: row.branchId,
+      branchName: row.branchName,
+      customerName: row.customerName,
+      netCents: netInvoice,
+      remainingCents,
+      createdAt: row.createdAt,
+    };
+  });
+  const toSheetRow = (r: (typeof enrichedRows)[number]): CollectionsInvoiceRow => ({
+    saleId: r.id,
+    branchName: r.branchName,
+    customerName: r.customerName,
+    netFormatted: displayMoney(r.netCents),
+    remainingFormatted: displayMoney(r.remainingCents > 0n ? r.remainingCents : 0n),
+    hasRemaining: r.remainingCents > 0n,
+    createdAtShort: arDateTime.format(r.createdAt),
+  });
+  const settledAll = enrichedRows
+    .filter((r) => r.remainingCents <= 0n)
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  const dueAll = enrichedRows
+    .filter((r) => r.remainingCents > 0n)
+    .sort(
+      (a, b) =>
+        (b.remainingCents > a.remainingCents ? 1 : b.remainingCents < a.remainingCents ? -1 : 0) ||
+        b.createdAt.getTime() - a.createdAt.getTime(),
+    );
+  const settled = settledAll.slice(0, 6).map(toSheetRow);
+  const due = dueAll.slice(0, 6).map(toSheetRow);
+
+  const byCustomer = new Map<string, typeof enrichedRows>();
+  const byBranch = new Map<string, typeof enrichedRows>();
+  for (const r of enrichedRows) {
+    const cList = byCustomer.get(r.custKey) ?? [];
+    cList.push(r);
+    byCustomer.set(r.custKey, cList);
+    const bList = byBranch.get(r.branchId) ?? [];
+    bList.push(r);
+    byBranch.set(r.branchId, bList);
+  }
+  const remainingDesc = (a: (typeof enrichedRows)[number], b: (typeof enrichedRows)[number]) =>
+    (b.remainingCents > a.remainingCents ? 1 : b.remainingCents < a.remainingCents ? -1 : 0) ||
+    b.createdAt.getTime() - a.createdAt.getTime();
+  for (const list of byCustomer.values()) list.sort(remainingDesc);
+  for (const list of byBranch.values()) list.sort(remainingDesc);
+
+  const sortedCustomersForDetails = Array.from(customerMap.entries())
+    .sort((a, b) => {
+      if (b[1].due !== a[1].due) return b[1].due > a[1].due ? 1 : -1;
+      if (b[1].invoiced !== a[1].invoiced) return b[1].invoiced > a[1].invoiced ? 1 : -1;
+      return b[1].count - a[1].count;
+    })
+    .slice(0, 6);
+  const detailCustomers: CollectionsCustomerDetails[] = sortedCustomersForDetails.map(([name, stat]) => ({
+    name,
+    invoicedFormatted: displayMoney(stat.invoiced),
+    collectedFormatted: displayMoney(stat.collected),
+    dueFormatted: displayMoney(stat.due),
+    count: stat.count,
+    invoices: (byCustomer.get(name) ?? []).slice(0, 3).map(toSheetRow),
+  }));
+
+  const activeBranchDetails =
+    activeBranches.length > 0
+      ? activeBranches.map((b) => ({ id: b.id.toString(), nameAr: b.nameAr }))
+      : Array.from(branchMap.entries()).map(([id, value]) => ({ id, nameAr: value.branchName }));
+  const detailBranches: CollectionsBranchDetails[] = activeBranchDetails.map((b) => {
+    const stat = branchMap.get(b.id);
+    const invoiced = stat?.invoiced ?? 0n;
+    const collected = stat?.collected ?? 0n;
+    const dueC = stat?.due ?? 0n;
+    const collectionRatePct =
+      invoiced > 0n
+        ? Math.min(100, Math.max(0, Math.round((Number(collected) / Number(invoiced)) * 1000) / 10))
+        : 100;
+    return {
+      branchId: b.id,
+      name: b.nameAr,
+      invoicedFormatted: displayMoney(invoiced),
+      collectedFormatted: displayMoney(collected),
+      dueFormatted: displayMoney(dueC),
+      collectionRatePct,
+      count: stat?.count ?? 0,
+      invoices: (byBranch.get(b.id) ?? []).slice(0, 3).map(toSheetRow),
+    };
+  });
+
+  const detailReturns: CollectionsReturnRow[] = returnRows.slice(0, 6).map((r) => ({
+    saleId: r.saleId,
+    customerName: r.customerName,
+    branchName: r.branchName,
+    amountFormatted: displayMoney(toCents(r.returned)),
+    at: arDateTime.format(r.createdAt),
+  }));
+
+  const details: CollectionsDetails = {
+    settled,
+    due,
+    returns: detailReturns,
+    settledMore: Math.max(0, settledAll.length - settled.length),
+    dueMore: Math.max(0, dueAll.length - due.length),
+    customers: detailCustomers,
+    branches: detailBranches,
+  };
 
   const actionHref =
     opts.context === "dashboard"
@@ -719,9 +945,13 @@ export async function loadCollectionsSpotlight(
   return {
     title: "التحصيل والعملاء",
     subtitle:
-      branch === null
-        ? "محدّث الآن · صافي التحصيلات وأرصدة العملاء عبر الفروع"
-        : "محدّث الآن · صافي التحصيلات وأرصدة عملاء فرعك",
+      opts.period === "today"
+        ? branch === null
+          ? "محدّث الآن · تحصيلات اليوم وأرصدة عملاء اليوم عبر الفروع"
+          : "محدّث الآن · تحصيلات اليوم وأرصدة عملاء فرعك"
+        : branch === null
+          ? "محدّث الآن · صافي التحصيلات وأرصدة العملاء عبر الفروع"
+          : "محدّث الآن · صافي التحصيلات وأرصدة عملاء فرعك",
     pill: `${arMoney.format(activeInvoicesCount)} فاتورة نشطة`,
     primary: {
       label: "صافي المحصّل الفعلي",
@@ -743,6 +973,7 @@ export async function loadCollectionsSpotlight(
     series,
     actionHref,
     actionLabel,
+    details,
   };
 }
 
@@ -859,20 +1090,20 @@ export async function loadExecutiveSalesAnalytics(
   >`
     SELECT
       CASE ${period}
-        WHEN 'today' THEN (CURRENT_DATE AT TIME ZONE 'Africa/Cairo')
-        WHEN '7' THEN (CURRENT_DATE AT TIME ZONE 'Africa/Cairo') - INTERVAL '7 days'
+        WHEN 'today' THEN (DATE_TRUNC('day', NOW() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo')
+        WHEN '7' THEN (DATE_TRUNC('day', NOW() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo') - INTERVAL '7 days'
         WHEN 'month' THEN (date_trunc('month', CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo')
         ELSE '1970-01-01T00:00:00Z'::timestamptz
       END AS start,
       CASE ${period}
-        WHEN 'today' THEN (CURRENT_DATE AT TIME ZONE 'Africa/Cairo') - INTERVAL '1 day'
-        WHEN '7' THEN (CURRENT_DATE AT TIME ZONE 'Africa/Cairo') - INTERVAL '14 days'
+        WHEN 'today' THEN (DATE_TRUNC('day', NOW() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo') - INTERVAL '1 day'
+        WHEN '7' THEN (DATE_TRUNC('day', NOW() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo') - INTERVAL '14 days'
         WHEN 'month' THEN ((date_trunc('month', CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Cairo') - INTERVAL '1 month') AT TIME ZONE 'Africa/Cairo')
         ELSE NULL
       END AS "prevStart",
       CASE ${period}
-        WHEN 'today' THEN (CURRENT_DATE AT TIME ZONE 'Africa/Cairo')
-        WHEN '7' THEN (CURRENT_DATE AT TIME ZONE 'Africa/Cairo') - INTERVAL '7 days'
+        WHEN 'today' THEN (DATE_TRUNC('day', NOW() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo')
+        WHEN '7' THEN (DATE_TRUNC('day', NOW() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo') - INTERVAL '7 days'
         WHEN 'month' THEN (date_trunc('month', CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo')
         ELSE NULL
       END AS "prevEnd"`;
@@ -1470,6 +1701,7 @@ export async function loadExecutiveSalesAnalytics(
     series: periodCollectionsSeries,
     actionHref: "/sales",
     actionLabel: "متابعة سجل الفواتير والتحصيلات",
+    details: EMPTY_COLLECTIONS_DETAILS,
   };
 
   // مؤشر الربحية وأداء الأصناف
@@ -1571,6 +1803,7 @@ export async function loadExecutiveSalesAnalytics(
     series: profitabilitySeries,
     actionHref: "#top-items-section",
     actionLabel: "استعراض جدول الأصناف والهوامش",
+    details: EMPTY_COLLECTIONS_DETAILS,
   };
 
   return {

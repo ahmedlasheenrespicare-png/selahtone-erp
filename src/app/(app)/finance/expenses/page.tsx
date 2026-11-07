@@ -1,6 +1,8 @@
 import Link from "next/link";
 import DashboardWallet, { type WalletPocketItem } from "@/app/(app)/dashboard/dashboard-wallet";
 import { AppIcon } from "@/components/app-icon";
+import { FinEmptyState } from "@/components/finance/fin-empty-state";
+import { FinKpiStrip } from "@/components/finance/fin-kpi-strip";
 import PantherSpotlightCard, {
   type PantherChartPoint,
   type PantherChartSeries,
@@ -98,7 +100,7 @@ export default async function ExpensesPage({
     };
   });
 
-  const latestExpenses = rows.slice(0, 12);
+  const walletExpenses = rows;
   const currentMonthPrefix = cairoDate().slice(0, 7);
 
   let monthTotalCents = 0n;
@@ -433,11 +435,14 @@ export default async function ExpensesPage({
             <span className="fin-button__plus" aria-hidden="true">+</span>
             <span>تسجيل مصروف</span>
           </Link>
+          <Link className="fin-button fin-button--secondary" href="/finance/help">
+            <span>دليل</span>
+          </Link>
         </div>
       </div>
 
       <div className="dashboard-cards-grid" aria-label="حافظة المصروفات ومؤشرات الصرف والاعتماد">
-        {latestExpenses.length > 0 ? (
+        {walletExpenses.length > 0 ? (
           <div className="dashboard-cards-grid__wallet">
             <DashboardWallet
               balanceValue={`${displayMoney(totalCents)} ج.م`}
@@ -445,7 +450,7 @@ export default async function ExpensesPage({
               pocketItems={pocketItems}
               hint="اسحب البطاقات أفقيًا لتقليب أحدث المصروفات، ومرّر على الجيب لإظهار الإجماليات"
             >
-              {latestExpenses.map((expense) => (
+              {walletExpenses.map((expense) => (
                 <article key={expense.id} className="stat-card">
                   <div className="stat-card__head">
                     <h3>{expense.description}</h3>
@@ -572,68 +577,55 @@ export default async function ExpensesPage({
         </div>
       </div>
 
-      <section className="fin-kpi-strip" aria-label="ملخص المصروفات">
-        <article className="fin-kpi-card is-accent">
-          <span className="fin-kpi-card__icon" aria-hidden="true">
-            <AppIcon name="expenses" />
-          </span>
-          <div className="fin-kpi-card__body">
-            <span className="fin-kpi-card__label">إجمالي المصروفات</span>
-            <strong className="fin-kpi-card__value">
-              <bdi dir="ltr">{displayMoney(totalCents)}</bdi> <small>ج.م</small>
-            </strong>
-            <small className="fin-kpi-card__sub">{rows.length} مصروف في السجل</small>
-          </div>
-        </article>
-
-        <article className={`fin-kpi-card${pendingCount > 0 ? " is-alert" : ""}`}>
-          <span className="fin-kpi-card__icon" aria-hidden="true">
-            <AppIcon name="receipt" />
-          </span>
-          <div className="fin-kpi-card__body">
-            <span className="fin-kpi-card__label">بانتظار الاعتماد</span>
-            <strong className="fin-kpi-card__value">{pendingCount}</strong>
-            <small className="fin-kpi-card__sub">يعتمدها المدير أو المحاسب</small>
-          </div>
-        </article>
-
-        <article className={`fin-kpi-card${approvedCount > 0 ? " is-alert" : ""}`}>
-          <span className="fin-kpi-card__icon" aria-hidden="true">
-            <AppIcon name="cash" />
-          </span>
-          <div className="fin-kpi-card__body">
-            <span className="fin-kpi-card__label">معتمد بانتظار الصرف</span>
-            <strong className="fin-kpi-card__value">{approvedCount}</strong>
-            <small className="fin-kpi-card__sub">جاهز لتسجيل الصرف الفعلي</small>
-          </div>
-        </article>
-
-        <article className="fin-kpi-card">
-          <span className="fin-kpi-card__icon" aria-hidden="true">
-            <AppIcon name="check" />
-          </span>
-          <div className="fin-kpi-card__body">
-            <span className="fin-kpi-card__label">مدفوع فعليًا</span>
-            <strong className="fin-kpi-card__value">
-              <bdi dir="ltr">{displayMoney(paidCents)}</bdi> <small>ج.م</small>
-            </strong>
-            <small className="fin-kpi-card__sub">عدد المصروفات المدفوعة: {paidCount}</small>
-          </div>
-        </article>
-      </section>
+      <FinKpiStrip
+        label="ملخص المصروفات"
+        items={[
+          {
+            icon: "expenses",
+            label: "إجمالي المصروفات",
+            value: (
+              <>
+                <bdi dir="ltr">{displayMoney(totalCents)}</bdi> <small>ج.م</small>
+              </>
+            ),
+            sub: `${rows.length} مصروف في السجل`,
+            tone: "accent",
+          },
+          {
+            icon: "receipt",
+            label: "بانتظار الاعتماد",
+            value: String(pendingCount),
+            sub: "يعتمدها المدير أو المحاسب",
+            tone: pendingCount > 0 ? "alert" : "default",
+          },
+          {
+            icon: "cash",
+            label: "معتمد بانتظار الصرف",
+            value: String(approvedCount),
+            sub: "جاهز لتسجيل الصرف الفعلي",
+            tone: approvedCount > 0 ? "alert" : "default",
+          },
+          {
+            icon: "check",
+            label: "مدفوع فعليًا",
+            value: (
+              <>
+                <bdi dir="ltr">{displayMoney(paidCents)}</bdi> <small>ج.م</small>
+              </>
+            ),
+            sub: `عدد المصروفات المدفوعة: ${paidCount}`,
+          },
+        ]}
+      />
 
       {rows.length === 0 ? (
-        <div className="fin-panel fin-empty fin-empty-state">
-          <span className="fin-empty-state__icon" aria-hidden="true">
-            <AppIcon name="expenses" />
-          </span>
-          <h2>لا توجد مصروفات مسجلة بعد</h2>
+        <FinEmptyState icon="expenses" title="لا توجد مصروفات مسجلة بعد">
           <p>ابدأ بتسجيل أول مصروف ليظهر هنا مع حالة الاعتماد والصرف الفعلي.</p>
           <Link className="fin-button" href="/finance/expenses/new">
             <span className="fin-button__plus" aria-hidden="true">+</span>
             <span>تسجيل مصروف</span>
           </Link>
-        </div>
+        </FinEmptyState>
       ) : (
         <>
           <div id="expenses-directory" className="fin-directory-heading">

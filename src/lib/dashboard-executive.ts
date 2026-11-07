@@ -188,7 +188,7 @@ export async function loadDashboardExecutiveSuite(
     }>
   >`
     SELECT
-      (CURRENT_DATE AT TIME ZONE 'Africa/Cairo') AS "todayStart",
+      (DATE_TRUNC('day', NOW() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo') AS "todayStart",
       (DATE_TRUNC('month', NOW() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo') AS "monthStart",
       ((DATE_TRUNC('month', NOW() AT TIME ZONE 'Africa/Cairo') - INTERVAL '1 month') AT TIME ZONE 'Africa/Cairo') AS "prevMonthStart",
       LEAST(
@@ -811,7 +811,7 @@ export async function loadDashboardExecutiveSuite(
         tone: "danger",
         title: `${arNum.format(staleCount)} طلب تسوية عهدة معلّق بطل بحركة نقدية لاحقة`,
         detail: "وقعت مقبوضات أو منصرفات نقدية بعد الجرد؛ يلزم إعادة الجرد قبل الاعتماد",
-        href: "/finance/settlements",
+        href: "/finance/transfers",
       });
     }
 
@@ -823,7 +823,7 @@ export async function loadDashboardExecutiveSuite(
         tone: "warning",
         title: `${arNum.format(varianceCount)} تسوية عهدة بفرق جرد فعلي هذا الشهر`,
         detail: `إجمالي الفروقات المطلقة: ${displayMoney(varianceCents)} ج.م`,
-        href: "/finance/settlements",
+        href: "/finance/transfers",
       });
     }
 

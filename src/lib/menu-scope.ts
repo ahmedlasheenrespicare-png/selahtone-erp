@@ -17,8 +17,9 @@ export function isMenuScope(value: string): value is MenuScope {
   return value === "FULL" || value === "LIMITED";
 }
 
-/** Prefixes a LIMITED account may open. Everything else goes to the dashboard. */
-const LIMITED_PREFIXES: readonly string[] = ["/dashboard", "/sales", "/finance/expenses"];
+/** Prefixes a LIMITED account may open. Everything else goes to the dashboard.
+ * The in-app finance guide stays open: knowing the SOP is part of the job, not a privilege. */
+const LIMITED_PREFIXES: readonly string[] = ["/dashboard", "/sales", "/finance/expenses", "/finance/help"];
 
 export function isPathAllowedForScope(scope: MenuScope, pathname: string | null | undefined): boolean {
   if (scope === "FULL") return true;

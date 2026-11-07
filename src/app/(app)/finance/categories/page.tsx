@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { AppIcon } from "@/components/app-icon";
+import { FinKpiStrip } from "@/components/finance/fin-kpi-strip";
 import PantherSpotlightCard, {
   type PantherChartPoint,
   type PantherChartSeries,
@@ -539,82 +540,58 @@ export default async function CategoriesPage() {
         />
       </div>
 
-      <section
-        className="fin-kpi-strip no-print"
-        aria-label="ملخص بنود المصروفات"
-      >
-        <article className="fin-kpi-card is-accent">
-          <span className="fin-kpi-card__icon" aria-hidden="true">
-            <AppIcon name="expenses" />
-          </span>
-          <div className="fin-kpi-card__body">
-            <span className="fin-kpi-card__label">البنود النشطة بالدليل</span>
-            <strong className="fin-kpi-card__value">
-              {activeCount} <small>من {directoryItems.length}</small>
-            </strong>
-            <small className="fin-kpi-card__sub">
-              {inactiveCount} موقوف · {unusedCount} غير مستخدم بعد
-            </small>
-          </div>
-        </article>
-
-        <article className="fin-kpi-card">
-          <span className="fin-kpi-card__icon" aria-hidden="true">
-            <AppIcon name="cash" />
-          </span>
-          <div className="fin-kpi-card__body">
-            <span className="fin-kpi-card__label">
-              المدفوع الفعلي ({currentMonthPrefix})
-            </span>
-            <strong className="fin-kpi-card__value">
-              <bdi dir="ltr">{displayMoney(grandMonthPaidCents)}</bdi>{" "}
-              <small>ج.م</small>
-            </strong>
-            <small className="fin-kpi-card__sub">
-              {grandMonthPendingCents > 0n
+      <FinKpiStrip
+        label="ملخص بنود المصروفات"
+        className="no-print"
+        items={[
+          {
+            icon: "expenses",
+            label: "البنود النشطة بالدليل",
+            value: (
+              <>
+                {activeCount} <small>من {directoryItems.length}</small>
+              </>
+            ),
+            sub: `${inactiveCount} موقوف · ${unusedCount} غير مستخدم بعد`,
+            tone: "accent",
+          },
+          {
+            icon: "cash",
+            label: `المدفوع الفعلي (${currentMonthPrefix})`,
+            value: (
+              <>
+                <bdi dir="ltr">{displayMoney(grandMonthPaidCents)}</bdi>{" "}
+                <small>ج.م</small>
+              </>
+            ),
+            sub:
+              grandMonthPendingCents > 0n
                 ? `+ ${displayMoney(grandMonthPendingCents)} ج.م تحت الإجراء`
-                : "بلا مصروفات معلّقة هذا الشهر"}
-            </small>
-          </div>
-        </article>
-
-        <article className="fin-kpi-card">
-          <span className="fin-kpi-card__icon" aria-hidden="true">
-            <AppIcon name="reports" />
-          </span>
-          <div className="fin-kpi-card__body">
-            <span className="fin-kpi-card__label">أعلى بند صرفًا بالشهر</span>
-            <strong
-              className="fin-kpi-card__value"
-              style={{ fontSize: "1.05rem" }}
-            >
-              {topCat && topCat.monthPaidNum > 0
-                ? topCat.name
-                : "لا صرف بالشهر بعد"}
-            </strong>
-            <small className="fin-kpi-card__sub">
-              {topCat && topCat.monthPaidNum > 0
+                : "بلا مصروفات معلّقة هذا الشهر",
+          },
+          {
+            icon: "reports",
+            label: "أعلى بند صرفًا بالشهر",
+            value: (
+              <span style={{ fontSize: "1.05rem" }}>
+                {topCat && topCat.monthPaidNum > 0 ? topCat.name : "لا صرف بالشهر بعد"}
+              </span>
+            ),
+            sub:
+              topCat && topCat.monthPaidNum > 0
                 ? `${topCat.monthPaidFormatted} ج.م (${topCat.sharePct}% من المدفوع)`
-                : `إجمالي السجل المدفوع: ${displayMoney(grandAllTimePaidCents)} ج.م`}
-            </small>
-          </div>
-        </article>
-
-        <article className="fin-kpi-card">
-          <span className="fin-kpi-card__icon" aria-hidden="true">
-            <AppIcon name="shield" />
-          </span>
-          <div className="fin-kpi-card__body">
-            <span className="fin-kpi-card__label">قيود تدقيق البنود</span>
-            <strong className="fin-kpi-card__value">{auditRows.length}</strong>
-            <small className="fin-kpi-card__sub">
-              {auditRows[0]
-                ? `آخر قيد بواسطة ${auditRows[0].actorName}`
-                : "كل إنشاء أو تعديل يُوثَّق بسببه"}
-            </small>
-          </div>
-        </article>
-      </section>
+                : `إجمالي السجل المدفوع: ${displayMoney(grandAllTimePaidCents)} ج.م`,
+          },
+          {
+            icon: "shield",
+            label: "قيود تدقيق البنود",
+            value: String(auditRows.length),
+            sub: auditRows[0]
+              ? `آخر قيد بواسطة ${auditRows[0].actorName}`
+              : "كل إنشاء أو تعديل يُوثَّق بسببه",
+          },
+        ]}
+      />
 
       <div className="fin-panel no-print" style={{ marginBottom: 18 }}>
         <div className="fin-panel__heading">

@@ -2468,32 +2468,22 @@
   transform: scaleX(-1);
 }
 
-.dashboard-wallet__dots {
-  display: flex;
-  flex-wrap: wrap;
+/* عدّاد الشرائح مكان نقاط التصفح داخل الجيب */
+.dashboard-wallet__counter {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-}
-
-.dashboard-wallet__dots button {
-  width: 8px;
-  height: 8px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
+  min-width: 48px;
+  height: 20px;
+  padding: 0 10px;
+  border-radius: 999px;
   background: var(--wallet-dot-bg);
-  cursor: pointer;
-  transition: transform 0.2s ease, background-color 0.2s ease;
-}
-
-.dashboard-wallet__dots button:hover {
-  background: var(--wallet-dot-hover);
-}
-
-.dashboard-wallet__dots button.is-active {
-  background: var(--wallet-dot-active);
-  transform: scale(1.35);
+  color: var(--wallet-dot-active);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
 }
 
 @media (max-width: 560px) {
@@ -2733,9 +2723,11 @@
   flex: 1 1 auto;
 }
 
+/* الرسم التفاعلي يبقى في موضعه تحت المقاييس دائمًا؛ الفراغ الفائض يلتقطه
+   margin: auto على الزر تلقائيًا فيُثبته في أسفل الكرت (فوق زر الإجراء مباشرةً) */
 .dashboard-cards-grid__item > .monthly-panther .monthly-panther__chart-block {
-  flex: 1 1 auto;
-  justify-content: flex-end;
+  flex: 0 0 auto;
+  justify-content: flex-start;
 }
 
 .dashboard-cards-grid__item > .monthly-panther .monthly-panther__foot {
@@ -5683,3 +5675,1084 @@ a.dashboard-governance__item:hover {
 
 
 
+
+/* ==========================================================================
+   شرائح الحافظة المدمجة (الخيار ب): «نبض اليوم» · «وتيرة الشهر» · «درع الرقابة»
+   دمج أرقام الأجزاء ١ و٢ و٣ داخل الحافظة بدل شرائح أفقية منفصلة.
+   العناصر تحافظ على الأسماء التاريخية (dashboard-pace-*, dashboard-governance__*)
+   حتى تبقى مفاتيح الإخفاء في لوحة الإعدادات تعمل كما هي.
+   ========================================================================== */
+
+/* شريحة نبض اليوم — شبكة ٢×٢ من خلايا link */
+.is-pulse-slide .pulse-slide__grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.dashboard-wallet .pulse-cell--alert,
+.dashboard-wallet a.pulse-cell--alert:hover {
+  background: rgba(245, 158, 11, 0.16);
+  border-color: rgba(245, 158, 11, 0.45);
+}
+
+.dashboard-wallet .pulse-cell__sub {
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.dashboard-wallet .pulse-cell .stat-grid__label {
+  font-size: 11px;
+}
+
+/* شريحة وتيرة الشهر — شريط تقدم + ثلاثة مقاييس */
+.is-pace-slide .stat-card__body {
+  display: grid;
+  gap: 12px;
+}
+
+.is-pace-slide .pace-slide__progress {
+  margin: 0;
+}
+
+.is-pace-slide .dashboard-pace-strip__progress-top strong,
+.is-pace-slide .dashboard-pace-strip__progress-top span {
+  color: var(--wc-ink);
+}
+
+.is-pace-slide .dashboard-pace-strip__bar {
+  background: var(--wc-surface-hover);
+}
+
+.is-pace-slide .dashboard-pace-strip__bar > span {
+  background: var(--wc-ink);
+}
+
+.is-pace-slide .pace-slide__metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.is-pace-slide .dashboard-pace-metric {
+  padding: 8px 10px;
+  border-color: var(--wc-line);
+  background: var(--wc-surface);
+  gap: 2px;
+}
+
+.is-pace-slide .dashboard-pace-metric > span {
+  color: var(--wc-muted);
+  font-size: 10.5px;
+}
+
+.is-pace-slide .dashboard-pace-metric > strong {
+  color: var(--wc-ink);
+  font-size: 13px;
+}
+
+.is-pace-slide .dashboard-pace-metric > strong small {
+  color: var(--wc-muted);
+}
+
+.is-pace-slide .dashboard-pace-metric__row small {
+  color: var(--wc-muted);
+}
+
+.is-pace-slide .dashboard-pace-badge {
+  background: var(--wc-surface-hover);
+  color: var(--wc-ink);
+}
+
+/* شريحة درع الرقابة — حد أقصى ٣ تنبيهات */
+.is-governance-slide .governance-slide__body {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  display: grid;
+  gap: 10px;
+}
+
+.is-governance-slide .dashboard-governance__icon {
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+}
+
+.is-governance-slide .dashboard-governance.has-alerts .dashboard-governance__icon {
+  background: rgba(245, 158, 11, 0.22);
+  color: var(--wc-ink);
+}
+
+.is-governance-slide .dashboard-governance__head strong {
+  color: var(--wc-ink);
+}
+
+.is-governance-slide .dashboard-governance__head p {
+  color: var(--wc-muted);
+  font-size: 11px;
+}
+
+.is-governance-slide .dashboard-governance__list {
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.is-governance-slide .dashboard-governance__item {
+  background: var(--wc-surface);
+  border-color: var(--wc-line);
+  color: var(--wc-ink);
+  padding: 8px 10px;
+  gap: 8px;
+}
+
+.is-governance-slide a.dashboard-governance__item:hover {
+  border-color: var(--wc-ink);
+}
+
+.is-governance-slide .dashboard-governance__item strong {
+  font-size: 12px;
+  color: var(--wc-ink);
+}
+
+.is-governance-slide .dashboard-governance__item small {
+  font-size: 10.5px;
+  color: var(--wc-muted);
+}
+
+.governance-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--wc-surface-hover);
+  border: 1px solid var(--wc-line);
+  color: var(--wc-ink);
+  font-size: 11.5px;
+  font-weight: 700;
+  text-decoration: none;
+  text-align: center;
+}
+
+.governance-more:hover {
+  filter: brightness(1.06);
+}
+
+.dashboard-wallet .stat-card__badge.is-alert {
+  background: #f59e0b;
+  border-color: #d97706;
+  color: #221100;
+}
+
+/* جيب الحافظة يبقى كما هو — لا تعديل على الأرقام المموّهة */
+
+/* ==========================================================================
+   بطاقتا اليوم تحت الحافظة — «الوضع المركّز (نبض اليوم)» فقط
+   «فواتير اليوم» + «تفاصيل تحصيلات اليوم» (التوزيع حسب الوسيلة + آخر الحركات)
+   ========================================================================== */
+
+/* الوضع المركّز — «نبض اليوم» — بنفس آلية «التصميم الواسع» للعرض الشامل:
+   شبكة واحدة auto-fit تتدفق فيها الحافظة كأول خلية ثم فواتير اليوم ← تحصيلات اليوم ← مصروفات اليوم */
+.dashboard-cards-grid__item > .dash-today-card {
+  width: 100%;
+}
+
+.dash-today-card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dash-today-card .dashboard-surface-card__head {
+  margin-bottom: 12px;
+}
+
+.dash-today-card .dashboard-feed {
+  display: grid;
+  gap: 4px;
+}
+
+.dash-today-split {
+  display: grid;
+  gap: 10px;
+}
+
+.dash-today-section {
+  display: grid;
+  gap: 8px;
+  padding: 9px 11px;
+  border-radius: 12px;
+  border: 1px solid var(--db-border);
+  border-inline-start: 3px solid var(--db-border-strong);
+  background: var(--db-surface-soft);
+}
+
+.dash-today-section--cash { border-inline-start-color: #1e8e6d; }
+.dash-today-section--card { border-inline-start-color: #3b6fd4; }
+.dash-today-section--other { border-inline-start-color: #8a6d00; }
+
+.dash-today-section__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dash-today-section__icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  background: var(--db-surface-tint);
+  color: var(--db-ink);
+}
+
+.dash-today-section__icon svg { width: 15px; height: 15px; }
+
+.dash-today-section h3 {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--db-ink);
+}
+
+.dash-today-section__count {
+  font-size: 10px;
+  color: var(--db-muted);
+  border: 1px solid var(--db-border);
+  background: var(--db-surface);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-today-section__sum {
+  margin-inline-start: auto;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--db-ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dash-today-section__empty {
+  margin: 0;
+  padding: 10px;
+  font-size: 11px;
+  color: var(--db-muted);
+  text-align: center;
+  border: 1px dashed var(--db-border);
+  border-radius: 10px;
+}
+
+.dash-today-invoice-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.dash-today-invoice { min-width: 0; }
+
+.dash-today-invoice__link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 9px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.dash-today-invoice__link:hover {
+  background: var(--db-surface);
+  border-color: var(--db-border);
+}
+
+/* عنصر قائمة غير قابل للنقر (صلاحياته أقل) — بنفس شكل الرابط لكن بلا تأثير */
+.dash-today-invoice__link.is-static {
+  cursor: default;
+}
+.dash-today-invoice__link.is-static:hover {
+  background: transparent;
+  border-color: transparent;
+}
+
+.dash-today-invoice__id {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--db-muted);
+  background: var(--db-surface);
+  border-radius: 6px;
+  padding: 3px 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-today-invoice__main {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.dash-today-invoice__customer {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--db-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dash-today-invoice__meta {
+  font-size: 10px;
+  color: var(--db-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-today-invoice__amount {
+  margin-inline-start: auto;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--db-ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dash-today-note {
+  margin: 10px 2px 0;
+  font-size: 10px;
+  color: var(--db-muted);
+  line-height: 1.6;
+}
+
+.dash-today-section--refund { border-inline-start-color: #b4232b; }
+
+.dash-today-section__icon--refund svg { transform: scaleX(-1); }
+
+.dash-today-section__sum.is-refund { color: #b4232b; }
+
+.dash-today-refund__amount {
+  margin-inline-start: auto;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #b4232b;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dash-today-note--tight { margin-top: 8px; }
+
+/* بطاقة «مصروفات اليوم» — تلي «تفاصيل تحصيلات اليوم» مباشرة */
+.dash-today-expenses__notice { margin-top: 12px; }
+
+.dash-today-expense-list { margin-top: 6px; }
+
+.dash-today-expense { min-width: 0; }
+
+.dash-today-expense__chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 84px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+.dash-today-expense__chip--pending { color: #b45309; background: #fffbeb; }
+.dash-today-expense__chip--approved { color: #1e40af; background: #eff6ff; }
+.dash-today-expense__chip--paid { color: #1e5c2a; background: #eef7ef; }
+
+@media print {
+  .dash-today-expense {
+    break-inside: avoid;
+  }
+}
+
+@media print {
+  .dash-today-section,
+  .dash-today-invoice {
+    break-inside: avoid;
+  }
+}
+
+@media print {
+  .dash-today-card {
+    break-inside: avoid;
+  }
+}
+
+/* ==========================================================================
+   شريط إيصالات فواتير اليوم (داخل بطاقة «فواتير اليوم»)
+   تمرير أفقي بالأسهم والسحب — كل إيصال ورقة بيضاء تفتح الفاتورة
+   ========================================================================== */
+
+.dash-invoice-rail-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px -4px 0;
+}
+
+.dash-rail-btn {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid var(--db-border-strong);
+  background: var(--db-surface);
+  color: var(--db-ink);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+.dash-rail-btn:hover {
+  background: var(--db-surface-tint);
+  transform: translateY(-1px);
+}
+
+.dash-rail-btn:active {
+  transform: translateY(0);
+}
+
+.dash-rail-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.dash-invoice-rail {
+  flex: 1 1 auto;
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 2px 12px;
+  scroll-snap-type: x proximity;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  outline: none;
+}
+
+.dash-invoice-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.dash-invoice-rail:focus-visible {
+  outline: 2px solid var(--db-primary);
+  outline-offset: 2px;
+  border-radius: 12px;
+}
+
+/* الإيصال الورقي نفسه — يبقى أبيض في كل الثيمات (كإيصال المراجعة المطبوع) */
+.dash-receipt {
+  flex: 0 0 218px;
+  width: 218px;
+  scroll-snap-align: start;
+  background: #ffffff;
+  color: #1b2b44;
+  border-radius: 12px;
+  border: 1px solid #d8dee9;
+  box-shadow: 0 10px 26px rgba(13, 27, 46, 0.3);
+  padding: 10px 12px 11px;
+  display: grid;
+  gap: 5px;
+  align-content: start;
+  text-decoration: none;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+a.dash-receipt:hover,
+a.dash-receipt:focus-visible {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 34px rgba(13, 27, 46, 0.36);
+}
+
+a.dash-receipt:focus-visible {
+  outline: 2px solid #3156a3;
+  outline-offset: 3px;
+}
+
+.dash-receipt__brand {
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+  color: #0f2a43;
+  line-height: 1.3;
+}
+
+.dash-receipt__branch {
+  font-size: 9.5px;
+  text-align: center;
+  color: #5a6a7f;
+  border-bottom: 2px dashed #cbd5e1;
+  padding-bottom: 5px;
+}
+
+.dash-receipt__headrow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dash-receipt__number {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #0f2a43;
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-receipt__time {
+  font-size: 10.5px;
+  color: #5a6a7f;
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-receipt__meta {
+  display: grid;
+  gap: 2px;
+  font-size: 9.5px;
+  color: #3d4d63;
+}
+
+.dash-receipt__sep {
+  border: 0;
+  border-top: 1px dashed #cbd5e1;
+  margin: 0;
+}
+
+.dash-receipt__items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 3px;
+  min-height: 64px;
+  align-content: start;
+}
+
+.dash-receipt__items li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 6px;
+  align-items: baseline;
+  font-size: 10px;
+}
+
+.dash-receipt__item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #1c2c44;
+}
+
+.dash-receipt__item-qty {
+  color: #5a6a7f;
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-receipt__item-total {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: #1c2c44;
+  font-size: 10px;
+}
+
+.dash-receipt__more {
+  font-size: 9.5px;
+  font-weight: 800;
+  color: #3156a3;
+}
+
+.dash-receipt__no-items {
+  font-size: 10px;
+  color: #5a6a7f;
+  margin: 6px 0 4px;
+}
+
+.dash-receipt__totalrow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.dash-receipt__totalrow span {
+  font-size: 10px;
+  color: #5a6a7f;
+}
+
+.dash-receipt__totalrow strong {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #0f2a43;
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-receipt__remainrow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 9.5px;
+  color: #3d4d63;
+}
+
+.dash-receipt__remainrow span {
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-receipt__badge {
+  justify-self: center;
+  margin-top: 2px;
+  padding: 1px 12px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.dash-receipt__badge.is-paid {
+  background: #e3f6ea;
+  color: #145a36;
+}
+
+.dash-receipt__badge.is-credit {
+  background: #fde9c8;
+  color: #7a4b13;
+}
+
+.dash-receipt__badge.is-cancelled {
+  background: #e8ecef;
+  color: #4a5568;
+}
+
+.dash-receipt.is-cancelled {
+  filter: grayscale(0.6);
+  opacity: 0.85;
+}
+
+@media (max-width: 640px) {
+  .dash-rail-btn {
+    display: none;
+  }
+  .dash-receipt {
+    flex-basis: 194px;
+    width: 194px;
+  }
+}
+
+@media print {
+  .dash-rail-btn {
+    display: none !important;
+  }
+  .dash-invoice-rail {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+    overflow: visible !important;
+    padding: 0 !important;
+    gap: 8px;
+  }
+  .dash-receipt {
+    flex: none;
+    width: auto;
+    break-inside: avoid;
+    box-shadow: none;
+    border: 1px solid #94a3b8;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   اللوحات القابلة للطي — نمط عام (CollapsiblePanel)
+   يُرفق بشرط .no-print فلا تُطبع بأي حالة.
+   ══════════════════════════════════════════════════════════════ */
+.collapse-panel {
+  --cp-padding: 12px 14px;
+  --cp-radius: 14px;
+  --cp-accent: var(--db-muted, #476049);
+  min-width: 0;
+  border: 1px solid var(--db-border, #d4e3d0);
+  border-radius: var(--cp-radius);
+  background: var(--db-surface, #ffffff);
+  color: var(--db-ink, #132515);
+  overflow: hidden;
+}
+
+.collapse-panel > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: var(--cp-padding);
+  user-select: none;
+  transition: background 0.15s ease;
+}
+
+.collapse-panel > summary::-webkit-details-marker { display: none; }
+
+.collapse-panel > summary:hover { background: var(--db-surface-soft, #f5f9f4); }
+
+.collapse-panel > summary:focus-visible {
+  outline: 2px solid var(--cp-accent);
+  outline-offset: -2px;
+  border-radius: var(--cp-radius);
+}
+
+.collapse-panel__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.collapse-panel__title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.collapse-panel__icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  background: var(--db-surface-tint, #ebf3e9);
+  color: var(--cp-accent);
+}
+
+.collapse-panel__icon svg { width: 15px; height: 15px; }
+
+.collapse-panel__text {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--db-ink, #132515);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+.collapse-panel__chevron {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  color: var(--cp-accent);
+  background: var(--db-surface-tint, #ebf3e9);
+}
+
+.collapse-panel__chevron svg {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.18s ease;
+  transform: rotate(-90deg);
+}
+
+.collapse-panel[open] > summary .collapse-panel__chevron svg {
+  transform: rotate(0deg);
+}
+
+.collapse-panel__body {
+  border-top: 1px solid var(--db-border, #d4e3d0);
+  padding: 14px 16px 16px;
+}
+
+@media print {
+  .collapse-panel { display: none !important; }
+}
+/* ==========================================================================
+   «نبض اليوم»: منطقتا التفاصيل داخل مؤشرَي Spotlight (تحصيلات اليوم · مصروفات اليوم)
+   — نفس هوية المؤشرات، والقوائم الفاتورة-لكل-فاتورة/البند-لكل-بند تبقى كما هي بألوان داكنة
+   ========================================================================== */
+.monthly-panther__details {
+  display: grid;
+  gap: 10px;
+  padding-top: 14px;
+  margin-top: 2px;
+  border-top: 1px solid var(--mp-divider);
+}
+
+.monthly-panther__details .dash-today-split { gap: 8px; }
+
+.monthly-panther__details .dash-today-section {
+  border: 1px solid var(--mp-divider);
+  border-inline-start: 3px solid var(--mp-alt);
+  background: rgba(163, 230, 53, 0.04);
+  padding: 8px 10px;
+}
+
+.monthly-panther__details .dash-today-section--cash { border-inline-start-color: #34d399; }
+.monthly-panther__details .dash-today-section--card { border-inline-start-color: #7dd3fc; }
+.monthly-panther__details .dash-today-section--other { border-inline-start-color: #fbbf24; }
+.monthly-panther__details .dash-today-section--refund { border-inline-start-color: #fca5a5; }
+
+.monthly-panther__details .dash-today-section__icon {
+  background: rgba(163, 230, 53, 0.12);
+  color: var(--mp-accent);
+}
+
+.monthly-panther__details .dash-today-section--refund .dash-today-section__icon {
+  background: rgba(248, 113, 113, 0.12);
+  color: #fca5a5;
+}
+
+.monthly-panther__details .dash-today-section h3 { color: var(--mp-title); }
+
+.monthly-panther__details .dash-today-section__count {
+  color: var(--mp-accent);
+  border-color: rgba(163, 230, 53, 0.35);
+  background: rgba(163, 230, 53, 0.1);
+}
+
+.monthly-panther__details .dash-today-section__sum { color: var(--mp-value); }
+
+.monthly-panther__details .dash-today-section__sum.is-refund,
+.monthly-panther__details .dash-today-refund__amount { color: #fca5a5; }
+
+.monthly-panther__details .dash-today-section__empty {
+  color: var(--mp-muted);
+  border-color: var(--mp-divider);
+  background: transparent;
+}
+
+.monthly-panther__details .dash-today-invoice__link:hover {
+  background: rgba(163, 230, 53, 0.07);
+  border-color: rgba(163, 230, 53, 0.3);
+}
+
+.monthly-panther__details .dash-today-invoice__id {
+  color: var(--mp-muted);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.monthly-panther__details .dash-today-invoice__customer { color: var(--mp-title); }
+
+.monthly-panther__details .dash-today-invoice__meta { color: var(--mp-muted); }
+
+.monthly-panther__details .dash-today-invoice__amount { color: var(--mp-value); }
+
+.monthly-panther__details .dash-today-note {
+  margin: 4px 2px 0;
+  color: var(--mp-muted);
+}
+
+.monthly-panther__details .dash-today-expense { min-width: 0; }
+
+.monthly-panther__details .dash-today-expense__chip--pending { color: #fde68a; background: rgba(251, 191, 36, 0.13); }
+.monthly-panther__details .dash-today-expense__chip--approved { color: #a5d8ff; background: rgba(56, 189, 248, 0.13); }
+.monthly-panther__details .dash-today-expense__chip--paid { color: #bbf7d0; background: rgba(52, 211, 153, 0.13); }
+
+.monthly-panther__details .dashboard-empty {
+  background: transparent;
+  border: 1px dashed var(--mp-divider);
+}
+.monthly-panther__details .dashboard-empty strong { color: var(--mp-title); }
+.monthly-panther__details .dashboard-empty p { color: var(--mp-muted); }
+
+@media print {
+  .monthly-panther__details .dash-today-section,
+  .monthly-panther__details .dash-today-invoice,
+  .monthly-panther__details .dash-today-expense {
+    break-inside: avoid;
+  }
+}
+
+/* عند تثبيت شريحة في مؤشر «نبض اليوم»: تُخفى العناصر التفصيلية غير المطابقة (data-pin-part) */
+.monthly-panther__details [hidden] {
+  display: none !important;
+}
+
+/* ==========================================================================
+   مؤشرات الـSpotlight — «لوحة التفاعل الحي» كزر يكشف «التفاصيل الخاصة»
+   ========================================================================== */
+.monthly-panther__hud--toggle {
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 0.18s ease, background-color 0.18s ease;
+}
+
+.monthly-panther__hud--toggle:hover {
+  border-color: var(--mp-accent-border);
+}
+
+.monthly-panther__hud--toggle:focus-visible {
+  outline: 2px solid var(--mp-accent);
+  outline-offset: 2px;
+}
+
+.monthly-panther__hud--toggle[aria-expanded="true"] {
+  border-color: var(--mp-accent-border);
+  background: rgba(163, 230, 53, 0.06);
+}
+
+.monthly-panther__hud-toggle {
+  display: grid;
+  place-items: center;
+  align-self: center;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  color: var(--mp-muted);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.monthly-panther__hud--toggle[aria-expanded="true"] .monthly-panther__hud-toggle {
+  color: var(--mp-accent);
+}
+
+.monthly-panther__hud-toggle svg {
+  transition: transform 0.2s ease;
+}
+
+.monthly-panther__hud--toggle[aria-expanded="true"] .monthly-panther__hud-toggle svg {
+  transform: rotate(180deg);
+}
+
+.monthly-panther__details[hidden] {
+  display: none !important;
+}
+
+/* مجموعات «التفاصيل الخاصة» لكل مؤشر — نفس هوية التحصيل والعملاء */
+.collections-pins {
+  display: grid;
+  gap: 10px;
+}
+
+.collections-pin-group {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--mp-divider);
+  border-inline-start: 3px solid var(--mp-alt);
+  background: rgba(163, 230, 53, 0.04);
+}
+
+.collections-pin-group--warn { border-inline-start-color: var(--mp-warn); }
+.collections-pin-group--danger { border-inline-start-color: var(--mp-danger); }
+
+.collections-pin-group__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--mp-title);
+}
+
+.collections-pin-group__count {
+  margin-inline-start: auto;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--mp-accent);
+  background: var(--mp-accent-soft);
+  border: 1px solid rgba(163, 230, 53, 0.35);
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.collections-pin-group__count--warn {
+  color: #fde68a;
+  background: rgba(251, 191, 36, 0.13);
+  border-color: rgba(251, 191, 36, 0.4);
+}
+
+.collections-pin-group__count--danger {
+  color: #fca5a5;
+  background: rgba(248, 113, 113, 0.13);
+  border-color: rgba(248, 113, 113, 0.4);
+}
+
+.collections-pin-group__tab {
+  margin-inline-start: auto;
+  font-size: 9.5px;
+  font-weight: 800;
+  color: var(--mp-muted);
+  border: 1px solid var(--mp-divider);
+  border-radius: 999px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.collections-pin-group__note {
+  margin: 0;
+  font-size: 10px;
+  color: var(--mp-muted);
+  line-height: 1.6;
+}
+
+.collections-pin-group__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.collections-pin-group__stats--rows {
+  grid-template-columns: 1fr;
+  gap: 5px;
+}
+
+.collections-pin-group__stats--rows > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px dashed var(--mp-divider);
+  padding-bottom: 5px;
+}
+
+.collections-pin-group__stats--rows > div:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.collections-pin-group__stats dt {
+  font-size: 9.5px;
+  font-weight: 800;
+  color: var(--mp-muted);
+  line-height: 1.45;
+}
+
+.collections-pin-group__stats dd {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--mp-value);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.collections-pin-group__stats--rows dd {
+  font-size: 12.5px;
+}
+
+.collections-pin-group__stats .is-outstanding { color: #fca5a5; }
+
+@media print {
+  .collections-pin-group {
+    break-inside: avoid;
+  }
+}

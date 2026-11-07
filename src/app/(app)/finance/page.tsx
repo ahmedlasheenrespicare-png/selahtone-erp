@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import DashboardWallet, { type WalletPocketItem } from "@/app/(app)/dashboard/dashboard-wallet";
 import { AppIcon } from "@/components/app-icon";
+import { FinEmptyState } from "@/components/finance/fin-empty-state";
+import { FinKpiStrip } from "@/components/finance/fin-kpi-strip";
 import PantherSpotlightCard, {
   type PantherChartPoint,
   type PantherChartSeries,
@@ -109,7 +111,7 @@ export default async function FinancePage() {
     };
   });
 
-  const walletAccounts = rows.slice(0, 12);
+  const walletAccounts = rows;
   const pendingActionExpenses = summary ? summary.pendingExpenses + summary.approvedUnpaid : 0;
 
   const EXPENSE_STATUS_AR: Record<string, string> = {
@@ -434,6 +436,13 @@ export default async function FinancePage() {
                   <span className="fin-button__plus" aria-hidden="true">+</span>
                   <span>فتح حساب بجرد فعلي</span>
                 </Link>
+                <Link className="fin-button fin-button--secondary" href="/finance/reports">
+                  <AppIcon name="reports" />
+                  <span>التقارير</span>
+                </Link>
+                <Link className="fin-button fin-button--secondary" href="/finance/help">
+                  <span>الدليل</span>
+                </Link>
               </>
             ) : (
               <>
@@ -463,6 +472,13 @@ export default async function FinancePage() {
                 </Link>
                 <Link className="fin-button fin-button--secondary" href="/finance/categories">
                   <span>البنود</span>
+                </Link>
+                <Link className="fin-button fin-button--secondary" href="/finance/reports">
+                  <AppIcon name="reports" />
+                  <span>التقارير</span>
+                </Link>
+                <Link className="fin-button fin-button--secondary" href="/finance/help">
+                  <span>الدليل</span>
                 </Link>
               </>
             )}
@@ -578,77 +594,55 @@ export default async function FinancePage() {
       )}
 
       {canManage && summary ? (
-        <section className="fin-kpi-strip" aria-label="ملخص السيولة والمعلقات">
-          <article className="fin-kpi-card is-accent">
-            <span className="fin-kpi-card__icon" aria-hidden="true">
-              <AppIcon name="warehouse" />
-            </span>
-            <div className="fin-kpi-card__body">
-              <span className="fin-kpi-card__label">إجمالي رصيد الخزائن</span>
-              <strong className="fin-kpi-card__value">
-                <bdi dir="ltr">{displayMoney(vaultTotalCents)}</bdi> <small>ج.م</small>
-              </strong>
-              <small className="fin-kpi-card__sub">موزّعة على {openVaultCount} خزنة فرع نشطة</small>
-            </div>
-          </article>
-
-          <article className="fin-kpi-card">
-            <span className="fin-kpi-card__icon" aria-hidden="true">
-              <AppIcon name="cash" />
-            </span>
-            <div className="fin-kpi-card__body">
-              <span className="fin-kpi-card__label">المستحق للخزنة بيد الموظفين</span>
-              <strong className="fin-kpi-card__value">
-                <bdi dir="ltr">{formatMoney(summary.totalExpected)}</bdi> <small>ج.م</small>
-              </strong>
-              <small className="fin-kpi-card__sub">
-                عبر {openCustodyCount} عهدة مفتوحة (الرصيد الدفتري {displayMoney(custodyBookTotalCents)} ج.م)
-              </small>
-            </div>
-          </article>
-
-          <Link
-            href="/finance/expenses"
-            className={`fin-kpi-card${pendingActionExpenses > 0 ? " is-alert" : ""}`}
-          >
-            <span className="fin-kpi-card__icon" aria-hidden="true">
-              <AppIcon name="expenses" />
-            </span>
-            <div className="fin-kpi-card__body">
-              <span className="fin-kpi-card__label">مصروفات بانتظار إجراء</span>
-              <strong className="fin-kpi-card__value">{pendingActionExpenses}</strong>
-              <small className="fin-kpi-card__sub">
-                {summary.pendingExpenses} بانتظار الاعتماد · {summary.approvedUnpaid} بانتظار الصرف
-              </small>
-            </div>
-          </Link>
-
-          <Link
-            href="/finance/transfers"
-            className={`fin-kpi-card${summary.pendingSettlements > 0 ? " is-alert" : ""}`}
-          >
-            <span className="fin-kpi-card__icon" aria-hidden="true">
-              <AppIcon name="check" />
-            </span>
-            <div className="fin-kpi-card__body">
-              <span className="fin-kpi-card__label">طلبات تسوية معلقة</span>
-              <strong className="fin-kpi-card__value">{summary.pendingSettlements}</strong>
-              <small className="fin-kpi-card__sub">
-                {summary.pendingSettlements > 0
+        <FinKpiStrip
+          label="ملخص السيولة والمعلقات"
+          items={[
+            {
+              icon: "warehouse",
+              label: "إجمالي رصيد الخزائن",
+              value: (
+                <>
+                  <bdi dir="ltr">{displayMoney(vaultTotalCents)}</bdi> <small>ج.م</small>
+                </>
+              ),
+              sub: `موزّعة على {openVaultCount} خزنة فرع نشطة`,
+              tone: "accent",
+            },
+            {
+              icon: "cash",
+              label: "المستحق للخزنة بيد الموظفين",
+              value: (
+                <>
+                  <bdi dir="ltr">{formatMoney(summary.totalExpected)}</bdi> <small>ج.م</small>
+                </>
+              ),
+              sub: `عبر {openCustodyCount} عهدة مفتوحة (الرصيد الدفتري {displayMoney(custodyBookTotalCents)} ج.م)`,
+            },
+            {
+              icon: "expenses",
+              label: "مصروفات بانتظار إجراء",
+              value: String(pendingActionExpenses),
+              sub: `${summary.pendingExpenses} بانتظار الاعتماد · ${summary.approvedUnpaid} بانتظار الصرف`,
+              tone: pendingActionExpenses > 0 ? "alert" : "default",
+              href: "/finance/expenses",
+            },
+            {
+              icon: "check",
+              label: "طلبات تسوية معلقة",
+              value: String(summary.pendingSettlements),
+              sub:
+                summary.pendingSettlements > 0
                   ? "اضغط للمراجعة والاعتماد في شاشة التسليم"
-                  : "لا توجد طلبات تسوية معلقة حاليًا"}
-              </small>
-            </div>
-          </Link>
-        </section>
+                  : "لا توجد طلبات تسوية معلقة حاليًا",
+              tone: summary.pendingSettlements > 0 ? "alert" : "default",
+              href: "/finance/transfers",
+            },
+          ]}
+        />
       ) : null}
 
       {rows.length === 0 ? (
-        <div className="fin-panel fin-empty fin-empty-state">
-          <span className="fin-empty-state__icon" aria-hidden="true">
-            <AppIcon name="cash" />
-          </span>
-          <h2>لا يوجد حساب نقدي مفتوح بعد</h2>
+        <FinEmptyState icon="cash" title="لا يوجد حساب نقدي مفتوح بعد">
           <p>يُفتح الحساب بجرد فعلي مسجّل للرصيد من قِبل المدير أو المحاسب.</p>
           {canManage ? (
             <Link className="fin-button" href="/finance/accounts">
@@ -656,7 +650,7 @@ export default async function FinancePage() {
               <span>فتح حساب بجرد فعلي</span>
             </Link>
           ) : null}
-        </div>
+        </FinEmptyState>
       ) : (
         <>
           <div className="fin-directory-heading">

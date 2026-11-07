@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { AppIcon } from "@/components/app-icon";
 import { downloadCsvFile } from "@/lib/csv-export";
 import { EditCategoryForm, type CategoryOption } from "./category-forms";
@@ -199,6 +199,16 @@ export default function CategoriesDirectoryView({
     setAuditQuery(categoryName);
   }
 
+  function handleMainTabKeyDown(event: ReactKeyboardEvent<HTMLDivElement>): void {
+    // قائمة RTL: الأيسر للتالي والأيمن للسابق (ترتيب القراءة العربية).
+    const delta = event.key === "ArrowLeft" ? 1 : event.key === "ArrowRight" ? -1 : 0;
+    if (delta === 0) return;
+    event.preventDefault();
+    const next = tab === "directory" ? "audit" : "directory";
+    setTab(next);
+    document.getElementById(`fin-cat-tab-${next}`)?.focus();
+  }
+
   function handleExportCategoriesCsv() {
     downloadCsvFile(
       `selahtone-expense-categories-${new Date().toISOString().slice(0, 10)}.csv`,
@@ -270,10 +280,13 @@ export default function CategoriesDirectoryView({
     <section id="categories-directory" aria-label="دليل البنود وسجل التدقيق">
       <div className="fin-toolbar no-print">
         <div className="fin-toolbar__row">
-          <div className="fin-filter-pills" role="tablist" aria-label="عرض البنود أو سجل التعديلات">
+          <div className="fin-filter-pills" role="tablist" aria-label="عرض البنود أو سجل التعديلات" onKeyDown={handleMainTabKeyDown}>
             <button
               type="button"
               role="tab"
+              id="fin-cat-tab-directory"
+              aria-controls="fin-cat-directory-panel"
+              tabIndex={tab === "directory" ? 0 : -1}
               aria-selected={tab === "directory"}
               className={`fin-filter-pill${tab === "directory" ? " is-active" : ""}`}
               onClick={() => setTab("directory")}
@@ -284,6 +297,9 @@ export default function CategoriesDirectoryView({
             <button
               type="button"
               role="tab"
+              id="fin-cat-tab-audit"
+              aria-controls="fin-cat-audit-panel"
+              tabIndex={tab === "audit" ? 0 : -1}
               aria-selected={tab === "audit"}
               className={`fin-filter-pill${tab === "audit" ? " is-active" : ""}`}
               onClick={() => setTab("audit")}
@@ -353,11 +369,10 @@ export default function CategoriesDirectoryView({
             </div>
 
             <div className="fin-toolbar__row">
-              <div className="fin-filter-pills" role="tablist" aria-label="تصفية البنود">
+              <div className="fin-filter-pills" role="group" aria-label="تصفية البنود">
                 <button
                   type="button"
-                  role="tab"
-                  aria-selected={filter === "all"}
+                  aria-pressed={filter === "all"}
                   className={`fin-filter-pill${filter === "all" ? " is-active" : ""}`}
                   onClick={() => setFilter("all")}
                 >
@@ -366,8 +381,7 @@ export default function CategoriesDirectoryView({
                 </button>
                 <button
                   type="button"
-                  role="tab"
-                  aria-selected={filter === "active"}
+                  aria-pressed={filter === "active"}
                   className={`fin-filter-pill${filter === "active" ? " is-active" : ""}`}
                   onClick={() => setFilter("active")}
                 >
@@ -376,8 +390,7 @@ export default function CategoriesDirectoryView({
                 </button>
                 <button
                   type="button"
-                  role="tab"
-                  aria-selected={filter === "inactive"}
+                  aria-pressed={filter === "inactive"}
                   className={`fin-filter-pill${filter === "inactive" ? " is-active" : ""}`}
                   onClick={() => setFilter("inactive")}
                 >
@@ -386,8 +399,7 @@ export default function CategoriesDirectoryView({
                 </button>
                 <button
                   type="button"
-                  role="tab"
-                  aria-selected={filter === "month_spend"}
+                  aria-pressed={filter === "month_spend"}
                   className={`fin-filter-pill${filter === "month_spend" ? " is-active" : ""}`}
                   onClick={() => setFilter("month_spend")}
                 >
@@ -396,8 +408,7 @@ export default function CategoriesDirectoryView({
                 </button>
                 <button
                   type="button"
-                  role="tab"
-                  aria-selected={filter === "unused"}
+                  aria-pressed={filter === "unused"}
                   className={`fin-filter-pill${filter === "unused" ? " is-active" : ""}`}
                   onClick={() => setFilter("unused")}
                 >
@@ -453,11 +464,10 @@ export default function CategoriesDirectoryView({
             </div>
 
             <div className="fin-toolbar__row">
-              <div className="fin-filter-pills" role="tablist" aria-label="نوع التعديل">
+              <div className="fin-filter-pills" role="group" aria-label="نوع التعديل">
                 <button
                   type="button"
-                  role="tab"
-                  aria-selected={auditFilter === "all"}
+                  aria-pressed={auditFilter === "all"}
                   className={`fin-filter-pill${auditFilter === "all" ? " is-active" : ""}`}
                   onClick={() => setAuditFilter("all")}
                 >
@@ -466,8 +476,7 @@ export default function CategoriesDirectoryView({
                 </button>
                 <button
                   type="button"
-                  role="tab"
-                  aria-selected={auditFilter === "CREATE"}
+                  aria-pressed={auditFilter === "CREATE"}
                   className={`fin-filter-pill${auditFilter === "CREATE" ? " is-active" : ""}`}
                   onClick={() => setAuditFilter("CREATE")}
                 >
@@ -476,8 +485,7 @@ export default function CategoriesDirectoryView({
                 </button>
                 <button
                   type="button"
-                  role="tab"
-                  aria-selected={auditFilter === "RENAME"}
+                  aria-pressed={auditFilter === "RENAME"}
                   className={`fin-filter-pill${auditFilter === "RENAME" ? " is-active" : ""}`}
                   onClick={() => setAuditFilter("RENAME")}
                 >
@@ -486,8 +494,7 @@ export default function CategoriesDirectoryView({
                 </button>
                 <button
                   type="button"
-                  role="tab"
-                  aria-selected={auditFilter === "STATUS"}
+                  aria-pressed={auditFilter === "STATUS"}
                   className={`fin-filter-pill${auditFilter === "STATUS" ? " is-active" : ""}`}
                   onClick={() => setAuditFilter("STATUS")}
                 >
@@ -501,7 +508,7 @@ export default function CategoriesDirectoryView({
       </div>
 
       {tab === "directory" ? (
-        <div className="fin-panel">
+        <div className="fin-panel" role="tabpanel" id="fin-cat-directory-panel" aria-labelledby="fin-cat-tab-directory">
           <div className="fin-panel__heading">
             <h2>دليل البنود وتحليل الإنفاق الفعلي ({currentMonthLabel})</h2>
             <p>
@@ -516,14 +523,15 @@ export default function CategoriesDirectoryView({
           ) : (
             <div className="fin-table-wrap">
               <table className="fin-table">
+                <caption>دليل البنود ومدفوعات الشهر مع مقارنة الشهر السابق</caption>
                 <thead>
                   <tr>
-                    <th>البند والرمز</th>
-                    <th>المدفوع الفعلي ({currentMonthLabel})</th>
-                    <th>مقارنة بالشهر السابق</th>
-                    <th>إجمالي السجل وآخر استخدام</th>
-                    <th>الحالة والإصدار</th>
-                    <th className="no-print">إجراءات</th>
+                    <th scope="col">البند والرمز</th>
+                    <th scope="col">المدفوع الفعلي ({currentMonthLabel})</th>
+                    <th scope="col">مقارنة بالشهر السابق</th>
+                    <th scope="col">إجمالي السجل وآخر استخدام</th>
+                    <th scope="col">الحالة والإصدار</th>
+                    <th scope="col" className="no-print">إجراءات</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -692,7 +700,7 @@ export default function CategoriesDirectoryView({
           )}
         </div>
       ) : (
-        <div className="fin-panel">
+        <div className="fin-panel" role="tabpanel" id="fin-cat-audit-panel" aria-labelledby="fin-cat-tab-audit">
           <div className="fin-panel__heading">
             <h2>سجل التدقيق وتعديلات بنود المصروفات</h2>
             <p>
@@ -709,15 +717,16 @@ export default function CategoriesDirectoryView({
           ) : (
             <div className="fin-table-wrap">
               <table className="fin-table">
+                <caption>سجل تدقيق بنود المصروفات — إنشاء وتعديل مسمى وإيقاف وتفعيل</caption>
                 <thead>
                   <tr>
-                    <th>قيد #</th>
-                    <th>البند</th>
-                    <th>نوع الإجراء</th>
-                    <th>التغيير (قبل ← بعد)</th>
-                    <th>السبب الموثّق</th>
-                    <th>المنفِّذ</th>
-                    <th>التاريخ والوقت</th>
+                    <th scope="col">قيد #</th>
+                    <th scope="col">البند</th>
+                    <th scope="col">نوع الإجراء</th>
+                    <th scope="col">التغيير (قبل ← بعد)</th>
+                    <th scope="col">السبب الموثّق</th>
+                    <th scope="col">المنفِّذ</th>
+                    <th scope="col">التاريخ والوقت</th>
                   </tr>
                 </thead>
                 <tbody>
