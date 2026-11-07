@@ -811,7 +811,7 @@ export async function loadDashboardExecutiveSuite(
         tone: "danger",
         title: `${arNum.format(staleCount)} طلب تسوية عهدة معلّق بطل بحركة نقدية لاحقة`,
         detail: "وقعت مقبوضات أو منصرفات نقدية بعد الجرد؛ يلزم إعادة الجرد قبل الاعتماد",
-        href: "/finance/settlements",
+        href: "/finance/transfers",
       });
     }
 
@@ -823,7 +823,7 @@ export async function loadDashboardExecutiveSuite(
         tone: "warning",
         title: `${arNum.format(varianceCount)} تسوية عهدة بفرق جرد فعلي هذا الشهر`,
         detail: `إجمالي الفروقات المطلقة: ${displayMoney(varianceCents)} ج.م`,
-        href: "/finance/settlements",
+        href: "/finance/transfers",
       });
     }
 

@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppIcon } from "@/components/app-icon";
+import { FinEmptyState } from "@/components/finance/fin-empty-state";
+import { FinKpiStrip } from "@/components/finance/fin-kpi-strip";
 import PantherSpotlightCard, {
   type PantherChartPoint,
   type PantherChartSeries,
@@ -124,11 +126,7 @@ export default async function FinanceTransfersPage() {
           <AppIcon name="arrow" />
           <span>العودة إلى عهدتي</span>
         </Link>
-        <div className="fin-panel fin-empty fin-empty-state">
-          <span className="fin-empty-state__icon" aria-hidden="true">
-            <AppIcon name="cash" />
-          </span>
-          <h2>لا توجد عهدة مفتوحة باسمك حاليًا</h2>
+        <FinEmptyState icon="cash" title="لا توجد عهدة مفتوحة باسمك حاليًا">
           <p>
             تُفتح العهدة بجرد فعلي يعتمده المدير أو المحاسب، أو يمكنك تقديم طلب فتح عهدة من صفحة «عهدتي النقدية».
           </p>
@@ -137,7 +135,7 @@ export default async function FinanceTransfersPage() {
               فتح صفحة عهدتي النقدية
             </Link>
           </div>
-        </div>
+        </FinEmptyState>
       </div>
     );
   }
@@ -668,90 +666,59 @@ export default async function FinanceTransfersPage() {
         />
       </div>
 
-      <section className="fin-kpi-strip no-print" aria-label="ملخص التسليم والتسويات">
-        <article className="fin-kpi-card is-accent">
-          <span className="fin-kpi-card__icon" aria-hidden="true">
-            <AppIcon name="transfers" />
-          </span>
-          <div className="fin-kpi-card__body">
-            <span className="fin-kpi-card__label">
-              {canManage ? "وارد الخزائن (الشهر)" : "توريدك للخزنة (الشهر)"}
-            </span>
-            <strong className="fin-kpi-card__value">
-              <bdi dir="ltr">{displayCents(monthToVaultCents)}</bdi>{" "}
-              <small>ج.م</small>
-            </strong>
-            <small className="fin-kpi-card__sub">
-              عبر {monthToVaultCount} سند توريد نقدي
-            </small>
-          </div>
-        </article>
-
-        <article className="fin-kpi-card">
-          <span className="fin-kpi-card__icon" aria-hidden="true">
-            <AppIcon name="cash" />
-          </span>
-          <div className="fin-kpi-card__body">
-            <span className="fin-kpi-card__label">
-              {canManage ? "تغذية العُهَد (الشهر)" : "رصيد عهدتك الدفتري"}
-            </span>
-            <strong className="fin-kpi-card__value">
-              <bdi dir="ltr">
-                {canManage
-                  ? displayCents(monthToCustodyCents)
-                  : formatMoney(ownCustody?.balance ?? "0")}
-              </bdi>{" "}
-              <small>ج.م</small>
-            </strong>
-            <small className="fin-kpi-card__sub">
-              {canManage
-                ? `${monthToCustodyCount} حركة تغذية من الخزائن`
-                : `فرع ${branchNames.get(ownCustody?.branchId ?? "") ?? "الفرع"}`}
-            </small>
-          </div>
-        </article>
-
-        <article className="fin-kpi-card">
-          <span className="fin-kpi-card__icon" aria-hidden="true">
-            <AppIcon name="receipt" />
-          </span>
-          <div className="fin-kpi-card__body">
-            <span className="fin-kpi-card__label">حركات التسليم اليوم</span>
-            <strong className="fin-kpi-card__value">
-              <bdi dir="ltr">{displayCents(todayTransfersCents)}</bdi>{" "}
-              <small>ج.م</small>
-            </strong>
-            <small className="fin-kpi-card__sub">
-              {todayTransfersCount} حركة مسجّلة بتوقيت القاهرة
-            </small>
-          </div>
-        </article>
-
-        <article
-          className={`fin-kpi-card${
-            canManage && pendingSettlements.length > 0 ? " is-alert" : ""
-          }`}
-        >
-          <span className="fin-kpi-card__icon" aria-hidden="true">
-            <AppIcon name="shield" />
-          </span>
-          <div className="fin-kpi-card__body">
-            <span className="fin-kpi-card__label">
-              {canManage ? "تسويات بانتظار القرار" : "إجمالي سنداتك بالسجل"}
-            </span>
-            <strong className="fin-kpi-card__value">
-              {canManage ? pendingSettlements.length : ledgerRows.length}
-            </strong>
-            <small className="fin-kpi-card__sub">
-              {canManage
-                ? pendingSettlements.length > 0
-                  ? "تتطلّب اعتمادًا أو رفضًا بسبب"
-                  : `${archivedSettlements.length} تسوية سابقة بالأرشيف`
-                : "سندات موثّقة وجاهزة للطباعة"}
-            </small>
-          </div>
-        </article>
-      </section>
+      <FinKpiStrip
+        label="ملخص التسليم والتسويات"
+        className="no-print"
+        items={[
+          {
+            icon: "transfers",
+            label: canManage ? "وارد الخزائن (الشهر)" : "توريدك للخزنة (الشهر)",
+            value: (
+              <>
+                <bdi dir="ltr">{displayCents(monthToVaultCents)}</bdi> <small>ج.م</small>
+              </>
+            ),
+            sub: `عبر {monthToVaultCount} سند توريد نقدي`,
+            tone: "accent",
+          },
+          {
+            icon: "cash",
+            label: canManage ? "تغذية العُهَد (الشهر)" : "رصيد عهدتك الدفتري",
+            value: (
+              <>
+                <bdi dir="ltr">
+                  {canManage ? displayCents(monthToCustodyCents) : formatMoney(ownCustody?.balance ?? "0")}
+                </bdi>{" "}
+                <small>ج.م</small>
+              </>
+            ),
+            sub: canManage
+              ? `${monthToCustodyCount} حركة تغذية من الخزائن`
+              : `فرع ${branchNames.get(ownCustody?.branchId ?? "") ?? "الفرع"}`,
+          },
+          {
+            icon: "receipt",
+            label: "حركات التسليم اليوم",
+            value: (
+              <>
+                <bdi dir="ltr">{displayCents(todayTransfersCents)}</bdi> <small>ج.م</small>
+              </>
+            ),
+            sub: `${todayTransfersCount} حركة مسجّلة بتوقيت القاهرة`,
+          },
+          {
+            icon: "shield",
+            label: canManage ? "تسويات بانتظار القرار" : "إجمالي سنداتك بالسجل",
+            value: String(canManage ? pendingSettlements.length : ledgerRows.length),
+            sub: canManage
+              ? pendingSettlements.length > 0
+                ? "تتطلّب اعتمادًا أو رفضًا بسبب"
+                : `${archivedSettlements.length} تسوية سابقة بالأرشيف`
+              : "سندات موثّقة وجاهزة للطباعة",
+            tone: canManage && pendingSettlements.length > 0 ? "alert" : "default",
+          },
+        ]}
+      />
 
       {/* أولوية ١ للإدارة: طلبات التسوية المعلقة في الصدارة فور وجودها */}
       {canManage && pendingSettlements.length > 0 ? (
@@ -768,7 +735,8 @@ export default async function FinanceTransfersPage() {
               </p>
               <h2>طلبات التسوية المعلقة ({pendingSettlements.length})</h2>
               <p>
-                اعتماد التسوية يسجّل حركتين في معاملة ذرّية واحدة: مطابقة الدفتر مع الواقع المعدود، ثم تحويل الفرق مع الخزنة.
+                طلبات التسوية التي وصلت من موظفي الفروع (شاشة «عهدتي ← طلبات التسوية» لدى كل موظف) — قراركم هنا: اعتماد
+                (حركتان في معاملة ذرّية واحدة: مطابقة الدفتر مع الواقع المعدود، ثم تحويل الفرق مع الخزنة) أو رفض ببيان.
               </p>
             </div>
             <div className="fin-actions">
@@ -801,15 +769,15 @@ export default async function FinanceTransfersPage() {
       {/* نموذج التسليم الفعلي الذكي */}
       <div className="fin-page__section">
         {options.length < 2 ? (
-          <div className="fin-panel fin-empty fin-empty-state no-print">
-            <span className="fin-empty-state__icon" aria-hidden="true">
-              <AppIcon name="transfers" />
-            </span>
-            <h2>
-              {canManage
+          <FinEmptyState
+            icon="transfers"
+            className="no-print"
+            title={
+              canManage
                 ? "يلزم وجود خزنة مفتوحة وعهدة موظف مفتوحة في الفرع نفسه"
-                : "لا توجد خزنة مفتوحة لفرعك بعد لتوريد النقد إليها"}
-            </h2>
+                : "لا توجد خزنة مفتوحة لفرعك بعد لتوريد النقد إليها"
+            }
+          >
             <p>
               {canManage
                 ? "افتح خزنة الفرع أو عهدة موظف بجرد فعلي من «الحسابات النقدية» لتفعيل التسليم الفوري."
@@ -828,21 +796,9 @@ export default async function FinanceTransfersPage() {
                     العودة إلى المالية
                   </Link>
                 </>
-              ) : (
-                <>
-                  <Link className="fin-button" href="/finance/settlements">
-                    طلبات التسوية
-                  </Link>
-                  <Link
-                    className="fin-button fin-button--secondary"
-                    href="/finance/mine"
-                  >
-                    العودة إلى عهدتي
-                  </Link>
-                </>
-              )}
+              ) : null}
             </div>
-          </div>
+          </FinEmptyState>
         ) : (
           <TransferForm
             requestId={randomUUID()}

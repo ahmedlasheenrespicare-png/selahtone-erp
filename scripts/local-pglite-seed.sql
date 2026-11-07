@@ -35,15 +35,15 @@ INSERT INTO stock_levels (id, warehouse_id, product_id, qty_on_hand, avg_cost, u
 -- الفواتير والسطور
 INSERT INTO commerce_sales (id, request_id, request_hash, branch_id, warehouse_id, customer_name, customer_phone,
   subtotal, discount, taxable_base, tax_total, total, revision, cancelled_at, created_by_id, created_at) VALUES
-  (1,'00000000-0000-4000-8000-000000000001', rpad('a1', 64, 'a1'), 1, 1, 'أحمد حجازي', '01000000001', 18750, 0, 18750, 0, 18750, 1, NULL, 1, date_trunc('day', now()) + interval '10 hours'),
-  (2,'00000000-0000-4000-8000-000000000002', rpad('a2', 64, 'a2'), 1, 1, 'محمود علي النجار', '01000000002', 30000, 0, 30000, 0, 30000, 1, NULL, 1, date_trunc('day', now()) + interval '13 hours'),
-  (3,'00000000-0000-4000-8000-000000000003', rpad('a3', 64, 'a3'), 2, 2, 'منى سالم', '01000000003', 12500, 0, 12500, 0, 12500, 1, NULL, 1, date_trunc('day', now()) - interval '1 day' + interval '11 hours'),
-  (4,'00000000-0000-4000-8000-000000000004', rpad('a4', 64, 'a4'), 1, 1, 'خالد المصري', '01000000004', 5700, 0, 5700, 0, 5700, 1, NULL, 1, date_trunc('day', now()) - interval '3 days' + interval '12 hours'),
-  (5,'00000000-0000-4000-8000-000000000005', rpad('a5', 64, 'a5'), 3, 3, 'سمية القاضي', '01000000005', 6000, 0, 6000, 0, 6000, 1, NULL, 1, date_trunc('day', now()) - interval '4 days' + interval '14 hours'),
-  (6,'00000000-0000-4000-8000-000000000006', rpad('a6', 64, 'a6'), 1, 1, 'أحمد حجازي', '01000000001', 22000, 0, 22000, 0, 22000, 1, NULL, 1, date_trunc('day', now()) - interval '2 days' + interval '15 hours'),
-  (7,'00000000-0000-4000-8000-000000000007', rpad('a7', 64, 'a7'), 1, 1, 'فاتورة ملغاة', '01000000007', 9999, 0, 9999, 0, 9999, 1, date_trunc('day', now()) + interval '16 hours', 1, date_trunc('day', now()) + interval '15 hours'),
-  (8,'00000000-0000-4000-8000-000000000008', rpad('a8', 64, 'a8'), 2, 2, 'منى سالم', '01000000003', 45000, 0, 45000, 0, 45000, 1, NULL, 1, date_trunc('day', now()) + interval '9 hours'),
-  (9,'00000000-0000-4000-8000-000000000009', rpad('a9', 64, 'a9'), 1, 1, 'يوسف النجار', '01000000009', 8000, 0, 8000, 0, 8000, 1, NULL, 1, date_trunc('day', now()) - interval '6 days' + interval '10 hours');
+  (1,'00000000-0000-4000-8000-000000000001', rpad('a1', 64, 'a1'), 1, 1, 'أحمد حجازي', '01000000001', 18750, 0, 18750, 0, 18750, 1, NULL, 1, (date_trunc('day', now() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo') + interval '10 hours'),
+  (2,'00000000-0000-4000-8000-000000000002', rpad('a2', 64, 'a2'), 1, 1, 'محمود علي النجار', '01000000002', 30000, 0, 30000, 0, 30000, 1, NULL, 1, (date_trunc('day', now() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo') + interval '13 hours'),
+  (3,'00000000-0000-4000-8000-000000000003', rpad('a3', 64, 'a3'), 2, 2, 'منى سالم', '01000000003', 12500, 0, 12500, 0, 12500, 1, NULL, 1, (date_trunc('day', now() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo') - interval '1 day' + interval '11 hours'),
+  (4,'00000000-0000-4000-8000-000000000004', rpad('a4', 64, 'a4'), 1, 1, 'خالد المصري', '01000000004', 5700, 0, 5700, 0, 5700, 1, NULL, 1, (date_trunc('day', now() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo') - interval '3 days' + interval '12 hours'),
+  (5,'00000000-0000-4000-8000-000000000005', rpad('a5', 64, 'a5'), 3, 3, 'سمية القاضي', '01000000005', 6000, 0, 6000, 0, 6000, 1, NULL, 1, (date_trunc('day', now() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo') - interval '4 days' + interval '14 hours'),
+  (6,'00000000-0000-4000-8000-000000000006', rpad('a6', 64, 'a6'), 1, 1, 'أحمد حجازي', '01000000001', 22000, 0, 22000, 0, 22000, 1, NULL, 1, (date_trunc('day', now() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo') - interval '2 days' + interval '15 hours'),
+  (7,'00000000-0000-4000-8000-000000000007', rpad('a7', 64, 'a7'), 1, 1, 'فاتورة ملغاة', '01000000007', 9999, 0, 9999, 0, 9999, 1, (date_trunc('day', now() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo') + interval '16 hours', 1, (date_trunc('day', now() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo') + interval '15 hours'),
+  (8,'00000000-0000-4000-8000-000000000008', rpad('a8', 64, 'a8'), 2, 2, 'منى سالم', '01000000003', 45000, 0, 45000, 0, 45000, 1, NULL, 1, (date_trunc('day', now() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo') + interval '9 hours'),
+  (9,'00000000-0000-4000-8000-000000000009', rpad('a9', 64, 'a9'), 1, 1, 'يوسف النجار', '01000000009', 8000, 0, 8000, 0, 8000, 1, NULL, 1, (date_trunc('day', now() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo') - interval '6 days' + interval '10 hours');
 INSERT INTO commerce_sale_lines (id, sale_id, product_id, name_snapshot, quantity, unit_price, gross, discount, total, is_stock, is_serialized, sku_snapshot, tax_code_snapshot, tax_rate_snapshot) VALUES
   (1, 1, 1, 'سماعة Phonak Audéo A30', 1, 18750, 18750, 0, 18750, true, true, 'HA-PHK-A30', 'VAT5', 5),
   (2, 2, 1, 'سماعة Phonak Audéo A30', 1, 18500, 18500, 0, 18500, true, true, 'HA-PHK-A30', 'VAT5', 5),
@@ -56,24 +56,24 @@ INSERT INTO commerce_sale_lines (id, sale_id, product_id, name_snapshot, quantit
   (9, 9, 4, 'جلسة ضبط وتعيير', 1, 8000, 8000, 0, 8000, false, false, 'SV-CAL-01', 'VAT14', 14);
 -- التحصيلات
 INSERT INTO commerce_collections (id, request_id, request_hash, sale_id, amount, method, is_initial, created_by_id, created_at) VALUES
-  (1,'00000000-0000-4000-8000-000000000101', rpad('b1', 64, 'b1'), 1, 18750, 'CASH', true, 1, date_trunc('day', now()) + interval '10 hours'),
-  (2,'00000000-0000-4000-8000-000000000102', rpad('b2', 64, 'b2'), 2, 12000, 'INSTAPAY', true, 3, date_trunc('day', now()) + interval '13 hours'),
-  (3,'00000000-0000-4000-8000-000000000103', rpad('b3', 64, 'b3'), 4, 5700, 'CARD', true, 1, date_trunc('day', now()) - interval '3 days' + interval '12 hours'),
-  (4,'00000000-0000-4000-8000-000000000104', rpad('b4', 64, 'b4'), 5, 2500, 'CASH', true, 1, date_trunc('day', now()) - interval '4 days' + interval '14 hours'),
-  (5,'00000000-0000-4000-8000-000000000105', rpad('b5', 64, 'b5'), 6, 22000, 'CASH', true, 1, date_trunc('day', now()) - interval '2 days' + interval '15 hours'),
-  (6,'00000000-0000-4000-8000-000000000106', rpad('b6', 64, 'b6'), 8, 5000, 'INSTAPAY', true, 3, date_trunc('day', now()) + interval '9 hours'),
-  (7,'00000000-0000-4000-8000-000000000107', rpad('b7', 64, 'b7'), 9, 8000, 'CARD', true, 1, date_trunc('day', now()) - interval '6 days' + interval '10 hours');
+  (1,'00000000-0000-4000-8000-000000000101', rpad('b1', 64, 'b1'), 1, 18750, 'CASH', true, 1, (date_trunc('day', now() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo') + interval '10 hours'),
+  (2,'00000000-0000-4000-8000-000000000102', rpad('b2', 64, 'b2'), 2, 12000, 'INSTAPAY', true, 3, (date_trunc('day', now() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo') + interval '13 hours'),
+  (3,'00000000-0000-4000-8000-000000000103', rpad('b3', 64, 'b3'), 4, 5700, 'CARD', true, 1, (date_trunc('day', now() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo') - interval '3 days' + interval '12 hours'),
+  (4,'00000000-0000-4000-8000-000000000104', rpad('b4', 64, 'b4'), 5, 2500, 'CASH', true, 1, (date_trunc('day', now() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo') - interval '4 days' + interval '14 hours'),
+  (5,'00000000-0000-4000-8000-000000000105', rpad('b5', 64, 'b5'), 6, 22000, 'CASH', true, 1, (date_trunc('day', now() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo') - interval '2 days' + interval '15 hours'),
+  (6,'00000000-0000-4000-8000-000000000106', rpad('b6', 64, 'b6'), 8, 5000, 'INSTAPAY', true, 3, (date_trunc('day', now() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo') + interval '9 hours'),
+  (7,'00000000-0000-4000-8000-000000000107', rpad('b7', 64, 'b7'), 9, 8000, 'CARD', true, 1, (date_trunc('day', now() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo') - interval '6 days' + interval '10 hours');
 -- مرتجع كامل للفاتورة 6 + رد النقد
 INSERT INTO commerce_returns (id, request_id, request_hash, sale_id, is_cancellation, created_by_id, created_at) VALUES
-  (10,'00000000-0000-4000-8000-000000000201', rpad('c1', 64, 'c1'), 6, false, 1, date_trunc('day', now()) - interval '1 day' + interval '12 hours');
+  (10,'00000000-0000-4000-8000-000000000201', rpad('c1', 64, 'c1'), 6, false, 1, (date_trunc('day', now() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo') - interval '1 day' + interval '12 hours');
 INSERT INTO commerce_return_lines (id, return_id, sale_line_id, quantity, total, tax_amount) VALUES
   (10, 10, 7, 1, 22000, 0);
 INSERT INTO commerce_refunds (id, request_id, request_hash, sale_id, amount, method, created_by_id, created_at) VALUES
-  (10,'00000000-0000-4000-8000-000000000301', rpad('d1', 64, 'd1'), 6, 22000, 'CASH', 1, date_trunc('day', now()) - interval '1 day' + interval '12 hours');
+  (10,'00000000-0000-4000-8000-000000000301', rpad('d1', 64, 'd1'), 6, 22000, 'CASH', 1, (date_trunc('day', now() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo') - interval '1 day' + interval '12 hours');
 -- مصروفات
 INSERT INTO expenses (id, branch_id, category_id, amount, expense_date, status, requested_by, approved_by, created_at) VALUES
-  (1, 1, 4, 250, CURRENT_DATE, 'APPROVED', 3, 1, date_trunc('day', now()) + interval '8 hours'),
-  (2, 1, 3, 1200, CURRENT_DATE, 'PENDING', 3, NULL, date_trunc('day', now()) + interval '9 hours'),
+  (1, 1, 4, 250, CURRENT_DATE, 'APPROVED', 3, 1, (date_trunc('day', now() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo') + interval '8 hours'),
+  (2, 1, 3, 1200, CURRENT_DATE, 'PENDING', 3, NULL, (date_trunc('day', now() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo') + interval '9 hours'),
   (3, 1, 2, 850, CURRENT_DATE - 1, 'PAID', 3, 1, now() - interval '1 day'),
   (4, 2, 7, 500, CURRENT_DATE - 2, 'PENDING', 3, NULL, now() - interval '2 days'),
   (5, 1, 6, 300, CURRENT_DATE - 6, 'PAID', 3, 1, now() - interval '6 days');

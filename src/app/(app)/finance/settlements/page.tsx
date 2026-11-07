@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppIcon } from "@/components/app-icon";
+import { FinEmptyState } from "@/components/finance/fin-empty-state";
 import PrintPageButton from "@/components/print-page-button";
 
 import { prisma } from "@/lib/prisma";
@@ -54,13 +55,9 @@ export default async function SettlementsPage() {
       </div>
 
       {!overview.account ? (
-        <div className="fin-panel fin-empty fin-empty-state">
-          <span className="fin-empty-state__icon" aria-hidden="true">
-            <AppIcon name="cash" />
-          </span>
-          <h2>لا توجد عهدة مفتوحة باسمك بعد</h2>
+        <FinEmptyState icon="cash" title="لا توجد عهدة مفتوحة باسمك بعد">
           <p>تُفتح العهدة بجرد فعلي يسجّله المدير أو المحاسب.</p>
-        </div>
+        </FinEmptyState>
       ) : (
         <>
           <div className="fin-panel">
@@ -117,6 +114,7 @@ export default async function SettlementsPage() {
               ) : (
                 <div className="fin-table-wrap">
                   <table className="fin-table">
+                    <caption>تسويات العهد — المتوقَّع مقابل المعدود والفرق بينهما</caption>
                     <thead>
                       <tr>
                         <th scope="col">التاريخ</th>

@@ -513,9 +513,12 @@ export type CollectionsSpotlightData = {
 export async function loadCollectionsSpotlight(
   db: PrismaClient,
   branchId: string | null,
-  opts: { canSell: boolean; context: "dashboard" | "sales" },
+  opts: { canSell: boolean; context: "dashboard" | "sales"; period?: Period },
 ): Promise<CollectionsSpotlightData> {
   const branch = branchId === null ? null : BigInt(branchId);
+  // عند تمرير period تُقيّد جميع بيانات البطاقة (فواتير/عملاؤهم/توزيع التحصيل) بالفترة المحددة —
+  // تُستخدم في صفحة «سجل مبيعات اليوم»؛ بلا period السلوك مطابق للسابق حرفيًا.
+  const start = opts.period ? await periodStart(db, opts.period) : null;
 
   const [invoiceRows, activeBranches, returnRowsRaw] = await Promise.all([
     db.$queryRaw<
@@ -556,6 +559,7 @@ export async function loadCollectionsSpotlight(
       JOIN branches b ON b.id = s.branch_id
       WHERE s.cancelled_at IS NULL
         AND (${branch}::bigint IS NULL OR s.branch_id = ${branch}::bigint)
+        AND (${start}::timestamptz IS NULL OR s.created_at >= ${start}::timestamptz)
       ORDER BY s.created_at DESC, s.id DESC`,
     branch === null
       ? db.branch.findMany({
@@ -585,6 +589,7 @@ export async function loadCollectionsSpotlight(
       JOIN commerce_return_lines rl ON rl.return_id = r.id
       WHERE s.cancelled_at IS NULL
         AND (${branch}::bigint IS NULL OR s.branch_id = ${branch}::bigint)
+        AND (${start}::timestamptz IS NULL OR r.created_at >= ${start}::timestamptz)
       GROUP BY r.sale_id, b.name_ar, s.customer_name
       ORDER BY MAX(r.created_at) DESC
       LIMIT 8`,
@@ -940,9 +945,13 @@ export async function loadCollectionsSpotlight(
   return {
     title: "التحصيل والعملاء",
     subtitle:
-      branch === null
-        ? "محدّث الآن · صافي التحصيلات وأرصدة العملاء عبر الفروع"
-        : "محدّث الآن · صافي التحصيلات وأرصدة عملاء فرعك",
+      opts.period === "today"
+        ? branch === null
+          ? "محدّث الآن · تحصيلات اليوم وأرصدة عملاء اليوم عبر الفروع"
+          : "محدّث الآن · تحصيلات اليوم وأرصدة عملاء فرعك"
+        : branch === null
+          ? "محدّث الآن · صافي التحصيلات وأرصدة العملاء عبر الفروع"
+          : "محدّث الآن · صافي التحصيلات وأرصدة عملاء فرعك",
     pill: `${arMoney.format(activeInvoicesCount)} فاتورة نشطة`,
     primary: {
       label: "صافي المحصّل الفعلي",

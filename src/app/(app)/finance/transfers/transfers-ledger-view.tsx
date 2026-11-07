@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { AppIcon } from "@/components/app-icon";
 import { downloadCsvFile } from "@/lib/csv-export";
 import { formatMoney } from "../format";
@@ -132,6 +132,16 @@ export default function TransfersLedgerView({
     });
   }, [archivedSettlements, query, branchFilter, archiveFilter]);
 
+  function handleLedgerTabKeyDown(event: ReactKeyboardEvent<HTMLDivElement>): void {
+    // قائمة RTL: الأيسر للتالي والأيمن للسابق.
+    const delta = event.key === "ArrowLeft" ? 1 : event.key === "ArrowRight" ? -1 : 0;
+    if (delta === 0) return;
+    event.preventDefault();
+    const next = activeTab === "transfers" ? "settlements" : "transfers";
+    setActiveTab(next);
+    document.getElementById(`fin-ledger-tab-${next}`)?.focus();
+  }
+
   function handleExportTransfersCsv() {
     downloadCsvFile(
       `selahtone-cash-transfers-${new Date().toISOString().slice(0, 10)}.csv`,
@@ -229,10 +239,13 @@ export default function TransfersLedgerView({
         </div>
 
         {canManage ? (
-          <div className="fin-filter-pills no-print" role="tablist" aria-label="تبديل السجل الرقابي">
+          <div className="fin-filter-pills no-print" role="tablist" aria-label="تبديل السجل الرقابي" onKeyDown={handleLedgerTabKeyDown}>
             <button
               type="button"
               role="tab"
+              id="fin-ledger-tab-transfers"
+              aria-controls="fin-ledger-panel"
+              tabIndex={activeTab === "transfers" ? 0 : -1}
               aria-selected={activeTab === "transfers"}
               className={`fin-filter-pill${activeTab === "transfers" ? " is-active" : ""}`}
               onClick={() => setActiveTab("transfers")}
@@ -243,6 +256,9 @@ export default function TransfersLedgerView({
             <button
               type="button"
               role="tab"
+              id="fin-ledger-tab-settlements"
+              aria-controls="fin-ledger-panel"
+              tabIndex={activeTab === "settlements" ? 0 : -1}
               aria-selected={activeTab === "settlements"}
               className={`fin-filter-pill${activeTab === "settlements" ? " is-active" : ""}`}
               onClick={() => setActiveTab("settlements")}
@@ -335,11 +351,10 @@ export default function TransfersLedgerView({
 
           <div className="fin-toolbar__row">
             {activeTab === "transfers" ? (
-              <div className="fin-filter-pills" role="tablist" aria-label="تصفية نوع واتجاه التسليم">
+              <div className="fin-filter-pills" role="group" aria-label="تصفية نوع واتجاه التسليم">
                 <button
                   type="button"
-                  role="tab"
-                  aria-selected={ledgerFilter === "all"}
+                  aria-pressed={ledgerFilter === "all"}
                   className={`fin-filter-pill${ledgerFilter === "all" ? " is-active" : ""}`}
                   onClick={() => setLedgerFilter("all")}
                 >
@@ -348,8 +363,7 @@ export default function TransfersLedgerView({
                 </button>
                 <button
                   type="button"
-                  role="tab"
-                  aria-selected={ledgerFilter === "TO_VAULT"}
+                  aria-pressed={ledgerFilter === "TO_VAULT"}
                   className={`fin-filter-pill${ledgerFilter === "TO_VAULT" ? " is-active" : ""}`}
                   onClick={() => setLedgerFilter("TO_VAULT")}
                 >
@@ -359,8 +373,7 @@ export default function TransfersLedgerView({
                 {canManage ? (
                   <button
                     type="button"
-                    role="tab"
-                    aria-selected={ledgerFilter === "TO_CUSTODY"}
+                    aria-pressed={ledgerFilter === "TO_CUSTODY"}
                     className={`fin-filter-pill${ledgerFilter === "TO_CUSTODY" ? " is-active" : ""}`}
                     onClick={() => setLedgerFilter("TO_CUSTODY")}
                   >
@@ -370,8 +383,7 @@ export default function TransfersLedgerView({
                 ) : null}
                 <button
                   type="button"
-                  role="tab"
-                  aria-selected={ledgerFilter === "DIRECT"}
+                  aria-pressed={ledgerFilter === "DIRECT"}
                   className={`fin-filter-pill${ledgerFilter === "DIRECT" ? " is-active" : ""}`}
                   onClick={() => setLedgerFilter("DIRECT")}
                 >
@@ -380,8 +392,7 @@ export default function TransfersLedgerView({
                 </button>
                 <button
                   type="button"
-                  role="tab"
-                  aria-selected={ledgerFilter === "SETTLEMENT"}
+                  aria-pressed={ledgerFilter === "SETTLEMENT"}
                   className={`fin-filter-pill${ledgerFilter === "SETTLEMENT" ? " is-active" : ""}`}
                   onClick={() => setLedgerFilter("SETTLEMENT")}
                 >
@@ -390,11 +401,10 @@ export default function TransfersLedgerView({
                 </button>
               </div>
             ) : (
-              <div className="fin-filter-pills" role="tablist" aria-label="تصفية حالة التسويات المؤرشفة">
+              <div className="fin-filter-pills" role="group" aria-label="تصفية حالة التسويات المؤرشفة">
                 <button
                   type="button"
-                  role="tab"
-                  aria-selected={archiveFilter === "all"}
+                  aria-pressed={archiveFilter === "all"}
                   className={`fin-filter-pill${archiveFilter === "all" ? " is-active" : ""}`}
                   onClick={() => setArchiveFilter("all")}
                 >
@@ -403,8 +413,7 @@ export default function TransfersLedgerView({
                 </button>
                 <button
                   type="button"
-                  role="tab"
-                  aria-selected={archiveFilter === "CONFIRMED"}
+                  aria-pressed={archiveFilter === "CONFIRMED"}
                   className={`fin-filter-pill${archiveFilter === "CONFIRMED" ? " is-active" : ""}`}
                   onClick={() => setArchiveFilter("CONFIRMED")}
                 >
@@ -413,8 +422,7 @@ export default function TransfersLedgerView({
                 </button>
                 <button
                   type="button"
-                  role="tab"
-                  aria-selected={archiveFilter === "REJECTED"}
+                  aria-pressed={archiveFilter === "REJECTED"}
                   className={`fin-filter-pill${archiveFilter === "REJECTED" ? " is-active" : ""}`}
                   onClick={() => setArchiveFilter("REJECTED")}
                 >
@@ -423,8 +431,7 @@ export default function TransfersLedgerView({
                 </button>
                 <button
                   type="button"
-                  role="tab"
-                  aria-selected={archiveFilter === "CANCELLED"}
+                  aria-pressed={archiveFilter === "CANCELLED"}
                   className={`fin-filter-pill${archiveFilter === "CANCELLED" ? " is-active" : ""}`}
                   onClick={() => setArchiveFilter("CANCELLED")}
                 >
@@ -436,6 +443,7 @@ export default function TransfersLedgerView({
           </div>
         </div>
 
+        <div role="tabpanel" id="fin-ledger-panel" aria-labelledby={activeTab === "transfers" ? "fin-ledger-tab-transfers" : "fin-ledger-tab-settlements"}>
         {activeTab === "transfers" ? (
           filteredTransfers.length === 0 ? (
             <div className="fin-empty">
@@ -446,17 +454,18 @@ export default function TransfersLedgerView({
           ) : (
             <div className="fin-table-wrap">
               <table className="fin-table">
+                <caption>سجل الحركات النقدية — مسار الأموال والسندات المرافقة</caption>
                 <thead>
                   <tr>
-                    <th>رقم السند</th>
-                    <th>التوقيت</th>
-                    <th>الفرع</th>
-                    <th>من (المسلِّم)</th>
-                    <th>إلى (المستلِم)</th>
-                    <th>نوع الحركة</th>
-                    <th>المنفِّذ</th>
-                    <th>المبلغ</th>
-                    <th className="no-print">سند</th>
+                    <th scope="col">رقم السند</th>
+                    <th scope="col">التوقيت</th>
+                    <th scope="col">الفرع</th>
+                    <th scope="col">من (المسلِّم)</th>
+                    <th scope="col">إلى (المستلِم)</th>
+                    <th scope="col">نوع الحركة</th>
+                    <th scope="col">المنفِّذ</th>
+                    <th scope="col">المبلغ</th>
+                    <th scope="col" className="no-print">سند</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -514,17 +523,18 @@ export default function TransfersLedgerView({
         ) : (
           <div className="fin-table-wrap">
             <table className="fin-table">
+              <caption>طلبات التسوية — المتوقَّع والمعدود والفرق والقرار النهائي</caption>
               <thead>
                 <tr>
-                  <th>رقم الطلب</th>
-                  <th>تاريخ البتّ</th>
-                  <th>الفرع والموظف</th>
-                  <th>المتوقَّع</th>
-                  <th>المعدود</th>
-                  <th>الفرق</th>
-                  <th>التحويل المنفَّذ</th>
-                  <th>الحالة</th>
-                  <th>متّخذ القرار والسبب</th>
+                  <th scope="col">رقم الطلب</th>
+                  <th scope="col">تاريخ البتّ</th>
+                  <th scope="col">الفرع والموظف</th>
+                  <th scope="col">المتوقَّع</th>
+                  <th scope="col">المعدود</th>
+                  <th scope="col">الفرق</th>
+                  <th scope="col">التحويل المنفَّذ</th>
+                  <th scope="col">الحالة</th>
+                  <th scope="col">متّخذ القرار والسبب</th>
                 </tr>
               </thead>
               <tbody>
@@ -572,6 +582,7 @@ export default function TransfersLedgerView({
             </table>
           </div>
         )}
+        </div>
       </div>
 
       {selectedVoucher ? (

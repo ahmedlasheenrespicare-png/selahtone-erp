@@ -98,12 +98,13 @@ export default function CustodyActivityView({ items }: { items: CustodyMovementI
       ) : (
         <div className="fin-table-wrap">
           <table className="fin-table">
+            <caption>حركة عهدتي — الوارد والصادر بالتاريخ والمبلغ</caption>
             <thead>
               <tr>
-                <th>التاريخ والوقت</th>
-                <th>النوع</th>
-                <th>الاتجاه</th>
-                <th>المبلغ</th>
+                <th scope="col">التاريخ والوقت</th>
+                <th scope="col">النوع</th>
+                <th scope="col">الاتجاه</th>
+                <th scope="col">المبلغ</th>
               </tr>
             </thead>
             <tbody>

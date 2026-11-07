@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { SessionUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { AppIcon } from "@/components/app-icon";
+import { FinEmptyState } from "@/components/finance/fin-empty-state";
 import PantherSpotlightCard from "@/components/panther-spotlight-card";
 import PrintPageButton from "@/components/print-page-button";
 import { listAccountActivity, listAccounts, listMyCountRequests } from "@/lib/finance/engine";
@@ -74,6 +75,9 @@ export default async function MyCustodyPage() {
             <AppIcon name="cash" />
             <span>طلبات التسوية</span>
           </Link>
+          <Link className="fin-button fin-button--secondary" href="/finance/help">
+            <span>دليل الاستخدام</span>
+          </Link>
           <Link className="fin-button fin-button--secondary" href="/dashboard">
             <span>لوحة القيادة</span>
           </Link>
@@ -81,13 +85,9 @@ export default async function MyCustodyPage() {
       </div>
 
       {!account ? (
-        <div className="fin-panel fin-empty fin-empty-state">
-          <span className="fin-empty-state__icon" aria-hidden="true">
-            <AppIcon name="cash" />
-          </span>
-          <h2>لا توجد عهدة مفتوحة باسمك بعد</h2>
+        <FinEmptyState icon="cash" title="لا توجد عهدة مفتوحة باسمك بعد">
           <p>تُفتح العهدة بجرد فعلي يسجّله المدير أو المحاسب.</p>
-        </div>
+        </FinEmptyState>
       ) : (
         <>
           {cash?.openSettlementId ? (
