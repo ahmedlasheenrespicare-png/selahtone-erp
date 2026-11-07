@@ -27,13 +27,16 @@ export function PreviewAccounts({ accounts }: { accounts: PreviewAccount[] }) {
     const password = document.getElementById("password") as HTMLInputElement | null;
     if (!email || !password) return;
     const setValue = nativeValueSetter();
-    // React controlled input: مرِّر القيمة عبر المُعيِّن الأصلي ثم أطلق input
+    // React controlled input: مرِّر القيمة عبر المُعيِّن الأصلي
     setValue?.call(email, account.email);
-    email.dispatchEvent(new Event("input", { bubbles: true }));
     password.value = account.password;
-    password.dispatchEvent(new Event("input", { bubbles: true }));
-    const form = email.closest("form");
-    form?.requestSubmit();
+    // انتظر لتحديث React قبل إرسال النموذج
+    setTimeout(() => {
+      email.dispatchEvent(new Event("input", { bubbles: true }));
+      password.dispatchEvent(new Event("input", { bubbles: true }));
+      const form = email.closest("form");
+      form?.requestSubmit();
+    }, 0);
   };
 
   return (

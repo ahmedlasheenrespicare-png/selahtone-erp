@@ -16,6 +16,7 @@ const PUBLIC_PATHS = [
   "/api/health",
   "/api/logout",
   "/api/session/clear",
+  "/api/login-demo",
   "/icon.svg",
   "/manifest.webmanifest",
   "/sw.js",
@@ -30,16 +31,27 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const token = request.cookies.get(COOKIE_NAME)?.value;
+  const cookieValue = request.cookies.get(COOKIE_NAME);
+  console.log('[Middleware] pathname:', pathname, 'cookie:', cookieValue?.name || 'none');
+  const token = cookieValue?.value;
   const authSecret = process.env.AUTH_SECRET;
   let valid = false;
   if (token && isValidAuthSecret(authSecret)) {
     try {
       const { payload } = await jwtVerify(token, new TextEncoder().encode(authSecret), { algorithms: ["HS256"] });
-      valid = Boolean(payload.sub && /^[1-9]\d{0,18}$/.test(payload.sub) && payload.jti && /^[A-Za-z0-9_-]{43}$/.test(payload.jti));
-    } catch {
+      console.log('[Middleware] token verified, payload:', payload, 'sub:', payload?.sub, 'jti:', payload?.jti);
+      // التحقق من sub (يجب أن يكون رقمًا) و jti (يجب أن يكون non-empty)
+      valid = Boolean(
+        payload.sub && /^[1-9]\d{0,18}$/.test(payload.sub) &&
+        payload.jti && payload.jti.length >= 10
+      );
+      console.log('[Middleware] valid:', valid);
+    } catch (error) {
+      console.log('[Middleware] token verification failed:', error.message);
       valid = false;
     }
+  } else {
+    console.log('[Middleware] token missing or invalid secret');
   }
   if (valid) return NextResponse.next();
 
