@@ -14,10 +14,27 @@
 # =============================================================================
 set -euo pipefail
 
-: "${DATABASE_URL:?DATABASE_URL مطلوب}"
-: "${R2_ENDPOINT:?R2_ENDPOINT مطلوب}"
-: "${R2_BUCKET:?R2_BUCKET مطلوب}"
-: "${BACKUP_PASSPHRASE:?BACKUP_PASSPHRASE مطلوب}"
+# فحص الأسرار: نجمع الناقص كلّه في رسالة واحدة بدل التوقف عند أول متغيّر
+MISSING=()
+for v in DATABASE_URL R2_ENDPOINT R2_BUCKET R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY BACKUP_PASSPHRASE; do
+  if [[ -z "${!v:-}" ]]; then MISSING+=("$v"); fi
+done
+if (( ${#MISSING[@]} )); then
+  echo "❌ أسرار ناقصة أو فارغة: ${MISSING[*]}" >&2
+  echo "   أضفها في GitHub: Settings › Secrets and variables › Actions › New repository secret" >&2
+  exit 1
+fi
+
+# pg_dump يحتاج اتصالًا مباشرًا، لا رابطًا مجمَّعًا (pooler) كما في Neon وSupabase
+if [[ "$DATABASE_URL" == *pooler* && "${ALLOW_POOLED_URL:-0}" != "1" ]]; then
+  echo "❌ رابط القاعدة مجمَّع (يحتوي 'pooler') وpg_dump يحتاج الاتصال المباشر." >&2
+  echo "   استخدم رابط Neon المباشر (بلا -pooler)، أو مرّر ALLOW_POOLED_URL=1 إن كنت واثقًا." >&2
+  exit 1
+fi
+if [[ "$DATABASE_URL" != *sslmode=* ]]; then
+  echo "⚠️  الرابط بلا sslmode — Neon يتطلب التشفير؛ أضف ?sslmode=require إن فشل الاتصال."
+fi
+
 RETENTION_DAYS="${RETENTION_DAYS:-30}"
 
 STAMP="$(date -u +%Y%m%d-%H%M%S)"

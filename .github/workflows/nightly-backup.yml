@@ -24,6 +24,25 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client awscli
 
+      # يسمّي الأسرار الناقصة صراحةً بدل أن يموت السكربت في ثانيةٍ بلا رسالة مفيدة
+      - name: فحص الأسرار قبل النسخ
+        env:
+          DATABASE_URL:         ${{ secrets.DATABASE_URL }}
+          R2_ENDPOINT:          ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET:            ${{ secrets.R2_BUCKET }}
+          R2_ACCESS_KEY_ID:     ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          BACKUP_PASSPHRASE:    ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          missing=()
+          for v in DATABASE_URL R2_ENDPOINT R2_BUCKET R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY BACKUP_PASSPHRASE; do
+            if [[ -z "${!v:-}" ]]; then missing+=("$v"); else echo "مضبوط: $v"; fi
+          done
+          if (( ${#missing[@]} )); then
+            echo "::error::أسرار ناقصة في GitHub ← Settings › Secrets and variables › Actions: ${missing[*]}"
+            exit 1
+          fi
+
       - name: Run encrypted backup to Cloudflare R2
         env:
           DATABASE_URL:         ${{ secrets.DATABASE_URL }}
