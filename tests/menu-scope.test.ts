@@ -17,8 +17,8 @@ test("a full scope opens every screen", () => {
   }
 });
 
-test("a limited scope opens the dashboard, sales and expenses only", () => {
-  for (const path of ["/dashboard", "/sales", "/sales/new", "/sales/12", "/finance/expenses", "/finance/expenses/new", "/finance/expenses/12"]) {
+test("a limited scope opens the dashboard, sales, expenses and the finance help guide only", () => {
+  for (const path of ["/dashboard", "/sales", "/sales/new", "/sales/12", "/finance/expenses", "/finance/expenses/new", "/finance/expenses/12", "/finance/help"]) {
     assert.equal(isPathAllowedForScope("LIMITED", path), true, path);
   }
   for (const path of [
