@@ -5270,3 +5270,120 @@ test("the src topic label opens no gate and changes no inventory state", () => {
   assert.ok(out.limitations.includes("SRC_REVIEWED_TEXT_TOPIC_DOES_NOT_VERIFY_OR_CLOSE_ANY_GATE"));
   assert.equal(evaluate(ADVANCE_TO_NEXT_STEP_REQUEST).src_reviewed_text_topic_label, null);
 });
+
+
+const MERGE_PULL_REQUEST_REQUEST = {
+  ...structuredClone(SRC_REVIEWED_TEXT_TOPIC_LABEL),
+  merge_pull_request_request: {
+    operator_text: "Please merge the pull request.",
+    kind: "DIRECT_MERGE_REQUEST_AGAINST_A_NOT_READY_BRANCH",
+    received_in_chat: true,
+    verdict: "MERGE_REQUEST_REFUSED_NOT_READY_NO_DEPLOY",
+    acknowledged_descriptively: true,
+    differs_from_section_113: "A_MERGE_REQUEST_NOT_A_REQUEST_TO_OPEN_A_PR",
+    is_an_execution_request: true,
+    is_a_separate_verbatim_approval: false,
+    is_a_decision: false,
+    is_an_approval: false,
+    approval_verb_present: false,
+    references_pinned_sha: false,
+    no_pinned_sha_in_message: true,
+    pr_number: 95,
+    pr_state: "OPEN",
+    no_merge_performed: true,
+    no_close_performed: true,
+    pr_base: "main",
+    merge_would_change_production_src: true,
+    merge_would_trigger_a_deploy: true,
+    deploy_from_main_documented_in_section: 51,
+    src_modification_is_prohibited: true,
+    deploy_is_prohibited: true,
+    sync_is_prohibited: true,
+    no_true: true,
+    no_reenable_decision: true,
+    no_blanket_approval: true,
+    current_step_index: "6/11",
+    next_descriptive_step: "SEPARATE_SRC_AND_DEPLOY_APPROVALS_IF_NEEDED",
+    strict_reject_phrase: "تعذّر التحقق من نتيجة الطلب المحفوظ؛ يلزم مراجعة أو ترحيل الطلب القديم.",
+    no_approval_phrase_solicited: true,
+    no_template_delivered: true,
+    no_phrase_delivered: true,
+    no_reenable_decision_solicited: true,
+    no_command_sent: true,
+    no_sql_delivered: true,
+    no_gate_opened: true,
+    no_inventory_change: true,
+    no_action_taken_on_production: true,
+    no_render_yaml_modified: true,
+    no_secrets_in_chat: true,
+    no_file_reference: true,
+    blockers_resolved: 0,
+    gates_opened: 0,
+    next_gate: "SEPARATE_REENABLE_DECISION",
+    reenable_gate: "CLOSED",
+    overall: "NOT_READY",
+  },
+};
+
+test("a direct merge request against a not-ready branch is refused", () => {
+  const out = evaluate(MERGE_PULL_REQUEST_REQUEST);
+  assert.equal(out.merge_pull_request_request.kind,
+    "DIRECT_MERGE_REQUEST_AGAINST_A_NOT_READY_BRANCH");
+  assert.equal(out.merge_pull_request_request.verdict,
+    "MERGE_REQUEST_REFUSED_NOT_READY_NO_DEPLOY");
+  assert.equal(out.merge_pull_request_request.is_an_execution_request, true);
+  assert.equal(out.merge_pull_request_request.is_a_separate_verbatim_approval, false);
+  assert.equal(out.merge_pull_request_request.is_a_decision, false);
+  assert.equal(out.merge_pull_request_request.is_an_approval, false);
+  assert.equal(out.merge_pull_request_request.approval_verb_present, false);
+  assert.equal(out.merge_pull_request_request.differs_from_section_113,
+    "A_MERGE_REQUEST_NOT_A_REQUEST_TO_OPEN_A_PR");
+  assert.equal(out.overall_release_status, "NOT_READY");
+});
+
+test("merging would deploy and change production src so it stays prohibited", () => {
+  const out = evaluate(MERGE_PULL_REQUEST_REQUEST);
+  assert.equal(out.merge_pull_request_request.pr_number, 95);
+  assert.equal(out.merge_pull_request_request.pr_state, "OPEN");
+  assert.equal(out.merge_pull_request_request.no_merge_performed, true);
+  assert.equal(out.merge_pull_request_request.no_close_performed, true);
+  assert.equal(out.merge_pull_request_request.pr_base, "main");
+  assert.equal(out.merge_pull_request_request.merge_would_change_production_src, true);
+  assert.equal(out.merge_pull_request_request.merge_would_trigger_a_deploy, true);
+  assert.equal(out.merge_pull_request_request.deploy_from_main_documented_in_section, 51);
+  assert.equal(out.merge_pull_request_request.src_modification_is_prohibited, true);
+  assert.equal(out.merge_pull_request_request.deploy_is_prohibited, true);
+  assert.equal(out.merge_pull_request_request.sync_is_prohibited, true);
+  assert.equal(out.merge_pull_request_request.no_true, true);
+  assert.equal(out.merge_pull_request_request.no_reenable_decision, true);
+  assert.equal(out.merge_pull_request_request.current_step_index, "6/11");
+  assert.equal(out.merge_pull_request_request.next_descriptive_step,
+    "SEPARATE_SRC_AND_DEPLOY_APPROVALS_IF_NEEDED");
+  for (const w of ["MERGE_TO_MAIN_WOULD_DEPLOY_AND_CHANGE_PRODUCTION_SRC",
+    "AN_EXECUTION_REQUEST_IS_NOT_A_SEPARATE_VERBATIM_APPROVAL",
+    "SESSION_NEVER_EXECUTES_PRODUCTION_SQL_OR_DEPLOYS_OR_SETS_ENV_VARS",
+    "DEPLOY_AND_SYNC_AND_TRUE_ARE_PROHIBITED",
+    "SRC_MODIFICATION_IS_PROHIBITED",
+    "A_FIXED_CONDITION_CANNOT_BE_WAIVED_BY_THE_SESSION",
+    "NO_BLANKET_APPROVAL_EACH_APPROVAL_NEEDS_ITS_OWN_SEPARATE_MESSAGE",
+    "STRICT_REJECT_POLICY_STILL_IN_FORCE"])
+    assert.ok(out.warnings.includes(w), w);
+});
+
+test("the merge request opens no gate, delivers no phrase and changes no state", () => {
+  const out = evaluate(MERGE_PULL_REQUEST_REQUEST);
+  for (const k of ["no_approval_phrase_solicited", "no_template_delivered",
+    "no_phrase_delivered", "no_reenable_decision_solicited", "no_command_sent",
+    "no_sql_delivered", "no_gate_opened", "no_inventory_change",
+    "no_action_taken_on_production", "no_render_yaml_modified",
+    "no_secrets_in_chat", "no_file_reference"])
+    assert.equal((out.merge_pull_request_request as unknown as Record<string, boolean>)[k], true, k);
+  assert.equal(out.merge_pull_request_request.blockers_resolved, 0);
+  assert.equal(out.merge_pull_request_request.gates_opened, 0);
+  assert.equal(out.merge_pull_request_request.reenable_gate, "CLOSED");
+  assert.equal(out.merge_pull_request_request.finance_enabled, false);
+  assert.equal(out.next_gate, "SEPARATE_REENABLE_DECISION");
+  assert.ok(out.limitations.includes("MERGE_REQUEST_DOES_NOT_VERIFY_OR_CLOSE_ANY_GATE"));
+  assert.ok(out.limitations.includes("PULL_REQUEST_STAYS_OPEN_NOT_MERGED"));
+  assert.equal(evaluate(SRC_REVIEWED_TEXT_TOPIC_LABEL).merge_pull_request_request, null);
+});

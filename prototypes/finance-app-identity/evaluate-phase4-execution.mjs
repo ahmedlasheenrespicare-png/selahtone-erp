@@ -504,6 +504,13 @@ const advanceToNextStepRequest = (isObject && payload.advance_to_next_step_reque
 const srcReviewedTextTopicLabel = (isObject && payload.src_reviewed_text_topic_label
   && typeof payload.src_reviewed_text_topic_label === 'object')
   ? payload.src_reviewed_text_topic_label : null;
+// A direct request to merge the open PR into main. Merging would push the
+// accumulated src changes into production and was documented alongside a
+// build+deploy from main. Deploy and src modification are prohibited by a
+// fixed boundary. Strict reject; the PR stays OPEN, no merge, no close.
+const mergePullRequestRequest = (isObject && payload.merge_pull_request_request
+  && typeof payload.merge_pull_request_request === 'object')
+  ? payload.merge_pull_request_request : null;
 // Flat resolver instead of a deeply nested ternary: same precedence, fewer
 // opportunities for an unbalanced parenthesis.
 const resolveNextGate = () => {
@@ -558,6 +565,66 @@ const out = {
   operator_statement_status: isObject ? (payload.operator_statement_status ?? null) : null,
   phase4_sql_gate: commitConfirmed ? 'CLOSED_SQL_ONLY' : 'OPEN_SQL',
   next_gate: resolveNextGate(),
+  merge_pull_request_request: mergePullRequestRequest ? {
+    operator_text: mergePullRequestRequest.operator_text ?? null,
+    kind: 'DIRECT_MERGE_REQUEST_AGAINST_A_NOT_READY_BRANCH',
+    verdict: 'MERGE_REQUEST_REFUSED_NOT_READY_NO_DEPLOY',
+    acknowledged_descriptively: true,
+    differs_from_section_113: 'A_MERGE_REQUEST_NOT_A_REQUEST_TO_OPEN_A_PR',
+    is_an_execution_request: true,
+    is_a_separate_verbatim_approval: false,
+    is_a_decision: false,
+    is_an_approval: false,
+    approval_verb_present: false,
+    references_pinned_sha: false,
+    no_pinned_sha_in_message: true,
+    pr_number: 95,
+    pr_state: 'OPEN',
+    no_merge_performed: true,
+    no_close_performed: true,
+    pr_base: 'main',
+    merge_would_change_production_src: true,
+    merge_would_trigger_a_deploy: true,
+    deploy_from_main_documented_in_section: 51,
+    src_modification_is_prohibited: true,
+    deploy_is_prohibited: true,
+    sync_is_prohibited: true,
+    no_true: true,
+    no_reenable_decision: mergePullRequestRequest.no_reenable_decision === true,
+    no_blanket_approval: true,
+    current_step_index: '6/11',
+    next_descriptive_step: 'SEPARATE_SRC_AND_DEPLOY_APPROVALS_IF_NEEDED',
+    strict_reject_phrase: 'تعذّر التحقق من نتيجة الطلب المحفوظ؛ يلزم مراجعة أو ترحيل الطلب القديم.',
+    no_approval_phrase_solicited: mergePullRequestRequest.no_approval_phrase_solicited === true,
+    no_template_delivered: mergePullRequestRequest.no_template_delivered === true,
+    no_phrase_delivered: mergePullRequestRequest.no_phrase_delivered === true,
+    no_reenable_decision_solicited: mergePullRequestRequest.no_reenable_decision_solicited === true,
+    no_command_sent: mergePullRequestRequest.no_command_sent === true,
+    no_sql_delivered: mergePullRequestRequest.no_sql_delivered === true,
+    no_gate_opened: mergePullRequestRequest.no_gate_opened === true,
+    no_inventory_change: mergePullRequestRequest.no_inventory_change === true,
+    no_action_taken_on_production: mergePullRequestRequest.no_action_taken_on_production === true,
+    no_render_yaml_modified: mergePullRequestRequest.no_render_yaml_modified === true,
+    no_secrets_in_chat: mergePullRequestRequest.no_secrets_in_chat === true,
+    no_file_reference: mergePullRequestRequest.no_file_reference === true,
+    session_bound: 'SESSION_NEVER_EXECUTES_PRODUCTION_SQL_OR_DEPLOYS_OR_SETS_ENV_VARS',
+    no_action_scope: 'NO_SRC_NO_RENDER_YAML_NO_PRODUCTION_SQL_NO_DEPLOY_NO_SYNC_NO_TRUE',
+    execution_rule: 'EXECUTION_BY_THE_OPERATOR_NOT_THE_SESSION',
+    still_required: [
+      'SEPARATE_SRC_AND_DEPLOY_APPROVALS_IF_NEEDED',
+      'EXECUTION_BY_THE_OPERATOR_NOT_THE_SESSION', 'OFFLINE_EVALUATION',
+      'SEPARATE_REENABLE_DECISION_NOT_SOLICITED',
+    ],
+    blockers_resolved: 0,
+    gates_opened: 0,
+    next_gate: 'SEPARATE_REENABLE_DECISION',
+    gate_status: 'CLOSED_NOT_READY',
+    reenable_gate: 'CLOSED',
+    reenable_decision_solicited: false,
+    c1_c2_for_deployed_app: 'FAIL',
+    finance_enabled: false,
+    overall: 'NOT_READY',
+  } : null,
   src_reviewed_text_topic_label: srcReviewedTextTopicLabel ? {
     operator_text: srcReviewedTextTopicLabel.operator_text ?? null,
     kind: 'BARE_NOUN_PHRASE_NAMING_A_SRC_REVIEWED_TEXT',
@@ -3008,6 +3075,17 @@ const out = {
     'PARTIAL_RESULT_IS_NOT_A_SUCCESS_PROOF',
     'DOES_NOT_AUTHORIZE_DATABASE_URL_CHANGE_OR_DEPLOY',
     'NO_PROOF_OF_CASH_MOVEMENT_TIMING_OR_HUMAN_REVIEW',
+    ...(mergePullRequestRequest ? [
+      'MERGE_REQUEST_REFUSED_NOT_READY_NO_DEPLOY',
+      'MERGE_TO_MAIN_WOULD_DEPLOY_AND_CHANGE_PRODUCTION_SRC',
+      'AN_EXECUTION_REQUEST_IS_NOT_A_SEPARATE_VERBATIM_APPROVAL',
+      'SESSION_NEVER_EXECUTES_PRODUCTION_SQL_OR_DEPLOYS_OR_SETS_ENV_VARS',
+      'DEPLOY_AND_SYNC_AND_TRUE_ARE_PROHIBITED',
+      'SRC_MODIFICATION_IS_PROHIBITED',
+      'A_FIXED_CONDITION_CANNOT_BE_WAIVED_BY_THE_SESSION',
+      'NO_BLANKET_APPROVAL_EACH_APPROVAL_NEEDS_ITS_OWN_SEPARATE_MESSAGE',
+      'STRICT_REJECT_POLICY_STILL_IN_FORCE',
+    ] : []),
     ...(srcReviewedTextTopicLabel ? [
       'SRC_REVIEWED_TEXT_TOPIC_NAMED_STRICT_REJECT_NOT_ACTIONABLE',
       'A_NOUN_PHRASE_NAMING_AN_ARTIFACT_IS_NOT_PREPARING_IT',
@@ -3704,6 +3782,10 @@ const out = {
       'BLOCKER_1_REMAINS_UNRESOLVED',
       'NO_BLANKET_APPROVAL'] : []),
     ...(namedTextApproval ? ['NAMED_TEXT_APPROVAL_DOES_NOT_VERIFY_OR_CLOSE_ANY_GATE',
+      'BLOCKER_1_REMAINS_UNRESOLVED',
+      'NO_BLANKET_APPROVAL'] : []),
+    ...(mergePullRequestRequest ? ['MERGE_REQUEST_DOES_NOT_VERIFY_OR_CLOSE_ANY_GATE',
+      'PULL_REQUEST_STAYS_OPEN_NOT_MERGED',
       'BLOCKER_1_REMAINS_UNRESOLVED',
       'NO_BLANKET_APPROVAL'] : []),
     ...(srcReviewedTextTopicLabel ? ['SRC_REVIEWED_TEXT_TOPIC_DOES_NOT_VERIFY_OR_CLOSE_ANY_GATE',

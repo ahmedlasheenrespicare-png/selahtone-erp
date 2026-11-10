@@ -1557,3 +1557,23 @@ test("pull request is repository only in section 113", () => {
   assert.equal(inv.blockers_resolved, 0);
   assert.equal(inv.gates_opened, 0);
 });
+
+test("merge request is refused in section 114", () => {
+  const log = read("docs/finance-release-log.md");
+  assert.match(log, /## ١١٤\./);
+  assert.match(log, /DIRECT_MERGE_REQUEST_AGAINST_A_NOT_READY_BRANCH/);
+  assert.match(log, /MERGE_REQUEST_REFUSED_NOT_READY_NO_DEPLOY/);
+  assert.match(log, /MERGE_TO_MAIN_WOULD_DEPLOY_AND_CHANGE_PRODUCTION_SRC/);
+  assert.match(log, /PULL_REQUEST_STAYS_OPEN_NOT_MERGED/);
+  assert.match(log, /no_merge_performed=true/);
+  assert.match(log, /NO_TRUE_NO_DEPLOY_NO_SYNC_NO_MANUAL_DEPLOY_NO_BLUEPRINT_NO_SQL_NO_SRC_NO_RENDER_YAML_NO_FINANCIAL_ACTION/);
+  const probe = read("docs/finance-app-connection-probe-result-ar.md");
+  assert.match(probe, /## ٨٧\./);
+  const ev = read("prototypes/finance-app-identity/evaluate-phase4-execution.mjs");
+  assert.match(ev, /MERGE_REQUEST_DOES_NOT_VERIFY_OR_CLOSE_ANY_GATE/);
+  assert.match(ev, /MERGE_TO_MAIN_WOULD_DEPLOY_AND_CHANGE_PRODUCTION_SRC/);
+  const inv: { blockers: Array<{ status: string }>; blockers_resolved: number; gates_opened: number } = JSON.parse(read("prototypes/finance-app-identity/readiness-blockers-inventory.test-only.json"));
+  assert.equal(inv.blockers[0].status, "UNRESOLVED");
+  assert.equal(inv.blockers_resolved, 0);
+  assert.equal(inv.gates_opened, 0);
+});
