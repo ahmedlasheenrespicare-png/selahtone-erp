@@ -1,3 +1,6 @@
+import { PeriodSourceWarning } from "./period-source-warning";
+import { PeriodEstimateNotice } from "./period-estimate-notice";
+import { writeAllowedForKeys } from "@/lib/access-control";
 import Link from "next/link";
 import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
@@ -11,7 +14,7 @@ import PantherSpotlightCard, {
 } from "@/components/panther-spotlight-card";
 import { getSession } from "@/lib/auth";
 import { displayMoney } from "@/lib/commerce-display";
-import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
+import { getAccessContext, requirePageAccess } from "@/lib/access-control-server";
 import { assertFinanceActor, financeDb, financeEnabled } from "@/lib/finance/db";
 import { listAccounts, listExpenses } from "@/lib/finance/engine";
 import { loadCashSummary } from "@/lib/finance/dashboard";
@@ -32,7 +35,9 @@ function moneyToCents(raw: string): bigint {
 
 export default async function FinancePage() {
   const session = await getSession();
-  await requireMenuScopeAccess("/finance");
+  await requirePageAccess("/finance");
+  const access = await getAccessContext();
+  const canCloseCustody = writeAllowedForKeys(access.hidden, "/finance#close-custody");
   if (!session) redirect("/login");
   if (session.mustChangePassword) redirect("/change-password");
   if (!financeEnabled()) redirect("/dashboard");
@@ -71,10 +76,14 @@ export default async function FinancePage() {
   let custodyBookTotalCents = 0n;
   let openVaultCount = 0;
   let openCustodyCount = 0;
-  const branchSet = new Set<string>();
+  const branchIdsWithAccounts = new Set(accounts.map((account) => account.branchId));
+  const accountBranches = branches
+    .filter((branch) => branchIdsWithAccounts.has(branch.id.toString()))
+    .map((branch) => ({ id: branch.id.toString(), label: `${branch.nameAr} · ${branch.code}` }));
+  const accountBranchLabels = new Map(accountBranches.map((branch) => [branch.id, branch.label]));
 
   const rows: FinanceAccountRow[] = accounts.map((account) => {
-    const branchName = branchNames.get(account.branchId) ?? "الفرع";
+    const branchName = accountBranchLabels.get(account.branchId) ?? `فرع ${account.branchId}`;
     const holderName = (account.holderId && holderNames.get(account.holderId)) || "موظف";
     const isClosed = Boolean(account.closedAt);
     const balanceCents = moneyToCents(account.balance);
@@ -88,8 +97,6 @@ export default async function FinancePage() {
         openCustodyCount += 1;
       }
     }
-    branchSet.add(branchName);
-
     return {
       id: account.id,
       title: account.kind === "CUSTODY" ? `عهدة · ${holderName}` : `خزنة · ${branchName}`,
@@ -97,6 +104,7 @@ export default async function FinancePage() {
         account.kind === "CUSTODY"
           ? `${branchName} · جرد البداية ${account.openingDate}`
           : `خزنة فرع رئيسية · جرد البداية ${account.openingDate}`,
+      branchId: account.branchId,
       branchName,
       kind: account.kind === "VAULT" ? "VAULT" : "CUSTODY",
       kindLabel: accountLabel(account.kind),
@@ -126,15 +134,14 @@ export default async function FinancePage() {
     const vaultByBranch = new Map<string, bigint>();
     for (const acc of accounts) {
       if (!acc.closedAt && acc.kind === "VAULT") {
-        const bName = branchNames.get(acc.branchId) ?? "الفرع";
-        vaultByBranch.set(bName, (vaultByBranch.get(bName) ?? 0n) + moneyToCents(acc.balance));
+        vaultByBranch.set(acc.branchId, (vaultByBranch.get(acc.branchId) ?? 0n) + moneyToCents(acc.balance));
       }
     }
     const custodyByBranch = new Map<string, bigint>();
     for (const c of summary.custodies) {
       custodyByBranch.set(
-        c.branchName,
-        (custodyByBranch.get(c.branchName) ?? 0n) + moneyToCents(c.expected),
+        c.branchId,
+        (custodyByBranch.get(c.branchId) ?? 0n) + moneyToCents(c.expected),
       );
     }
     const monthExpByBranch = new Map<string, bigint>();
@@ -147,31 +154,30 @@ export default async function FinancePage() {
       });
 
     for (const exp of monthExpensesChrono) {
-      const bName = branchNames.get(exp.branchId) ?? "الفرع";
-      monthExpByBranch.set(bName, (monthExpByBranch.get(bName) ?? 0n) + moneyToCents(exp.amount));
+      monthExpByBranch.set(exp.branchId, (monthExpByBranch.get(exp.branchId) ?? 0n) + moneyToCents(exp.amount));
     }
 
-    const orderedBranchNames = branches
+    const orderedBranches = branches
       .filter(
         (b) =>
           b.isActive ||
-          (vaultByBranch.get(b.nameAr) ?? 0n) > 0n ||
-          (custodyByBranch.get(b.nameAr) ?? 0n) > 0n ||
-          (monthExpByBranch.get(b.nameAr) ?? 0n) > 0n,
-      )
-      .map((b) => b.nameAr);
-    if (orderedBranchNames.length > 0) {
+          (vaultByBranch.get(b.id.toString()) ?? 0n) > 0n ||
+          (custodyByBranch.get(b.id.toString()) ?? 0n) > 0n ||
+          (monthExpByBranch.get(b.id.toString()) ?? 0n) > 0n,
+      );
+    if (orderedBranches.length > 0) {
       financeSpotlightSeries.push({
         id: "branch-balance",
         label: "ميزان الفروع",
-        points: orderedBranchNames.map((bName) => {
-          const vCents = vaultByBranch.get(bName) ?? 0n;
-          const cCents = custodyByBranch.get(bName) ?? 0n;
+        points: orderedBranches.map((branch) => {
+          const branchId = branch.id.toString();
+          const vCents = vaultByBranch.get(branchId) ?? 0n;
+          const cCents = custodyByBranch.get(branchId) ?? 0n;
           const liqCents = vCents + cCents;
-          const eCents = monthExpByBranch.get(bName) ?? 0n;
+          const eCents = monthExpByBranch.get(branchId) ?? 0n;
           return {
-            label: bName,
-            shortLabel: bName.replace(/^فرع\s+/, ""),
+            label: `${branch.nameAr} · ${branch.code}`,
+            shortLabel: `${branch.nameAr.replace(/^فرع\s+/, "")} · ${branch.code}`,
             value: Number(liqCents) / 100,
             formattedValue: `${displayMoney(liqCents)} ج.م`,
             secondaryValue: Number(eCents) / 100,
@@ -237,7 +243,7 @@ export default async function FinancePage() {
           value: Number(cumAll) / 100,
           formattedValue: `${displayMoney(cumAll)} ج.م`,
           secondaryValue: Number(cumPaid) / 100,
-          secondaryLabel: "المدفوع فعليًا",
+          secondaryLabel: "المسجّل مدفوعًا",
           secondaryFormatted: `${displayMoney(cumPaid)} ج.م`,
           detail: `بند ${displayMoney(amt)} ج.م (${stLabel}) — ${exp.description}`,
         });
@@ -280,7 +286,7 @@ export default async function FinancePage() {
           value: Number(cumAll) / 100,
           formattedValue: `${displayMoney(cumAll)} ج.م`,
           secondaryValue: Number(cumPaid) / 100,
-          secondaryLabel: "المدفوع فعليًا",
+          secondaryLabel: "المسجّل مدفوعًا",
           secondaryFormatted: `${displayMoney(cumPaid)} ج.م`,
           detail: `مصروفات اليوم ${displayMoney(info.all)} ج.م (${info.count} بند)`,
         });
@@ -294,7 +300,6 @@ export default async function FinancePage() {
 
     const expectedCustodyCents = moneyToCents(summary.totalExpected);
     const totalLiquidityCents = vaultTotalCents + expectedCustodyCents;
-    const netSurplusCents = totalLiquidityCents - monthExpensesCents;
     financeSpotlightSeries.unshift({
       id: "liquidity-mix",
       label: "توزيع السيولة",
@@ -309,7 +314,7 @@ export default async function FinancePage() {
           tone: "accent",
         },
         {
-          label: "المستحق بالعُهَد المفتوحة",
+          label: "مؤشر العُهَد المفتوحة",
           shortLabel: "العُهَد",
           value: Number(expectedCustodyCents) / 100,
           formattedValue: `${displayMoney(expectedCustodyCents)} ج.م`,
@@ -320,7 +325,7 @@ export default async function FinancePage() {
     });
     financeSpotlightSeries.push({
       id: "cash-equation",
-      label: "معادلة السيولة",
+      label: "السيولة والمصروفات المسجّلة",
       points: [
         {
           label: "أرصدة الخزائن",
@@ -330,32 +335,25 @@ export default async function FinancePage() {
           detail: `موزعة على ${openVaultCount} خزنة فرع نشطة`,
         },
         {
-          label: "المستحق بالعُهَد",
+          label: "مؤشر العُهَد",
           shortLabel: "العُهَد",
           value: Number(expectedCustodyCents) / 100,
           formattedValue: `${displayMoney(expectedCustodyCents)} ج.م`,
           detail: `عبر ${openCustodyCount} عهدة موظف مفتوحة`,
         },
         {
-          label: "إجمالي السيولة",
+          label: "مجموع دفتري ومؤشر تقديري",
           shortLabel: "الإجمالي",
           value: Number(totalLiquidityCents) / 100,
           formattedValue: `${displayMoney(totalLiquidityCents)} ج.م`,
-          detail: "مجموع أرصدة الخزائن + المستحق بالعُهَد",
+          detail: "أرصدة الخزائن الدفترية + مؤشر العُهَد التقديري",
         },
         {
-          label: "مصروفات الشهر الحالي",
+          label: "مصروفات الشهر المسجّلة بجميع حالاتها",
           shortLabel: "المصروفات",
           value: Number(monthExpensesCents) / 100,
           formattedValue: `${displayMoney(monthExpensesCents)} ج.م`,
-          detail: `${monthExpensesCount} بند مصروف في الشهر الحالي`,
-        },
-        {
-          label: "صافي السيولة بعد المصروفات",
-          shortLabel: "الصافي",
-          value: Number(netSurplusCents) / 100,
-          formattedValue: `${displayMoney(netSurplusCents)} ج.م`,
-          detail: "إجمالي السيولة مطروحًا منه إجمالي مصروفات الشهر",
+          detail: `${monthExpensesCount} بند مسجّل بحالات مختلفة؛ لا يُطرح مجددًا من السيولة`,
         },
       ],
     });
@@ -370,7 +368,7 @@ export default async function FinancePage() {
     },
     {
       key: "custody-total",
-      label: summary ? "المستحق للخزنة" : "رصيد العهدة",
+      label: summary ? "مؤشر العُهَد" : "رصيد العهدة",
       value: `${summary ? formatMoney(summary.totalExpected) : displayMoney(custodyBookTotalCents)} ج.م`,
       kind: "money",
     },
@@ -398,6 +396,11 @@ export default async function FinancePage() {
 
   return (
     <div className="fin-page">
+      {summary && <PeriodEstimateNotice />}
+      {summary?.sourceRecorderMismatch && <PeriodSourceWarning />}
+      {summary?.multipleCustodies && <div className="fin-alert fin-alert--warning" role="alert">يوجد صاحب له أكثر من عهدة مفتوحة في النطاق المعروض؛ قد تتكرر مؤشرات الفترة ولا يعتمد الإجمالي للتسليم. يتوقف الجرد والتسوية والإقفال للعهد المتأثرة للمراجعة.</div>}
+      {summary?.holderCorrectionInPeriod && <div className="fin-alert fin-alert--warning" role="alert">بعض مؤشرات العهد غير مؤكدة لوجود تصحيح مرتبط بدفع نقد موظف عند حد الفترة أو بعده في الفرع؛ توقفت الإجراءات المتأثرة للمراجعة، ولا تعتمد الإجماليات للتسليم.</div>}
+      {summary?.boundaryAmbiguous && <div className="fin-alert fin-alert--warning" role="alert">بعض مؤشرات العهد والسيولة غير مؤكدة لوجود عملية نقدية عند حد الفترة؛ توقفت الإجراءات المتأثرة للمراجعة، ولا تعتمد الإجماليات المعروضة للتسليم.</div>}
       <div className="fin-heading">
         <div>
           <p className="fin-heading__eyebrow">
@@ -565,17 +568,17 @@ export default async function FinancePage() {
                 icon="balanceScale"
                 chartVariant="donut"
                 title="الميزان النقدي ومصروفات الشهر"
-                subtitle="محدّث الآن · إجمالي السيولة مقابل مصروفات الشهر الحالي"
+                subtitle="السيولة تقديرية · مصروفات الشهر المسجّلة تشمل حالات مختلفة ولا تُطرح منها مجددًا"
                 pill={`${openVaultCount + openCustodyCount} حساب نشط`}
                 primary={{
-                  label: "إجمالي السيولة بالخزائن والعُهَد",
+                  label: "مجموع أرصدة الخزائن ومؤشر العُهَد",
                   value: displayMoney(vaultTotalCents + moneyToCents(summary.totalExpected)),
                   unit: "ج.م",
                   delta: `خزائن ${displayMoney(vaultTotalCents)} · عُهَد متوقّعة ${formatMoney(summary.totalExpected)} ج.م`,
                   tone: "positive",
                 }}
                 secondary={{
-                  label: "مصروفات الشهر الحالي",
+                  label: "مصروفات الشهر المسجّلة بجميع حالاتها",
                   value: displayMoney(monthExpensesCents),
                   unit: "ج.م",
                   delta:
@@ -605,18 +608,18 @@ export default async function FinancePage() {
                   <bdi dir="ltr">{displayMoney(vaultTotalCents)}</bdi> <small>ج.م</small>
                 </>
               ),
-              sub: `موزّعة على {openVaultCount} خزنة فرع نشطة`,
+              sub: `موزّعة على ${openVaultCount} خزنة فرع نشطة`,
               tone: "accent",
             },
             {
               icon: "cash",
-              label: "المستحق للخزنة بيد الموظفين",
+              label: "مجموع مؤشرات عُهَد الموظفين",
               value: (
                 <>
                   <bdi dir="ltr">{formatMoney(summary.totalExpected)}</bdi> <small>ج.م</small>
                 </>
               ),
-              sub: `عبر {openCustodyCount} عهدة مفتوحة (الرصيد الدفتري {displayMoney(custodyBookTotalCents)} ج.م)`,
+              sub: `عبر ${openCustodyCount} عهدة مفتوحة (الرصيد الدفتري ${displayMoney(custodyBookTotalCents)} ج.م)`,
             },
             {
               icon: "expenses",
@@ -657,7 +660,7 @@ export default async function FinancePage() {
             <h2>سجل الحسابات النقدية الكامل</h2>
             <span>بحث فوري بالفرع أو الموظف وتصفية بين الخزائن والعُهَد</span>
           </div>
-          <FinanceAccountsView rows={rows} branches={Array.from(branchSet)} canManage={canManage} />
+          <FinanceAccountsView rows={rows} branches={accountBranches} canManage={canManage} canCloseCustody={canCloseCustody} />
         </>
       )}
     </div>

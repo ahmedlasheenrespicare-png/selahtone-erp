@@ -10,7 +10,6 @@ import {
   type AdminRole,
 } from "@/lib/admin-directory";
 import { downloadCsvFile } from "@/lib/csv-export";
-import { MENU_SCOPE_LABELS } from "@/lib/menu-scope";
 import {
   BranchCreateForm,
   BranchManageDrawer,
@@ -53,6 +52,7 @@ type SecurityFilter = "ALL" | "SUCCESS" | "FAILED" | "THROTTLED" | "PASSWORD";
 type Props = {
   actorRole: AdminRole;
   financeOn: boolean;
+  financeAccountsKnown: boolean;
   users: UserRow[];
   branches: BranchRow[];
   activeBranches: BranchOption[];
@@ -63,6 +63,7 @@ type Props = {
 export default function AdminHubView({
   actorRole,
   financeOn,
+  financeAccountsKnown,
   users,
   branches,
   activeBranches,
@@ -159,6 +160,8 @@ export default function AdminHubView({
     return { all: branches.length, active, inactive, noVault };
   }, [branches, financeOn]);
 
+  const showFinanceSummary = financeOn && financeAccountsKnown;
+
   const filteredBranches = useMemo(() => {
     const q = branchQuery.trim().toLowerCase();
     return branches.filter((b) => {
@@ -242,10 +245,10 @@ export default function AdminHubView({
         ROLE_LABELS[u.role],
         u.branchName ?? "إدارة مركزية",
         u.isActive ? "نشط" : "موقوف",
-        u.role === "CS_AGENT" ? "فرع تشغيلي" : MENU_SCOPE_LABELS[u.menuScope],
+        u.role === "CS_AGENT" ? "فرع تشغيلي" : "صلاحية الأدمن",
         String(u.activeSessionCount),
         u.lastLoginLabel ?? "لم يسجّل دخولًا",
-        u.openCustodyId ? `#${u.openCustodyId}` : "لا توجد",
+        !financeAccountsKnown ? "غير معروف" : u.openCustodyId ? `#${u.openCustodyId}` : "لا توجد",
       ]),
     );
   }
@@ -275,8 +278,8 @@ export default function AdminHubView({
         String(b.warehouseCount),
         String(b.activeUserCount),
         String(b.userCount),
-        financeOn ? (b.hasOpenVault ? "مفتوحة" : "غير مفتوحة") : "—",
-        financeOn ? String(b.openCustodyCount) : "—",
+        !financeAccountsKnown ? "غير معروف" : financeOn ? (b.hasOpenVault ? "مفتوحة" : "غير مفتوحة") : "—",
+        !financeAccountsKnown ? "غير معروف" : financeOn ? String(b.openCustodyCount) : "—",
         b.isActive ? "نشط" : "موقوف",
       ]),
     );
@@ -537,12 +540,7 @@ export default function AdminHubView({
                               <small className="admin-subtext">
                                 {user.role === "CS_AGENT"
                                   ? "شاشات عمليات الفرع"
-                                  : MENU_SCOPE_LABELS[user.menuScope]}
-                                {user.role === "ACCOUNTANT"
-                                  ? user.canCancelSales
-                                    ? " · إلغاء البيع مفعّل"
-                                    : " · بدون إلغاء بيع"
-                                  : ""}
+                                  : "صلاحيات مخصصة لكل حساب"}
                               </small>
                             </div>
                           </td>
@@ -550,15 +548,11 @@ export default function AdminHubView({
                           <td>
                             <div className="admin-cell-stack">
                               <strong>{user.branchName ?? "إدارة مركزية (كل الفروع)"}</strong>
-                              {financeOn && user.openCustodyId ? (
-                                <Link
-                                  href="/finance/accounts"
-                                  className="admin-pill admin-pill--warn"
-                                  title="استعراض العهدة المفتوحة في الحسابات النقدية"
-                                >
-                                  عهدة نقدية مفتوحة #{user.openCustodyId}
-                                </Link>
-                              ) : null}
+                              {user.openCustodyId ? (financeOn ? (
+                                <Link href="/finance/accounts" className="admin-pill admin-pill--warn" title="استعراض العهدة المفتوحة في الحسابات النقدية">عهدة نقدية مفتوحة #{user.openCustodyId}</Link>
+                              ) : (
+                                <span className="admin-pill admin-pill--warn">عهدة نقدية مفتوحة #{user.openCustodyId}</span>
+                              )) : null}
                             </div>
                           </td>
 
@@ -616,6 +610,7 @@ export default function AdminHubView({
                                 user={user}
                                 branches={activeBranches}
                                 actorRole={actorRole}
+                                financeOn={financeOn}
                                 existingEmails={existingEmails}
                                 onClose={() => setEditingUserId(null)}
                               />
@@ -715,7 +710,7 @@ export default function AdminHubView({
               >
                 موقوف ({branchCounts.inactive})
               </button>
-              {financeOn ? (
+              {showFinanceSummary ? (
                 <button
                   type="button"
                   className={`admin-chip${
@@ -736,7 +731,7 @@ export default function AdminHubView({
                   <th scope="col">الفرع والكود</th>
                   <th scope="col">المدينة والهاتف</th>
                   <th scope="col">الفوترة والمستودعات</th>
-                  {financeOn ? <th scope="col">الجاهزية المالية</th> : null}
+                  {showFinanceSummary ? <th scope="col">الجاهزية المالية</th> : null}
                   <th scope="col">فريق الفرع</th>
                   <th scope="col">الحالة</th>
                   <th scope="col" className="no-print">إجراء</th>
@@ -746,7 +741,7 @@ export default function AdminHubView({
                 {filteredBranches.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={financeOn ? 7 : 6}
+                      colSpan={showFinanceSummary ? 7 : 6}
                       style={{ textAlign: "center", padding: "24px 12px" }}
                     >
                       لا توجد فروع تطابق البحث أو التصفية الحالية.
@@ -792,7 +787,7 @@ export default function AdminHubView({
                             </div>
                           </td>
 
-                          {financeOn ? (
+                          {showFinanceSummary ? (
                             <td>
                               <div className="admin-cell-stack">
                                 {branch.hasOpenVault ? (
@@ -867,9 +862,10 @@ export default function AdminHubView({
 
                         {isEditing && canManageBranches ? (
                           <tr className="admin-drawer-row no-print">
-                            <td colSpan={financeOn ? 7 : 6}>
+                            <td colSpan={showFinanceSummary ? 7 : 6}>
                               <BranchManageDrawer
                                 branch={branch}
+                                financeOn={financeOn}
                                 onClose={() => setEditingBranchId(null)}
                               />
                             </td>

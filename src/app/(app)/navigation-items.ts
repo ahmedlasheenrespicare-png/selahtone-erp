@@ -1,5 +1,63 @@
 import type { AppIconName } from "@/components/app-icon";
-import type { MenuScope } from "@/lib/menu-scope";
+
+
+/**
+ * سياق العرض بحسب الصلاحيات — يبنيه الخادم (getAccessContext) ويمرره للقائمة.
+ * isPageAllowed تُستدعى مع href كما هو؛ تُقص الاستعلامات داخلها.
+ */
+export type NavigationAccess = {
+  isPageAllowed: (href: string) => boolean;
+  /** الأدمن النظام وحده يرى قسمي الإدارة والنظام. */
+  showAdministration: boolean;
+};
+
+const ALL_PAGES_ALLOWED: NavigationAccess = {
+  isPageAllowed: () => true,
+  showAdministration: true,
+};
+
+export function resolveNavigationAccess(access?: NavigationAccess): NavigationAccess {
+  return access ?? ALL_PAGES_ALLOWED;
+}
+
+/** إسقاط العنصر والعناصر الفرعية غير المسموحة؛ العنصر الفرعي يبقي أباه فقط إن نجا منه واحد على الأقل. */
+export function filterNavigationItem(item: NavigationItem, access: NavigationAccess): NavigationItem | null {
+  if (item.system && !access.showAdministration) return null;
+  if (Array.isArray(item.children) && item.children.length > 0) {
+    const children = item.children
+      .map((child) => filterNavigationItem(child, access))
+      .filter((child): child is NavigationItem => child !== null);
+    if (children.length === 0) return null;
+    return { ...item, children };
+  }
+  if (item.href && !access.isPageAllowed(item.href)) return null;
+  return item;
+}
+
+export function filterNavigationGroups(
+  groups: NavigationGroup[],
+  access?: NavigationAccess,
+): NavigationGroup[] {
+  if (!access) return groups;
+  return groups
+    .filter((group) => !(group.system && !access.showAdministration))
+    .map((group) => ({
+      ...group,
+      items: group.items
+        .map((item) => filterNavigationItem(item, access))
+        .filter((item): item is NavigationItem => item !== null),
+    }))
+    .filter((group) => group.items.length > 0);
+}
+
+export function filterMobileDockItems(items: BottomDockItem[], access?: NavigationAccess): BottomDockItem[] {
+  if (!access) return items;
+  return items.filter((item) => {
+    if (item.system && !access.showAdministration) return false;
+    if (item.href && !access.isPageAllowed(item.href)) return false;
+    return true;
+  });
+}
 
 export type NavigationItem = {
   label: string;
@@ -11,11 +69,15 @@ export type NavigationItem = {
   featured?: boolean;
   /** عناصر فرعية تُعرض منسدلة عند الضغط على العنصر الأب. */
   children?: NavigationItem[];
+  /** وحدة الإدارة/النظام — للأدمن النظام فقط. */
+  system?: boolean;
 };
 
 export type NavigationGroup = {
   label: string;
   items: NavigationItem[];
+  /** مجموعة الإدارة/النظام — للأدمن النظام فقط. */
+  system?: boolean;
 };
 
 /**
@@ -49,24 +111,10 @@ const SALES_EMPLOYEE_PARENT: NavigationItem = { label: "المبيعات", icon:
 export function navigationGroups(
   canViewAllBranches: boolean,
   financeEnabled = false,
-  menuScope: MenuScope = "FULL",
+  access?: NavigationAccess,
   inventoryEnabled = false,
 ): NavigationGroup[] {
-  if (menuScope === "LIMITED") {
-    return [
-      { label: "الرئيسية", items: [DASHBOARD] },
-      { label: "المبيعات", items: [SALES] },
-      ...(financeEnabled
-        ? [{
-            label: "المالية",
-            items: [
-              { label: "المصروفات", icon: "expenses" as const, href: "/finance/expenses" },
-              { label: "تسجيل مصروف", icon: "expenses" as const, href: "/finance/expenses/new" },
-            ],
-          }]
-        : []),
-    ];
-  }
+  const resolved = resolveNavigationAccess(access);
 
   const financeGroups: NavigationGroup[] = financeEnabled
     ? [
@@ -85,21 +133,22 @@ export function navigationGroups(
     : [];
 
   if (canViewAllBranches) {
-    return [
+    return filterNavigationGroups([
       { label: "الرئيسية", items: [DASHBOARD] },
       { label: inventoryEnabled ? "المبيعات والمخزون" : "المبيعات", items: inventoryEnabled ? [SALES_PARENT, INVENTORY] : [SALES_PARENT] },
       ...financeGroups,
       {
         label: "الإدارة",
+        system: true,
         items: [
           { label: "الفروع والمستخدمون", icon: "branch", href: "/admin" },
           { label: "التحقق من الإعداد", icon: "settings", href: "/setup" },
         ],
       },
-    ];
+    ], resolved);
   }
 
-  return [
+  return filterNavigationGroups([
     { label: "الرئيسية", items: [DASHBOARD] },
     {
       label: "أعمال الفرع",
@@ -116,7 +165,7 @@ export function navigationGroups(
           : []),
       ],
     },
-  ];
+  ], resolved);
 }
 
 export function isCurrentPath(pathname: string, href: string): boolean {
@@ -132,6 +181,8 @@ export type BottomDockItem = {
   href?: string;
   action?: "open-menu";
   featured?: boolean;
+  /** وحدة الإدارة/النظام — للأدمن النظام فقط. */
+  system?: boolean;
 };
 
 /**
@@ -142,103 +193,66 @@ export type BottomDockItem = {
 export function mobileBottomDockItems(
   role: BottomDockRole,
   financeEnabled = false,
-  menuScope: MenuScope = "FULL",
+  access?: NavigationAccess,
   inventoryEnabled = false,
 ): BottomDockItem[] {
-  if (menuScope === "LIMITED") {
-    if (financeEnabled) {
-      if (role === "ACCOUNTANT") {
-        return [
-          { id: "dashboard", label: "الرئيسية", icon: "dashboard", href: "/dashboard" },
-          { id: "sales", label: "الفواتير", icon: "receipt", href: "/sales" },
-          { id: "new-expense", label: "مصروف جديد", icon: "plusCircle", href: "/finance/expenses/new", featured: true },
-          { id: "expenses", label: "المصروفات", icon: "expenses", href: "/finance/expenses" },
-          { id: "menu", label: "القائمة", icon: "menu", action: "open-menu" },
-        ];
-      }
-      return [
-        { id: "dashboard", label: "الرئيسية", icon: "dashboard", href: "/dashboard" },
-        { id: "sales", label: "الفواتير", icon: "receipt", href: "/sales" },
-        { id: "new-sale", label: "بيع جديد", icon: "plusCircle", href: "/sales/new", featured: true },
-        { id: "expenses", label: "المصروفات", icon: "expenses", href: "/finance/expenses" },
-        { id: "new-expense", label: "مصروف جديد", icon: "plusDoc", href: "/finance/expenses/new" },
-      ];
-    }
-
-    if (role === "ACCOUNTANT") {
-      return [
-        { id: "dashboard", label: "الرئيسية", icon: "dashboard", href: "/dashboard" },
-        { id: "sales", label: "الفواتير", icon: "receipt", href: "/sales", featured: true },
-        { id: "password", label: "كلمة المرور", icon: "lock", href: "/change-password" },
-        { id: "menu", label: "القائمة", icon: "menu", action: "open-menu" },
-      ];
-    }
-
-    return [
-      { id: "dashboard", label: "الرئيسية", icon: "dashboard", href: "/dashboard" },
-      { id: "sales", label: "الفواتير", icon: "receipt", href: "/sales" },
-      { id: "new-sale", label: "بيع جديد", icon: "plusCircle", href: "/sales/new", featured: true },
-      ...(role === "MANAGER"
-        ? [{ id: "sales-stats", label: "الإحصائيات", icon: "reports" as const, href: "/sales/stats" }]
-        : [{ id: "password", label: "كلمة المرور", icon: "lock" as const, href: "/change-password" }]),
-      { id: "menu", label: "القائمة", icon: "menu", action: "open-menu" },
-    ];
-  }
+  const out = (items: BottomDockItem[]): BottomDockItem[] =>
+    filterMobileDockItems(items, resolveNavigationAccess(access));
 
   if (role === "MANAGER") {
     if (financeEnabled) {
-      return [
+      return out([
         { id: "dashboard", label: "الرئيسية", icon: "dashboard", href: "/dashboard" },
         { id: "sales", label: "الفواتير", icon: "receipt", href: "/sales" },
         { id: "new-sale", label: "بيع جديد", icon: "plusCircle", href: "/sales/new", featured: true },
         { id: "finance", label: "الحسابات", icon: "cash", href: "/finance" },
         { id: "expenses", label: "المصروفات", icon: "expenses", href: "/finance/expenses" },
-      ];
+      ]);
     }
-    return [
+    return out([
       { id: "dashboard", label: "الرئيسية", icon: "dashboard", href: "/dashboard" },
       { id: "sales", label: "الفواتير", icon: "receipt", href: "/sales" },
       { id: "new-sale", label: "بيع جديد", icon: "plusCircle", href: "/sales/new", featured: true },
       { id: "sales-stats", label: "الإحصائيات", icon: "reports", href: "/sales/stats" },
       inventoryEnabled
         ? { id: "inventory", label: "المخزون", icon: "inventory", href: "/inventory" }
-        : { id: "admin", label: "الإدارة", icon: "branch", href: "/admin" },
-    ];
+        : { id: "admin", label: "الإدارة", icon: "branch", href: "/admin", system: true },
+    ]);
   }
 
   if (role === "ACCOUNTANT") {
     if (financeEnabled) {
-      return [
+      return out([
         { id: "dashboard", label: "الرئيسية", icon: "dashboard", href: "/dashboard" },
         { id: "sales", label: "الفواتير", icon: "receipt", href: "/sales" },
         { id: "finance", label: "الحسابات", icon: "cash", href: "/finance", featured: true },
         { id: "transfers", label: "التسليمات", icon: "transfers", href: "/finance/transfers" },
         { id: "expenses", label: "المصروفات", icon: "expenses", href: "/finance/expenses" },
-      ];
+      ]);
     }
-    return [
+    return out([
       { id: "dashboard", label: "الرئيسية", icon: "dashboard", href: "/dashboard" },
       { id: "sales", label: "الفواتير", icon: "receipt", href: "/sales" },
-      { id: "admin", label: "الإدارة", icon: "branch", href: "/admin", featured: true },
+      { id: "admin", label: "الإدارة", icon: "branch", href: "/admin", featured: true, system: true },
       inventoryEnabled
         ? { id: "inventory", label: "المخزون", icon: "inventory", href: "/inventory" }
-        : { id: "setup", label: "الإعداد", icon: "settings", href: "/setup" },
+        : { id: "setup", label: "الإعداد", icon: "settings", href: "/setup", system: true },
       { id: "menu", label: "القائمة", icon: "menu", action: "open-menu" },
-    ];
+    ]);
   }
 
   // موظف الكاونتر / الفرع (CS_AGENT)
   if (financeEnabled) {
-    return [
+    return out([
       { id: "dashboard", label: "الرئيسية", icon: "dashboard", href: "/dashboard" },
       { id: "sales", label: "الفواتير", icon: "receipt", href: "/sales" },
       { id: "new-sale", label: "بيع جديد", icon: "plusCircle", href: "/sales/new", featured: true },
       { id: "custody", label: "عهدتي", icon: "cash", href: "/finance/mine" },
       { id: "expenses", label: "مصروفاتي", icon: "expenses", href: "/finance/expenses" },
-    ];
+    ]);
   }
 
-  return [
+  return out([
     { id: "dashboard", label: "الرئيسية", icon: "dashboard", href: "/dashboard" },
     { id: "sales", label: "الفواتير", icon: "receipt", href: "/sales" },
     { id: "new-sale", label: "بيع جديد", icon: "plusCircle", href: "/sales/new", featured: true },
@@ -246,7 +260,7 @@ export function mobileBottomDockItems(
       ? { id: "inventory", label: "المخزون", icon: "inventory", href: "/inventory" }
       : { id: "password", label: "كلمة المرور", icon: "lock", href: "/change-password" },
     { id: "menu", label: "القائمة", icon: "menu", action: "open-menu" },
-  ];
+  ]);
 }
 
 /**
@@ -277,7 +291,7 @@ export type SidebarNavBadges = {
 
 export type SidebarNavOptions = {
   financeEnabled?: boolean;
-  menuScope?: MenuScope;
+  access?: NavigationAccess;
   inventoryEnabled?: boolean;
   badges?: SidebarNavBadges;
 };
@@ -296,55 +310,17 @@ export function sidebarNavigationGroups(
 ): NavigationGroup[] {
   const {
     financeEnabled = false,
-    menuScope = "FULL",
+    access,
     inventoryEnabled = false,
     badges,
   } = options;
+  const out = (groups: NavigationGroup[]): NavigationGroup[] =>
+    filterNavigationGroups(groups, resolveNavigationAccess(access));
 
   const pendingExpenses =
     badges?.pendingExpenses && badges.pendingExpenses > 0 ? badges.pendingExpenses : undefined;
   const openSettlements =
     badges?.openSettlements && badges.openSettlements > 0 ? badges.openSettlements : undefined;
-
-  if (menuScope === "LIMITED") {
-    return [
-      {
-        label: "المتابعة",
-        items: [
-          {
-            label: "لوحة القيادة",
-            icon: "dashboard",
-            href: "/dashboard",
-          },
-        ],
-      },
-      {
-        label: "المبيعات",
-        items: [
-          ...(role !== "ACCOUNTANT"
-            ? [{ label: "بيع جديد", icon: "plusCircle" as const, href: "/sales/new", featured: true }]
-            : []),
-          { label: "سجل الفواتير والتحصيل", icon: "receipt", href: "/sales" },
-        ],
-      },
-      ...(financeEnabled
-        ? [
-            {
-              label: "المصروفات",
-              items: [
-                { label: "تسجيل مصروف", icon: "plusDoc" as const, href: "/finance/expenses/new" },
-                {
-                  label: "سجل المصروفات",
-                  icon: "expenses" as const,
-                  href: "/finance/expenses",
-                  badgeCount: pendingExpenses,
-                },
-              ],
-            },
-          ]
-        : []),
-    ];
-  }
 
   // ١) المدير العام (MANAGER)
   if (role === "MANAGER") {
@@ -375,7 +351,7 @@ export function sidebarNavigationGroups(
         : []),
     ];
 
-    return [
+    return out([
       {
         label: "المتابعة التنفيذية",
         items: [
@@ -425,17 +401,18 @@ export function sidebarNavigationGroups(
         : []),
       {
         label: "الإدارة والنظام",
+        system: true,
         items: [
           { label: "الفروع والمستخدمون", icon: "branch", href: "/admin" },
           { label: "فحص الجاهزية والأمان", icon: "settings", href: "/setup" },
         ],
       },
-    ];
+    ]);
   }
 
   // ٢) المحاسب (ACCOUNTANT) — دون روابط المدير الحصرية التي تحجبها الصفحات
   if (role === "ACCOUNTANT") {
-    return [
+    return out([
       {
         label: "المتابعة والفواتير",
         items: [
@@ -494,16 +471,17 @@ export function sidebarNavigationGroups(
         : []),
       {
         label: "الإدارة والنظام",
+        system: true,
         items: [
           { label: "الفروع والمستخدمون", icon: "branch", href: "/admin" },
           { label: "فحص الجاهزية والأمان", icon: "settings", href: "/setup" },
         ],
       },
-    ];
+    ]);
   }
 
   // ٣) موظف الفرع / الكاونتر (CS_AGENT) — مرتّب وفق رحلة الوردية اليومية
-  return [
+  return out([
     {
       label: "الرئيسية",
       items: [
@@ -543,7 +521,7 @@ export function sidebarNavigationGroups(
           },
         ]
       : []),
-  ];
+  ]);
 }
 
 /**

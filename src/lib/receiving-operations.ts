@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { isRetryableTransactionConflict } from "./transaction-retry";
 import type { PrismaClient } from "@prisma/client";
 import { canPerformCommerce } from "./commerce-policy";
 import { InventoryProblem } from "./inventory-operations";
@@ -25,10 +26,32 @@ async function withSerializableRetry<T>(db: Db, work: (tx: Transaction) => Promi
     try {
       return await db.$transaction(work, { isolationLevel: "Serializable", maxWait: 5000, timeout: 20000 });
     } catch (error) {
-      if (isCode(error, "P2034") && attempt < 2) continue;
+      if (isRetryableTransactionConflict(error) && attempt < 2) continue;
       throw error;
     }
   }
+}
+
+/** Match the normal replay preconditions in both the first and recovery transactions. */
+async function prepareReceipt(tx:Transaction,actorId:bigint,productId:string,warehouseId:string,raw:ReceiptInputRaw) {
+  // Re-read permissions inside the write transaction, not just from the UI.
+  const actor = await tx.user.findUnique({ where: { id: actorId }, select: { status: true, roleCode: true, branchId: true, mustChangePassword: true, canCancelSales: true } });
+  if (!actor || actor.status !== "ACTIVE" || actor.mustChangePassword || !["MANAGER", "CS_AGENT"].includes(actor.roleCode)) {
+    throw new InventoryProblem("تسجيل التوريد متاح للمدير وموظف الفرع فقط.");
+  }
+  const warehouse = await tx.warehouse.findUnique({ where: { id: BigInt(warehouseId) }, include: { branch: { select: { isActive: true } } } });
+  if (!warehouse || !warehouse.isActive || !warehouse.holdsStock || !warehouse.branch.isActive) {
+    throw new InventoryProblem("المستودع أو الفرع غير نشط، أو لا يحتفظ بمخزون.");
+  }
+  if (!canPerformCommerce({ role: actor.roleCode, status: actor.status, mustChangePassword: actor.mustChangePassword, branchId: actor.branchId, canCancelSales: actor.canCancelSales }, "RECEIVE_STOCK", warehouse.branchId, warehouse.branch.isActive)) {
+    throw new InventoryProblem("موظف الفرع يسجّل التوريد لمستودعات فرعه فقط.");
+  }
+  const product = await tx.product.findUnique({ where: { id: BigInt(productId) }, select: { id: true, category: true, isSerialized: true, isActive: true } });
+  if (!product || !product.isActive || product.category === "SERVICE") throw new InventoryProblem("الصنف غير متاح أو لا يحتفظ بمخزون.");
+  const parsed = parseReceiptInput(raw, product.isSerialized || product.category === "HEARING_AID");
+  if (!parsed.ok) throw new InventoryProblem("راجع البيانات المحددة ثم حاول مجددًا.", parsed.errors);
+  const input = parsed.value;
+  return input;
 }
 
 /**
@@ -50,23 +73,7 @@ export async function receiveInventoryStock(db: Db, actorId: bigint, raw: Receip
   let requestHash: string | null = null;
   try {
     return await withSerializableRetry(db, async (tx) => {
-      // Re-read permissions inside the write transaction, not just from the UI.
-      const actor = await tx.user.findUnique({ where: { id: actorId }, select: { status: true, roleCode: true, branchId: true, mustChangePassword: true, canCancelSales: true } });
-      if (!actor || actor.status !== "ACTIVE" || actor.mustChangePassword || !["MANAGER", "CS_AGENT"].includes(actor.roleCode)) {
-        throw new InventoryProblem("تسجيل التوريد متاح للمدير وموظف الفرع فقط.");
-      }
-      const warehouse = await tx.warehouse.findUnique({ where: { id: BigInt(warehouseId) }, include: { branch: { select: { isActive: true } } } });
-      if (!warehouse || !warehouse.isActive || !warehouse.holdsStock || !warehouse.branch.isActive) {
-        throw new InventoryProblem("المستودع أو الفرع غير نشط، أو لا يحتفظ بمخزون.");
-      }
-      if (!canPerformCommerce({ role: actor.roleCode, status: actor.status, mustChangePassword: actor.mustChangePassword, branchId: actor.branchId, canCancelSales: actor.canCancelSales }, "RECEIVE_STOCK", warehouse.branchId, warehouse.branch.isActive)) {
-        throw new InventoryProblem("موظف الفرع يسجّل التوريد لمستودعات فرعه فقط.");
-      }
-      const product = await tx.product.findUnique({ where: { id: BigInt(productId) }, select: { id: true, category: true, isSerialized: true, isActive: true } });
-      if (!product || !product.isActive || product.category === "SERVICE") throw new InventoryProblem("الصنف غير متاح أو لا يحتفظ بمخزون.");
-      const parsed = parseReceiptInput(raw, product.isSerialized || product.category === "HEARING_AID");
-      if (!parsed.ok) throw new InventoryProblem("راجع البيانات المحددة ثم حاول مجددًا.", parsed.errors);
-      const input = parsed.value;
+      const input = await prepareReceipt(tx, actorId, productId, warehouseId, raw);
       requestId = input.requestId;
       requestHash = digest({ actorId: actorId.toString(), ...input });
       const prior = await tx.inventoryReceipt.findUnique({ where: { requestId: input.requestId } });
@@ -114,11 +121,14 @@ export async function receiveInventoryStock(db: Db, actorId: bigint, raw: Receip
     // A concurrently completed identical request is safe to replay; a new request
     // that collides with an existing serial must not partially change stock.
     if (requestId && requestHash) {
-      const prior = await db.inventoryReceipt.findUnique({ where: { requestId } });
-      if (prior) {
-        ensureMatchingRequest(prior, actorId, requestHash);
-        return { id: prior.id.toString(), replayed: true };
-      }
+      const replay = await withSerializableRetry(db, async tx => {
+        const input = await prepareReceipt(tx, actorId, productId, warehouseId, raw);
+        const prior = await tx.inventoryReceipt.findUnique({ where: { requestId: input.requestId } });
+        if (!prior) return null;
+        ensureMatchingRequest(prior, actorId, digest({ actorId: actorId.toString(), ...input }));
+        return { id: prior.id.toString(), replayed: true as const };
+      });
+      if (replay) return replay;
     }
     throw new InventoryProblem("أحد الأرقام التسلسلية سُجّل بالتزامن. لم يُحفظ التوريد.", { serialNumbers: "راجع الأرقام في سجل السيريالات." });
   }

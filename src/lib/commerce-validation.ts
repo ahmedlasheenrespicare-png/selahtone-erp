@@ -106,7 +106,7 @@ export type MoneyMovementInput = {
   requestId: string; saleId: string; amount: string; method: PaymentMethod; actuallyPaid: boolean;
   accountId: string | null; negativeAcknowledged: boolean;
 };
-export function parseMoneyMovement(raw: unknown, refund: boolean): ValidationResult<MoneyMovementInput> {
+export function parseMoneyMovement(raw: unknown, refund: boolean, options?: { allowMissingCashAccountForReplay?: boolean }): ValidationResult<MoneyMovementInput> {
   const input = object(raw);
   if (!input) return { ok: false, errors: { form: "بيانات العملية غير صالحة." } };
   const errors: FieldErrors = {};
@@ -123,7 +123,7 @@ export function parseMoneyMovement(raw: unknown, refund: boolean): ValidationRes
   if (refund && !actuallyPaid) errors.actuallyPaid = "أكّد دفع المبلغ للعميل فعليًا قبل تسجيل الرد.";
   // الحساب مطلوب للرد النقدي فقط، وحين تكون المالية مفعّلة فحسب؛ بلا حساب
   // يخرج النقد من الفرع ولا يُخصم من أي عهدة، فيبقى الرصيد يحمل مالًا دُفع.
-  if (refund && paymentMethod === "CASH" && !accountId && process.env.FINANCE_ENABLED === "true") errors.accountId = "اختر الحساب الذي يخرج منه الرد.";
+  if (refund && paymentMethod === "CASH" && !accountId && process.env.FINANCE_ENABLED === "true" && !options?.allowMissingCashAccountForReplay) errors.accountId = "اختر الحساب الذي يخرج منه الرد.";
   if (Object.keys(errors).length || !request || !saleId || !amount || !paymentMethod) return { ok: false, errors };
   return { ok: true, value: { requestId: request, saleId, amount, method: paymentMethod, actuallyPaid, accountId, negativeAcknowledged } };
 }

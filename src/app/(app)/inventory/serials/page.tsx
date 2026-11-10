@@ -3,12 +3,15 @@ import { AppIcon } from "@/components/app-icon";
 import { branchScope, requireSession } from "@/lib/auth";
 import { escapeLikeLiteral, latinDigits, positiveDatabaseId } from "@/lib/inventory-validation";
 import { prisma } from "@/lib/prisma";
+import { requirePageAccess } from "@/lib/access-control-server";
 
 export const dynamic = "force-dynamic";
 type Props = { searchParams: Promise<{ q?: string | string[]; before?: string | string[] }> };
 const dateFormatter = new Intl.DateTimeFormat("ar-EG-u-nu-latn", { year: "numeric", month: "short", day: "numeric", timeZone: "Africa/Cairo" });
 
 export default async function SerialsPage({ searchParams }: Props) {
+  await requirePageAccess("/inventory/serials");
+
   const session = await requireSession();
   const scope = branchScope(session);
   const params = await searchParams;

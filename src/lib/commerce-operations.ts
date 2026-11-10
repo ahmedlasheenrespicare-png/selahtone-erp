@@ -1,3 +1,5 @@
+import { isRetryableTransactionConflict } from "./transaction-retry";
+import { refundRequestIdentity, refundReplayMatches } from "./refund-request-identity";
 import { createHash } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 import { InventoryProblem } from "./inventory-operations";
@@ -6,6 +8,7 @@ import { canPerformCommerce, type CommerceAction } from "./commerce-policy";
 import { CommerceMathError, allocatePartialReturn, calculateInclusiveSale, customerPosition, staffDiscountAllowed, validateCollectionAmount, validateRefundAmount, type ReviewedTax } from "./commerce-math";
 import { postCashRefundInTransaction } from "./finance/engine";
 import { financePort } from "./finance/port";
+import { finishCashCustodyCollection, lockCashCollectorCustody } from "./finance/collection-custody-guard";
 import { FinanceProblem } from "./finance/types";
 import { parseDiscountSetting, parseMoneyMovement, parseReturnInput, parseSaleInput, type ReturnLineInput, type SaleInput } from "./commerce-validation";
 
@@ -35,7 +38,11 @@ function ensureMatchingRequest(record: { requestHash: string; createdById: bigin
 async function withSerializableRetry<T>(db: Db, work: (tx: Transaction) => Promise<T>): Promise<T> {
   for (let attempt = 0; ; attempt++) {
     try { return await db.$transaction(work, { isolationLevel: "Serializable", maxWait: 5000, timeout: 20000 }); }
-    catch (error) { if (isCode(error, "P2034") && attempt < 2) continue; throw error; }
+    catch (error) {
+      // Retry only known aborted transaction conflicts, including raw Prisma SQL.
+      if (isRetryableTransactionConflict(error) && attempt < 2) continue;
+      throw error;
+    }
   }
 }
 async function authorize(tx: Transaction, actorId: bigint, action: CommerceAction, branchId: bigint | null, branchActive: boolean): Promise<void> {
@@ -98,6 +105,7 @@ export async function createCommerceSale(db: Db, actorId: bigint, raw: unknown):
       if (actor.roleCode === "CS_AGENT" && !staffDiscountAllowed(calculation.subtotalCents, discount, BigInt(settings.staffDiscountBps))) throw new InventoryProblem("الخصم يتجاوز الحد المسموح لموظف الفرع.");
       const firstPayment = scaledInteger(input.initialPayment, 2);
       validateCollectionAmount(calculation.finalCents, firstPayment);
+      const cashCustody = await lockCashCollectorCustody(tx, warehouse.branchId, actorId, input.method);
 
       const sale = await tx.commerceSale.create({ data: {
         requestId: input.requestId, requestHash, branchId: warehouse.branchId, warehouseId: warehouse.id,
@@ -143,11 +151,20 @@ export async function createCommerceSale(db: Db, actorId: bigint, raw: unknown):
       await tx.commerceCollection.create({ data: {
         requestId: input.requestId, requestHash, saleId: sale.id, amount: fixed(firstPayment, 2), method: input.method, isInitial: true, createdById: actorId,
       } });
+      await finishCashCustodyCollection(tx, cashCustody);
       return { id: sale.id.toString(), replayed: false };
     });
   } catch (error) {
     if (isCode(error, "P2002")) {
-      const prior = await db.commerceSale.findUnique({ where: { requestId: input.requestId } });
+      // A unique conflict can be reported after the original transaction's
+      // authorization snapshot is obsolete. Replay must reauthorize in a fresh
+      // transaction, exactly like the ordinary prior-request path.
+      const prior = await withSerializableRetry(db, async tx => {
+        const warehouse = await tx.warehouse.findUnique({ where: { id: BigInt(input.warehouseId) }, include: { branch: { select: { isActive: true } } } });
+        if (!warehouse || !warehouse.isActive || !warehouse.holdsStock || !warehouse.branch.isActive) throw new InventoryProblem("المستودع أو الفرع غير نشط، أو لا يحتفظ بمخزون.");
+        await authorize(tx, actorId, "CREATE_SALE", warehouse.branchId, warehouse.branch.isActive);
+        return tx.commerceSale.findUnique({ where: { requestId: input.requestId } });
+      });
       if (prior) { ensureMatchingRequest(prior, actorId, requestHash); return { id: prior.id.toString(), replayed: true }; }
       throw new InventoryProblem("تعارض البيع مع عملية أخرى. لم يُحفظ أي جزء؛ راجع المخزون والسيريالات ثم أعد المحاولة.");
     }
@@ -162,10 +179,14 @@ async function lockSale(tx: Transaction, actorId: bigint, saleId: bigint, action
   // Serialize return, collection and refund calculations for this invoice.
   const locked = await tx.$queryRaw<Array<{ id: bigint }>>`SELECT "id" FROM "commerce_sales" WHERE "id" = ${saleId} FOR UPDATE`;
   if (locked.length !== 1) throw new InventoryProblem("الفاتورة غير متاحة.");
-  // Changing the row forces an older SERIALIZABLE snapshot that waited on this
-  // lock to retry rather than calculating against stale payment/return aggregates.
-  await tx.commerceSale.update({ where: { id: saleId }, data: { revision: { increment: 1 } } });
   return sale;
+}
+
+// Call only after the replay check, while holding the invoice lock. Changing the
+// row makes an older SERIALIZABLE snapshot retry instead of calculating against
+// stale payment/return aggregates; a replay has no effect to serialize.
+async function markSaleWrite(tx: Transaction, saleId: bigint): Promise<void> {
+  await tx.commerceSale.update({ where: { id: saleId }, data: { revision: { increment: 1 } } });
 }
 
 async function position(tx: Transaction, saleId: bigint, total: DecimalLike) {
@@ -188,14 +209,26 @@ export async function recordCommerceCollection(db: Db, actorId: bigint, raw: unk
       const sale = await lockSale(tx, actorId, BigInt(input.saleId), "RECORD_COLLECTION");
       const prior = await tx.commerceCollection.findUnique({ where: { requestId: input.requestId } });
       if (prior) { ensureMatchingRequest(prior, actorId, requestHash); return { id: prior.id.toString(), replayed: true }; }
+      await markSaleWrite(tx, sale.id);
+      // Temporary guard: the existing settlement formula attributes cash to the
+      // invoice creator, so accepting another recorder would misattribute it.
+      if (input.method === "CASH" && sale.createdById !== actorId)
+        throw new InventoryProblem("التحصيل النقدي بالنيابة عن منشئ الفاتورة متوقف مؤقتًا؛ راجع الإدارة أو منشئ الفاتورة.");
       const current = await position(tx, sale.id, sale.total);
       validateCollectionAmount(current.dueFromCustomerCents, scaledInteger(input.amount, 2));
+      const cashCustody = await lockCashCollectorCustody(tx, sale.branchId, actorId, input.method);
       const collection = await tx.commerceCollection.create({ data: { requestId: input.requestId, requestHash, saleId: sale.id, amount: input.amount, method: input.method, isInitial: false, createdById: actorId }, select: { id: true } });
+      await finishCashCustodyCollection(tx, cashCustody);
       return { id: collection.id.toString(), replayed: false };
     });
   } catch (error) {
     if (isCode(error, "P2002")) {
-      const prior = await db.commerceCollection.findUnique({ where: { requestId: input.requestId } });
+      // Recheck present access and lock the invoice in a fresh transaction
+      // before resolving the duplicate as replay.
+      const prior = await withSerializableRetry(db, async tx => {
+        await lockSale(tx, actorId, BigInt(input.saleId), "RECORD_COLLECTION");
+        return tx.commerceCollection.findUnique({ where: { requestId: input.requestId } });
+      });
       if (prior) { ensureMatchingRequest(prior, actorId, requestHash); return { id: prior.id.toString(), replayed: true }; }
     }
     return knownMath(error);
@@ -212,6 +245,7 @@ export async function recordCommerceCollection(db: Db, actorId: bigint, raw: unk
 async function postRefundMovement(
   tx: Transaction, actorId: bigint, branchId: bigint, accountId: string,
   amount: string, refundId: string, negativeAcknowledged: boolean,
+  checkpointRef: string,
 ): Promise<void> {
   if (process.env.FINANCE_ENABLED !== "true") return;
   const port = financePort(tx);
@@ -226,7 +260,7 @@ async function postRefundMovement(
   try {
     await postCashRefundInTransaction(port, actorId.toString(), {
       branchId: branchId.toString(), accountId, amount, refundId,
-      expectedBalance: account.balance, negativeAcknowledged,
+      expectedBalance: account.balance, negativeAcknowledged, checkpointRef, afterCheckpoint: true,
     });
   } catch (error) {
     if (error instanceof FinanceProblem) throw new InventoryProblem(error.message);
@@ -235,27 +269,55 @@ async function postRefundMovement(
 }
 
 export async function recordCommerceRefund(db: Db, actorId: bigint, raw: unknown): Promise<WriteResult> {
-  const parsed = parseMoneyMovement(raw, true);
+  // A pre-finance legacy cash request may have no account. Parse it so an
+  // exact stored request can replay; all new cash writes validate below.
+  const parsed = parseMoneyMovement(raw, true, { allowMissingCashAccountForReplay: true });
   if (!parsed.ok) throw new InventoryProblem("راجع رد المبلغ ثم حاول مجددًا.", parsed.errors);
   const input = parsed.value;
-  const requestHash = digest({ actorId: actorId.toString(), type: "REFUND", ...input });
+  const requiresReview = input.method === "CASH" && process.env.FINANCE_ENABLED === "true";
+  const identity = refundRequestIdentity(actorId, input, raw);
+  const requestHash = requiresReview && identity.reviewedHash ? identity.reviewedHash : identity.baseHash;
+  const checkPrior = (prior: { requestHash: string; createdById: bigint }) => {
+    // Legacy requests can replay only with their exact original, unreviewed payload.
+    // A reviewed payload must match its versioned hash; never fabricate history.
+    // A reviewed cash refund may have been committed before finance was
+    // disabled. Recognize its exact versioned payload even then; replay is
+    // read-only and must never create a second financial effect.
+    if (input.method === "CASH" && identity.reviewedHash && refundReplayMatches(prior, actorId, identity)) return;
+    if (requiresReview) {
+      if (!refundReplayMatches(prior, actorId, identity)) throw new InventoryProblem("استُخدم هذا الطلب مسبقًا ببيانات مختلفة. افتح نموذجًا جديدًا.");
+    } else ensureMatchingRequest(prior, actorId, requestHash);
+  };
   try {
     return await withSerializableRetry(db, async (tx) => {
       const sale = await lockSale(tx, actorId, BigInt(input.saleId), "RECORD_REFUND");
       const prior = await tx.commerceRefund.findUnique({ where: { requestId: input.requestId } });
-      if (prior) { ensureMatchingRequest(prior, actorId, requestHash); return { id: prior.id.toString(), replayed: true }; }
+      if (prior) { checkPrior(prior); return { id: prior.id.toString(), replayed: true }; }
+      // With finance disabled there is no account checkpoint to review. Do not
+      // let a direct service/POST call silently record untracked cash; an exact
+      // prior request still replays above without a new effect.
+      if (input.method === "CASH" && !requiresReview)
+        throw new InventoryProblem("الرد النقدي متوقف للمراجعة عند تعطيل المالية؛ لم يُسجّل رد أو حركة نقدية.");
+      if (requiresReview && !input.accountId)
+        throw new InventoryProblem("راجع رد المبلغ ثم حاول مجددًا.", { accountId: "اختر الحساب الذي يخرج منه الرد." });
+      if (requiresReview && !identity.review)
+        throw new InventoryProblem("الرد السابق للجرد أو غير المؤكد متوقف للمراجعة؛ لم يُسجّل رد أو حركة نقدية.");
+      await markSaleWrite(tx, sale.id);
       const current = await position(tx, sale.id, sale.total);
       validateRefundAmount(current.dueToCustomerCents, scaledInteger(input.amount, 2));
       const refund = await tx.commerceRefund.create({ data: { requestId: input.requestId, requestHash, saleId: sale.id, amount: input.amount, method: input.method, createdById: actorId }, select: { id: true } });
-      if (input.method === "CASH" && input.accountId) {
-        await postRefundMovement(tx, actorId, sale.branchId, input.accountId, input.amount, refund.id.toString(), input.negativeAcknowledged);
+      if (input.method === "CASH" && input.accountId && requiresReview) {
+        await postRefundMovement(tx, actorId, sale.branchId, input.accountId, input.amount, refund.id.toString(), input.negativeAcknowledged, identity.review!.checkpointRef);
       }
       return { id: refund.id.toString(), replayed: false };
     });
   } catch (error) {
     if (isCode(error, "P2002")) {
-      const prior = await db.commerceRefund.findUnique({ where: { requestId: input.requestId } });
-      if (prior) { ensureMatchingRequest(prior, actorId, requestHash); return { id: prior.id.toString(), replayed: true }; }
+      const prior = await withSerializableRetry(db, async tx => {
+        await lockSale(tx, actorId, BigInt(input.saleId), "RECORD_REFUND");
+        return tx.commerceRefund.findUnique({ where: { requestId: input.requestId } });
+      });
+      if (prior) { checkPrior(prior); return { id: prior.id.toString(), replayed: true }; }
     }
     return knownMath(error);
   }
@@ -277,6 +339,7 @@ export async function returnCommerceSale(db: Db, actorId: bigint, raw: unknown):
       const sale = await lockSale(tx, actorId, BigInt(input.saleId), "RETURN_OR_CANCEL");
       const prior = await tx.commerceReturn.findUnique({ where: { requestId: input.requestId } });
       if (prior) { ensureMatchingRequest(prior, actorId, requestHash); return { id: prior.id.toString(), replayed: true }; }
+      await markSaleWrite(tx, sale.id);
       if (sale.cancelledAt) throw new InventoryProblem("الفاتورة ملغاة بالفعل.");
       const lines = await tx.commerceSaleLine.findMany({
         where: { saleId: sale.id }, orderBy: { id: "asc" },
@@ -342,7 +405,10 @@ export async function returnCommerceSale(db: Db, actorId: bigint, raw: unknown):
     });
   } catch (error) {
     if (isCode(error, "P2002")) {
-      const prior = await db.commerceReturn.findUnique({ where: { requestId: input.requestId } });
+      const prior = await withSerializableRetry(db, async tx => {
+        await lockSale(tx, actorId, BigInt(input.saleId), "RETURN_OR_CANCEL");
+        return tx.commerceReturn.findUnique({ where: { requestId: input.requestId } });
+      });
       if (prior) { ensureMatchingRequest(prior, actorId, requestHash); return { id: prior.id.toString(), replayed: true }; }
       throw new InventoryProblem("أحد السيريالات أُرجع بالتزامن؛ لم يُحفظ أي جزء من المرتجع.");
     }
@@ -369,7 +435,10 @@ export async function changeStaffDiscountLimit(db: Db, actorId: bigint, raw: unk
     });
   } catch (error) {
     if (isCode(error, "P2002")) {
-      const prior = await db.commerceSettingsChange.findUnique({ where: { requestId: input.requestId } });
+      const prior = await withSerializableRetry(db, async tx => {
+        await authorize(tx, actorId, "CONFIGURE_DISCOUNT", null, false);
+        return tx.commerceSettingsChange.findUnique({ where: { requestId: input.requestId } });
+      });
       if (prior) { ensureMatchingRequest(prior, actorId, requestHash); return { id: prior.id.toString(), replayed: true }; }
     }
     return knownMath(error);

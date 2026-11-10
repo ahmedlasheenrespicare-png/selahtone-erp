@@ -1,11 +1,14 @@
+import { PeriodSourceWarning } from "../../period-source-warning";
+import { writeAllowedForKeys } from "@/lib/access-control";
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppIcon } from "@/components/app-icon";
 
 import { settlementOverview } from "@/lib/finance/engine";
-import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
+import { getAccessContext, requirePageAccess } from "@/lib/access-control-server";
 
+import { OlderCorrectionNotice } from "../../older-correction-notice";
 import { financePage, financeRead } from "../../page-context";
 import { SettlementRequestForm } from "../settlement-forms";
 
@@ -13,7 +16,9 @@ export const dynamic = "force-dynamic";
 
 export default async function NewSettlementPage() {
   const { session, canManage } = await financePage();
-  await requireMenuScopeAccess("/finance/settlements/new");
+  await requirePageAccess("/finance/settlements/new");
+  const access = await getAccessContext();
+  const canRequest = writeAllowedForKeys(access.hidden, "/finance/settlements/new#request");
   if (canManage) redirect("/finance/transfers");
 
   const overview = await financeRead(session, (tx) => settlementOverview({ serializable: (work) => work(tx) }, session.id));
@@ -31,17 +36,25 @@ export default async function NewSettlementPage() {
             عهدة الموظف
           </p>
           <h1>طلب تسوية</h1>
-          <p>عدد النقد بيدك الآن وأرسل الطلب. لا يخصم الطلب شيئًا ولا يضيف؛ المدير يعتمده ويسجّل التحويل الفعلي.</p>
+          <p>عدد النقد بيدك الآن وأرسل الطلب. لا يغيّر الطلب الرصيد؛ عند الاعتماد يُسجّل التعديل الدفتري إن لزم والتحويل المُدخل إن كان غير صفر. التسجيل والإقرار لا يثبتان انتقال النقد فعليًا.</p>
         </div>
       </div>
 
-      {!overview.account ? (
+      {overview.account && <OlderCorrectionNotice />}
+      {overview.account && overview.sourceRecorderMismatch && <PeriodSourceWarning />}
+      {overview.multipleCustodies ? (
+        <div className="fin-alert fin-alert--warning" role="alert">توجد أكثر من عهدة مفتوحة باسمك؛ يتوقف الجرد والتسوية والإقفال للمراجعة. يمكن إلغاء الطلبات المفتوحة بسبب.</div>
+      ) : !overview.account ? (
         <div className="fin-panel fin-empty">
           لا توجد عهدة مفتوحة باسمك بعد. تُفتح العهدة بجرد فعلي يسجّله المدير أو المحاسب.
           <div className="fin-actions" style={{ justifyContent: "center", marginTop: 14 }}>
             <Link className="fin-button" href="/finance/mine">عهدة الموظف</Link>
           </div>
         </div>
+      ) : overview.holderCorrectionInPeriod ? (
+        <div className="fin-alert fin-alert--warning">يوجد تصحيح مرتبط بدفع نقد موظف مسجّل عند حد الفترة أو بعده في الفرع؛ توقف الجرد والتسوية والإقفال للمراجعة دون تعديل المبالغ.</div>
+      ) : overview.boundaryAmbiguous ? (
+        <div className="fin-alert fin-alert--warning">يوجد تحصيل أو صرف نقدي في الفرع يساوي وقت بداية الفترة. توقف طلب التسوية والجرد والإقفال للمراجعة؛ لا يمكن تحديد انتماء العملية من التوقيت وحده.</div>
       ) : overview.openRequestId ? (
         <div className="fin-panel fin-empty">
           لديك طلب تسوية مفتوح بانتظار الاعتماد. راجعه أو ألغِهِ بسبب من صفحة الطلبات قبل تقديم طلب جديد.
@@ -49,7 +62,7 @@ export default async function NewSettlementPage() {
             <Link className="fin-button" href="/finance/settlements">طلباتي</Link>
           </div>
         </div>
-      ) : (
+      ) : canRequest ? (
         <SettlementRequestForm
           requestId={randomUUID()}
           accountId={overview.account.id}
@@ -58,7 +71,7 @@ export default async function NewSettlementPage() {
           expenses={overview.expenses}
           expected={overview.expected}
         />
-      )}
+      ) : null}
     </div>
   );
 }

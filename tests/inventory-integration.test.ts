@@ -34,6 +34,31 @@ async function expectProblem(fn: () => Promise<unknown>, pattern: RegExp) {
   await assert.rejects(fn, (error: unknown) => error instanceof InventoryProblem && pattern.test(error.message));
 }
 
+/** Test-only duplicate error after authorization; the callback runs after rollback. */
+function injectUniqueAfterLookup(client:ClientType,model:"inventoryProductCreation"|"inventoryOpening",afterAbort:()=>Promise<void>):ClientType {
+  let injected=false;
+  return new Proxy(client,{get(target,key,receiver) {
+    if(key!=="$transaction") return Reflect.get(target,key,receiver);
+    return async (work:(tx:unknown)=>Promise<unknown>,options:unknown)=>{
+      if(injected) return target.$transaction(work as never,options as never);
+      injected=true;
+      try {
+        return await target.$transaction(async tx=>{
+          const wrapped=new Proxy(tx,{get(obj,prop,recv) {
+            if(prop!==model) return Reflect.get(obj,prop,recv);
+            const delegate=Reflect.get(obj,prop,recv) as {findUnique:(args:unknown)=>Promise<unknown>};
+            return new Proxy(delegate,{get(d,k,r) {
+              if(k!=="findUnique") return Reflect.get(d,k,r);
+              return async (args:unknown)=>{await delegate.findUnique(args);throw Object.assign(new Error("synthetic unique"),{code:"P2002"});};
+            }});
+          }});
+          return work(wrapped);
+        },options as never);
+      } catch(error) { await afterAbort(); throw error; }
+    };
+  }}) as ClientType;
+}
+
 /** PGlite is strictly local/in-memory. No DATABASE_URL from the environment is used. */
 test("isolated inventory transactions, authorization, serials and upgrade", { timeout: 120_000 }, async (t) => {
   const tmp = mkdtempSync(path.join(tmpdir(), "selahtone-inventory-test-"));
@@ -148,6 +173,11 @@ test("isolated inventory transactions, authorization, serials and upgrade", { ti
       assert.equal((await client.product.findUniqueOrThrow({ where: { id: BigInt(created.id) } })).isSerialized, true);
       assert.equal((await client.inventoryProductCreation.findFirstOrThrow({ where: { productId: BigInt(created.id) } })).createdById, 1n);
       assert.equal((await createInventoryProduct(client, 1n, input)).replayed, true);
+      const duplicateProduct=()=>injectUniqueAfterLookup(client,"inventoryProductCreation",async()=>{});
+      assert.deepEqual(await createInventoryProduct(duplicateProduct(),1n,input),{id:created.id,replayed:true});
+      await expectProblem(()=>createInventoryProduct(duplicateProduct(),1n,{...input,nameAr:"اسم مختلف"}),/بيانات مختلفة/);
+      const suspendedProduct=injectUniqueAfterLookup(client,"inventoryProductCreation",async()=>{await client.$executeRawUnsafe("UPDATE users SET status='SUSPENDED' WHERE id=1");});
+      try {await expectProblem(()=>createInventoryProduct(suspendedProduct,1n,input),/المحاسب فقط/);} finally {await client.$executeRawUnsafe("UPDATE users SET status='ACTIVE' WHERE id=1");}
       await expectProblem(() => createInventoryProduct(client, 1n, { ...input, nameAr: "اسم مختلف" }), /بيانات مختلفة/);
       await expectProblem(() => createInventoryProduct(client, 1n, { ...input, requestId: randomUUID(), sku: "exist-ha" }), /رمز الصنف مستخدم/);
       await expectProblem(() => createInventoryProduct(client, 3n, { ...input, requestId: randomUUID(), sku: "STAFF" }), /المحاسب فقط/);
@@ -168,6 +198,11 @@ test("isolated inventory transactions, authorization, serials and upgrade", { ti
       assert.equal(level.avgCost.toString(), "1234.1234");
       assert.equal(await client.inventorySerial.count({ where: { openingId: BigInt(saved.id) } }), 2);
       assert.equal((await createInventoryOpening(client, 1n, opening)).replayed, true);
+      const duplicateOpening=()=>injectUniqueAfterLookup(client,"inventoryOpening",async()=>{});
+      assert.deepEqual(await createInventoryOpening(duplicateOpening(),1n,opening),{id:saved.id,replayed:true});
+      await expectProblem(()=>createInventoryOpening(duplicateOpening(),1n,{...opening,unitCost:"1234.1235"}),/بيانات مختلفة/);
+      const suspendedOpening=injectUniqueAfterLookup(client,"inventoryOpening",async()=>{await client.$executeRawUnsafe("UPDATE users SET status='SUSPENDED' WHERE id=1");});
+      try {await expectProblem(()=>createInventoryOpening(suspendedOpening,1n,opening),/المحاسب فقط/);} finally {await client.$executeRawUnsafe("UPDATE users SET status='ACTIVE' WHERE id=1");}
       await expectProblem(() => createInventoryOpening(client, 2n, opening), /بيانات مختلفة/);
       await expectProblem(() => createInventoryOpening(client, 1n, { ...opening, requestId: randomUUID() }), /يوجد رصيد مسجّل/);
       await expectProblem(() => createInventoryOpening(client, 1n, { ...opening, requestId: randomUUID(), warehouseId: "2", serialNumbers: "sn-١\nDIFFERENT" }), /مسجّل بالفعل/);

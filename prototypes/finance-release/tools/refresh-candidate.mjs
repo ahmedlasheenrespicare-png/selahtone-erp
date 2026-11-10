@@ -62,6 +62,7 @@ let categoryBridge = readFileSync("prototypes/finance-release/category-schema.te
   strip(/^-- TEST-ONLY CATEGORY BRIDGE[^\n]*\n(?:--[^\n]*\n)*/m, "category bridge header");
   strip(/DO \$\$[\s\S]*?END \$\$;\n\n/, "category bridge guard");
   strip(/CREATE SCHEMA finance_candidate;\n\n/, "category bridge schema");
+  strip(/-- Disposable request-result link[\s\S]*?CREATE TABLE IF NOT EXISTS finance_candidate[.]request_results [(][\s\S]*?\n\);\n/, "category bridge result link");
   categoryBridge = categoryBridge.replaceAll("finance_candidate.", "finance.");
   if (categoryBridge.includes("finance_candidate")) throw new Error("category bridge still references its old schema");
   categoryBridge = categoryBridge

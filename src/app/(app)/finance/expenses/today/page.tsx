@@ -5,7 +5,8 @@ import Link from "next/link";
 import DashboardWallet, { type WalletPocketItem } from "@/app/(app)/dashboard/dashboard-wallet";
 import { AppIcon } from "@/components/app-icon";
 import PantherSpotlightCard, { type PantherChartPoint } from "@/components/panther-spotlight-card";
-import { isPathAllowedForScope } from "@/lib/menu-scope";
+import { writeAllowedForKeys } from "@/lib/access-control";
+import { getAccessContext, requirePageAccess } from "@/lib/access-control-server";
 import { displayMoney } from "@/lib/commerce-display";
 import { financePage } from "../../page-context";
 import { loadTodayExpenses } from "@/lib/finance/today-expenses";
@@ -32,8 +33,12 @@ const STATUS_CHIP_TONE: Record<"PENDING" | "APPROVED" | "PAID", "pending" | "app
 };
 
 export default async function FinanceExpensesTodayPage() {
+  await requirePageAccess("/finance/expenses/today");
   const { session, canManage } = await financePage();
-  const canOpen = (href: string) => isPathAllowedForScope(session.menuScope, href);
+  const access = await getAccessContext();
+  const canOpen = (href: string) => access.isAllowed(href.split("?")[0]);
+  const canCreateExpense = writeAllowedForKeys(access.hidden, "/finance/expenses/new");
+  const canOpenExpenseDetails = canManage && canOpen("/finance/expenses");
   const todayIso = cairoDate();
 
   const today = await loadTodayExpenses(session).catch((error) => {
@@ -42,9 +47,9 @@ export default async function FinanceExpensesTodayPage() {
   });
 
   const items = today?.rows ?? [];
-  const branchesInTable = Array.from(new Set(items.map((row) => row.branchName))).sort((a, b) =>
-    a.localeCompare(b, "ar"),
-  );
+  const branchesInTable = Array.from(
+    new Map(items.map((row) => [row.branchId, { id: row.branchId, label: `${row.branchName} · ${row.branchCode}` }])).values(),
+  ).sort((a, b) => a.label.localeCompare(b.label, "ar"));
   const totalCents = today?.totalCents ?? 0n;
   const paidCents = today?.paidCents ?? 0n;
   const waitingCents = today?.waitingCents ?? 0n;
@@ -60,7 +65,8 @@ export default async function FinanceExpensesTodayPage() {
   const rows: FinanceExpenseRow[] = items.map((row) => ({
     id: row.id,
     expenseDate: todayIso, // بنود اليوم كلها بهذا التاريخ (expense_date = يوم القاهرة)
-    branchName: row.branchName,
+    branchId: row.branchId,
+    branchName: `${row.branchName} · ${row.branchCode}`,
     categorySnapshot: row.categorySnapshot,
     description: row.description,
     amountFormatted: row.amountFormatted,
@@ -197,7 +203,7 @@ export default async function FinanceExpensesTodayPage() {
                             <span className="dash-today-invoice__meta">
                               {expense.description}
                               {expense.beneficiary ? ` · ${expense.beneficiary}` : ""}
-                              {` · ${expense.branchName} · سجّلها ${expense.requestedByName}`}
+                              {` · ${expense.branchName} · ${expense.branchCode} · سجّلها ${expense.requestedByName}`}
                               {expense.status === "PAID" && expense.paymentMethodLabel
                                 ? ` · صُرفت ${expense.paymentMethodLabel}`
                                 : ""}
@@ -213,7 +219,7 @@ export default async function FinanceExpensesTodayPage() {
                           <div className="stat-card__head">
                             <h3>{expense.description}</h3>
                             <p>
-                              {expense.branchName} · بند {expense.categorySnapshot}
+                              {expense.branchName} · {expense.branchCode} · بند {expense.categorySnapshot}
                             </p>
                             <span className="stat-card__badge">{expense.statusLabel}</span>
                           </div>
@@ -248,7 +254,7 @@ export default async function FinanceExpensesTodayPage() {
                                   <strong className="stat-grid__value">فتح تفاصيل المصروف</strong>
                                   <AppIcon name="arrow" className="stat-grid__arrow" />
                                 </Link>
-                              ) : (
+                              ) : canCreateExpense ? (
                                 <Link
                                   href="/finance/expenses/new"
                                   className="stat-grid__item is-link fin-wallet-action-link"
@@ -257,7 +263,7 @@ export default async function FinanceExpensesTodayPage() {
                                   <strong className="stat-grid__value">تسجيل مصروف جديد</strong>
                                   <AppIcon name="arrow" className="stat-grid__arrow" />
                                 </Link>
-                              )}
+                              ) : null}
                             </div>
                           </div>
                         </article>
@@ -276,10 +282,10 @@ export default async function FinanceExpensesTodayPage() {
                         </li>
                       ))}
                     </ul>
-                    <Link className="fin-button" href="/finance/expenses/new">
+                    {canCreateExpense ? <Link className="fin-button" href="/finance/expenses/new">
                       <span className="fin-button__plus" aria-hidden="true">+</span>
                       <span>تسجيل مصروف اليوم</span>
-                    </Link>
+                    </Link> : null}
                   </FinEmptyState>
                 </section>
               )}
@@ -320,7 +326,7 @@ export default async function FinanceExpensesTodayPage() {
                       points: todayExpensesChartPoints,
                     },
                   ]}
-                  actionHref="/finance/expenses/new"
+                  actionHref={canCreateExpense ? "/finance/expenses/new" : undefined}
                   actionLabel="تسجيل مصروف اليوم"
                   dataDashPart="today-expenses"
                   detailsHudToggle
@@ -347,7 +353,7 @@ export default async function FinanceExpensesTodayPage() {
                               <span className="dash-today-invoice__meta">
                                 {row.description}
                                 {row.beneficiary ? ` · ${row.beneficiary}` : ""}
-                                {` · ${row.branchName} · سجّلها ${row.requestedByName}`}
+                                {` · ${row.branchName} · ${row.branchCode} · سجّلها ${row.requestedByName}`}
                                 {row.status === "PAID" && row.paymentMethodLabel
                                   ? ` · صُرفت ${row.paymentMethodLabel}`
                                   : ""}
@@ -424,24 +430,24 @@ export default async function FinanceExpensesTodayPage() {
           {items.length === 0 ? (
             <FinEmptyState icon="expenses" title="لا توجد مصروفات اليوم بعد">
               <p>تُسجّل من «تسجيل مصروف» وتظهر هنا فور حفظها — بتوقيت القاهرة.</p>
-              <Link className="fin-button" href="/finance/expenses/new">
+              {canCreateExpense ? <Link className="fin-button" href="/finance/expenses/new">
                 <span className="fin-button__plus" aria-hidden="true">+</span>
                 <span>تسجيل مصروف</span>
-              </Link>
+              </Link> : null}
             </FinEmptyState>
           ) : (
             <>
               <div id="expenses-today-directory" className="fin-directory-heading">
                 <h2>بنود اليوم</h2>
                 <span>بنود اليوم فقط — بحث فوري بالوصف أو البند وتصفية بالحالة والفرع والبند</span>
-                <Link href="/finance/expenses" style={{ marginInlineStart: "auto", alignSelf: "center", fontSize: "0.85rem" }}>
+                {canOpen("/finance/expenses") ? <Link href="/finance/expenses" style={{ marginInlineStart: "auto", alignSelf: "center", fontSize: "0.85rem" }}>
                   سجل المصروفات الكامل ←
-                </Link>
+                </Link> : null}
               </div>
               <FinanceExpensesView
                 rows={rows}
                 branches={branchesInTable}
-                canManage={canManage}
+                canManage={canOpenExpenseDetails}
                 initialCategory="all"
               />
               <p className="fin-page__foot">

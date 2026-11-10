@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS finance.settlements (
   expected_amount        NUMERIC(22,2) NOT NULL,
   deviation              NUMERIC(22,2) NOT NULL,
   adjustment             NUMERIC(22,2) NOT NULL,
+  -- NULL للتسويات القديمة؛ لا يمكن اعتمادها حتى تُلغى ويُعاد الجرد.
+  account_revision       BIGINT CHECK (account_revision >= 0),
   status                 VARCHAR(12) NOT NULL DEFAULT 'OPEN'
                          CHECK (status IN ('OPEN', 'CONFIRMED', 'REJECTED', 'CANCELLED')),
   reason                 VARCHAR(300) NOT NULL CHECK (length(trim(reason)) > 0),
@@ -50,6 +52,10 @@ CREATE TABLE IF NOT EXISTS finance.settlements (
   CHECK (status <> 'CONFIRMED' OR (transfer_amount IS NOT NULL AND transfer_direction IS NOT NULL)),
   CHECK (adjustment = counted_amount - system_balance)
 );
+
+-- موجود أيضًا في ترقية مستقلة للأنظمة التي سبق أن طبقت هذا الملف.
+ALTER TABLE finance.settlements ADD COLUMN IF NOT EXISTS account_revision BIGINT
+  CHECK (account_revision >= 0);
 
 CREATE UNIQUE INDEX IF NOT EXISTS finance_one_open_settlement_per_account
   ON finance.settlements (account_id) WHERE status = 'OPEN';

@@ -1,0 +1,113 @@
+{
+  "artifact": "READINESS_BLOCKERS_OFFLINE_ANALYSIS",
+  "version": "1.0",
+  "date": "2026-11-05",
+  "scope": "OFFLINE_ANALYSIS_ONLY_TEST_ONLY_NOT_EXECUTABLE",
+  "authorization_received_verbatim": "تكليف منفصل صريح بتحليل أوفلاين للموانع",
+  "no_action_boundary": "NO_SRC_NO_RENDER_YAML_NO_PRODUCTION_SQL_NO_DEPLOY_NO_SYNC_NO_TRUE",
+  "overall_status": "NOT_READY",
+  "blockers_resolved": 0,
+  "gates_opened": 0,
+  "no_blanket_approval": true,
+  "strict_reject_phrase": "تعذّر التحقق من نتيجة الطلب المحفوظ؛ يلزم مراجعة أو ترحيل الطلب القديم.",
+  "blockers": [
+    {
+      "id": "DEPLOYED_APP_ROLE_IDENTITY_READ_ONLY_PROOF",
+      "status": "UNRESOLVED",
+      "current_evidence": "C5_LOCAL_PROBE_COMPLETE_NOT_A_DEPLOY_PROOF",
+      "gap": "الاتصال المحلي من جهاز المشغّل لا يُثبت هوية اتصال التطبيق المنشور؛ المالية معطّلة فلم يحدث طلب DB حي؛ السجل لا يطبع قيم env.",
+      "offline_design": "تصميم فحص قراءة-only يُنفَّذ لاحقًا من اتصال العملية الشغّالة نفسها، يثبّت بصمة نصه، ويُخرج current_user/session_user وصفات الدور فقط داخل معاملة تُرجَّع.",
+      "acceptance_criteria": "current_user = session_user = selahtone_app من اتصال أنشأته إعدادات الخدمة المنشورة لا من جهاز المشغّل، بلا أسرار في المخرج، مع تأكيد ROLLBACK.",
+      "requires": "SEPARATE_REVIEWED_TEXT_THEN_SEPARATE_VERBATIM_APPROVAL_BEFORE_EXECUTION",
+      "review_draft": "blocker-01-deployed-app-identity-REVIEW-DRAFT-NOT-EXECUTABLE.md",
+      "review_draft_status": "DRAFT_PREPARED_NOT_APPROVED_NOT_EXECUTED",
+      "final_review_text": "blocker-01-FINAL-FOR-REVIEW-NOT-EXECUTED.md",
+      "final_sql_sha": "da711cb371184fcf680808355f55514f8804a13d24316aec76dcbd34ab69ef4a",
+      "final_text_status": "FINAL_FOR_REVIEW_NOT_EXECUTED",
+      "in_service_reviewed_text": "in-service-identity-probe-REVIEWED-TEXT-NOT-EXECUTABLE.md",
+      "in_service_reviewed_text_sha": "629e28dfa63aae13714a3858c7df0484a1a2486bd03b0db133aa37dcfbd62f1e",
+      "in_service_reviewed_text_status": "REVIEWED_TEXT_PREPARED_FOR_REVIEW_ONLY",
+      "step_5_verbatim_approval_received": true,
+      "verbatim_approval_sha": "629e28dfa63aae13714a3858c7df0484a1a2486bd03b0db133aa37dcfbd62f1e",
+      "verbatim_approval_status": "VERBATIM_APPROVAL_ACCEPTED_REVIEW_ONLY_TEXT_STEP_5_CLOSED",
+      "rollback_plan_text": "separate-rollback-plan-REVIEW-ONLY-NOT-EXECUTABLE.md",
+      "rollback_plan_sha": "3a54fa51d91d40d6dab25ce1dcda6c86371a9872f716eff76c01148927fd703c",
+      "rollback_plan_status": "ROLLBACK_PLAN_PREPARED_FOR_REVIEW_ONLY",
+      "separate_rollback_plan_approval_received": true,
+      "separate_rollback_plan_approval_sha": "3a54fa51d91d40d6dab25ce1dcda6c86371a9872f716eff76c01148927fd703c",
+      "separate_rollback_plan_approval_status": "SEPARATE_VERBATIM_APPROVAL_OF_THE_ROLLBACK_PLAN_ONLY_ACCEPTED"
+    },
+    {
+      "id": "RLS_AND_TRIGGER_ENFORCEMENT_TESTED_WITH_THE_APP_ROLE",
+      "status": "UNRESOLVED",
+      "current_evidence": "RLS_DISABLED_EVERYWHERE_ZERO_POLICIES_ZERO_PRODUCTION_TRIGGERS",
+      "gap": "C4 سجّل حالة الكائنات لا التنفيذ؛ والـ19 محفّزًا مخبرية في finance_lab لا إنتاجية؛ ولا سياسات production مُراجَعة.",
+      "offline_design": "مصفوفة سياسات مقترحة لكل جدول + سيناريوهات سماح/منع مخبرية على PostgreSQL مؤقت مع دور selahtone_app، وفصل «وجود المحفّز» عن «تنفيذه».",
+      "acceptance_criteria": "منع افتراضي موثّق، ومسار كتابة مسموح واحد على الأقل مُختبَر، ورفض أي مسار يتجاوز السياسة، بلا إجراء مالي حقيقي.",
+      "requires": "SEPARATE_REVIEWED_TEXT_THEN_SEPARATE_VERBATIM_APPROVAL_BEFORE_EXECUTION"
+    },
+    {
+      "id": "ATOMIC_ACCESS_CONTROL_GAP_RESOLVED",
+      "status": "UNRESOLVED",
+      "current_evidence": "check:finance:atomic-contract-gap = 4/4 يوثّق الفجوة مخبريًا",
+      "gap": "الذرية مثبتة في بُعد الصفوف لا عبر حدود access_control/request_results؛ لا عقد مقبول موقع.",
+      "offline_design": "نموذج عقد ذري على PostgreSQL مؤقت: حد معاملة واحد، حقن فشل عند الالتزام، وفحص عدم وجود كتابات جزئية.",
+      "acceptance_criteria": "صفر كتابات جزئية عند الفشل، وارتباط كل نتيجة بطلبها، واختبارات معملية خضراء على قاعدة مؤقتة فقط.",
+      "requires": "SEPARATE_REVIEWED_TEXT_THEN_SEPARATE_VERBATIM_APPROVAL_BEFORE_EXECUTION"
+    },
+    {
+      "id": "PRISMAPG_6_19_3_COMMIT_FAILURE_LIFECYCLE_RESOLVED",
+      "status": "UNRESOLVED",
+      "current_evidence": "فشل قيد مؤجل عند COMMIT أبطل البيانات وترك اتصالًا محجوزًا من المجمّع",
+      "gap": "دورة حياة الاتصال/إعادة المحاولة غير محلولة؛ خطر فقد صامت أو كتابة مزدوجة أو استنزاف المجمّع.",
+      "offline_design": "إعادة إنتاج الفشل في معمل PG18 معزول، وتصميم سياسة تحرير الاتصال وإعادة المحاولة الآمنة وعدم إعادة الكتابة العمياء.",
+      "acceptance_criteria": "لا اتصال محجوز بعد الفشل، ولا فقد صامت، ولا كتابة مزدوجة، مع اختبار معملي موثّق.",
+      "requires": "SEPARATE_REVIEWED_TEXT_THEN_SEPARATE_VERBATIM_APPROVAL_BEFORE_EXECUTION"
+    },
+    {
+      "id": "ROLLED_BACK_REHEARSED_RELEASE_CANDIDATE_VERSION",
+      "status": "UNRESOLVED",
+      "current_evidence": "مسودة مرشح ترقية للمراجعة فقط + runbook + restore-drill.sh؛ آخر نسخة يدوية قديمة غير مُختبَرة",
+      "gap": "لا نسخة مرشحة مُوسومة مُختبَرة ولا بروفة رجوع مُجرَّبة على الإصدار الحالي.",
+      "offline_design": "تحديد معيار قبول للنسخة المرشحة وبصمات قبل/بعد وبروفة رجوع كاملة على قاعدة اختبار معزولة.",
+      "acceptance_criteria": "تطابق بصمات ما قبل/ما بعد، ونجاح بروفة الرجوع، وتسجيل النسخة الموسومة، بلمس قاعدة اختبار فقط.",
+      "requires": "SEPARATE_REVIEWED_TEXT_THEN_SEPARATE_VERBATIM_APPROVAL_BEFORE_EXECUTION"
+    },
+    {
+      "id": "CASH_MOVEMENT_TIMING_AND_HUMAN_REVIEW_EVIDENCE",
+      "status": "UNRESOLVED",
+      "current_evidence": "لا إثبات توقيت الحركة النقدية ولا المراجعة البشرية؛ رد نقدي ممنوع قبل الجاهزية",
+      "gap": "لا دليل على أن الحركة تُسجَّل عند قرار المراجعة البشرية ولا على عدم وجود حركات يتيمة.",
+      "offline_design": "تحليل وصفي لمسار الطلب⇒القرار⇒الحركة على بيانات اصطناعية مخبرية فقط، مع قائمة فحوصات قبول.",
+      "acceptance_criteria": "ارتباط كل حركة بقرار بشري موثّق، وصفر حركات يتيمة، بلا أي اختبار رد نقدي حقيقي أو بيانات فعلية.",
+      "requires": "SEPARATE_REVIEWED_TEXT_THEN_SEPARATE_VERBATIM_APPROVAL_BEFORE_EXECUTION"
+    },
+    {
+      "id": "CONVERSION_WINDOW_DEFINED",
+      "status": "UNRESOLVED",
+      "current_evidence": "نموذج معزول في prototypes/finance-cutover يوضح الحاجة لنافذة تحويل",
+      "gap": "لا نافذة مُعرَّفة تمنع البيع/التحصيل/الرد/الصرف/التحويل أثناء القطع ذي المرحلتين، ولا منع الطلبات المباشرة.",
+      "offline_design": "تحديد معيار النافذة، وحارس رفض، واختبار تجاوز مخبري، وخطة إنهاء النافذة.",
+      "acceptance_criteria": "رفض كل كتابة محظورة داخل النافذة حتى عبر الطلب المباشر، مع اختبار معملي أخضر.",
+      "requires": "SEPARATE_REVIEWED_TEXT_THEN_SEPARATE_VERBATIM_APPROVAL_BEFORE_EXECUTION"
+    },
+    {
+      "id": "LOG_YEAR_TIMESTAMPS_AND_OPERATOR_DECISIONS_SUPPLIED",
+      "status": "UNRESOLVED",
+      "current_evidence": "سجلان بلا سنة ولا طوابع ولا قيم env؛ أحداث false/true/الاستعادة بلا مَن/متى/قرار",
+      "gap": "لا يمكن ربط التغييرات بقراراتها زمنيًا؛ والسجل لا يُثبت ضبط DATABASE_URL.",
+      "offline_design": "قائمة معلومات وصفية مطلوبة من المشغّل فقط، بلا قيمة رابط ولا كلمة مرور ولا صفوف بيانات.",
+      "acceptance_criteria": "سنة + طوابع + مَن/متى/قرار لكل من false الأصلي، وإعادة true، والاستعادة، موثّقة وصفيًا.",
+      "requires": "OPERATOR_SUPPLIED_DESCRIPTIVE_INFORMATION_ONLY"
+    },
+    {
+      "id": "RENDER_YAML_TRUE_WITHOUT_SYNC_FALSE_RECONCILED",
+      "status": "UNRESOLVED",
+      "current_evidence": "render.yaml:31 = \"true\" بلا sync:false بينما القيمة الحية false",
+      "gap": "أي Sync/Blueprint قد يُعيد تفعيل المالية صامتًا قبل استيفاء الشروط.",
+      "offline_design": "تحليل خيارات التسوية (منع Sync مقابل تعديل Blueprint) دون لمس الملف في هذه الجلسة.",
+      "acceptance_criteria": "قرار منفصل صريح يزيل التعارض ويمنع إعادة التفعيل الصامتة، مع تحقق بعده.",
+      "requires": "SEPARATE_REVIEWED_TEXT_THEN_SEPARATE_VERBATIM_APPROVAL_BEFORE_EXECUTION"
+    }
+  ]
+}

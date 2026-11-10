@@ -14,7 +14,6 @@ import {
   userInputError,
   type AdminRole,
 } from "@/lib/admin-directory";
-import { MENU_SCOPES, MENU_SCOPE_LABELS, type MenuScope } from "@/lib/menu-scope";
 import {
   createBranchAction,
   createUserAction,
@@ -53,8 +52,6 @@ export type UserRow = {
   isActive: boolean;
   mustChangePassword: boolean;
   isSelf: boolean;
-  menuScope: MenuScope;
-  canCancelSales: boolean;
   activeSessionCount: number;
   lastLoginLabel: string | null;
   openCustodyId: string | null;
@@ -330,9 +327,11 @@ export function BranchCreateForm({
 
 export function BranchManageDrawer({
   branch,
+  financeOn,
   onClose,
 }: {
   branch: BranchRow;
+  financeOn: boolean;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -475,8 +474,7 @@ export function BranchManageDrawer({
 
           {branch.isActive && branch.openCustodyCount > 0 ? (
             <div className="admin-inline-warn">
-              يوجد بالفرع <strong>{branch.openCustodyCount} عهدة نقدية مفتوحة</strong>؛ يجب تصفيتها وإقفالها من{" "}
-              <Link href="/finance/accounts">الحسابات النقدية</Link> قبل الإيقاف.
+              يوجد بالفرع <strong>{branch.openCustodyCount} عهدة نقدية مفتوحة</strong>؛ يجب تصفيتها وإقفالها قبل الإيقاف. {financeOn ? <Link href="/finance/accounts">الحسابات النقدية</Link> : "المالية معطّلة؛ تواصل مع مسؤول النظام للمعالجة المعتمدة."}
             </div>
           ) : null}
 
@@ -537,8 +535,6 @@ export function UserCreateForm({
   const [role, setRole] = useState<AdminRole>("CS_AGENT");
   const [branchId, setBranchId] = useState(branches[0]?.id ?? "");
   const [mustChange, setMustChange] = useState(true);
-  const [menuScope, setMenuScope] = useState<MenuScope>("FULL");
-  const [canCancelSales, setCanCancelSales] = useState(true);
 
   const [issuedSlip, setIssuedSlip] = useState<{
     fullName: string;
@@ -589,8 +585,6 @@ export function UserCreateForm({
     fd.set("role", role);
     fd.set("branchId", branchId);
     if (mustChange) fd.set("mustChange", "yes");
-    if (role !== "CS_AGENT") fd.set("menuScope", menuScope);
-    if (role === "ACCOUNTANT" && canCancelSales) fd.set("canCancelSales", "yes");
 
     startTransition(async () => {
       const res = await createUserAction(initialAdminActionState, fd);
@@ -784,23 +778,6 @@ export function UserCreateForm({
           </select>
         </div>
 
-        {role !== "CS_AGENT" ? (
-          <div className="field">
-            <label htmlFor="user-scope">نطاق القائمة</label>
-            <select
-              id="user-scope"
-              name="menuScope"
-              value={menuScope}
-              onChange={(e) => setMenuScope(e.target.value as MenuScope)}
-            >
-              {MENU_SCOPES.map((value) => (
-                <option key={value} value={value}>
-                  {MENU_SCOPE_LABELS[value]}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : null}
       </div>
 
       <div className="admin-checks-row">
@@ -812,17 +789,6 @@ export function UserCreateForm({
           />
           <span>إلزام المستخدم بتغيير كلمة المرور عند أول دخول</span>
         </label>
-
-        {role === "ACCOUNTANT" && actorRole === "MANAGER" ? (
-          <label className="field-keyboard">
-            <input
-              type="checkbox"
-              checked={canCancelSales}
-              onChange={(e) => setCanCancelSales(e.target.checked)}
-            />
-            <span>منح صلاحية إلغاء فواتير البيع</span>
-          </label>
-        ) : null}
       </div>
 
       {emailDuplicate ? (
@@ -851,12 +817,14 @@ export function UserManageDrawer({
   user,
   branches,
   actorRole,
+  financeOn,
   existingEmails = [],
   onClose,
 }: {
   user: UserRow;
   branches: BranchOption[];
   actorRole: AdminRole;
+  financeOn: boolean;
   existingEmails?: string[];
   onClose: () => void;
 }) {
@@ -879,8 +847,6 @@ export function UserManageDrawer({
   const [role, setRole] = useState<AdminRole>(user.role);
   const [branchId, setBranchId] = useState(user.branchId ?? "");
   const [active, setActive] = useState(user.isActive);
-  const [menuScope, setMenuScope] = useState<MenuScope>(user.menuScope);
-  const [canCancelSales, setCanCancelSales] = useState(user.canCancelSales);
 
   const [newPassword, setNewPassword] = useState("");
   const [showNewPw, setShowNewPw] = useState(false);
@@ -894,8 +860,6 @@ export function UserManageDrawer({
     setRole(user.role);
     setBranchId(user.branchId ?? "");
     setActive(user.isActive);
-    setMenuScope(user.menuScope);
-    setCanCancelSales(user.canCancelSales);
   }, [user]);
 
   const allowedRoles = useMemo(
@@ -938,8 +902,6 @@ export function UserManageDrawer({
     fd.set("role", role);
     fd.set("branchId", branchId);
     if (active) fd.set("active", "yes");
-    if (role !== "CS_AGENT") fd.set("menuScope", menuScope);
-    if (role === "ACCOUNTANT" && canCancelSales) fd.set("canCancelSales", "yes");
 
     startEdit(async () => {
       const res = await updateUserAction(initialAdminActionState, fd);
@@ -1039,8 +1001,7 @@ export function UserManageDrawer({
 
             {user.openCustodyId ? (
               <div className="admin-inline-warn">
-                في ذمّة هذا الموظف <strong>عهدة نقدية مفتوحة (#{user.openCustodyId})</strong>. لا يُسمح بنقله إلى فرع آخر أو إيقاف حسابه قبل تصفية العهدة وإقفالها من{" "}
-                <Link href="/finance/accounts">الحسابات النقدية</Link>.
+                في ذمّة هذا الموظف <strong>عهدة نقدية مفتوحة (#{user.openCustodyId})</strong>. لا يُسمح بنقله أو إيقافه قبل تصفية العهدة وإقفالها. {financeOn ? <Link href="/finance/accounts">الحسابات النقدية</Link> : "المالية معطّلة؛ تواصل مع مسؤول النظام للمعالجة المعتمدة."}
               </div>
             ) : null}
 
@@ -1114,22 +1075,6 @@ export function UserManageDrawer({
                 </select>
               </div>
 
-              {role !== "CS_AGENT" ? (
-                <div className="field">
-                  <label htmlFor={`u-scope-${user.id}`}>نطاق القائمة</label>
-                  <select
-                    id={`u-scope-${user.id}`}
-                    value={menuScope}
-                    onChange={(e) => setMenuScope(e.target.value as MenuScope)}
-                  >
-                    {MENU_SCOPES.map((value) => (
-                      <option key={value} value={value}>
-                        {MENU_SCOPE_LABELS[value]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ) : null}
             </div>
 
             <div className="admin-checks-row">
@@ -1141,17 +1086,6 @@ export function UserManageDrawer({
                 />
                 <span>الحساب نشط ومسموح له بالدخول</span>
               </label>
-
-              {role === "ACCOUNTANT" && actorRole === "MANAGER" ? (
-                <label className="field-keyboard">
-                  <input
-                    type="checkbox"
-                    checked={canCancelSales}
-                    onChange={(e) => setCanCancelSales(e.target.checked)}
-                  />
-                  <span>يمتلك صلاحية إلغاء فواتير البيع</span>
-                </label>
-              ) : null}
             </div>
 
             {emailDuplicate ? (

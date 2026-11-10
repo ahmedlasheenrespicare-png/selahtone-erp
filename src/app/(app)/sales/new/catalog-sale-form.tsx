@@ -1478,9 +1478,7 @@ export default function CatalogSaleForm({
                   const selected = method === opt.value;
                   const cashHint =
                     opt.value === "CASH" && financeOn
-                      ? hasOpenCustody
-                        ? "يدخل ضمن عهدتك النقدية"
-                        : "نقدي مسجّل على مبيعات الفرع"
+                      ? "مؤقتًا: عهدة مفتوحة للمسجّل دون طلب تسوية أو جرد مفتوح في فرع الفاتورة"
                       : opt.shortHint;
                   return (
                     <button

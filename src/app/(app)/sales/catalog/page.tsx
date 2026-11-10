@@ -2,12 +2,13 @@ import Link from "next/link";
 
 import { requireSession } from "@/lib/auth";
 import { listCatalogAudit, loadSalesCatalog } from "@/lib/catalog-sales";
-import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
+
 import { prisma } from "@/lib/prisma";
 import {
   CatalogCreateForms, CategoryActiveForm, CategoryEditForm,
   FieldActiveForm, FieldEditForm, TypeActiveForm, TypeEditForm,
 } from "./catalog-forms";
+import { requirePageAccess, writeAccessAllowed } from "@/lib/access-control-server";
 
 export const dynamic = "force-dynamic";
 
@@ -20,8 +21,21 @@ export default async function SalesCatalogPage({
 }: {
   searchParams?: Promise<{ q?: string; status?: string }>;
 }) {
-  await requireMenuScopeAccess("/sales/catalog");
+  await requirePageAccess("/sales/catalog");
   const session = await requireSession();
+  const [canCreateCategory, canEditCategory, canChangeCategoryStatus,
+    canCreateType, canEditType, canChangeTypeStatus,
+    canCreateField, canEditField, canChangeFieldStatus] = await Promise.all([
+    writeAccessAllowed("/sales/catalog#create-category"),
+    writeAccessAllowed("/sales/catalog#edit-category"),
+    writeAccessAllowed("/sales/catalog#change-category-status"),
+    writeAccessAllowed("/sales/catalog#create-type"),
+    writeAccessAllowed("/sales/catalog#edit-type"),
+    writeAccessAllowed("/sales/catalog#change-type-status"),
+    writeAccessAllowed("/sales/catalog#create-field"),
+    writeAccessAllowed("/sales/catalog#edit-field"),
+    writeAccessAllowed("/sales/catalog#change-field-status"),
+  ]);
   if (session.role !== "MANAGER") {
     return <div className="inv-page"><div className="inv-alert inv-alert--error">إدارة أصناف البيع متاحة للمدير فقط.</div><Link href="/sales" className="inv-back">العودة إلى الفواتير</Link></div>;
   }
@@ -111,25 +125,25 @@ export default async function SalesCatalogPage({
       </form>
     ) : null}
 
-    {!catalog.length ? <div className="inv-panel inv-empty">لا توجد أصناف بعد. أضف التصنيف الأول من النموذج أدناه.</div> : !filteredCatalog.length ? <div className="inv-panel inv-empty">لا توجد تصنيفات أو أنواع مطابقة للبحث الحالي.</div> : <div className="sale-stack">
+    {!catalog.length ? <div className="inv-panel inv-empty">لا توجد أصناف بعد.</div> : !filteredCatalog.length ? <div className="inv-panel inv-empty">لا توجد تصنيفات أو أنواع مطابقة للبحث الحالي.</div> : <div className="sale-stack">
       {filteredCatalog.map((category) => <section className="inv-panel" key={category.id} aria-labelledby={`cat-${category.id}`}>
         <div className="inv-panel__heading"><h2 id={`cat-${category.id}`}>{category.name}</h2>
           <p>الرمز <bdi dir="ltr">{category.code}</bdi> · {category.isActive ? "نشط" : "موقوف"} · {category.types.length} نوعًا</p></div>
         <div className="inv-panel__body sale-stack">
-          <CategoryEditForm id={category.id} nameLabel={`اسم تصنيف ${category.name}`} initialName={category.name} initialSort={category.sortOrder} submitLabel="حفظ التصنيف" />
-          <CategoryActiveForm id={category.id} active={category.isActive} reasonLabel={`سبب تغيير حالة تصنيف ${category.name}`} />
+          {canEditCategory && <CategoryEditForm id={category.id} nameLabel={`اسم تصنيف ${category.name}`} initialName={category.name} initialSort={category.sortOrder} submitLabel="حفظ التصنيف" />}
+          {canChangeCategoryStatus && <CategoryActiveForm id={category.id} active={category.isActive} reasonLabel={`سبب تغيير حالة تصنيف ${category.name}`} />}
           {category.types.map((type) => {
             const soldCount = usageByTypeId.get(type.id) ?? 0;
             return <div className="sale-product" key={type.id}>
             <div className="sale-product__heading"><div><h3>{type.name}</h3>
               <p>{type.isActive ? "نشط" : "موقوف"} · {type.fields.length} حقلًا · <strong>استُخدم في {soldCount} بند بيع</strong></p></div></div>
-            <TypeEditForm id={type.id} nameLabel={`اسم نوع ${type.name}`} initialName={type.name} initialSort={type.sortOrder} submitLabel="حفظ النوع" />
-            <TypeActiveForm id={type.id} active={type.isActive} reasonLabel={`سبب تغيير حالة نوع ${type.name}`} />
+            {canEditType && <TypeEditForm id={type.id} nameLabel={`اسم نوع ${type.name}`} initialName={type.name} initialSort={type.sortOrder} submitLabel="حفظ النوع" />}
+            {canChangeTypeStatus && <TypeActiveForm id={type.id} active={type.isActive} reasonLabel={`سبب تغيير حالة نوع ${type.name}`} />}
             {type.fields.map((field) => <div className="sale-product" key={field.id}>
               <div className="sale-product__heading"><div><h4>{field.label}</h4>
                 <p><bdi dir="ltr">{field.key}</bdi> · {field.required ? "لازم" : "اختياري"} · {field.isActive ? "نشط" : "موقوف"}</p></div></div>
-              <FieldEditForm id={field.id} nameLabel={`عنوان حقل ${field.label}`} initialName={field.label} initialSort={field.sortOrder} initialRequired={field.required} submitLabel="حفظ الحقل" />
-              <FieldActiveForm id={field.id} active={field.isActive} reasonLabel={`سبب تغيير حالة حقل ${field.label}`} />
+              {canEditField && <FieldEditForm id={field.id} nameLabel={`عنوان حقل ${field.label}`} initialName={field.label} initialSort={field.sortOrder} initialRequired={field.required} submitLabel="حفظ الحقل" />}
+              {canChangeFieldStatus && <FieldActiveForm id={field.id} active={field.isActive} reasonLabel={`سبب تغيير حالة حقل ${field.label}`} />}
             </div>)}
           </div>;
           })}
@@ -138,10 +152,11 @@ export default async function SalesCatalogPage({
     </div>}
 
     <div className="sale-grid">
-      <div className="sale-stack"><CatalogCreateForms
+      <div className="sale-stack">{(canCreateCategory || canCreateType || canCreateField) && <CatalogCreateForms
+        canCreateCategory={canCreateCategory} canCreateType={canCreateType} canCreateField={canCreateField}
         categories={catalog.map((category) => ({ id: category.id, label: category.name }))}
         types={catalog.flatMap((category) => category.types.map((type) => ({ id: type.id, label: `${category.name} — ${type.name}` })))}
-      /></div>
+      />}</div>
       <aside className="inv-side"><h2>سجل التغييرات</h2>
         {!audit.length ? <p>لا تغييرات مسجلة بعد.</p> : <ul className="sale-ledger">{audit.map((row) => <li key={row.id}>
           <span>{ENTITY_LABEL[row.entity] ?? row.entity} · {ACTION_LABEL[row.action] ?? row.action} · {row.actor} · {dateFormatter.format(row.createdAt)}<br />{row.reason}</span>

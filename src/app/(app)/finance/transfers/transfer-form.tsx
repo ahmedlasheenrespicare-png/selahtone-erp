@@ -304,7 +304,7 @@ export default function TransferForm({
           {canManage && (!branchVault || branchCustodies.length === 0) ? (
             <div className="fin-alert fin-alert--warning" style={{ marginBottom: 14 }}>
               {!branchVault
-                ? "لا توجد خزنة مفتوحة لهذا الفرع بعد — افتح خزنة الفرع بجرد فعلي من «الحسابات النقدية»."
+                ? "لا توجد خزنة مفتوحة لهذا الفرع. راجع حالتها؛ إن لم تُفتح سابقًا يمكن فتحها بجرد فعلي، أما المقفلة فتحتاج مراجعة مستقلة."
                 : "لا توجد عُهَد موظفين مفتوحة في هذا الفرع حاليًا."}
             </div>
           ) : null}
@@ -538,6 +538,7 @@ export default function TransferForm({
             <input type="checkbox" name="actuallyTransferred" value="yes" required />
             <span>أقر بأن النقد سُلِّم واستُلم فعليًا يدًا بيد في هذه اللحظة.</span>
           </label>
+          <p className="fin-field__hint">الإقرار والسجل لا يثبتان الاستلام المادي أو توقيته.</p>
         </div>
       ) : null}
 

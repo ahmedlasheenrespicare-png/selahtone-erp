@@ -25,6 +25,31 @@ function request(overrides: Partial<ReceiptInputRaw> = {}): ReceiptInputRaw {
 async function expectProblem(fn: () => Promise<unknown>, pattern: RegExp) {
   await assert.rejects(fn, (error: unknown) => error instanceof InventoryProblem && pattern.test(error.message));
 }
+/** P2002 injection after receipt lookup, then an optional fixture mutation. */
+function injectReceiptConflict(client:ClientType,afterAbort:()=>Promise<void>):ClientType {
+  let injected=false;
+  return new Proxy(client,{get(target,key,receiver) {
+    if(key!=="$transaction") return Reflect.get(target,key,receiver);
+    return async (work:(tx:unknown)=>Promise<unknown>,options:unknown)=>{
+      if(injected) return target.$transaction(work as never,options as never);
+      injected=true;
+      try {
+        return await target.$transaction(async tx=>{
+          const wrapped=new Proxy(tx,{get(obj,prop,recv) {
+            if(prop!=="inventoryReceipt") return Reflect.get(obj,prop,recv);
+            const delegate=tx.inventoryReceipt;
+            return new Proxy(delegate,{get(d,k,r) {
+              if(k!=="findUnique") return Reflect.get(d,k,r);
+              return async (...args:Parameters<typeof delegate.findUnique>)=>{await delegate.findUnique(...args);throw Object.assign(new Error("synthetic unique"),{code:"P2002"});};
+            }});
+          }});
+          return work(wrapped);
+        },options as never);
+      } catch(error) {await afterAbort();throw error;}
+    };
+  }}) as ClientType;
+}
+
 async function seedOpening(pg: PGlite) {
   await pg.query(`INSERT INTO inventory_openings(request_id, request_hash, warehouse_id, product_id, quantity, unit_cost, created_by_id)
     VALUES ($1::uuid, $2, 1, 1, 1, 10, 1)`, [randomUUID(), "a".repeat(64)]);
@@ -85,6 +110,9 @@ test("isolated receipt migration and transactional stock receiving", { timeout: 
     await assert.rejects(() => pg!.exec("INSERT INTO inventory_serials(opening_id,receipt_id,serial_number,serial_key) VALUES(NULL,NULL,'BAD','BAD')"));
     // The generated client also includes the draft sales serial-state column.
     await pg.exec(commerceUpgrade);
+    // The legacy baseline predates this current Prisma user field; add only to
+    // the disposable test fixture so real receipt authorization can run.
+    await pg.exec("ALTER TABLE users ADD COLUMN IF NOT EXISTS can_cancel_sales BOOLEAN NOT NULL DEFAULT false");
     db = new TestClient({ adapter: new PrismaPGlite(pg) as never });
     const client = db;
 
@@ -101,6 +129,16 @@ test("isolated receipt migration and transactional stock receiving", { timeout: 
       assert.equal(await client.inventorySerial.count({ where: { receiptId: BigInt(saved.id) } }), 2);
       assert.equal(await client.inventorySerial.count({ where: { openingId: 1n } }), 1);
       assert.equal((await receiveInventoryStock(client, 3n, receipt)).replayed, true);
+      const duplicate=()=>injectReceiptConflict(client,async()=>{});
+      assert.deepEqual(await receiveInventoryStock(duplicate(),3n,receipt),{id:saved.id,replayed:true});
+      await expectProblem(()=>receiveInventoryStock(duplicate(),3n,{...receipt,unitCost:"21"}),/بيانات مختلفة/);
+      const suspended=injectReceiptConflict(client,async()=>{await client.$executeRawUnsafe("UPDATE users SET status='SUSPENDED' WHERE id=3");});
+      try {await expectProblem(()=>receiveInventoryStock(suspended,3n,receipt),/موظف الفرع فقط/);} finally {await client.$executeRawUnsafe("UPDATE users SET status='ACTIVE' WHERE id=3");}
+      const transferred=injectReceiptConflict(client,async()=>{await client.$executeRawUnsafe("UPDATE users SET branch_id=2 WHERE id=3");});
+      try {await expectProblem(()=>receiveInventoryStock(transferred,3n,receipt),/مستودعات فرعه/);} finally {await client.$executeRawUnsafe("UPDATE users SET branch_id=1 WHERE id=3");}
+      const stopped=injectReceiptConflict(client,async()=>{await client.$executeRawUnsafe("UPDATE products SET is_active=false WHERE id=1");});
+      try {await expectProblem(()=>receiveInventoryStock(stopped,3n,receipt),/الصنف غير متاح/);} finally {await client.$executeRawUnsafe("UPDATE products SET is_active=true WHERE id=1");}
+      assert.equal(await client.inventoryReceipt.count({where:{requestId:receipt.requestId}}),1);
       await expectProblem(() => receiveInventoryStock(client, 3n, { ...receipt, unitCost: "21" }), /بيانات مختلفة/);
       assert.equal((await client.stockLevel.findUniqueOrThrow({ where: { id: level.id } })).qtyOnHand.toFixed(2), "3.00");
     });

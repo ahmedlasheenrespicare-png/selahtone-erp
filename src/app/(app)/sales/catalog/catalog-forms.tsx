@@ -25,14 +25,16 @@ function Alert({ state }: { state: CatalogActionState }) {
 }
 
 /** كل تغيير يُرسل سببًا واضحًا، ولا يُحذف أي صنف: الإيقاف فقط. */
-export function CatalogCreateForms({ categories, types }: { categories: Option[]; types: Option[] }) {
+export function CatalogCreateForms({ categories, types, canCreateCategory, canCreateType, canCreateField }: {
+  categories: Option[]; types: Option[]; canCreateCategory: boolean; canCreateType: boolean; canCreateField: boolean;
+}) {
   return <div className="sale-stack">
-    <section className="inv-panel" aria-labelledby="catalog-add-category"><div className="inv-panel__heading"><h2 id="catalog-add-category">إضافة تصنيف</h2><p>مثل: بطاريات، قوالب، صيانة، سماعة، أخرى.</p></div>
-      <div className="inv-panel__body"><CategoryForm /></div></section>
-    <section className="inv-panel" aria-labelledby="catalog-add-type"><div className="inv-panel__heading"><h2 id="catalog-add-type">إضافة نوع داخل تصنيف</h2><p>مثل: مقاس ١٣ ضمن البطاريات، أو «سوفت» ضمن القوالب.</p></div>
-      <div className="inv-panel__body"><TypeForm categories={categories} /></div></section>
-    <section className="inv-panel" aria-labelledby="catalog-add-field"><div className="inv-panel__heading"><h2 id="catalog-add-field">إضافة حقل لنوع</h2><p>مثل: «نوع السماعة» و«بيان الحالة» و«بيان الصيانة» لنوع الصيانة.</p></div>
-      <div className="inv-panel__body"><FieldForm types={types} /></div></section>
+    {canCreateCategory && <section className="inv-panel" aria-labelledby="catalog-add-category"><div className="inv-panel__heading"><h2 id="catalog-add-category">إضافة تصنيف</h2><p>مثل: بطاريات، قوالب، صيانة، سماعة، أخرى.</p></div>
+      <div className="inv-panel__body"><CategoryForm /></div></section>}
+    {canCreateType && <section className="inv-panel" aria-labelledby="catalog-add-type"><div className="inv-panel__heading"><h2 id="catalog-add-type">إضافة نوع داخل تصنيف</h2><p>مثل: مقاس ١٣ ضمن البطاريات، أو «سوفت» ضمن القوالب.</p></div>
+      <div className="inv-panel__body"><TypeForm categories={categories} /></div></section>}
+    {canCreateField && <section className="inv-panel" aria-labelledby="catalog-add-field"><div className="inv-panel__heading"><h2 id="catalog-add-field">إضافة حقل لنوع</h2><p>مثل: «نوع السماعة» و«بيان الحالة» و«بيان الصيانة» لنوع الصيانة.</p></div>
+      <div className="inv-panel__body"><FieldForm types={types} /></div></section>}
   </div>;
 }
 
@@ -91,7 +93,7 @@ function RowEditForm({
   const [state, formAction, pending] = useActionState(action, initialCatalogActionState);
   return <form action={formAction} className="sale-inline" onSubmit={() => setRequestId(newRequestId())}>
     <input type="hidden" name="requestId" value={requestId} /><input type="hidden" name="id" value={id} /><input type="hidden" name="reviewed" value="yes" />
-    <div className="inv-field"><label>الاسم</label><input name="nameAr" defaultValue={initialName} maxLength={120} required disabled={pending} aria-label={nameLabel} /></div>
+    <div className="inv-field"><label>الاسم</label><input name={withRequired ? "labelAr" : "nameAr"} defaultValue={initialName} maxLength={120} required disabled={pending} aria-label={nameLabel} /></div>
     <div className="inv-field"><label>الترتيب</label><input name="sortOrder" dir="ltr" inputMode="numeric" defaultValue={String(initialSort)} disabled={pending} aria-label="ترتيب العرض" /></div>
     {withRequired && <div className="inv-field"><label>اللزوم</label><select name="isRequired" defaultValue={initialRequired ? "yes" : "no"} disabled={pending} aria-label="لازم للموظف">
       <option value="yes">لازم</option><option value="no">اختياري</option></select></div>}

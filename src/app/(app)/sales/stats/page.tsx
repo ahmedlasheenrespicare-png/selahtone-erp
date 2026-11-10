@@ -15,6 +15,7 @@ import {
   SalesStatsActionToolbar,
   SalesStatsTopItemsPanel,
 } from "./sales-stats-interactive";
+import { getAccessContext, requirePageAccess } from "@/lib/access-control-server";
 
 export const dynamic = "force-dynamic";
 
@@ -44,10 +45,13 @@ export default async function SalesStatsPage({
 }: {
   searchParams: Promise<{ period?: string; branch?: string }>;
 }) {
+  await requirePageAccess("/sales/stats");
+
   const session = await requireSession();
   // الإحصاء ملخّص مالي وتجاري للإدارة؛ موظف الكاونتر يرى مبيعاته في اللوحة.
   if (session.role !== "MANAGER") redirect("/sales");
 
+  const showProfitability = (await getAccessContext()).isAllowed("/sales/stats#profitability");
   const params = await searchParams;
   const period: Period = isPeriod(params.period) ? params.period : "month";
   const scope = branchScope(session);
@@ -112,12 +116,12 @@ export default async function SalesStatsPage({
       value: `${exec.netCollectedFormatted} ج.م`,
       kind: "money",
     },
-    {
+    ...(showProfitability ? [{
       key: "stock-profit",
       label: "ربح المخزوني",
       value: `${exec.stockProfitFormatted} ج.م`,
-      kind: "money",
-    },
+      kind: "money" as const,
+    }] : []),
     {
       key: "invoices-count",
       label: "فواتير نشطة",
@@ -126,6 +130,12 @@ export default async function SalesStatsPage({
     },
   ];
 
+  // Explicit allowlist: no cost/profit data is serialized to client components when denied.
+  const topItems = showProfitability ? exec.topItems : exec.topItems.map((item) => ({
+    key: item.key, name: item.name, category: item.category, isStock: item.isStock,
+    quantityFormatted: item.quantityFormatted, quantityNum: item.quantityNum, lines: item.lines,
+    revenueFormatted: item.revenueFormatted, revenueNum: item.revenueNum, sharePct: item.sharePct,
+  }));
   const generatedAt = dateTimeFormatter.format(new Date());
 
   const categoryBreakdown = (() => {
@@ -159,9 +169,9 @@ export default async function SalesStatsPage({
             <span className="sales-eyebrow-dot" aria-hidden="true" />
             مركز تحليلات المبيعات · {branchScopeLabel}
           </p>
-          <h1>إحصائيات المبيعات والربحية</h1>
+          <h1>إحصائيات المبيعات{showProfitability ? " والربحية" : ""}</h1>
           <p>
-            تحليل صافي المبيعات والتحصيلات وهوامش الربح ومقارنة أداء الفروع والموظفين ({periodLabel}).
+            تحليل صافي المبيعات والتحصيلات{showProfitability ? " وهوامش الربح" : ""} ومقارنة أداء الفروع والموظفين ({periodLabel}).
           </p>
         </div>
         <div className="inv-actions sales-stats-head-actions">
@@ -180,13 +190,12 @@ export default async function SalesStatsPage({
               netCollectedFormatted: exec.netCollectedFormatted,
               collectionRatePct: exec.collectionRatePct,
               outstandingFormatted: exec.outstandingFormatted,
-              stockProfitFormatted: exec.stockProfitFormatted,
-              stockMarginPct: exec.stockMarginPct,
+              ...(showProfitability ? { profitability: { stockProfitFormatted: exec.stockProfitFormatted, stockMarginPct: exec.stockMarginPct } } : {}),
               catalogRevenueFormatted: exec.catalogRevenueFormatted,
               paymentMethods: exec.paymentMethods,
               branchPerformance: exec.branchPerformance,
               staffPerformance: exec.staffPerformance,
-              topItems: exec.topItems,
+              topItems,
             }}
           />
           <Link className="inv-button inv-button--secondary no-print" href="/sales">
@@ -403,7 +412,7 @@ export default async function SalesStatsPage({
         </div>
 
         {/* المؤشر ٣: الربحية وأداء الأصناف */}
-        <div className="dashboard-cards-grid__item">
+        {showProfitability ? <div className="dashboard-cards-grid__item">
           <PantherSpotlightCard
             layout="wallet"
             icon="netProfit"
@@ -417,7 +426,7 @@ export default async function SalesStatsPage({
             actionHref={exec.profitabilitySpotlight.actionHref}
             actionLabel={exec.profitabilitySpotlight.actionLabel}
           />
-        </div>
+        </div> : null}
       </div>
 
       {/* شريط المؤشرات التنفيذية السريعة (يظهر في الشاشة وفي الطباعة) */}
@@ -462,7 +471,7 @@ export default async function SalesStatsPage({
           </div>
         </article>
 
-        <article className="sales-kpi-card">
+        {showProfitability ? <article className="sales-kpi-card">
           <span className="sales-kpi-card__icon" aria-hidden="true">
             <AppIcon name="stockValue" />
           </span>
@@ -476,7 +485,7 @@ export default async function SalesStatsPage({
               {exec.catalogRevenueFormatted} ج.م
             </small>
           </div>
-        </article>
+        </article> : null}
 
         <article className={`sales-kpi-card${exec.outstandingNum > 0 ? " is-alert" : ""}`}>
           <span className="sales-kpi-card__icon" aria-hidden="true">
@@ -657,7 +666,7 @@ export default async function SalesStatsPage({
       ) : null}
 
       {/* لوحة أكثر الأصناف مبيعًا التفاعلية */}
-      <SalesStatsTopItemsPanel items={exec.topItems} />
+      <SalesStatsTopItemsPanel items={topItems} showProfitability={showProfitability} />
     </div>
   );
 }

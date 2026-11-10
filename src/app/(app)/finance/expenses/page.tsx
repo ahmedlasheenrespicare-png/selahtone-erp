@@ -1,3 +1,5 @@
+import { getAccessContext, requirePageAccess } from "@/lib/access-control-server";
+import { writeAllowedForKeys } from "@/lib/access-control";
 import Link from "next/link";
 import DashboardWallet, { type WalletPocketItem } from "@/app/(app)/dashboard/dashboard-wallet";
 import { AppIcon } from "@/components/app-icon";
@@ -36,7 +38,11 @@ export default async function ExpensesPage({
 }: {
   searchParams?: Promise<{ category?: string }>;
 }) {
+  await requirePageAccess("/finance/expenses");
   const { session, canManage } = await financePage();
+  const access = await getAccessContext();
+  const canCreateExpense = writeAllowedForKeys(access.hidden, "/finance/expenses/new");
+  const canViewReviewQueue = canManage && writeAllowedForKeys(access.hidden, "/finance/expenses#review");
   const resolvedParams = searchParams ? await searchParams : undefined;
   const initialCategory =
     typeof resolvedParams?.category === "string" && resolvedParams.category.trim()
@@ -45,9 +51,9 @@ export default async function ExpensesPage({
 
   const [expenses, branches] = await Promise.all([
     financeRead(session, (tx) => listExpenses({ serializable: (work) => work(tx) }, session.id)),
-    prisma.branch.findMany({ select: { id: true, nameAr: true } }),
+    prisma.branch.findMany({ select: { id: true, nameAr: true, code: true } }),
   ]);
-  const branchNames = new Map(branches.map((branch) => [branch.id.toString(), branch.nameAr]));
+  const branchNames = new Map(branches.map((branch) => [branch.id.toString(), `${branch.nameAr} · ${branch.code}`]));
 
   let totalCents = 0n;
   let paidCents = 0n;
@@ -56,12 +62,12 @@ export default async function ExpensesPage({
   let pendingCount = 0;
   let approvedCount = 0;
   let paidCount = 0;
-  const branchSet = new Set<string>();
+  const branchSet = new Map<string, string>();
   const categoryTotals = new Map<string, { total: bigint; paid: bigint; count: number }>();
   const branchTotals = new Map<string, { total: bigint; paid: bigint; count: number }>();
 
   const rows: FinanceExpenseRow[] = expenses.map((expense) => {
-    const branchName = branchNames.get(expense.branchId) ?? "الفرع";
+    const branchName = branchNames.get(expense.branchId) ?? `فرع ${expense.branchId}`;
     const cents = moneyToCents(expense.amount);
     totalCents += cents;
     if (expense.status === "PENDING") {
@@ -74,7 +80,7 @@ export default async function ExpensesPage({
       paidCount += 1;
       paidCents += cents;
     }
-    branchSet.add(branchName);
+    branchSet.set(expense.branchId, branchName);
 
     const catStat = categoryTotals.get(expense.categorySnapshot) ?? { total: 0n, paid: 0n, count: 0 };
     catStat.total += cents;
@@ -82,15 +88,16 @@ export default async function ExpensesPage({
     catStat.count += 1;
     categoryTotals.set(expense.categorySnapshot, catStat);
 
-    const brStat = branchTotals.get(branchName) ?? { total: 0n, paid: 0n, count: 0 };
+    const brStat = branchTotals.get(expense.branchId) ?? { total: 0n, paid: 0n, count: 0 };
     brStat.total += cents;
     if (expense.status === "PAID") brStat.paid += cents;
     brStat.count += 1;
-    branchTotals.set(branchName, brStat);
+    branchTotals.set(expense.branchId, brStat);
 
     return {
       id: expense.id,
       expenseDate: expense.expenseDate,
+      branchId: expense.branchId,
       branchName,
       categorySnapshot: expense.categorySnapshot,
       description: expense.description,
@@ -179,7 +186,7 @@ export default async function ExpensesPage({
 
     for (const exp of monthExpensesChrono) {
       const amt = moneyToCents(exp.amount);
-      const bName = branchNames.get(exp.branchId) ?? "الفرع";
+      const bName = branchNames.get(exp.branchId) ?? `فرع ${exp.branchId}`;
       const stLabel = STATUS_LABEL[exp.status] ?? exp.status;
       cumAll += amt;
       if (exp.status === "PAID") cumPaid += amt;
@@ -347,16 +354,19 @@ export default async function ExpensesPage({
   }
 
   if (branchTotals.size > 0) {
-    const brPoints: PantherChartPoint[] = Array.from(branchTotals.entries()).map(([bName, stat], idx) => ({
-      label: bName,
-      shortLabel: bName.replace(/^فرع\s+/, "").slice(0, 10) || `#${idx + 1}`,
-      value: Number(stat.total) / 100,
-      formattedValue: `${displayMoney(stat.total)} ج.م`,
-      secondaryValue: Number(stat.paid) / 100,
-      secondaryLabel: "المدفوع",
-      secondaryFormatted: `${displayMoney(stat.paid)} ج.م`,
-      detail: `${stat.count} مصروف في ${bName}`,
-    }));
+    const brPoints: PantherChartPoint[] = Array.from(branchTotals.entries()).map(([branchId, stat]) => {
+      const bName = branchNames.get(branchId) ?? `فرع ${branchId}`;
+      return {
+        label: bName,
+        shortLabel: bName.replace(/^فرع\s+/, ""),
+        value: Number(stat.total) / 100,
+        formattedValue: `${displayMoney(stat.total)} ج.م`,
+        secondaryValue: Number(stat.paid) / 100,
+        secondaryLabel: "المدفوع",
+        secondaryFormatted: `${displayMoney(stat.paid)} ج.م`,
+        detail: `${stat.count} مصروف في ${bName}`,
+      };
+    });
     if (brPoints.length === 1) {
       brPoints.unshift({
         label: "نقطة الأساس",
@@ -431,10 +441,11 @@ export default async function ExpensesPage({
           </p>
         </div>
         <div className="fin-actions">
-          <Link className="fin-button" href="/finance/expenses/new">
+          {canViewReviewQueue ? <Link className="fin-button fin-button--secondary" href="/finance/expenses/reviews">طلبات المراجعة المفتوحة</Link> : null}
+          {canCreateExpense ? <Link className="fin-button" href="/finance/expenses/new">
             <span className="fin-button__plus" aria-hidden="true">+</span>
             <span>تسجيل مصروف</span>
-          </Link>
+          </Link> : null}
           <Link className="fin-button fin-button--secondary" href="/finance/help">
             <span>دليل</span>
           </Link>
@@ -492,7 +503,7 @@ export default async function ExpensesPage({
                           <strong className="stat-grid__value">فتح تفاصيل المصروف</strong>
                           <AppIcon name="arrow" className="stat-grid__arrow" />
                         </Link>
-                      ) : (
+                      ) : canCreateExpense ? (
                         <Link
                           href="/finance/expenses/new"
                           className="stat-grid__item is-link fin-wallet-action-link"
@@ -501,7 +512,7 @@ export default async function ExpensesPage({
                           <strong className="stat-grid__value">تسجيل مصروف جديد</strong>
                           <AppIcon name="arrow" className="stat-grid__arrow" />
                         </Link>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                 </article>
@@ -536,7 +547,7 @@ export default async function ExpensesPage({
               tone: monthUnpaidCount > 0 ? "negative" : "positive",
             }}
             series={expensesSeries}
-            actionHref="/finance/expenses/new"
+            actionHref={canCreateExpense ? "/finance/expenses/new" : undefined}
             actionLabel="تسجيل بند مصروف جديد"
           />
         </div>
@@ -571,7 +582,7 @@ export default async function ExpensesPage({
               tone: unpaidLedgerCount > 0 ? "negative" : "positive",
             }}
             series={workflowSeries}
-            actionHref={rows.length > 0 ? "#expenses-directory" : "/finance/expenses/new"}
+            actionHref={rows.length > 0 ? "#expenses-directory" : canCreateExpense ? "/finance/expenses/new" : undefined}
             actionLabel={rows.length > 0 ? "مراجعة جدول المصروفات" : "تسجيل مصروف جديد"}
           />
         </div>
@@ -621,10 +632,10 @@ export default async function ExpensesPage({
       {rows.length === 0 ? (
         <FinEmptyState icon="expenses" title="لا توجد مصروفات مسجلة بعد">
           <p>ابدأ بتسجيل أول مصروف ليظهر هنا مع حالة الاعتماد والصرف الفعلي.</p>
-          <Link className="fin-button" href="/finance/expenses/new">
+          {canCreateExpense ? <Link className="fin-button" href="/finance/expenses/new">
             <span className="fin-button__plus" aria-hidden="true">+</span>
             <span>تسجيل مصروف</span>
-          </Link>
+          </Link> : null}
         </FinEmptyState>
       ) : (
         <>
@@ -634,7 +645,7 @@ export default async function ExpensesPage({
           </div>
           <FinanceExpensesView
             rows={rows}
-            branches={Array.from(branchSet)}
+            branches={Array.from(branchSet, ([id, label]) => ({ id, label }))}
             canManage={canManage}
             initialCategory={initialCategory}
           />

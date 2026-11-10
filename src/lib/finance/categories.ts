@@ -8,8 +8,10 @@ import { createHash } from "node:crypto";
 import { FinanceProblem, type Actor, type FinanceCategoryPort, type FinanceCategoryRow, type FinanceDatabase, type FinanceTransaction, type WriteResult } from "./types";
 import { canManageFinance } from "./policy";
 import { identifier, inputObject, requestId, text } from "./validation";
+import { requireSavedResultLink, saveResultLink } from "./request-result-link";
 
 type Row=Record<string,unknown>;
+type IdRow=Row & {id:string};
 type ActorRow=Row & Actor;
 type CategoryRow=Row & {id:string;code:string;name:string;active:boolean;revision:number;createdBy:string|null;updatedBy:string|null};
 type Prior=Row & {hash:string;actorId:string;action:string;categoryId:string};
@@ -39,10 +41,15 @@ async function run(db:FinanceDatabase,actorIdRaw:unknown,action:"CREATE"|"EDIT",
  for(let attempt=0;attempt<4;attempt++){
   try{return await db.serializable(async tx=>{
    await guard(tx);await management(tx,actor);
-   const old=await previous(tx,id);if(old)return replay(old,actor,action,hash);
+   const old=await previous(tx,id);
+   if(old){
+    await requireSavedResultLink(tx,id,{action:old.action,actorId:old.actorId,resultId:old.categoryId},candidateCategoryPort(tx));
+    return replay(old,actor,action,hash);
+   }
    const categoryId=await work(tx,actor);
    await tx.query(`INSERT INTO finance.category_requests(request_id,request_hash,actor_id,action,category_id)
     VALUES($1::uuid,$2,$3::bigint,$4,$5::int)`,[id,hash,actor,action,categoryId]);
+   await saveResultLink(tx,id,action,actor,"public.expense_categories",categoryId,candidateCategoryPort(tx));
    return {id:categoryId,replayed:false};
   });}catch(error){
    const code=dbCode(error);
@@ -52,7 +59,10 @@ async function run(db:FinanceDatabase,actorIdRaw:unknown,action:"CREATE"|"EDIT",
    }
    if(code==="23505"){
     let old:Prior|null;
-    try{old=await db.serializable(async tx=>{await guard(tx);await management(tx,actor);return previous(tx,id);});}
+    try{old=await db.serializable(async tx=>{await guard(tx);await management(tx,actor);
+     const prior=await previous(tx,id);
+     if(prior)await requireSavedResultLink(tx,id,{action:prior.action,actorId:prior.actorId,resultId:prior.categoryId},candidateCategoryPort(tx));
+     return prior;});}
     catch(readError){if((dbCode(readError)==="40001"||dbCode(readError)==="40P01")&&attempt<3)continue;throw readError;}
     if(old)return replay(old,actor,action,hash);
     throw new FinanceProblem("duplicate","تعذر إنشاء البند بسبب تعارض في الرمز؛ افتح نموذجًا جديدًا.");
@@ -89,6 +99,11 @@ export function candidateCategoryPort(tx:FinanceTransaction):FinanceCategoryPort
    return rows.map(row=>({...row,snapshot:categorySnapshot(row)}));
   },
   lock:async(id)=>{await guard(tx);return locked(tx,id);},
+  exists:async(id)=>{await guard(tx);
+   if(BigInt(id)>2147483647n)return false;
+   const rows=await tx.query<IdRow>(`SELECT id::text AS id FROM public.expense_categories WHERE id=$1::int`,[id]);
+   return rows.rows[0]?.id===id;
+  },
   create:async(name,actorId,id)=>{await guard(tx);await requireNameAvailable(tx,name,null);
    // Generate a legacy-compatible code without changing the old table's defaults.
    // A collision is rejected by the existing unique constraint.

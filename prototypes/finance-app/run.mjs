@@ -63,7 +63,34 @@ const baseFiles = [
 for (const rel of baseFiles) copy(rel);
 
 if (testMode) {
-  cpSync(join(root, "prototypes/finance-app/overlay"), dir, { recursive: true });
+  // The overlay is the lab's own finance UI (one financeAction server action).
+  // The copied modern finance UI targets a different actions.ts and would be
+  // type-checked against the lab's action, producing a mixed-generation tree.
+  // Replace it with the overlay, keeping only the two read-only notice
+  // components that other copied pages (dashboard) import.
+  const financeUi = join(dir, "src/app/(app)/finance");
+  const sharedNotices = ["period-estimate-notice.tsx", "period-source-warning.tsx"]
+    .map((name) => [name, readFileSync(join(financeUi, name), "utf8")]);
+  rmSync(financeUi, { recursive: true, force: true });
+  mkdirSync(financeUi, { recursive: true });
+  for (const [name, content] of sharedNotices) writeFileSync(join(financeUi, name), content);
+  // layout.tsx (from the overlay) renders the modern AppNavigation copied from
+  // src, which imports the modern navigation-items. The overlay's older copy of
+  // that module must NOT overwrite it, or tsc sees two generations at once.
+  cpSync(join(root, "prototypes/finance-app/overlay"), dir, {
+    recursive: true,
+    filter: (source) => basename(source) !== "navigation-items.ts",
+  });
+  // These three modern sales UI modules target the production sales/actions.ts
+  // and the modern ReturnForm/MovementForm props. The overlay replaces the
+  // pages that import them, so they become orphaned files that tsc would check
+  // against the lab's older actions/forms. Drop them from the disposable copy
+  // only (never from src) so the checked tree is one coherent generation.
+  for (const rel of [
+    "src/app/(app)/sales/[saleId]/refund-accounts.ts",
+    "src/app/(app)/sales/new/catalog-sale-form.tsx",
+    "src/app/(app)/sales/new/warehouse-sale.tsx",
+  ]) rmSync(join(dir, rel), { force: true });
   if (appTest) cpSync(join(root, "prototypes/finance-app/test/integration.test.ts"), join(dir, "tests/finance-lab-app.test.ts"));
   if (cutoverTest) {
     for (const rel of ["prototypes/finance-cutover", "tests/fixtures/finance-cutover.sql"]) copy(rel);

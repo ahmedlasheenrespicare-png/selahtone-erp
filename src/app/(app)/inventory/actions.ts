@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { writeAccessAllowed, WRITE_DENIED_MESSAGE } from "@/lib/access-control-server";
 import { canSeeAllBranches, requireSession } from "@/lib/auth";
 import { inventoryEnabled } from "@/lib/feature-flags";
 import { prisma } from "@/lib/prisma";
@@ -31,6 +32,7 @@ export async function createProductAction(_previous: InventoryActionState, formD
   const blocked = inventoryDisabled();
   if (blocked) return blocked;
   const session = await requireSession();
+  if (!(await writeAccessAllowed("/inventory/new"))) return { status: "error", message: WRITE_DENIED_MESSAGE };
   if (!canSeeAllBranches(session)) return { status: "error", message: "إضافة الأصناف متاحة للمدير والمحاسب فقط." };
   if (text(formData, "reviewed") !== "yes") return { status: "error", message: "راجع بيانات الصنف قبل تأكيد الحفظ." };
 
@@ -69,6 +71,7 @@ export async function createOpeningAction(_previous: InventoryActionState, formD
   const blocked = inventoryDisabled();
   if (blocked) return blocked;
   const session = await requireSession();
+  if (!(await writeAccessAllowed("/inventory/opening"))) return { status: "error", message: WRITE_DENIED_MESSAGE };
   if (!canSeeAllBranches(session)) return { status: "error", message: "تسجيل الأرصدة متاح للمدير والمحاسب فقط." };
   if (text(formData, "reviewed") !== "yes") return { status: "error", message: "راجع الرصيد والأرقام قبل تأكيد الحفظ." };
 
@@ -100,6 +103,7 @@ export async function createReceiptAction(_previous: InventoryActionState, formD
   const blocked = inventoryDisabled();
   if (blocked) return blocked;
   const session = await requireSession();
+  if (!(await writeAccessAllowed("/inventory/receipts/new"))) return { status: "error", message: WRITE_DENIED_MESSAGE };
   if (session.role !== "MANAGER" && session.role !== "CS_AGENT") return { status: "error", message: "تسجيل التوريد متاح للمدير وموظف الفرع فقط." };
   if (text(formData, "reviewed") !== "yes") return { status: "error", message: "راجع تفاصيل التوريد والأرقام قبل تأكيد الحفظ." };
   const raw: ReceiptInputRaw = {

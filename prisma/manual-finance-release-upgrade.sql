@@ -1,7 +1,7 @@
 -- ترقية المالية — ملف يدوي للتنفيذ على قاعدة الإنتاج بعد موافقة منفصلة.
 -- لا يُشغَّل تلقائيًا، ولا ضمن نشر الموقع. اقرأه كاملًا قبل التشغيل.
 --
--- sha256: 6f00bfa0054533e8d653ca93d9ef9d176437d838b06b1ea990ad98f95eef0ed8
+-- sha256: fdc9a14a8b655b77446bd82e8dac4b9fff22f1cce8123cbe65f118eb8a5191dd
 --
 -- شروط قبل التشغيل (كلها لازمة):
 --   1. نسخة حديثة من قاعدة البيانات، ويفضَّل اختبار استعادتها في بيئة معزولة.
@@ -45,7 +45,7 @@ BEGIN
   END IF;
   IF to_regclass('finance_release.migrations') IS NOT NULL THEN
     SELECT checksum INTO previous FROM finance_release.migrations WHERE name='finance_release_upgrade';
-    IF previous IS NOT NULL AND previous <> '6f00bfa0054533e8d653ca93d9ef9d176437d838b06b1ea990ad98f95eef0ed8' THEN
+    IF previous IS NOT NULL AND previous <> 'fdc9a14a8b655b77446bd82e8dac4b9fff22f1cce8123cbe65f118eb8a5191dd' THEN
       RAISE EXCEPTION 'this upgrade file changed after it was applied; stop and review';
     END IF;
   END IF;
@@ -334,6 +334,17 @@ CREATE TABLE IF NOT EXISTS finance.requests (
   result_id BIGINT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+-- Disposable result-identity link. NOT an approved production migration.
+-- Every new command records the table and id it created; a saved request
+-- without a link is refused under the strict lab policy.
+CREATE TABLE IF NOT EXISTS finance.request_results (
+  request_id UUID PRIMARY KEY,
+  action VARCHAR(40) NOT NULL,
+  actor_id BIGINT NOT NULL REFERENCES public.users(id),
+  result_table VARCHAR(64) NOT NULL,
+  result_id BIGINT NOT NULL CHECK (result_id > 0),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE IF NOT EXISTS finance.audit_events (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   entity_type VARCHAR(20) NOT NULL,
@@ -392,10 +403,10 @@ DO $$
 DECLARE previous CHAR(64);
 BEGIN
   SELECT checksum INTO previous FROM finance_release.migrations WHERE name='finance_release_upgrade';
-  IF previous IS NOT NULL AND previous <> '6f00bfa0054533e8d653ca93d9ef9d176437d838b06b1ea990ad98f95eef0ed8' THEN
+  IF previous IS NOT NULL AND previous <> 'fdc9a14a8b655b77446bd82e8dac4b9fff22f1cce8123cbe65f118eb8a5191dd' THEN
     RAISE EXCEPTION 'finance release candidate checksum changed since it was applied';
   END IF;
-  INSERT INTO finance_release.migrations(name,checksum) VALUES ('finance_release_upgrade','6f00bfa0054533e8d653ca93d9ef9d176437d838b06b1ea990ad98f95eef0ed8')
+  INSERT INTO finance_release.migrations(name,checksum) VALUES ('finance_release_upgrade','fdc9a14a8b655b77446bd82e8dac4b9fff22f1cce8123cbe65f118eb8a5191dd')
     ON CONFLICT (name) DO NOTHING;
 END $$;
 

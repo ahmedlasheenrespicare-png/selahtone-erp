@@ -22,7 +22,7 @@ const baselineFiles = ["tests/fixtures/inventory-baseline.sql", "prisma/manual-i
   "prisma/manual-receiving-upgrade.sql", "prisma/manual-commerce-upgrade.sql", "tests/fixtures/finance-legacy-categories.sql"];
 const expectedTables = ["accounts", "expenses", "payments", "expense_reviews", "cash_counts", "opening_corrections",
   "historical_commerce", "reconciliation_cases", "reconciliation_notes", "expense_corrections", "movements",
-  "requests", "audit_events", "category_revisions", "category_audit", "category_requests"];
+  "requests", "request_results", "audit_events", "category_revisions", "category_audit", "category_requests"];
 const zeros = "0".repeat(64);
 
 type Row = Record<string, unknown>;

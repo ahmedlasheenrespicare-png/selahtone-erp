@@ -6,6 +6,7 @@ import { useActionState, useState } from "react";
 import { cancelSettlementAction, requestSettlementAction } from "../actions";
 import { initialFinanceActionState } from "../finance-state";
 import { formatMoney } from "../format";
+import { PeriodEstimateNotice } from "../period-estimate-notice";
 
 export const SETTLEMENT_STATUS_LABEL: Record<string, string> = {
   OPEN: "بانتظار الاعتماد",
@@ -31,15 +32,11 @@ export function SettlementRequestForm({ requestId, accountId, systemBalance, sal
 
   const countedNumber = Number(counted);
   const valid = counted.trim() !== "" && Number.isFinite(countedNumber) && countedNumber >= 0;
-  // رقمان مختلفان وكانا يُعرضان كرقم واحد:
-  // «handover» ما يُسلَّم للخزنة = المعدود − الرصيد النظامي، وهو حصيلة الفترة
-  //   وليس خطأً؛ سماه النموذج قديمًا «زيادة» فصار الموظف يظن حصيلته عجزًا.
-  // «deviation» الفرق عن المتوقَّع = المعدود − المتوقَّع، وهو العجز أو الزيادة
-  //   الحقيقي، وبه يقيس المحرك الانحراف (deviation) عند الاعتماد.
-  const handover = valid ? countedNumber - Number(systemBalance) : null;
+  // A difference against book balance is not the amount physically handed
+  // over; the reviewer chooses the transfer separately, including zero.
+  const bookDifference = valid ? countedNumber - Number(systemBalance) : null;
   const deviation = valid ? countedNumber - Number(expected) : null;
-  // عجزٌ يبتلع معظم المتوقَّع علامةُ خطأٍ في الإدخال لا عجزٌ حقيقي:
-  // فالموظف كثيرًا ما يكتب «ما سيُسلَّم» في حقل «ما بيده». نُنبّه قبل الإرسال.
+  // A large difference prompts review; it is not proof of a mistake or loss.
   const expectedNumber = Number(expected);
   const deviationTooLarge = deviation !== null && expectedNumber > 0 && deviation < 0
     && Math.abs(deviation) > expectedNumber / 2;
@@ -65,10 +62,11 @@ export function SettlementRequestForm({ requestId, accountId, systemBalance, sal
 
       <div className="fin-panel">
         <div className="fin-panel__heading">
-          <h2>الإجمالي المتوقع</h2>
-          <p>عهدة الموظف + مبيعات الفترة − مصروفاتها.</p>
+          <h2>مؤشر الفترة التقديري</h2>
+          <p>رصيد العهدة الدفتري + التحصيلات المحسوبة − مصروفات نقد الموظف المحسوبة؛ مؤشر للمراجعة لا إسناد مؤكد للنقد.</p>
         </div>
         <div className="fin-panel__body">
+          <PeriodEstimateNotice />
           <div className="fin-fields">
             <div className="field fin-field">
               <span className="fin-field__label">رصيد العهدة (النظامي)</span>
@@ -83,7 +81,7 @@ export function SettlementRequestForm({ requestId, accountId, systemBalance, sal
               <span className="fin-field__hint">{formatMoney(expenses)}</span>
             </div>
             <div className="field fin-field">
-              <span className="fin-field__label">الإجمالي المتوقع بيدك</span>
+              <span className="fin-field__label">مؤشر الفترة التقديري</span>
               <span className="fin-field__hint">{formatMoney(expected)}</span>
             </div>
           </div>
@@ -93,7 +91,7 @@ export function SettlementRequestForm({ requestId, accountId, systemBalance, sal
       <div className="fin-panel">
         <div className="fin-panel__heading">
           <h2>النقد المعدود فعليًا</h2>
-          <p>عدد ما بيدك الآن. الفرق عن «الإجمالي المتوقع» هو العجز أو الزيادة الحقيقي.</p>
+          <p>عدد ما بيدك الآن. الفرق عن المؤشر تنبيه للمراجعة، وليس إثباتًا لعجز أو زيادة فعلية.</p>
         </div>
         <div className="fin-panel__body">
           <div className="fin-fields">
@@ -102,16 +100,16 @@ export function SettlementRequestForm({ requestId, accountId, systemBalance, sal
               <input inputMode="decimal" value={counted} onChange={(event) => { setCounted(event.target.value); setReview(false); }} placeholder="0.00" />
               <input type="hidden" name="countedAmount" value={counted} />
             </label>
-            <span className="fin-field__hint">المتوقَّع ١٤٥٠؟ فاكتب ١٤٥٠ — لا تكتب ما ستسلّمه للخزنة.</span>
+            <span className="fin-field__hint">اكتب ما عددته بالفعل كاملًا، لا قيمة المؤشر ولا المبلغ المقترح تسليمه.</span>
             <div className="field fin-field">
-              <span className="fin-field__label">الفرق عن المتوقَّع بيدك</span>
+              <span className="fin-field__label">الفرق عن المؤشر</span>
               <span className="fin-field__hint">
-                {deviation === null ? "—" : `${formatMoney(deviation.toFixed(2))} — ${deviation > 0 ? "زيادة" : deviation < 0 ? "عجز" : "مطابق تمامًا"}`}
+                {deviation === null ? "—" : `${formatMoney(deviation.toFixed(2))} — ${deviation > 0 ? "أعلى من المؤشر" : deviation < 0 ? "أقل من المؤشر" : "مطابق للمؤشر"}`}
               </span>
             </div>
             <div className="field fin-field">
-              <span className="fin-field__label">ما سيُسلَّم للخزنة — <em>محسوب</em></span>
-              <span className="fin-field__hint">{handover === null ? "—" : `${formatMoney(handover.toFixed(2))} ج.م`}</span>
+              <span className="fin-field__label">المعدود ناقص الرصيد الدفتري — ليس مبلغ التحويل</span>
+              <span className="fin-field__hint">{bookDifference === null ? "—" : `${formatMoney(bookDifference.toFixed(2))} ج.م`}</span>
             </div>
             <label className="field fin-field fin-field--wide">
               <span className="fin-field__label">سبب التسوية</span>
@@ -126,7 +124,7 @@ export function SettlementRequestForm({ requestId, accountId, systemBalance, sal
 
         <div className="fin-alert fin-alert--warning" role="alert">
 
-          <strong>تأكّد ممّا كتبتَه.</strong> كتبتَ {formatMoney(countedNumber.toFixed(2))} والمتوقَّع بيدك {formatMoney(expectedNumber.toFixed(2))} — أي عجزًا قدره {formatMoney(Math.abs(deviation ?? 0).toFixed(2))}. فإن كنتَ تقصد «ما ستسلّمه للخزنة»، فاكتب هنا <strong>كل ما بيدك</strong> ({formatMoney(expectedNumber.toFixed(2))}) ويُحسَب المُسلَّم وحده.
+          <strong>تأكّد ممّا كتبتَه.</strong> كتبتَ {formatMoney(countedNumber.toFixed(2))} ومؤشر الفترة {formatMoney(expectedNumber.toFixed(2))} — أي فرقًا عن المؤشر قدره {formatMoney(Math.abs(deviation ?? 0).toFixed(2))}. أعد العد وراجع السجلات؛ اكتب ما عددته بالفعل، وليس قيمة المؤشر.
 
         </div>
 
@@ -145,15 +143,16 @@ export function SettlementRequestForm({ requestId, accountId, systemBalance, sal
           <h2>راجع قبل الإرسال</h2>
           <ul>
             <li>المعدود فعليًا: {formatMoney(counted || "0")}</li>
-            <li>المتوقَّع بيدك: {formatMoney(expected)}</li>
-            <li>الفرق عن المتوقَّع: {deviation === null ? "—" : formatMoney(deviation.toFixed(2))}</li>
-            <li>ما سيُسلَّم للخزنة: {handover === null ? "—" : formatMoney(handover.toFixed(2))}</li>
+            <li>مؤشر الفترة: {formatMoney(expected)}</li>
+            <li>الفرق عن المؤشر: {deviation === null ? "—" : formatMoney(deviation.toFixed(2))}</li>
+            <li>المعدود ناقص الرصيد الدفتري: {bookDifference === null ? "—" : formatMoney(bookDifference.toFixed(2))}</li>
             <li>السبب: {reason || "—"}</li>
           </ul>
           <label className="fin-check">
             <input type="checkbox" name="actuallyCounted" value="yes" required />
             <span>أقر بأنني عددت النقد بيدي فعليًا في هذه اللحظة.</span>
           </label>
+          <p className="fin-field__hint">الإقرار تسجيل للمسؤولية؛ لا يثبت حيازة النقد أو اكتمال الفترة أو انتقاله لاحقًا.</p>
         </div>
       ) : null}
 
@@ -179,7 +178,7 @@ export function SettlementCancelForm({ settlementId }: { settlementId: string })
     <form action={formAction} className="fin-inline-form">
       <input type="hidden" name="requestId" value={requestId} />
       <input type="hidden" name="settlementId" value={settlementId} />
-      <input value={reason} onChange={(event) => setReason(event.target.value)} maxLength={300} placeholder="سبب الإلغاء" aria-label="سبب الإلغاء" />
+      <input name="reason" value={reason} onChange={(event) => setReason(event.target.value)} maxLength={300} placeholder="سبب الإلغاء" aria-label="سبب الإلغاء" />
       <button type="submit" className="fin-button fin-button--secondary" disabled={pending || reason.trim().length < 3}>
         {pending ? "جارٍ الإلغاء…" : "إلغاء الطلب"}
       </button>

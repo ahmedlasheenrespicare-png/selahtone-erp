@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { AppIcon } from "@/components/app-icon";
 import ColorModeToggle from "@/components/color-mode-toggle";
 import { getSession, canSeeAllBranches } from "@/lib/auth";
+import { getAccessContext } from "@/lib/access-control-server";
+import { writeAllowedForKeys } from "@/lib/access-control";
 import { financeDb, financeEnabled } from "@/lib/finance/db";
 import { inventoryEnabled } from "@/lib/feature-flags";
 import {
@@ -52,10 +54,20 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const branchLabel = session.branchName ?? "كل الفروع";
   const isFinanceEnabled = financeEnabled();
   const canManage = canSeeAllBranches(session);
+  const access = await getAccessContext();
+  const navigationAccess = {
+    hiddenPages: [
+      ...[...access.hidden].filter((key) => !key.includes("#") && !access.isAllowed(key)),
+      ...(!access.isSystemAdmin
+        ? ["/sales/new", "/inventory/new", "/inventory/opening", "/inventory/receipts/new", "/finance/expenses/new"].filter((route) => !writeAllowedForKeys(access.hidden, route))
+        : []),
+    ],
+    showAdministration: access.isSystemAdmin,
+  };
 
   let pendingExpenses = 0;
   let openSettlements = 0;
-  if (isFinanceEnabled) {
+  if (isFinanceEnabled && (access.storeHealthy || access.isSystemAdmin)) {
     try {
       await financeDb.serializable(async (tx) => {
         if (canManage) {
@@ -63,7 +75,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             `SELECT count(*)::int AS n FROM finance.expenses WHERE status='PENDING'`,
           );
           pendingExpenses = Number(expRes.rows[0]?.n ?? 0);
-          if (session.menuScope === "FULL") {
+          if (access.isAllowed("/finance/settlements")) {
             const setRes = await tx.query<{ n: number }>(
               `SELECT count(*)::int AS n FROM finance.settlements WHERE status='OPEN'`,
             );
@@ -96,7 +108,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         canViewAllBranches={canManage}
         role={session.role}
         financeEnabled={isFinanceEnabled}
-        menuScope={session.menuScope}
+        access={navigationAccess}
         inventoryEnabled={inventoryEnabled()}
         badges={{ pendingExpenses, openSettlements }}
         userName={session.name}
@@ -134,6 +146,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </header>
 
         <main id="workspace-content" className="workspace-content" tabIndex={-1}>
+          {!access.storeHealthy && <div className="alert alert-err" role="alert">تعذّرت قراءة إعدادات الصلاحيات. {access.isSystemAdmin ? "وصول الأدمن متاح للإصلاح؛ تُمنع الصلاحيات المقيّدة لبقية المستخدمين مؤقتًا." : "أُغلق الوصول المقيّد مؤقتًا؛ تواصل مع أدمن النظام لإصلاحه."}</div>}
           {children}
         </main>
       </div>

@@ -90,7 +90,7 @@ export function CountRequestForm({ requestId, accounts }: { requestId: string; a
           {account ? (
             <span className="fin-field__hint">
               {account.kind === "CUSTODY"
-                ? `الرصيد الدفتري: ${formatMoney(account.balance)} · المتوقَّع بيده الآن: ${formatMoney(account.expected)}`
+                ? `الرصيد الدفتري: ${formatMoney(account.balance)} · مؤشر الفترة التقديري الآن: ${formatMoney(account.expected)}`
                 : `الرصيد الدفتري الآن: ${formatMoney(account.balance)}`}
             </span>
           ) : null}
@@ -110,7 +110,7 @@ export function CountRequestForm({ requestId, accounts }: { requestId: string; a
           {countedAmount.trim() !== "" && !countedValid ? <span className="fin-field__error">أدخل مبلغًا غير سالب.</span> : null}
         </div>
         <div className="field fin-field">
-          <span className="fin-field__label">الفرق</span>
+          <span className="fin-field__label">الفرق عن المرجع المسجّل</span>
           <span className={`fin-field__hint${difference !== null && difference < 0 ? " fin-money--negative" : ""}`}>
             {difference === null ? "—" : `${formatMoney(difference.toFixed(2))} ج.م`}
           </span>
@@ -187,9 +187,9 @@ export function CountRequestForm({ requestId, accounts }: { requestId: string; a
             <li>الحساب: {account ? `${accountLabel(account.kind)}${account.holderName ? ` · ${account.holderName}` : ""}` : "—"}</li>
             <li>الرصيد الدفتري: {formatMoney(account?.balance)}</li>
             <li>المعدود فعليًا: {countedAmount}</li>
-            <li>الفرق: {difference === null ? "—" : formatMoney(difference.toFixed(2))}</li>
+            <li>الفرق عن المرجع المسجّل: {difference === null ? "—" : formatMoney(difference.toFixed(2))}</li>
           </ul>
-          <p className="fin-field__hint">التسجيل الآن ملاحظة فقط؛ الفرق لا يؤثر على الرصيد إلا بتأكيد تسوية منفصل.</p>
+          <p className="fin-field__hint">التسجيل الآن ملاحظة فقط؛ لا يتغيّر الرصيد إلا بتأكيد منفصل يسجّل تعديلًا دفتريًا بالفرق المُقرّ به إن كان غير صفر. الإقرار لا يثبت وقوع حركة نقدية.</p>
         </div>
       ) : null}
 
@@ -206,17 +206,19 @@ export function CountRequestForm({ requestId, accounts }: { requestId: string; a
 
 /** Resolving an open count: confirm posts the difference, cancel closes it with
  * a reason and no cash movement at all. */
-export function CountResolveForm({ requestId, countId, difference }: { requestId: string; countId: string; difference: string }) {
-  const [mode, setMode] = useState<"CONFIRM" | "CANCEL">("CONFIRM");
+export function CountResolveForm({ requestId, countId, difference, canConfirm, canCancel }: { requestId: string; countId: string; difference: string; canConfirm: boolean; canCancel: boolean }) {
+  const [mode, setMode] = useState<"CONFIRM" | "CANCEL">(canConfirm ? "CONFIRM" : "CANCEL");
   const [reason, setReason] = useState("");
   const [stillCurrent, setStillCurrent] = useState(false);
   const [confirmState, confirmAction, confirmPending] = useActionState(confirmCountAction, initialFinanceActionState);
   const [cancelState, cancelAction, cancelPending] = useActionState(cancelCountAction, initialFinanceActionState);
-  const state = mode === "CONFIRM" ? confirmState : cancelState;
+  const effectiveMode = mode === "CONFIRM" && canConfirm ? "CONFIRM" : canCancel ? "CANCEL" : "CONFIRM";
+  const state = effectiveMode === "CONFIRM" ? confirmState : cancelState;
 
+  if (!canConfirm && !canCancel) return null;
   if (state.status === "success") return <div className="fin-alert fin-alert--success" role="status">{state.message}</div>;
 
-  if (mode === "CONFIRM") {
+  if (effectiveMode === "CONFIRM") {
     return (
       <form action={confirmAction} className="fin-form-stack">
         <input type="hidden" name="requestId" value={requestId} />
@@ -225,20 +227,21 @@ export function CountResolveForm({ requestId, countId, difference }: { requestId
         <input type="hidden" name="stillCurrent" value={stillCurrent ? "yes" : "no"} />
         <div className="fin-fields">
           <label className="field fin-field">
-            <span className="fin-field__label">سبب تأكيد التسوية</span>
+            <span className="fin-field__label">سبب تأكيد الجرد</span>
             <input value={reason} maxLength={300} onChange={(event) => setReason(event.target.value)} />
           </label>
           <label className="fin-check fin-field--wide">
             <input type="checkbox" checked={stillCurrent} onChange={(event) => setStillCurrent(event.target.checked)} />
             <span>أقر بأن المعدود ما زال فعليًا ولم تقع حركة نقد بعد الجرد.</span>
           </label>
+          <p className="fin-field__hint">الإقرار لا يثبت خلو الفترة من حركات لاحقة أو استلام النقد فعليًا.</p>
         </div>
         {state.status === "error" ? <div className="fin-alert fin-alert--error" role="alert">{state.message}</div> : null}
         <div className="fin-form-actions">
           <button type="submit" className="fin-button" disabled={confirmPending || !stillCurrent || reason.trim().length === 0}>
-            {confirmPending ? "جارٍ الحفظ…" : `تأكيد التسوية (${formatMoney(difference)})`}
+            {confirmPending ? "جارٍ الحفظ…" : `تأكيد الجرد — تعديل دفتري (${formatMoney(difference)})`}
           </button>
-          <button type="button" className="fin-button fin-button--text" onClick={() => setMode("CANCEL")}>إلغاء الطلب بدلًا من ذلك</button>
+          {canCancel ? <button type="button" className="fin-button fin-button--text" onClick={() => setMode("CANCEL")}>إلغاء الطلب بدلًا من ذلك</button> : null}
         </div>
       </form>
     );
@@ -261,7 +264,7 @@ export function CountResolveForm({ requestId, countId, difference }: { requestId
         <button type="submit" className="fin-button" disabled={cancelPending || reason.trim().length === 0}>
           {cancelPending ? "جارٍ الحفظ…" : "تأكيد الإلغاء"}
         </button>
-        <button type="button" className="fin-button fin-button--text" onClick={() => setMode("CONFIRM")}>العودة إلى التأكيد</button>
+        {canConfirm ? <button type="button" className="fin-button fin-button--text" onClick={() => setMode("CONFIRM")}>العودة إلى التأكيد</button> : null}
       </div>
     </form>
   );

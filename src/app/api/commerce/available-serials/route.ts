@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { apiAccessDenial } from "@/lib/access-control-server";
 import { getSession } from "@/lib/auth";
 import { inventoryEnabled } from "@/lib/feature-flags";
 import { InventoryProblem } from "@/lib/inventory-operations";
@@ -9,6 +10,8 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   const session = await getSession();
   if (!session || session.mustChangePassword) return NextResponse.json({ message: "سجّل الدخول للبحث عن السيريالات." }, { status: 401, headers: { "Cache-Control": "private, no-store" } });
+  const denial = await apiAccessDenial("/sales/new", { write: true });
+  if (denial) return denial;
   if (!inventoryEnabled()) return NextResponse.json({ message: "المخزون والمستودعات معطّلة حاليًا في هذا النظام." }, { status: 403, headers: { "Cache-Control": "private, no-store" } });
   try {
     const result = await searchAvailableSaleSerials(prisma, BigInt(session.id), { warehouseId: request.nextUrl.searchParams.get("warehouseId") ?? "", productId: request.nextUrl.searchParams.get("productId") ?? "", query: request.nextUrl.searchParams.get("q") ?? "" });

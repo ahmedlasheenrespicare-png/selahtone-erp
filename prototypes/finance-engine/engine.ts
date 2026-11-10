@@ -10,6 +10,8 @@ import { canCollectTo, canManageFinance, canViewAccount, activeActor } from "./p
 import { inspectAttachment, type AttachmentType } from "./attachment-validation";
 import { FinanceProblem, type AccountKind, type AccountScope, type Actor, type FinanceCategoryRow, type FinanceDatabase, type FinanceTransaction, type Method, type WriteResult } from "./types";
 import { cairoDate, caseSnapshot, confirmation, date, exactCents, flag, formatCents, identifier, inputObject, kind, method, money, openingOrder, optionalIdentifier, optionalMoney, requestId, revision, signedMoney, text, type Input } from "./validation";
+import { requireSavedResultLink, resolveResultTable, saveResultLink } from "./request-result-link";
+import { refuseUnlinkedCallbackResult, saveCallbackResultLink } from "./transaction-callback-link";
 
 type Row = Record<string, unknown>;
 type ActorRow = Row & Actor;
@@ -101,9 +103,14 @@ async function command(
       return await db.serializable(async (tx) => {
         const actor = await loadActor(tx, actorId); authorize(actor);
         const prior = await priorRequest(tx, id);
-        if (prior) return replay(prior, actorId, action, hash);
+        if (prior) {
+          await requireSavedResultLink(tx, id, prior, tx.categoryPort);
+          return replay(prior, actorId, action, hash);
+        }
         const resultId = await work(tx, actor);
+        const resultTable = await resolveResultTable(tx, action, resultId);
         await tx.query(`INSERT INTO finance_lab.requests (request_id,request_hash,actor_id,action,result_id) VALUES ($1::uuid,$2,$3::bigint,$4,$5::bigint)`, [id, hash, actorId, action, resultId]);
+        await saveResultLink(tx, id, action, actorId, resultTable, resultId, tx.categoryPort);
         return { id: resultId, replayed: false };
       });
     } catch (error) {
@@ -115,7 +122,12 @@ async function command(
       if (code === "23505") {
         // The competing request must have committed before PostgreSQL reports the unique conflict.
         let old: PriorRow | null;
-        try { old = await db.serializable(async (tx) => { const actor = await loadActor(tx, actorId); authorize(actor); return priorRequest(tx, id); }); }
+        try { old = await db.serializable(async (tx) => {
+          const actor = await loadActor(tx, actorId); authorize(actor);
+          const prior = await priorRequest(tx, id);
+          if (prior) await requireSavedResultLink(tx, id, prior, tx.categoryPort);
+          return prior;
+        }); }
         catch (readError) {
           if (dbCode(readError) === "40001" || dbCode(readError) === "40P01") {
             if (attempt < 3) continue;
@@ -941,6 +953,8 @@ export async function recordHistoricalCommerceInTransaction(tx: FinanceTransacti
   if (input.actualDate > checkpointDate) throw new FinanceProblem("checkpoint_order","تاريخ العملية بعد الجرد المختار؛ لا يمكن احتسابها فيه.");
   const existing = await tx.query<IdRow>(`SELECT id::text AS id FROM finance_lab.movements WHERE kind=$1 AND external_ref=$2`,[input.eventType,`${input.eventType.toLowerCase()}:${input.eventId}`]);
   if (existing.rows[0]) throw new FinanceProblem("duplicate","توجد حركة نقد لهذا السجل؛ لا يمكن اعتباره تاريخيًا دون مراجعة.");
+  const historicalRef = `${input.eventType.toLowerCase()}:${input.eventId}`;
+  await refuseUnlinkedCallbackResult(tx,"HISTORICAL_COMMERCE",historicalRef,actor.id);
   const saved = await tx.query<IdRow>(`INSERT INTO finance_lab.historical_commerce(event_type,event_id,sale_id,branch_id,account_id,amount,actual_date,checkpoint_type,checkpoint_count_id,checkpoint_date,verified_actual,before_checkpoint,included_in_checkpoint,not_previously_recorded,handler,reason,created_by)
     VALUES($1,$2::bigint,$3::bigint,$4::bigint,$5::bigint,$6::numeric,$7::date,$8,$9::bigint,$10::date,$11,$12,$13,$14,$15,$16,$17::bigint) RETURNING id::text AS id`,
     [input.eventType,input.eventId,input.saleId,input.branchId,input.accountId,input.amount,input.actualDate,input.checkpointType,input.checkpointCountId,checkpointDate,
@@ -951,6 +965,7 @@ export async function recordHistoricalCommerceInTransaction(tx: FinanceTransacti
       verifiedActual:input.verifiedActual,beforeCheckpoint:input.beforeCheckpoint,includedInCheckpoint:input.includedInCheckpoint,
       notPreviouslyRecorded:input.notPreviouslyRecorded,actualCashMoved:false,pendingCaseId:linked?.id ?? null,reviewedCaseSnapshot:input.caseSnapshot });
   if (linked) await confirmReconciliationCase(tx,linked,actor.id,input.reason,{historicalId:saved.rows[0].id});
+  await saveCallbackResultLink(tx,"HISTORICAL_COMMERCE",historicalRef,actor.id,saved.rows[0].id);
   return saved.rows[0].id;
 }
 
@@ -972,10 +987,14 @@ export async function postCashCollectionInTransaction(tx: FinanceTransaction, ac
   if (!canCollectTo(actor,branchId,account)) throw new FinanceProblem("forbidden", "اختر خزنة فرعك أو عهدتك الخاصة للتحصيل النقدي.");
   const historic = await tx.query<IdRow>(`SELECT id::text AS id FROM finance_lab.historical_commerce WHERE event_type='COLLECTION' AND event_id=$1::bigint`,[collectionId]);
   if (historic.rows[0]) throw new FinanceProblem("duplicate","التحصيل مسجل كمحتسب في الجرد؛ لم تُنشأ حركة ثانية.");
+  const collectionRef = `collection:${collectionId}`;
+  await refuseUnlinkedCallbackResult(tx,"CASH_COLLECTION",collectionRef,actor.id);
   const saved = await tx.query<IdRow>(`INSERT INTO finance_lab.movements(kind,branch_id,destination_id,amount,external_ref,actor_id,after_cash_count_id,after_opening)
     VALUES('COLLECTION',$1::bigint,$2::bigint,$3::numeric,$4,$5::bigint,$6::bigint,$7) RETURNING id::text AS id`, [branchId,accountId,amount,`collection:${collectionId}`,actor.id,inputRaw.checkpointRef && inputRaw.checkpointRef !== "OPENING" ? inputRaw.checkpointRef : null,inputRaw.checkpointRef === "OPENING"]);
   if (inputRaw.checkpointRef) await audit(tx,"MOVEMENT",saved.rows[0].id,"COLLECTION",actor.id,null,null,{accountId,amount,collectionId,checkpointRef:inputRaw.checkpointRef,attestedAfterCheckpoint:true});
-  await bumpAccounts(tx,[accountId]); return saved.rows[0].id;
+  await bumpAccounts(tx,[accountId]);
+  await saveCallbackResultLink(tx,"CASH_COLLECTION",collectionRef,actor.id,saved.rows[0].id);
+  return saved.rows[0].id;
 }
 
 /** Test-only: caller must verify the refund is CASH and actually paid, save it,
@@ -992,8 +1011,12 @@ export async function postCashRefundInTransaction(tx: FinanceTransaction, actorI
   const current = await balance(tx,accountId); checkBalance(current, expected, exactCents(amount), inputRaw.negativeAcknowledged === true);
   const historic = await tx.query<IdRow>(`SELECT id::text AS id FROM finance_lab.historical_commerce WHERE event_type='REFUND' AND event_id=$1::bigint`,[refundId]);
   if (historic.rows[0]) throw new FinanceProblem("duplicate","الرد مسجل كمحتسب في الجرد؛ لم تُنشأ حركة ثانية.");
+  const refundRef = `refund:${refundId}`;
+  await refuseUnlinkedCallbackResult(tx,"CASH_REFUND",refundRef,actor.id);
   const saved = await tx.query<IdRow>(`INSERT INTO finance_lab.movements(kind,branch_id,source_id,amount,external_ref,actor_id,after_cash_count_id,after_opening)
     VALUES('REFUND',$1::bigint,$2::bigint,$3::numeric,$4,$5::bigint,$6::bigint,$7) RETURNING id::text AS id`, [branchId,accountId,amount,`refund:${refundId}`,actor.id,inputRaw.checkpointRef && inputRaw.checkpointRef !== "OPENING" ? inputRaw.checkpointRef : null,inputRaw.checkpointRef === "OPENING"]);
   if (inputRaw.checkpointRef) await audit(tx,"MOVEMENT",saved.rows[0].id,"REFUND",actor.id,null,null,{accountId,amount,refundId,checkpointRef:inputRaw.checkpointRef,attestedAfterCheckpoint:true});
-  await bumpAccounts(tx,[accountId]); return saved.rows[0].id;
+  await bumpAccounts(tx,[accountId]);
+  await saveCallbackResultLink(tx,"CASH_REFUND",refundRef,actor.id,saved.rows[0].id);
+  return saved.rows[0].id;
 }

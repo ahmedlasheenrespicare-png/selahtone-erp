@@ -72,3 +72,23 @@ test("login and icons load without exposing the old seed password", async () => 
   assert.equal((await request("/favicon.ico")).status, 200);
   assert.equal((await request("/icon.svg")).status, 200);
 });
+
+test("public health probe is cache-free and does not expose table counts or errors", async () => {
+  const result = await request("/api/health");
+  assert.equal(result.status, 200);
+  assert.match(result.headers["cache-control"] ?? "", /no-store/);
+  const payload = JSON.parse(result.body);
+  assert.equal(payload.status, "ok");
+  assert.equal(payload.db.connected, true);
+  assert.equal(payload.counts, undefined);
+  assert.equal(payload.message, undefined);
+});
+
+test("serial API redirects unauthenticated requests without caching", async () => {
+  const result = await request("/api/commerce/available-serials?warehouseId=1");
+  assert.equal(result.status, 307);
+  assert.match(result.headers["cache-control"] ?? "", /no-store/);
+  const location = new URL(result.headers.location!, base);
+  assert.equal(location.pathname, "/login");
+  assert.equal(location.searchParams.get("next"), "/api/commerce/available-serials?warehouseId=1");
+});

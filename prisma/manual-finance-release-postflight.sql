@@ -67,6 +67,7 @@ SELECT jsonb_build_object(
     'reconciliation_notes', (SELECT count(*) FROM finance.reconciliation_notes),
     'movements', (SELECT count(*) FROM finance.movements),
     'requests', (SELECT count(*) FROM finance.requests),
+    'request_results', (SELECT count(*) FROM finance.request_results),
     'audit_events', (SELECT count(*) FROM finance.audit_events)
   ),
   'finance_foreign_keys', (SELECT n FROM finance_foreign_keys),

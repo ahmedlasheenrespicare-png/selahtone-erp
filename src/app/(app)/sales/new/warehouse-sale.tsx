@@ -325,9 +325,7 @@ export default async function WarehouseSale({ warehouseParam }: Props) {
             </strong>
             <small className="sales-kpi-card__sub">
               {financeOn
-                ? custodyCheck
-                  ? "مرتبط بعهدتك النقدية المفتوحة ✓"
-                  : "تُسجَّل كمقبوضات نقدية للفرع"
+                ? "تحصيلات مسجّلة اليوم؛ قد تشمل سجلات سابقة"
                 : "المحصّل نقدًا بحسابك اليوم"}
             </small>
           </div>

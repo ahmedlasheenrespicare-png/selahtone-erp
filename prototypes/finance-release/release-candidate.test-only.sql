@@ -3,7 +3,7 @@
 -- draft: it references the real public tables, keeps legacy rows untouched, and
 -- deliberately omits attachments, deferred COMMIT checks, GRANTs and RLS.
 --
--- sha256: 1e39b741e3511dea2ad17ebc8017c67615ff588d3b96ff7f4702f5e9492ff2cc
+-- sha256: 63f0c0262861d048c2e9e5358e014f3f7a1617e35484508c09e8a06759e2af4c
 --
 -- Excluded on purpose, each needing its own approved design and test:
 --   * expense attachments: the storage choice (Neon Object Storage) is not
@@ -321,6 +321,17 @@ CREATE TABLE IF NOT EXISTS finance.requests (
   result_id BIGINT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+-- Disposable result-identity link. NOT an approved production migration.
+-- Every new command records the table and id it created; a saved request
+-- without a link is refused under the strict lab policy.
+CREATE TABLE IF NOT EXISTS finance.request_results (
+  request_id UUID PRIMARY KEY,
+  action VARCHAR(40) NOT NULL,
+  actor_id BIGINT NOT NULL REFERENCES public.users(id),
+  result_table VARCHAR(64) NOT NULL,
+  result_id BIGINT NOT NULL CHECK (result_id > 0),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE IF NOT EXISTS finance.audit_events (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   entity_type VARCHAR(20) NOT NULL,
@@ -379,9 +390,9 @@ DO $$
 DECLARE previous CHAR(64);
 BEGIN
   SELECT checksum INTO previous FROM finance_release.migrations WHERE name='finance_release_candidate';
-  IF previous IS NOT NULL AND previous <> '1e39b741e3511dea2ad17ebc8017c67615ff588d3b96ff7f4702f5e9492ff2cc' THEN
+  IF previous IS NOT NULL AND previous <> '63f0c0262861d048c2e9e5358e014f3f7a1617e35484508c09e8a06759e2af4c' THEN
     RAISE EXCEPTION 'finance release candidate checksum changed since it was applied';
   END IF;
-  INSERT INTO finance_release.migrations(name,checksum) VALUES ('finance_release_candidate','1e39b741e3511dea2ad17ebc8017c67615ff588d3b96ff7f4702f5e9492ff2cc')
+  INSERT INTO finance_release.migrations(name,checksum) VALUES ('finance_release_candidate','63f0c0262861d048c2e9e5358e014f3f7a1617e35484508c09e8a06759e2af4c')
     ON CONFLICT (name) DO NOTHING;
 END $$;

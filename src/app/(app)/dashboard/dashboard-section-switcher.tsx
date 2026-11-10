@@ -14,6 +14,7 @@ import {
 
 type Props = {
   userScopeKey: string;
+  forcedHiddenElements?: string[];
   initialSectionParam?: string | null;
   items: DashboardSectionMeta[];
   slots: Partial<Record<DashboardSectionId, ReactNode>>;
@@ -30,6 +31,7 @@ const nf = new Intl.NumberFormat("ar-EG-u-nu-latn");
 
 export default function DashboardSectionSwitcher({
   userScopeKey,
+  forcedHiddenElements = [],
   initialSectionParam,
   items,
   slots,
@@ -53,7 +55,7 @@ export default function DashboardSectionSwitcher({
   const layoutStorageKey = `selahtone:dashboard-all-layout:${userScopeKey}`;
   const [allLayout, setAllLayout] = useState<"spacious" | "compact">("compact");
   const [visibilityBySection, setVisibilityBySection] = useState<Record<string, string[]>>({});
-  const hiddenToggles = visibilityBySection[selectedId] ?? [];
+  const hiddenToggles = [...new Set([...(visibilityBySection[selectedId] ?? []), ...forcedHiddenElements])];
   const [visibilityLoaded, setVisibilityLoaded] = useState(false);
 
   const dropdownWrapRef = useRef<HTMLDivElement>(null);
@@ -198,6 +200,7 @@ export default function DashboardSectionSwitcher({
   const hiddenToggleAttribute = hiddenToggles.join(" ");
 
   function toggleVisibility(key: string) {
+    if (forcedHiddenElements.includes(key)) return;
     setVisibilityBySection((current) => {
       const hidden = current[selectedId] ?? [];
       const next = hidden.includes(key) ? hidden.filter((item) => item !== key) : [...hidden, key];
@@ -425,14 +428,14 @@ export default function DashboardSectionSwitcher({
               {belowWalletSlot}
             </div>
           ) : null}
-          <div className="dash-focus-hint no-print" data-dash-part="focus-hint">
+          {!forcedHiddenElements.includes("part-focus-hint") && <div className="dash-focus-hint no-print" data-dash-part="focus-hint">
             <span>
-              تستعرض الآن الوضع المركّز السريع. افتح القائمة المنسدلة بالأعلى لاستعراض أي مؤشر أو رادار على حدة.
+              تستعرض الآن «معاملات اليوم». افتح القائمة المنسدلة بالأعلى لاستعراض أي مؤشر أو رادار على حدة.
             </span>
             <button type="button" onClick={() => selectSection("all")}>
               أو اعرض كل الأقسام معًا
             </button>
-          </div>
+          </div>}
         </div>
       ) : (
         <div
@@ -451,7 +454,7 @@ export default function DashboardSectionSwitcher({
         storageKey="dashboard-settings"
         iconName="settings"
         className="dash-settings-panel"
-        title={`شرح وتخصيص — الخيار الحالي: ${activeMeta?.label ?? "الوضع المركّز"}`}
+        title={`شرح وتخصيص — الخيار الحالي: ${activeMeta?.label ?? "معاملات اليوم"}`}
       >
         <div className="dash-settings-toolbar">
           <button
@@ -487,6 +490,7 @@ export default function DashboardSectionSwitcher({
                 <input
                   type="checkbox"
                   checked={shown}
+                  disabled={forcedHiddenElements.includes(item.key)}
                   onChange={() => toggleVisibility(item.key)}
                   aria-label={`${shown ? "إخفاء" : "إظهار"} ${item.label}`}
                 />

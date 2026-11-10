@@ -10,6 +10,7 @@ export type FinanceAccountRow = {
   id: string;
   title: string;
   subtitle: string;
+  branchId: string;
   branchName: string;
   kind: "VAULT" | "CUSTODY";
   kindLabel: string;
@@ -35,10 +36,12 @@ export default function FinanceAccountsView({
   rows,
   branches,
   canManage,
+  canCloseCustody,
 }: {
   rows: FinanceAccountRow[];
-  branches: string[];
+  branches: Array<{ id: string; label: string }>;
   canManage: boolean;
+  canCloseCustody: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<AccountFilter>("all");
@@ -74,7 +77,7 @@ export default function FinanceAccountsView({
       if (filter === "custody" && r.kind !== "CUSTODY") return false;
       if (filter === "over_ceiling" && !overCeilingIds.has(r.id)) return false;
       if (filter === "closed" && !r.isClosed) return false;
-      if (branchFilter !== "all" && r.branchName !== branchFilter) return false;
+      if (branchFilter !== "all" && r.branchId !== branchFilter) return false;
       if (q) {
         const hay = `${r.title} ${r.subtitle} ${r.branchName} ${r.kindLabel} ${r.openingDate}`.toLowerCase();
         if (!hay.includes(q)) return false;
@@ -146,8 +149,8 @@ export default function FinanceAccountsView({
             >
               <option value="all">كل الفروع ({branches.length})</option>
               {branches.map((branch) => (
-                <option key={branch} value={branch}>
-                  {branch}
+                <option key={branch.id} value={branch.id}>
+                  {branch.label}
                 </option>
               ))}
             </select>
@@ -317,7 +320,7 @@ export default function FinanceAccountsView({
                                 توريد للخزنة
                               </Link>
                             ) : null}
-                            {account.canClose ? (
+                            {account.canClose && canCloseCustody ? (
                               <CustodyCloseForm
                                 requestId={account.closeRequestId}
                                 accountId={account.id}

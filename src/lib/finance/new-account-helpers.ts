@@ -218,11 +218,7 @@ export function computeBranchAccountCoverage(
   };
 }
 
-/**
- * يجهّز مدخلات `decideCustodyRequest` بأمان:
- * - عند الموافقة (`APPROVE`): يحوّل `counted === "yes"` إلى `boolean` صريح (`true` أو `false`).
- * - عند الرفض (`REJECT`): لا تُفتح عهدة ولا يُجرى جرد نقدي، فيُمرَّر `counted: true` لتجاوز بوابة الإدخال دون المساس بالمحرك.
- */
+/** Rejection requires neither a fabricated count acknowledgment nor an opening date. */
 export function buildCustodyDecisionPayload(fields: {
   requestId: string;
   requestDbId: string;
@@ -230,15 +226,14 @@ export function buildCustodyDecisionPayload(fields: {
   reason: string;
   openingDate: string;
   countedRaw: string;
-}) {
+  expectedSnapshot?: string;
+}): { expectedSnapshot?: string; requestId: string; requestId2: string; decision: string; reason: string; openingDate?: string; counted?: boolean; legacyOpeningDate?: string } {
   const decision = fields.decision.trim();
-  const counted = decision === "REJECT" ? true : fields.countedRaw === "yes";
   return {
     requestId: fields.requestId,
     requestId2: fields.requestDbId,
     decision,
     reason: fields.reason,
-    openingDate: fields.openingDate,
-    counted,
+    ...(decision === "REJECT" ? { legacyOpeningDate: fields.openingDate } : { openingDate: fields.openingDate, counted: fields.countedRaw === "yes", ...(fields.expectedSnapshot ? { expectedSnapshot: fields.expectedSnapshot } : {}) }),
   };
 }

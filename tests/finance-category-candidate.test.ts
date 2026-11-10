@@ -36,6 +36,9 @@ function candidateCoreSchema():string{
   remove(new RegExp(`CREATE TABLE finance_lab\\.${table} \\([\\s\\S]*?\\n\\);`),table);
  }
  remove(/CREATE UNIQUE INDEX finance_lab_categories_name_key[^;]*;/,"category index");
+ // The standalone category bridge supplies finance_candidate.request_results;
+ // dropping the lab copy here avoids creating the same table twice.
+ remove(/-- Disposable result-identity link[\s\S]*?CREATE TABLE finance_lab[.]request_results [(][\s\S]*?\n\);\n/,"lab result-link table");
  remove(/INSERT INTO finance_lab\.attachment_quota\(singleton\) VALUES \(1\);/,"attachment quota row");
  source=source.replaceAll("REFERENCES finance_lab.branches(id)","REFERENCES public.branches(id)")
   .replaceAll("REFERENCES finance_lab.users(id)","REFERENCES public.users(id)")
@@ -177,6 +180,55 @@ test("existing fictional categories are referenced without copying or altering t
     assert.equal((await pg.query<{n:number}>("SELECT count(*)::int AS n FROM public.expense_categories")).rows[0].n,count);
    }finally{await pg.exec("DROP TRIGGER reject_audit ON finance_candidate.category_audit; DROP FUNCTION finance_candidate.reject_audit()");}
   });
+  await t.test("candidate category bridge saves a strict result link and refuses legacy replays",async()=>{
+   const createdRaw=make("بند رابط مرشح"),created=await createCandidateCategory(db,"1",createdRaw);
+   const readLink=async(requestId:string)=>(await pg.query<{action:string;actorId:string;resultTable:string;resultId:string}>(
+    `SELECT action,actor_id::text AS "actorId",result_table AS "resultTable",result_id::text AS "resultId"
+     FROM finance_candidate.request_results WHERE request_id=$1::uuid`,[requestId])).rows[0];
+   const createLink=await readLink(createdRaw.requestId);
+   assert.ok(createLink,"the CREATE request must carry a link");
+   assert.deepEqual({action:createLink.action,actorId:createLink.actorId,resultTable:createLink.resultTable,resultId:createLink.resultId},
+    {action:"CREATE",actorId:"1",resultTable:"public.expense_categories",resultId:created.id});
+   assert.deepEqual(await createCandidateCategory(db,"1",createdRaw),{id:created.id,replayed:true});
+
+   const row=(await listCandidateCategories(db,"1")).find(r=>r.id===created.id)!;
+   const editRaw=edit(row,"بند رابط مرشح معدل",false);
+   await editCandidateCategory(db,"1",editRaw);
+   const editLink=await readLink(editRaw.requestId);
+   assert.ok(editLink,"the EDIT request must carry a link");
+   assert.deepEqual({action:editLink.action,actorId:editLink.actorId,resultTable:editLink.resultTable,resultId:editLink.resultId},
+    {action:"EDIT",actorId:"1",resultTable:"public.expense_categories",resultId:created.id});
+   assert.deepEqual(await editCandidateCategory(db,"1",editRaw),{id:created.id,replayed:true});
+
+   // A tampered category_id no longer matches the saved link.
+   await pg.query("UPDATE finance_candidate.category_requests SET category_id=1 WHERE request_id=$1::uuid",[createdRaw.requestId]);
+   await rejectsCode(()=>createCandidateCategory(db,"1",createdRaw),"forbidden");
+   await pg.query("UPDATE finance_candidate.category_requests SET category_id=$1::int WHERE request_id=$2::uuid",[created.id,createdRaw.requestId]);
+
+   // Strict: a saved request without a link is refused, including 23505 recovery.
+   await pg.query("DELETE FROM finance_candidate.request_results WHERE request_id=$1::uuid",[createdRaw.requestId]);
+   await rejectsCode(()=>createCandidateCategory(db,"1",createdRaw),"forbidden");
+   let injected=false;
+   const duplicate:FinanceDatabase={serializable:work=>db.serializable(tx=>work({
+    ...tx,query:async<T extends Record<string,unknown>>(sql:string,parameters:unknown[]=[])=>{
+     if(!injected&&sql.includes("FROM finance_candidate.category_requests")){
+      injected=true;throw Object.assign(new Error("synthetic unique"),{code:"23505"});
+     }
+     return tx.query<T>(sql,parameters);
+    }
+   }))};
+   await rejectsCode(()=>createCandidateCategory(duplicate,"1",createdRaw),"forbidden");
+   assert.equal(injected,true,"23505 recovery must reach the link guard");
+
+   // A truly old request row (same hash, no link) is still refused.
+   const old=(await pg.query<{hash:string;actor:string;action:string}>(
+    `SELECT request_hash AS hash,actor_id::text AS actor,action FROM finance_candidate.category_requests WHERE request_id=$1::uuid`,
+    [createdRaw.requestId])).rows[0];
+   await pg.query("DELETE FROM finance_candidate.category_requests WHERE request_id=$1::uuid",[createdRaw.requestId]);
+   await pg.query(`INSERT INTO finance_candidate.category_requests(request_id,request_hash,actor_id,action,category_id)
+    VALUES($1::uuid,$2,$3::bigint,$4,$5::int)`,[createdRaw.requestId,old.hash,old.actor,old.action,created.id]);
+   await rejectsCode(()=>createCandidateCategory(db,"1",createdRaw),"forbidden");
+  });
  }finally{await pg.close();}
 });
 
@@ -216,6 +268,12 @@ async function exerciseCandidateCore(db:FinanceDatabase,raw:RawQuery):Promise<vo
  const counts=(await raw(`SELECT (SELECT count(*)::int FROM public.expenses) AS legacy_expenses,
   (SELECT count(*)::int FROM public.journal_entries) AS legacy_journals,(SELECT count(*)::int FROM finance_candidate.expenses) AS finance_expenses`))[0];
  assert.equal(counts.finance_expenses,1);assert.equal(counts.legacy_expenses,1);assert.equal(counts.legacy_journals,1);
+ // The rewritten lab core shares finance_candidate.request_results and records
+ // the public bridge as the result table for its category commands.
+ const coreLinks=await raw(`SELECT action,result_table AS "resultTable",result_id::text AS "resultId"
+  FROM finance_candidate.request_results WHERE result_table='public.expense_categories'`);
+ assert.ok(coreLinks.some(x=>x.action==="CATEGORY_CREATE"&&x.resultId===created.id),"missing core CREATE link");
+ assert.ok(coreLinks.some(x=>x.action==="CATEGORY_EDIT"&&x.resultId===initial.id),"missing core EDIT link");
 }
 
 test("finance core can exercise the proposed category/user/branch mapping on an isolated fixture",{timeout:120_000},async()=>{

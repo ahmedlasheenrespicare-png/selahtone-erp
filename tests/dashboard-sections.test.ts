@@ -61,16 +61,26 @@ test("كل خيار في لوحة القيادة موثق وله إعدادات 
 
 test("لوحة القيادة في الشريط الجانبي رابط واحد بدون قائمة منسدلة لأي دور", () => {
   for (const role of ["MANAGER", "ACCOUNTANT", "CS_AGENT"] as const) {
-    const groups = sidebarNavigationGroups(role, { financeEnabled: true, menuScope: "FULL", inventoryEnabled: true });
+    const groups = sidebarNavigationGroups(role, { financeEnabled: true, inventoryEnabled: true });
     const item = groups.flatMap((group) => group.items).find((entry) => entry.href === "/dashboard");
     assert.ok(item, `بند لوحة القيادة مفقود للدور ${role}`);
     assert.equal(item.children, undefined, "لا تُنشأ قائمة منسدلة تحت لوحة القيادة");
   }
-  const limitedGroups = sidebarNavigationGroups("MANAGER", { financeEnabled: true, menuScope: "LIMITED", inventoryEnabled: true });
+  const limitedGroups = sidebarNavigationGroups("MANAGER", {
+    financeEnabled: true,
+    inventoryEnabled: true,
+    access: {
+      isPageAllowed: (href: string) =>
+        ["/dashboard", "/sales", "/finance/expenses", "/finance/help"].some(
+          (prefix) => href === prefix || href.startsWith(`${prefix}/`),
+        ),
+      showAdministration: false,
+    },
+  });
   const limitedDash = limitedGroups.flatMap((group) => group.items).find((entry) => entry.href === "/dashboard");
   assert.ok(limitedDash);
   assert.equal(limitedDash.children, undefined);
-  const managerGroups = sidebarNavigationGroups("MANAGER", { financeEnabled: true, menuScope: "FULL", inventoryEnabled: true });
+  const managerGroups = sidebarNavigationGroups("MANAGER", { financeEnabled: true, inventoryEnabled: true });
   assert.equal(resolveActiveSidebarHref("/dashboard", managerGroups), "/dashboard");
   assert.equal(resolveActiveSidebarHref("/sales/new", managerGroups), "/sales/new");
 });

@@ -1,3 +1,8 @@
+import { PeriodSourceWarning } from "../period-source-warning";
+import { TRANSFER_MONTH_SQL, TRANSFER_SCOPE_SQL } from "@/lib/finance/transfers-overview-sql";
+import { SettlementResultNotice } from "./settlement-result-notice";
+import { SETTLEMENT_STALE_SQL } from "@/lib/finance/settlement-staleness-sql";
+import { writeAllowedForKeys } from "@/lib/access-control";
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -11,9 +16,10 @@ import PantherSpotlightCard, {
 import PrintPageButton from "@/components/print-page-button";
 import { getSession } from "@/lib/auth";
 import { assertFinanceActor, financeDb, financeEnabled } from "@/lib/finance/db";
-import { listAccounts, listSettlements } from "@/lib/finance/engine";
-import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
+import { listAccounts, listSettlements, settlementOverview } from "@/lib/finance/engine";
+import { getAccessContext, requirePageAccess } from "@/lib/access-control-server";
 import { prisma } from "@/lib/prisma";
+import { OlderCorrectionNotice } from "../older-correction-notice";
 import { accountLabel, formatMoney } from "../format";
 import { financeRead } from "../page-context";
 import { SETTLEMENT_STATUS_LABEL } from "../settlements/settlement-forms";
@@ -55,7 +61,11 @@ function displayCents(cents: bigint): string {
 
 export default async function FinanceTransfersPage() {
   const session = await getSession();
-  await requireMenuScopeAccess("/finance/transfers");
+  await requirePageAccess("/finance/transfers");
+  const access = await getAccessContext();
+  const canTransfer = writeAllowedForKeys(access.hidden, "/finance/transfers#transfer");
+  const canConfirmSettlement = writeAllowedForKeys(access.hidden, "/finance/transfers#confirm-settlement");
+  const canRejectSettlement = writeAllowedForKeys(access.hidden, "/finance/transfers#reject-settlement");
   if (!session) redirect("/login");
   if (session.mustChangePassword) redirect("/change-password");
   if (!financeEnabled()) redirect("/dashboard");
@@ -64,7 +74,7 @@ export default async function FinanceTransfersPage() {
 
   const [branches, users, accounts] = await Promise.all([
     prisma.branch.findMany({
-      select: { id: true, nameAr: true },
+      select: { id: true, nameAr: true, code: true, isActive: true },
       orderBy: { id: "asc" },
     }),
     prisma.user.findMany({
@@ -87,8 +97,9 @@ export default async function FinanceTransfersPage() {
     : [];
 
   const branchNames = new Map(
-    branches.map((branch) => [branch.id.toString(), branch.nameAr]),
+    branches.map((branch) => [branch.id.toString(), `${branch.nameAr} · ${branch.code}`]),
   );
+  const activeBranchIds = new Set(branches.filter((branch) => branch.isActive).map((branch) => String(branch.id)));
   const userNames = new Map(
     users.map((user) => [user.id.toString(), user.fullName]),
   );
@@ -102,6 +113,7 @@ export default async function FinanceTransfersPage() {
       .filter((account) => String(account.kind) === "VAULT")
       .map((account) => String(account.branchId)),
   );
+  const branchByAccount = new Map(accounts.map((account) => [String(account.id), String(account.branchId)]));
   const balanceByAccount = new Map(
     accounts.map((account) => [account.id, account.balance]),
   );
@@ -149,6 +161,7 @@ export default async function FinanceTransfersPage() {
            FROM finance.accounts
           WHERE kind = 'VAULT'
             AND branch_id = $1::bigint
+            AND closed_at IS NULL
           ORDER BY id ASC
           LIMIT 1`,
         [session.branchId],
@@ -202,6 +215,9 @@ export default async function FinanceTransfersPage() {
     .filter((settlement) => String(settlement.status) === "OPEN")
     .map((settlement) => ({
       id: String(settlement.id),
+      accountClosed: !openAccounts.some((account) => String(account.id) === String(settlement.accountId)),
+      requestedByCurrentActor: String(settlement.requestedBy) === String(session.id),
+      accountBranchMismatch: branchByAccount.has(String(settlement.accountId)) && branchByAccount.get(String(settlement.accountId)) !== String(settlement.branchId),
       branchId: String(settlement.branchId),
       branchName: branchNames.get(String(settlement.branchId)) ?? "فرع",
       holderName:
@@ -261,6 +277,7 @@ export default async function FinanceTransfersPage() {
                 : "";
           return {
             id: String(s.id),
+            branchId: String(s.branchId),
             branchName: branchNames.get(String(s.branchId)) ?? "فرع",
             holderName: holder,
             createdAtDate: String(s.createdAt).slice(0, 10),
@@ -289,25 +306,34 @@ export default async function FinanceTransfersPage() {
     canManage && pendingSettlements.length
       ? await financeRead(session, (tx) =>
           tx.query<{ id: string }>(`
-        SELECT s.id::text AS id FROM finance.settlements s
-        JOIN finance.accounts a ON a.id = s.account_id
-        WHERE s.status = 'OPEN' AND (
-          EXISTS (SELECT 1 FROM finance.movements m
-                   WHERE (m.source_id = a.id OR m.destination_id = a.id) AND m.created_at > s.created_at)
-          OR EXISTS (SELECT 1 FROM public.commerce_collections c JOIN public.commerce_sales sl ON sl.id = c.sale_id
-                     WHERE sl.branch_id = a.branch_id AND c.method = 'CASH' AND c.created_at > s.created_at)
-          OR EXISTS (SELECT 1 FROM finance.payments p JOIN finance.expenses e ON e.id = p.expense_id
-                     WHERE e.branch_id = a.branch_id AND p.source = 'HOLDER_CASH' AND p.recorded_at > s.created_at)
-        )`),
+        SELECT st.id::text AS id FROM finance.settlements st
+        JOIN finance.accounts a ON a.id = st.account_id
+        WHERE st.status = 'OPEN' AND ${SETTLEMENT_STALE_SQL}`),
         )
       : { rows: [] };
   const staleSettlementIds = new Set(
     staleSettlements.rows.map((row) => row.id),
   );
+  // Snapshot for the UI only; confirmation rechecks the period under lock.
+  // Missing or closed accounts are conservatively blocked as well.
+  const boundarySettlementIds = new Set<string>();
+  const sourceMismatchSettlementIds = new Set<string>();
+  if (canManage && pendingSettlements.length) {
+    await financeRead(session, async (tx) => {
+      const inlineDb = { serializable: <T,>(work: (inner: typeof tx) => Promise<T>) => work(tx) };
+      for (const settlement of settlements) {
+        if (settlement.status !== "OPEN") continue;
+        const overview = await settlementOverview(inlineDb, session.id, settlement.accountId);
+        if (!overview.account || overview.boundaryAmbiguous || overview.holderCorrectionInPeriod) boundarySettlementIds.add(String(settlement.id));
+        if (overview.sourceRecorderMismatch) sourceMismatchSettlementIds.add(String(settlement.id));
+      }
+    });
+  }
 
   // استعلام حركات التسليم مع نوع الحسابين والمنفِّذ ورقم التسوية دون كشف أي رصيد سري
-  const recentTransfersRes = await financeRead(session, (tx) =>
-    tx.query<{
+  const transferData = await financeRead(session, async (tx) => {
+    const scope = [canManage, session.branchId, ownCustody?.id ?? null];
+    const recentTransfersRes = await tx.query<{
       id: string;
       branchId: string;
       sourceId: string;
@@ -336,17 +362,16 @@ export default async function FinanceTransfersPage() {
          FROM finance.movements m
          LEFT JOIN finance.accounts sa ON sa.id = m.source_id
          LEFT JOIN finance.accounts da ON da.id = m.destination_id
-        WHERE m.kind = 'TRANSFER'
-          ${
-            canManage
-              ? ""
-              : "AND m.branch_id = $1::bigint AND (m.source_id = $2::bigint OR m.destination_id = $2::bigint)"
-          }
+        WHERE ${TRANSFER_SCOPE_SQL}
         ORDER BY m.id DESC
         LIMIT 100`,
-      canManage ? [] : [session.branchId, ownCustody!.id],
-    ),
-  ).catch(() => ({ rows: [] }));
+      scope,
+    );
+    const month = await tx.query<{ branchId: string; dateKey: string; direction: "TO_VAULT" | "TO_CUSTODY"; amount: string; count: number }>(
+      TRANSFER_MONTH_SQL, [...scope, `${currentMonthPrefix}-01`],
+    );
+    return { recentTransfers: recentTransfersRes.rows, month: month.rows };
+  });
 
   function formatMovementParty(
     branchName: string,
@@ -370,52 +395,41 @@ export default async function FinanceTransfersPage() {
   const dailyMap = new Map<string, { toVault: bigint; total: bigint; count: number }>();
   const branchVolumeMap = new Map<string, { total: bigint; toVault: bigint; count: number }>();
 
-  const ledgerRows: TransferLedgerRow[] = recentTransfersRes.rows.map((r) => {
+  for (const item of transferData.month) {
+    const amtCents = moneyToCents(item.amount);
+    if (item.direction === "TO_VAULT") {
+      monthToVaultCents += amtCents;
+      monthToVaultCount += item.count;
+    } else {
+      monthToCustodyCents += amtCents;
+      monthToCustodyCount += item.count;
+    }
+    if (item.dateKey === todayCairo && (canManage || item.direction === "TO_VAULT")) {
+      todayTransfersCents += amtCents;
+      todayTransfersCount += item.count;
+    }
+    const dEntry = dailyMap.get(item.dateKey) ?? { toVault: 0n, total: 0n, count: 0 };
+    dEntry.total += amtCents;
+    if (item.direction === "TO_VAULT") dEntry.toVault += amtCents;
+    dEntry.count += item.count;
+    dailyMap.set(item.dateKey, dEntry);
+    const bEntry = branchVolumeMap.get(item.branchId) ?? { total: 0n, toVault: 0n, count: 0 };
+    bEntry.total += amtCents;
+    if (item.direction === "TO_VAULT") bEntry.toVault += amtCents;
+    bEntry.count += item.count;
+    branchVolumeMap.set(item.branchId, bEntry);
+  }
+
+  const ledgerRows: TransferLedgerRow[] = transferData.recentTransfers.map((r) => {
     const bName = branchNames.get(r.branchId) ?? "فرع";
     const dt = new Date(r.createdAt);
     const validDt = !Number.isNaN(dt.getTime());
-    const dateKey = validDt
-      ? cairoDayFmt.format(dt)
-      : String(r.createdAt).slice(0, 10);
-    const direction: "TO_VAULT" | "TO_CUSTODY" =
-      r.destKind === "VAULT" ? "TO_VAULT" : "TO_CUSTODY";
-    const amtCents = moneyToCents(r.amount);
-
-    if (dateKey === todayCairo) {
-      todayTransfersCents += amtCents;
-      todayTransfersCount += 1;
-    }
-    if (dateKey.startsWith(currentMonthPrefix)) {
-      if (direction === "TO_VAULT") {
-        monthToVaultCents += amtCents;
-        monthToVaultCount += 1;
-      } else {
-        monthToCustodyCents += amtCents;
-        monthToCustodyCount += 1;
-      }
-      const dEntry = dailyMap.get(dateKey) ?? {
-        toVault: 0n,
-        total: 0n,
-        count: 0,
-      };
-      dEntry.total += amtCents;
-      if (direction === "TO_VAULT") dEntry.toVault += amtCents;
-      dEntry.count += 1;
-      dailyMap.set(dateKey, dEntry);
-
-      const bEntry = branchVolumeMap.get(bName) ?? {
-        total: 0n,
-        toVault: 0n,
-        count: 0,
-      };
-      bEntry.total += amtCents;
-      if (direction === "TO_VAULT") bEntry.toVault += amtCents;
-      bEntry.count += 1;
-      branchVolumeMap.set(bName, bEntry);
-    }
+    const dateKey = validDt ? cairoDayFmt.format(dt) : String(r.createdAt).slice(0, 10);
+    const direction: "TO_VAULT" | "TO_CUSTODY" = r.destKind === "VAULT" ? "TO_VAULT" : "TO_CUSTODY";
 
     return {
       id: r.id,
+      branchId: r.branchId,
       branchName: bName,
       fromLabel: formatMovementParty(
         bName,
@@ -507,14 +521,14 @@ export default async function FinanceTransfersPage() {
                 label: "حسب الفرع",
                 chartVariant: "columns" as const,
                 points: branches.map((b) => {
-                  const stat = branchVolumeMap.get(b.nameAr) ?? {
+                  const stat = branchVolumeMap.get(b.id.toString()) ?? {
                     total: 0n,
                     toVault: 0n,
                     count: 0,
                   };
                   return {
-                    label: b.nameAr,
-                    shortLabel: b.nameAr.replace(/^فرع\s+/, "").slice(0, 10),
+                    label: `${b.nameAr} · ${b.code}`,
+                    shortLabel: `${b.nameAr.replace(/^فرع\s+/, "")} · ${b.code}`,
                     value: Number(stat.total) / 100,
                     formattedValue: `${displayCents(stat.total)} ج.م`,
                     secondaryValue: Number(stat.toVault) / 100,
@@ -530,7 +544,7 @@ export default async function FinanceTransfersPage() {
     : [
         {
           id: "daily-sales",
-          label: "مسار توريداتك",
+          label: "مسار حركات عهدتك",
           chartVariant: "area",
           points: dailyPoints,
         },
@@ -547,14 +561,14 @@ export default async function FinanceTransfersPage() {
               detail: "الرصيد الدفتري المسجّل لعهدتك الآن",
             },
             {
-              label: "ما سلّمته اليوم للخزنة",
+              label: "التوريد من عهدتك للخزنة اليوم",
               shortLabel: "توريد اليوم",
               value: Number(todayTransfersCents) / 100,
               formattedValue: `${displayCents(todayTransfersCents)} ج.م`,
               detail: `${todayTransfersCount} عملية تسليم اليوم`,
             },
             {
-              label: "إجمالي توريدك بالشهر",
+              label: "توريد عهدتك للخزنة بالشهر",
               shortLabel: "توريد الشهر",
               value: Number(monthToVaultCents) / 100,
               formattedValue: `${displayCents(monthToVaultCents)} ج.م`,
@@ -564,9 +578,9 @@ export default async function FinanceTransfersPage() {
         },
       ];
 
-  const distinctBranchesInLedger = Array.from(
-    new Set(branches.map((b) => b.nameAr)),
-  );
+  const distinctBranchesInLedger = branches.map((b) => ({
+    id: b.id.toString(), label: `${b.nameAr} · ${b.code}`,
+  }));
 
   return (
     <div className="fin-page">
@@ -605,12 +619,14 @@ export default async function FinanceTransfersPage() {
         </div>
       </div>
 
+      {canManage && canConfirmSettlement ? <SettlementResultNotice actorId={session.id} confirmedIds={settlements.filter(s => s.status === "CONFIRMED" && s.resolvedBy === session.id).map(s => s.id)} /> : null}
+
       <div className="no-print">
         <PantherSpotlightCard
           icon={canManage ? "balanceScale" : "cashConversion"}
           chartVariant={canManage ? "donut" : "area"}
           title="حركة التسليم والتوريد النقدي"
-          subtitle={`محدّث الآن · شهر ${currentMonthPrefix}`}
+          subtitle={`شهر ${currentMonthPrefix} · حركات مسجّلة بتوقيت القاهرة حتى وقت القراءة، وليست إثباتًا للتسليم الفعلي`}
           pill={`${monthToVaultCount + monthToCustodyCount} حركة بالشهر`}
           primary={
             canManage
@@ -622,7 +638,7 @@ export default async function FinanceTransfersPage() {
                   tone: "positive",
                 }
               : {
-                  label: "إجمالي توريدك لخزنة الفرع بالشهر",
+                  label: "توريد عهدتك لخزنة الفرع بالشهر",
                   value: displayCents(monthToVaultCents),
                   unit: "ج.م",
                   delta: `رصيد عهدتك الدفتري الحالي: ${formatMoney(ownCustody?.balance ?? "0")} ج.م`,
@@ -637,7 +653,7 @@ export default async function FinanceTransfersPage() {
                   unit: "طلب",
                   delta:
                     pendingSettlements.length > 0
-                      ? `${staleSettlementIds.size > 0 ? `${staleSettlementIds.size} طلب متقادم يحتاج إعادة جرد · ` : ""}افصل فيها من القسم أدناه`
+                      ? `${staleSettlementIds.size > 0 ? `${staleSettlementIds.size} طلب متقادم يحتاج إعادة جرد · ` : ""}${boundarySettlementIds.size > 0 ? `${boundarySettlementIds.size} طلب متوقف لمراجعة الفترة أو الحساب · ` : ""}راجع التفاصيل أدناه؛ قد تتداخل الفئات`
                       : `0 معلقات · ${archivedSettlements.length} تسوية مؤرشفة في السجل`,
                   tone: pendingSettlements.length > 0 ? "negative" : "positive",
                 }
@@ -672,13 +688,13 @@ export default async function FinanceTransfersPage() {
         items={[
           {
             icon: "transfers",
-            label: canManage ? "وارد الخزائن (الشهر)" : "توريدك للخزنة (الشهر)",
+            label: canManage ? "وارد الخزائن (الشهر)" : "توريد عهدتك للخزنة (الشهر)",
             value: (
               <>
                 <bdi dir="ltr">{displayCents(monthToVaultCents)}</bdi> <small>ج.م</small>
               </>
             ),
-            sub: `عبر {monthToVaultCount} سند توريد نقدي`,
+            sub: `عبر ${monthToVaultCount} حركة توريد مسجّلة`,
             tone: "accent",
           },
           {
@@ -698,7 +714,7 @@ export default async function FinanceTransfersPage() {
           },
           {
             icon: "receipt",
-            label: "حركات التسليم اليوم",
+            label: canManage ? "حركات التسليم اليوم" : "توريد عهدتك اليوم",
             value: (
               <>
                 <bdi dir="ltr">{displayCents(todayTransfersCents)}</bdi> <small>ج.م</small>
@@ -708,13 +724,13 @@ export default async function FinanceTransfersPage() {
           },
           {
             icon: "shield",
-            label: canManage ? "تسويات بانتظار القرار" : "إجمالي سنداتك بالسجل",
+            label: canManage ? "تسويات بانتظار القرار" : "سندات عهدتك بالسجل المعروض",
             value: String(canManage ? pendingSettlements.length : ledgerRows.length),
             sub: canManage
               ? pendingSettlements.length > 0
                 ? "تتطلّب اعتمادًا أو رفضًا بسبب"
                 : `${archivedSettlements.length} تسوية سابقة بالأرشيف`
-              : "سندات موثّقة وجاهزة للطباعة",
+              : "حتى آخر 100 حركة متاحة للطباعة",
             tone: canManage && pendingSettlements.length > 0 ? "alert" : "default",
           },
         ]}
@@ -734,9 +750,10 @@ export default async function FinanceTransfersPage() {
                 قرار عاجل — عُهَد الموظفين
               </p>
               <h2>طلبات التسوية المعلقة ({pendingSettlements.length})</h2>
+              <OlderCorrectionNotice />
               <p>
                 طلبات التسوية التي وصلت من موظفي الفروع (شاشة «عهدتي ← طلبات التسوية» لدى كل موظف) — قراركم هنا: اعتماد
-                (حركتان في معاملة ذرّية واحدة: مطابقة الدفتر مع الواقع المعدود، ثم تحويل الفرق مع الخزنة) أو رفض ببيان.
+                (تعديل دفتري للمعدود إن لزم، ثم تسجيل مبلغ التحويل المُدخل إن كان غير صفر، في معاملة واحدة) أو رفض ببيان. الإدخال ليس إثباتًا لانتقال النقد.
               </p>
             </div>
             <div className="fin-actions">
@@ -748,26 +765,47 @@ export default async function FinanceTransfersPage() {
 
           {pendingSettlements.map((item) => (
             <div key={item.id} className="fin-page__section">
+              <p className="fin-alert fin-alert--warning">تنبيه اختلاف المسجّل، إن ظهر هنا، يفحص الفترة الحالية للعهدة وقت عرض الصفحة، وليس لقطة محفوظة لفترة الطلب. غيابه لا يثبت سلامة إسناد الطلب أو تاريخه؛ راجع مصادره قبل القرار.</p>
+              {sourceMismatchSettlementIds.has(item.id) && <PeriodSourceWarning />}
               {staleSettlementIds.has(item.id) ? (
                 <div className="fin-alert fin-alert--warning" role="status">
-                  وقعت حركة نقدية على هذه العهدة بعد تقديم الطلب، فالمعدود لم يعد مطابقًا للنقد في اليد.
-                  الاعتماد سيُرفض حتى يُلغى الطلب بسبب واضح ويُعاد الجرد بطلب جديد.
+                  تغيّرت مراجعة العهدة أو تعذّر التحقق منها، أو سُجّل مصدر نقدي في الفرع أو حركة على العهدة بعد الطلب؛ يتوقف الاعتماد احتياطًا. السجل وحده لا يثبت تغير النقد الفعلي.
+                  يمكن رفض الطلب بسبب، وإعادة الجرد بعد معالجة أسباب المنع الأخرى إن وجدت.
                 </div>
+              ) : null}
+              {boundarySettlementIds.has(item.id) && !item.accountClosed ? (
+                <div className="fin-alert fin-alert--warning" role="alert">
+                  فترة العهدة ملتبسة عند بداية الفترة، أو يوجد تصحيح مرتبط بدفع نقد موظف عند الحد أو بعده، أو تعذّر تحديدها؛ يتوقف الاعتماد للمراجعة، ويظل الرفض متاحًا بسبب.
+                </div>
+              ) : null}
+              {item.accountBranchMismatch ? (
+                <div className="fin-alert fin-alert--warning" role="alert">فرع طلب التسوية لا يطابق فرع العهدة؛ توقف الاعتماد للمراجعة دون تعديل السجل. يمكن لمن لديه الصلاحية رفض الطلب بسبب.</div>
+              ) : null}
+              {item.requestedByCurrentActor ? (
+                <div className="fin-alert fin-alert--warning" role="status">لا اعتماد ذاتي: من أنشأ طلب التسوية لا يعتمده. يمكن لمسؤول آخر مراجعته، ويظل الرفض متاحًا لمن لديه صلاحيته بسبب.</div>
+              ) : null}
+              {!activeBranchIds.has(item.branchId) ? (
+                <div className="fin-alert fin-alert--warning" role="status">الفرع غير نشط أو تعذّر العثور عليه؛ يتوقف اعتماد التسوية، ويظل الرفض متاحًا لمن لديه صلاحيته بسبب.</div>
               ) : null}
               {!branchesWithVault.has(item.branchId) ? (
                 <div className="fin-alert fin-alert--warning" role="status">
-                  لا توجد خزنة مفتوحة لفرع {item.branchName}. الاعتماد يحتاج خزنة تُحوَّل إليها أو منها، فسيُرفض بدونها.
-                  افتح الخزنة بجرد فعلي من «الحسابات النقدية» أولًا.
+                  لا توجد خزنة مفتوحة لفرع {item.branchName}. الاعتماد يحتاج خزنة مفتوحة، حتى إن كان التحويل صفرًا.
+                  إن لم تُفتح سابقًا يمكن فتحها بجرد فعلي؛ أما الخزنة المقفلة فتحتاج مراجعة مستقلة. لا تغيّر السجل لتجاوز المنع.
                 </div>
               ) : null}
-              <SettlementDecisionCard item={item} />
+              {item.accountClosed ? (
+                <div className="fin-alert fin-alert--warning" role="status">
+                  العهدة مقفلة؛ لا يمكن اعتماد الطلب. يمكن رفضه بسبب، أو لصاحبه إلغاؤه.
+                </div>
+              ) : null}
+              <SettlementDecisionCard actorId={session.id} item={item} canConfirm={canConfirmSettlement && !item.accountClosed && !item.accountBranchMismatch && !item.requestedByCurrentActor && activeBranchIds.has(item.branchId) && branchesWithVault.has(item.branchId) && !staleSettlementIds.has(item.id) && !boundarySettlementIds.has(item.id)} canReject={canRejectSettlement} />
             </div>
           ))}
         </section>
       ) : null}
 
       {/* نموذج التسليم الفعلي الذكي */}
-      <div className="fin-page__section">
+      {canTransfer ? <div className="fin-page__section">
         {options.length < 2 ? (
           <FinEmptyState
             icon="transfers"
@@ -775,13 +813,13 @@ export default async function FinanceTransfersPage() {
             title={
               canManage
                 ? "يلزم وجود خزنة مفتوحة وعهدة موظف مفتوحة في الفرع نفسه"
-                : "لا توجد خزنة مفتوحة لفرعك بعد لتوريد النقد إليها"
+                : "لا توجد خزنة مفتوحة لفرعك لتوريد النقد إليها"
             }
           >
             <p>
               {canManage
-                ? "افتح خزنة الفرع أو عهدة موظف بجرد فعلي من «الحسابات النقدية» لتفعيل التسليم الفوري."
-                : "تواصل مع المدير أو المحاسب لفتح خزنة الفرع بجرد فعلي، أو قدّم طلب تسوية من صفحة التسويات."}
+                ? "راجع حالة خزنة الفرع والعهدة؛ إن لم تُفتح الخزنة من قبل يمكن فتحها بجرد فعلي. الخزنة المقفلة تحتاج مراجعة مستقلة."
+                : "تواصل مع المدير أو المحاسب لمراجعة حالة خزنة الفرع. لا يُعتمد طلب التسوية دون خزنة مفتوحة."}
             </p>
             <div
               className="fin-actions"
@@ -807,7 +845,7 @@ export default async function FinanceTransfersPage() {
             actorName={actorFullName}
           />
         )}
-      </div>
+      </div> : null}
 
       {/* السجل الرقابي الشامل + أرشيف قرارات التسوية + سندات الطباعة الرسمية */}
       <div className="fin-page__section">

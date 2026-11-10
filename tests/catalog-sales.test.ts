@@ -17,7 +17,7 @@ import { PrismaPGlite } from "pglite-prisma-adapter";
 import type { PrismaClient as ClientType } from "@prisma/client";
 
 import { InventoryProblem } from "../src/lib/inventory-operations";
-import { createCatalogSale, createSalesCategory, listCatalogAudit, loadSalesCatalog, setSalesTypeActive } from "../src/lib/catalog-sales";
+import { createCatalogSale, createSalesCategory, createSalesType, createSalesField, listCatalogAudit, loadSalesCatalog, setSalesCategoryActive, setSalesTypeActive, setSalesFieldActive, updateSalesCategory, updateSalesType, updateSalesField } from "../src/lib/catalog-sales";
 
 const root = process.cwd();
 const read = (f: string) => readFileSync(path.join(root, f), "utf8");
@@ -158,6 +158,63 @@ test("catalog sales run without a warehouse, without stock and with unknown tax"
       assert.equal(audit[0]!.actor, "مدير تجريبي");
       assert.ok(audit.some((row) => row.reason === "إعادة تشغيل بعد المراجعة"));
       await expectProblem(() => listCatalogAudit(client, 3n), /للمدير فقط/);
+      // A saved audit's operation and target are reliable discriminators even
+      // for older rows, unlike inventing a request hash for legacy data.
+      await expectProblem(() => createSalesType(client, 1n, {requestId,categoryId:created.id,nameAr:"صنف آخر",sortOrder:1}), /عملية مختلفة/);
+      await expectProblem(() => setSalesCategoryActive(client, 1n, {requestId,id:created.id,active:false,reason:"سبب اصطناعي"}), /عملية مختلفة/);
+      const other=await createSalesCategory(client,1n,{requestId:randomUUID(),code:"OTHER_TEST",nameAr:"تصنيف ثان",sortOrder:6});
+      const update={requestId:randomUUID(),id:created.id,nameAr:"اسم بعد المراجعة",sortOrder:7};
+      const updated=await updateSalesCategory(client,1n,update);
+      assert.equal(updated.replayed,false);
+      assert.deepEqual(await updateSalesCategory(client,1n,update),{id:created.id,replayed:true});
+      // Audit data can disambiguate the saved values without inventing a hash.
+      await expectProblem(()=>updateSalesCategory(client,1n,{...update,nameAr:"اسم مختلف"}),/بيانات مختلفة/);
+      await expectProblem(()=>updateSalesCategory(client,1n,{...update,sortOrder:8}),/بيانات مختلفة/);
+      assert.equal((await client.salesItemCategory.findUniqueOrThrow({where:{id:BigInt(created.id)}})).nameAr,"اسم بعد المراجعة");
+      await expectProblem(()=>updateSalesCategory(client,1n,{...update,id:other.id}),/عملية مختلفة/);
+      await expectProblem(()=>setSalesCategoryActive(client,1n,{requestId:update.requestId,id:created.id,active:false,reason:"سبب اصطناعي"}),/عملية مختلفة/);
+      assert.equal((await client.salesItemCategory.findUniqueOrThrow({where:{id:BigInt(other.id)}})).nameAr,"تصنيف ثان");
+      assert.equal((await client.salesItemCategory.findUniqueOrThrow({where:{id:BigInt(created.id)}})).isActive,true);
+      assert.equal(await client.salesCatalogAudit.count({where:{requestId:update.requestId}}),1);
+      await expectProblem(()=>createSalesCategory(client,1n,{requestId,code:"NEW",nameAr:"مختلف",sortOrder:5}),/بيانات مختلفة/);
+      await expectProblem(()=>createSalesCategory(client,1n,{requestId,code:"OTHER_CODE",nameAr:"جديد",sortOrder:5}),/بيانات مختلفة/);
+      // Replay is tied to the saved audit, not the entity's current values.
+      assert.deepEqual(await createSalesCategory(client,1n,{requestId,code:"NEW",nameAr:"جديد",sortOrder:5}),{id:created.id,replayed:true});
+      const status={requestId:randomUUID(),id:created.id,active:false,reason:"سبب أول"};
+      assert.equal((await setSalesCategoryActive(client,1n,status)).replayed,false);
+      assert.deepEqual(await setSalesCategoryActive(client,1n,status),{id:created.id,replayed:true});
+      await expectProblem(()=>setSalesCategoryActive(client,1n,{...status,reason:"سبب مختلف"}),/بيانات مختلفة/);
+      const typeInput={requestId:randomUUID(),categoryId:created.id,nameAr:"نوع إضافي",sortOrder:3};
+      const type=await createSalesType(client,1n,typeInput);
+      assert.deepEqual(await createSalesType(client,1n,typeInput),{id:type.id,replayed:true});
+      await expectProblem(()=>createSalesType(client,1n,{...typeInput,categoryId:other.id}),/بيانات مختلفة/);
+      const typeUpdate={requestId:randomUUID(),id:type.id,nameAr:"نوع محدث",sortOrder:4};
+      await updateSalesType(client,1n,typeUpdate);
+      assert.deepEqual(await updateSalesType(client,1n,typeUpdate),{id:type.id,replayed:true});
+      await expectProblem(()=>updateSalesType(client,1n,{...typeUpdate,sortOrder:9}),/بيانات مختلفة/);
+      const fieldInput={requestId:randomUUID(),typeId:type.id,fieldKey:"field_test",labelAr:"حقل إضافي",isRequired:true,sortOrder:1};
+      const field=await createSalesField(client,1n,fieldInput);
+      assert.deepEqual(await createSalesField(client,1n,fieldInput),{id:field.id,replayed:true});
+      await expectProblem(()=>createSalesField(client,1n,{...fieldInput,isRequired:false}),/بيانات مختلفة/);
+      await expectProblem(()=>createSalesField(client,1n,{...fieldInput,fieldKey:"field_other"}),/بيانات مختلفة/);
+      const fieldUpdate={requestId:randomUUID(),id:field.id,labelAr:"حقل محدث",isRequired:false,sortOrder:2};
+      await updateSalesField(client,1n,fieldUpdate);
+      assert.deepEqual(await updateSalesField(client,1n,fieldUpdate),{id:field.id,replayed:true});
+      await expectProblem(()=>updateSalesField(client,1n,{...fieldUpdate,labelAr:"حقل آخر"}),/بيانات مختلفة/);
+      const fieldStatus={requestId:randomUUID(),id:field.id,active:false,reason:"إيقاف مؤقت"};
+      await setSalesFieldActive(client,1n,fieldStatus);
+      assert.deepEqual(await setSalesFieldActive(client,1n,fieldStatus),{id:field.id,replayed:true});
+      await expectProblem(()=>setSalesFieldActive(client,1n,{...fieldStatus,reason:"سبب آخر"}),/بيانات مختلفة/);
+      // An incomplete historic audit is never turned into an invented request
+      // identity, nor is a second write performed as a fallback.
+      const legacy={requestId:randomUUID(),code:"LEGACY_TEST",nameAr:"سجل قديم",sortOrder:5};
+      const legacySaved=await createSalesCategory(client,1n,legacy);
+      await client.$executeRawUnsafe("UPDATE public.sales_catalog_audit SET after_data=NULL WHERE request_id=$1::uuid",legacy.requestId);
+      await expectProblem(()=>createSalesCategory(client,1n,legacy),/لا تتوفر بيانات كافية/);
+      await client.$executeRawUnsafe("UPDATE public.sales_catalog_audit SET after_data=jsonb_build_object('code','LEGACY_TEST') WHERE request_id=$1::uuid",legacy.requestId);
+      await expectProblem(()=>createSalesCategory(client,1n,legacy),/لا تتوفر بيانات كافية/);
+      assert.equal(await client.salesItemCategory.count({where:{id:BigInt(legacySaved.id)}}),1);
+      assert.equal(await client.salesCatalogAudit.count({where:{requestId:legacy.requestId}}),1);
     });
   } finally {
     if (db) await db.$disconnect();

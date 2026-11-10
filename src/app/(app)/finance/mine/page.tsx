@@ -1,3 +1,6 @@
+import { PeriodSourceWarning } from "../period-source-warning";
+import { PeriodEstimateNotice } from "../period-estimate-notice";
+import { writeAllowedForKeys } from "@/lib/access-control";
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import type { SessionUser } from "@/lib/auth";
@@ -6,13 +9,13 @@ import { AppIcon } from "@/components/app-icon";
 import { FinEmptyState } from "@/components/finance/fin-empty-state";
 import PantherSpotlightCard from "@/components/panther-spotlight-card";
 import PrintPageButton from "@/components/print-page-button";
-import { listAccountActivity, listAccounts, listMyCountRequests } from "@/lib/finance/engine";
+import { getMyPendingCustodyRequest, listAccountActivity, listAccounts, listMyCountRequests, settlementOverview } from "@/lib/finance/engine";
 import { loadEmployeeCash } from "@/lib/finance/dashboard";
 import { formatMoney } from "../format";
 import { financePage, financeRead } from "../page-context";
 import CustodyActivityView, { type CustodyMovementItem } from "./custody-activity-view";
 import { CustodyRequestForm, HolderCountForm } from "./custody-forms";
-import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
+import { getAccessContext, requirePageAccess } from "@/lib/access-control-server";
 
 export const dynamic = "force-dynamic";
 
@@ -32,29 +35,50 @@ const KIND_LABELS: Record<string, string> = {
  * payment detail can reach this screen, and the branch filter is applied in SQL. */
 export default async function MyCustodyPage() {
   const { session, canManage } = await financePage();
-  await requireMenuScopeAccess("/finance/mine");
+  await requirePageAccess("/finance/mine");
+  const access = await getAccessContext();
+  const canRequestCustody = writeAllowedForKeys(access.hidden, "/finance/mine#request-custody");
+  const canSubmitCount = writeAllowedForKeys(access.hidden, "/finance/mine#submit-count");
   if (canManage) redirect("/finance");
 
   const accounts = await financeRead(session, (tx) => listAccounts({ serializable: (work) => work(tx) }, session.id));
-  const account = accounts.find((item) => item.kind === "CUSTODY" && item.holderId === session.id) ?? null;
+  const account = accounts.find((item) => item.kind === "CUSTODY" && item.holderId === session.id && !item.closedAt) ?? null;
+  const closedAccount = accounts.find((item) => item.kind === "CUSTODY" && item.holderId === session.id && item.closedAt) ?? null;
+  const custodyRequest = canRequestCustody
+    ? await financeRead(session, tx => getMyPendingCustodyRequest({ serializable: work => work(tx) }, session.id)).catch(() => ({ available: false, pending: null }))
+    : { available: false, pending: null };
+  // Presentation hint only; the action locks and checks the branch again.
+  const requestBranchActive = account === null && canRequestCustody && session.branchId
+    ? await financeRead(session, async tx => (await tx.query<{ active: boolean }>(`SELECT is_active AS active FROM public.branches WHERE id=$1::bigint`, [session.branchId])).rows[0]?.active === true).catch(() => false)
+    : false;
   // الجرود التي طُلِبت مني ولم أعدّها بعد
   const countRequests = await financeRead(session, (tx) => listMyCountRequests({ serializable: (work) => work(tx) }, session.id));
   // «المتوقَّع بيدك» يُقرأ من الوحدة نفسها التي تعرضها اللوحة، لا يُحسب هنا
   // مرة أخرى: فحسابه في موضعين يعني احتمال اختلافهما، والرقم الذي يُسأل عنه
   // الموظف عند التسليم يجب أن يكون واحدًا أينما رآه.
   const cash = await loadEmployeeCash(session);
+  const period = account ? await financeRead(session, (tx) => settlementOverview({ serializable: (work) => work(tx) }, session.id, account.id)) : null;
+  const cashUnavailable = Boolean(account && (!cash || cash.accountId !== account.id));
+  const visibleCountRequests = account ? countRequests.filter(item => String(item.accountId) === account.id) : [];
+  const periodAmbiguous = Boolean(account && (cashUnavailable || !period?.account || period.boundaryAmbiguous || period.holderCorrectionInPeriod || cash?.boundaryAmbiguous || cash?.holderCorrectionInPeriod));
 
   return (
     <div className="fin-page">
-      {countRequests.length > 0 ? (
+      {cashUnavailable && <div className="fin-alert fin-alert--warning" role="alert">تعذّر التحقق من عهدة نقدية واحدة مطابقة لفرعك؛ لا تعتمد الأرقام وراجع الإدارة قبل الجرد أو التسوية.</div>}
+      {periodAmbiguous && !cashUnavailable && <div className="fin-alert fin-alert--warning" role="alert">يوجد تحصيل أو صرف نقدي في الفرع يساوي وقت بداية الفترة، أو يوجد تصحيح مرتبط بدفع نقد موظف عند حد الفترة أو بعده، أو تعذرت مراجعة الفترة. الأرقام أدناه غير مؤكدة؛ توقف الجرد والتسوية والإقفال للمراجعة.</div>}
+      {canSubmitCount && !periodAmbiguous && visibleCountRequests.length > 0 ? (
         <div className="fin-form-stack">
-          {countRequests.map((item) => (
+          {visibleCountRequests.map((item) => (
             <HolderCountForm key={String(item.id)} requestId={randomUUID()} countId={String(item.id)} reason={item.reason ? String(item.reason) : null} />
           ))}
         </div>
       ) : null}
 
-      {account === null ? <CustodyRequestForm requestId={randomUUID()} /> : null}
+      {account === null && canRequestCustody && requestBranchActive && custodyRequest.available && !custodyRequest.pending ? <CustodyRequestForm requestId={randomUUID()} /> : null}
+      {canRequestCustody && custodyRequest.available && custodyRequest.pending ? <div className="fin-alert fin-alert--warning" role="status">لديك طلب عهدة معلّق #{custodyRequest.pending.id} بمبلغ مقترح {formatMoney(custodyRequest.pending.amount)}. راجع الإدارة قبل تقديم طلب آخر{custodyRequest.pending.branchId !== session.branchId ? "؛ الطلب مسجّل في فرع آخر" : ""}.</div> : null}
+      {canRequestCustody && !custodyRequest.available ? <div className="fin-alert fin-alert--warning" role="status">تعذّر التحقق من طلبات العهدة؛ لا يمكن تقديم طلب من هذه الصفحة الآن.</div> : null}
+      {account === null && closedAccount ? <div className="fin-alert fin-alert--warning" role="status">عهدتك السابقة في هذا الفرع مقفلة. يمكنك تقديم طلب للمراجعة إن لم يكن لديك طلب معلّق، لكن تقديمه لا يفتح عهدة؛ القيد الحالي قد يمنع اعتماد عهدة بديلة. راجع الإدارة.</div> : null}
+      {account === null && canRequestCustody && !requestBranchActive ? <div className="fin-alert fin-alert--warning" role="status">تعذّر التحقق من فرع نشط لحسابك؛ طلب عهدة جديدة متوقف. راجع الإدارة.</div> : null}
 
       <div className="fin-heading">
         <div>
@@ -85,23 +109,27 @@ export default async function MyCustodyPage() {
       </div>
 
       {!account ? (
-        <FinEmptyState icon="cash" title="لا توجد عهدة مفتوحة باسمك بعد">
-          <p>تُفتح العهدة بجرد فعلي يسجّله المدير أو المحاسب.</p>
-        </FinEmptyState>
+        <>
+          <FinEmptyState icon="cash" title="لا توجد عهدة مفتوحة باسمك بعد">
+            <p>تُفتح العهدة بجرد فعلي يسجّله المدير أو المحاسب.</p>
+          </FinEmptyState>
+          {closedAccount ? <section className="fin-panel"><div className="fin-panel__heading"><h2>سجل العهدة المقفلة #{closedAccount.id}</h2><p>حركات تاريخية مسجلة، وليست عهدة مفتوحة أو إثباتًا للنقد الحالي.</p></div><div className="fin-panel__body"><CustodyActivity session={session} accountId={closedAccount.id} /></div></section> : null}
+        </>
       ) : (
         <>
           {cash?.openSettlementId ? (
-            <div className={`fin-alert${cash?.settlementStale ? " fin-alert--warning" : ""}`} role="status" style={{ marginBottom: 18 }}>
-              {cash?.settlementStale ? (
+            <div className={`fin-alert${cash?.settlementStale || periodAmbiguous ? " fin-alert--warning" : ""}`} role="status" style={{ marginBottom: 18 }}>
+              {periodAmbiguous ? (
+                <span><strong>طلب التسوية المعلق متوقف للمراجعة.</strong> لا يمكن اعتماده الآن؛ قد يظل سبب المنع قائمًا حتى بعد إلغاء الطلب وإعادة الجرد. يمكن إلغاء الطلب بسبب، وراجِع المسؤول المخوّل.</span>
+              ) : cash?.settlementStale ? (
                 <span>
-                  <strong>طلب التسوية المعلق قد بطل.</strong>{" "}
-                  وقعت حركة نقدية بعد تقديمه — بيع أو تحصيل أو مصروف أو رد — فلم يعد المعدود مطابقًا للنقد في يدك.
-                  ألغِ الطلب بسبب وأعد الجرد بطلب جديد.
+                  <strong>طلب التسوية المعلق متوقف عن الاعتماد احتياطًا.</strong>{" "}
+                  تغيّرت مراجعة العهدة أو لا تتوفر مراجعة موثوقة للطلب، أو سُجّل مصدر نقدي في الفرع أو حركة على العهدة بعده. السجل وحده لا يثبت تغير النقد الفعلي.
+                  ألغِ الطلب بسبب وراجع المسؤول قبل إعادة الجرد بطلب جديد.
                 </span>
               ) : (
                 <span>
-                  لديك طلب تسوية معلق بانتظار اعتماد المدير. أي حركة نقدية جديدة بعد تقديمه — بيع أو تحصيل أو مصروف أو رد —
-                  تُبطل النقد المعدود، وسيحتاج الطلب إلى إلغاء بسبب وإعادة جرد بطلب جديد.
+                  لديك طلب تسوية معلق بانتظار اعتماد المدير. تسجيل مصدر نقدي في الفرع أو حركة على العهدة بعد الطلب، أو تغيّر مراجعة العهدة، قد يمنع الاعتماد احتياطًا؛ التسجيل وحده لا يثبت تغير النقد الفعلي. راجع المسؤول وأعد الجرد بعد إلغاء الطلب بسبب إذا لزم.
                 </span>
               )}
             </div>
@@ -110,10 +138,12 @@ export default async function MyCustodyPage() {
             <>
               <div className="fin-panel" style={{ marginBottom: 18 }}>
                 <div className="fin-panel__heading">
-                  <h2>المتوقَّع بيدك الآن</h2>
-                  <p>هذا ما يُفترض أن يكون في يدك عند التسليم.</p>
+                  <h2>مؤشر الفترة التقديري</h2>
+                  <p>حساب دفتري للمراجعة وليس إثباتًا لما بيدك.</p>
                 </div>
                 <div className="fin-panel__body">
+                  <PeriodEstimateNotice />
+                  {period?.sourceRecorderMismatch && <PeriodSourceWarning />}
                   <div className="fin-expected-voucher">
                     <p className="fin-expected">
                       <strong>{formatMoney(cash.expected)}</strong>
@@ -122,9 +152,9 @@ export default async function MyCustodyPage() {
                     <p className="fin-expected__how">
                       = رصيد عهدتك {formatMoney(cash.balance)}
                       <span aria-hidden="true"> + </span>
-                      ما قبضته من العملاء {formatMoney(cash.sales)}
+                      التحصيلات المحسوبة {formatMoney(cash.sales)}
                       <span aria-hidden="true"> − </span>
-                      ما صرفته منها {formatMoney(cash.expenses)}
+                      المصروفات المحسوبة {formatMoney(cash.expenses)}
                     </p>
                   </div>
                 </div>
@@ -134,23 +164,23 @@ export default async function MyCustodyPage() {
                 icon="cashConversion"
                 chartVariant="waterfall"
                 title="ميزان حركة العهدة"
-                subtitle="محدّث الآن · المقبوضات والمنصرفات النقدية منذ آخر تسوية"
+                subtitle="محدّث الآن · مؤشرات سجلات الفترة للمراجعة"
                 pill={`${cash.todaySalesCount} بيع اليوم`}
                 primary={{
-                  label: "ما قبضته نقدًا من العملاء",
+                  label: "التحصيلات النقدية المحسوبة",
                   value: formatMoney(cash.sales),
                   unit: "ج.م",
                   delta: `منها مبيعات اليوم نقدًا: ${formatMoney(cash.todaySales)} ج.م`,
                   tone: "positive",
                 }}
                 secondary={{
-                  label: "ما صرفته من نقد العهدة",
+                  label: "مصروفات نقد الموظف المحسوبة",
                   value: formatMoney(cash.expenses),
                   unit: "ج.م",
                   delta:
                     Number(cash.expenses) > 0
-                      ? `منها مصروفات اليوم: ${formatMoney(cash.todayExpenses)} ج.م · يُسوّى عند التسليم`
-                      : "0 منصرفات · لم يُصرف نقد من العهدة في هذه الفترة",
+                      ? `منها مصروفات اليوم: ${formatMoney(cash.todayExpenses)} ج.م · حسب السجلات`
+                      : "0 مصروفات محسوبة · لا يثبت عدم حدوث صرف",
                   tone: Number(cash.expenses) > 0 ? "negative" : "positive",
                 }}
                 series={[
@@ -179,15 +209,15 @@ export default async function MyCustodyPage() {
                         shortLabel: "−المصروفات",
                         value: Number(cash.expenses),
                         formattedValue: `−${formatMoney(cash.expenses)} ج.م`,
-                        detail: "مصروفات سُدّدت فعليًا من نقد يدك",
+                        detail: "دفع مسجّل؛ لا يثبت الحيازة أو وقوع الدفع",
                         tone: "danger",
                       },
                       {
-                        label: "المتوقَّع بيدك الآن",
+                        label: "مؤشر الفترة التقديري",
                         shortLabel: "=المتوقَّع",
                         value: Number(cash.expected),
                         formattedValue: `${formatMoney(cash.expected)} ج.م`,
-                        detail: `بعد خصم مصروفات من نقدك: −${formatMoney(cash.expenses)} ج.م`,
+                        detail: `بعد خصم المصروفات المحسوبة: −${formatMoney(cash.expenses)} ج.م`,
                       },
                     ],
                   },
@@ -207,7 +237,7 @@ export default async function MyCustodyPage() {
                         shortLabel: "صرف اليوم",
                         value: Number(cash.todayExpenses),
                         formattedValue: `${formatMoney(cash.todayExpenses)} ج.م`,
-                        detail: "مصروفات سُددت من نقد يدك اليوم",
+                        detail: "دفعات مسجّلة اليوم لا تثبت وقوع الدفع",
                       },
                       {
                         label: "إجمالي مقبوضات الفترة",
@@ -221,7 +251,7 @@ export default async function MyCustodyPage() {
                         shortLabel: "صرف الفترة",
                         value: Number(cash.expenses),
                         formattedValue: `${formatMoney(cash.expenses)} ج.م`,
-                        detail: "منصرفات من نقد العهدة منذ آخر تسوية",
+                        detail: "مصروفات محسوبة منذ حد الفترة",
                       },
                     ],
                   },

@@ -38,7 +38,7 @@ const movement = (saleId: string, amount: string, method: string, accountId = ""
 const financeDb = (client: PrismaClient): FinanceDatabase => ({ serializable: async (work) => {
   try { return await client.$transaction(tx => work(financeTx(tx)), { isolationLevel: "Serializable", maxWait: 5000, timeout: 20000 }); } catch (error) { return sqlError(error); }
 } });
-const files = ["tests/fixtures/inventory-baseline.sql", "prisma/manual-inventory-upgrade.sql", "prisma/manual-receiving-upgrade.sql", "prisma/manual-commerce-upgrade.sql"];
+const files = ["tests/fixtures/inventory-baseline.sql","prisma/manual-inventory-upgrade.sql","prisma/manual-receiving-upgrade.sql","prisma/manual-commerce-upgrade.sql","prisma/manual-catalog-sales-upgrade.sql","prisma/manual-menu-scope-upgrade.sql","prisma/manual-cancel-permission-upgrade.sql","prisma/manual-discount-ceiling-upgrade.sql"];
 type RunSql = (sql: string) => Promise<unknown>;
 async function initialize(exec: RunSql) {
   for (const f of files) await exec(read(f));

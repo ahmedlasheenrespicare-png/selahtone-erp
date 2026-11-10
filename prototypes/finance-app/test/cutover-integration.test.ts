@@ -24,7 +24,7 @@ import { FixtureCommitOutcomeUnknown, ownedFixtureTransaction, type CleanupObser
 
 const read=(file:string)=>readFileSync(file,"utf8"), req=()=>randomUUID(), port=55436;
 const cutover=read("prototypes/finance-cutover/schema.test-only.sql"), bridge=read("prototypes/finance-cutover/lab-bridge.test-only.sql");
-const fixtures=["tests/fixtures/inventory-baseline.sql","prisma/manual-inventory-upgrade.sql","prisma/manual-receiving-upgrade.sql","prisma/manual-commerce-upgrade.sql","tests/fixtures/finance-legacy-categories.sql","tests/fixtures/finance-cutover.sql"];
+const fixtures=["tests/fixtures/inventory-baseline.sql","prisma/manual-inventory-upgrade.sql","prisma/manual-receiving-upgrade.sql","prisma/manual-commerce-upgrade.sql","prisma/manual-catalog-sales-upgrade.sql","prisma/manual-menu-scope-upgrade.sql","prisma/manual-cancel-permission-upgrade.sql","prisma/manual-discount-ceiling-upgrade.sql","tests/fixtures/finance-legacy-categories.sql","tests/fixtures/finance-cutover.sql"];
 const saleInput=(method="CARD",account="",payment="10")=>({requestId:req(),warehouseId:"1",customerName:"عميل مختبر وهمي",customerPhone:"01000000000",discount:"0",initialPayment:payment,method,
  cashAccountId:method==="CASH"?account:"",cashCheckpointRef:method==="CASH"?"OPENING":"",afterCheckpoint:method==="CASH",
  lines:[{productId:"2",quantity:"2",serialIds:[],expectedUnitPrice:"20",expectedTaxRateId:3,expectedTaxKind:"EXEMPT",expectedTaxRate:"0"}]});
@@ -137,7 +137,7 @@ test("disposable PostgreSQL: cutover guard and actual finance LAB operations",{t
    await assert.rejects(()=>createCommerceSale(legacyClient!,3n,saleInput()));
    await assert.rejects(()=>openAccount(dbPort(legacyClient!),"1",opening("VAULT",null,"100"),"2026-10-29"));
    assert.deepEqual(await snapshot(),before);
-   assert.equal(Number((await admin!.query("SELECT count(*) FROM pg_trigger WHERE tgname='finance_cutover_lab_guard' AND NOT tgisinternal")).rows[0].count),18);
+   assert.equal(Number((await admin!.query("SELECT count(*) FROM pg_trigger WHERE tgname='finance_cutover_lab_guard' AND NOT tgisinternal")).rows[0].count),19);
    await transition(2,"FROZEN","NEW");
    await assert.rejects(()=>createCommerceSale(base!,3n,saleInput()));
   });

@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const startedAt = Date.now();
   try {
-    const [branches, warehouses, products] = await Promise.all([
+    await Promise.all([
       prisma.branch.count(),
       prisma.warehouse.count(),
       prisma.product.count(),
@@ -21,17 +21,16 @@ export async function GET() {
       app: "صلة تون",
       version: "0.1.0",
       db: { connected: true, latencyMs: Date.now() - startedAt },
-      counts: { branches, warehouses, products },
       time: new Date().toISOString(),
-    });
-  } catch (error) {
+    }, { headers: { "Cache-Control": "no-store" } });
+  } catch {
     return NextResponse.json(
       {
         status: "error",
         db: { connected: false },
-        message: error instanceof Error ? error.message : "فشل الاتصال بقاعدة البيانات",
+        message: "فشل الاتصال بقاعدة البيانات",
       },
-      { status: 503 },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
     );
   }
 }

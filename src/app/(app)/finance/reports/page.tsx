@@ -18,7 +18,8 @@ import {
 } from "@/lib/finance/reports";
 import { displayMoney } from "@/lib/commerce-display";
 import { financePage, financeRead } from "../page-context";
-import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
+import { getAccessContext, requirePageAccess } from "@/lib/access-control-server";
+import { accessKeyAllowed } from "@/lib/access-control";
 import { FinKpiStrip } from "@/components/finance/fin-kpi-strip";
 import { FinEmptyState } from "@/components/finance/fin-empty-state";
 import { FinSectionTitle } from "@/components/finance/fin-section-title";
@@ -53,7 +54,11 @@ function signedMoney(cents: bigint): string {
 export default async function FinanceReportsPage({ searchParams }: Props) {
   const { session, canManage } = await financePage();
   if (!canManage) redirect("/finance");
-  await requireMenuScopeAccess("/finance/reports");
+  await requirePageAccess("/finance/reports");
+  const access = await getAccessContext();
+  const canViewFinance = accessKeyAllowed(access.hidden, "/finance");
+  const canViewExpenses = accessKeyAllowed(access.hidden, "/finance/expenses");
+  const canViewTransfers = accessKeyAllowed(access.hidden, "/finance/transfers");
 
   const rawPeriod = (await searchParams)?.period;
   const period = normalizeReportPeriod(Array.isArray(rawPeriod) ? rawPeriod[0] : rawPeriod);
@@ -83,10 +88,10 @@ export default async function FinanceReportsPage({ searchParams }: Props) {
 
   return (
     <div className="fin-page">
-      <Link href="/finance" className="fin-back no-print">
+      {canViewFinance ? <Link href="/finance" className="fin-back no-print">
         <AppIcon name="arrow" />
         <span>العودة إلى المالية</span>
-      </Link>
+      </Link> : null}
 
       <div className="fin-heading">
         <div>
@@ -133,7 +138,7 @@ export default async function FinanceReportsPage({ searchParams }: Props) {
               </>
             ),
             tone: "accent",
-            href: "/finance/expenses",
+            href: canViewExpenses ? "/finance/expenses" : undefined,
           },
           {
             icon: "expenses",
@@ -149,7 +154,7 @@ export default async function FinanceReportsPage({ searchParams }: Props) {
               </>
             ),
             tone: report.awaiting.pendingCount > 0 ? "alert" : "default",
-            href: "/finance/expenses",
+            href: canViewExpenses ? "/finance/expenses" : undefined,
           },
           {
             icon: "check",
@@ -164,7 +169,7 @@ export default async function FinanceReportsPage({ searchParams }: Props) {
                 بقيمة <bdi dir="ltr">{formatReportCents(report.awaiting.approvedCents)}</bdi> ج.م جاهزة للصرف
               </>
             ),
-            href: "/finance/expenses",
+            href: canViewExpenses ? "/finance/expenses" : undefined,
           },
           {
             icon: "transfers",
@@ -175,7 +180,7 @@ export default async function FinanceReportsPage({ searchParams }: Props) {
                 ? `${report.settlements.staleOpenCount} مضى عليها أكثر من ٧ أيام`
                 : "لا تسويات متقادمة الآن",
             tone: report.settlements.openCount > 0 ? "alert" : "default",
-            href: "/finance/transfers#pending-settlements",
+            href: canViewTransfers ? "/finance/transfers#pending-settlements" : undefined,
           },
         ]}
       />
@@ -341,7 +346,7 @@ export default async function FinanceReportsPage({ searchParams }: Props) {
               as="h2"
               eyebrow="التسويات"
               title={`تسويات الشهر الحالي`}
-              description="كل تسوية عُدّت ضمن الشهر (بتوقيت القاهرة) مع انحرافها عن المتوقع."
+              description="كل تسوية عُدّت ضمن الشهر (بتوقيت القاهرة) مع فرقها عن مؤشر الفترة المسجّل."
             />
           </div>
           <FinCsvButton
@@ -354,7 +359,7 @@ export default async function FinanceReportsPage({ searchParams }: Props) {
         <div className="fin-panel__body">
           <div className="fin-table-wrap">
             <table className="fin-table">
-              <caption>تسويات الشهر الحالي: العدد والانحراف المطلق والمعلّق المتقادم</caption>
+              <caption>تسويات الشهر الحالي: العدد والفرق المطلق عن المؤشر والمعلّق المتقادم</caption>
               <thead>
                 <tr>
                   <th scope="col">المؤشر</th>
@@ -367,7 +372,7 @@ export default async function FinanceReportsPage({ searchParams }: Props) {
                   <td>{report.settlements.monthCount}</td>
                 </tr>
                 <tr>
-                  <th scope="row">إجمالي الانحراف المطلق (|المعدود − المتوقَّع|)</th>
+                  <th scope="row">إجمالي الفرق المطلق عن المؤشر (|المعدود − المؤشر|)</th>
                   <td>
                     <span className="fin-money">
                       <bdi dir="ltr">{formatReportCents(report.settlements.monthAbsDeviationCents)}</bdi> ج.م

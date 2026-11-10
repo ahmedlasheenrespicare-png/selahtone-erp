@@ -21,7 +21,12 @@ export function sqlError(error: unknown): never {
       meta?: { code?: string; message?: string; driverAdapterError?: { cause?: { originalCode?: string; originalMessage?: string } } };
     }).meta;
     const driver = meta?.driverAdapterError?.cause;
-    const pgCode = code === "P2034" ? "40001" : code === "P2010" ? (meta?.code ?? driver?.originalCode) : undefined;
+    // Some adapters populate meta.code with a non-SQLSTATE placeholder while
+    // the driver carries the actual PostgreSQL code. Do not let the placeholder
+    // mask a recognized conflict (or turn it into an invented database code).
+    const state = (value: unknown): string | undefined =>
+      typeof value === "string" && /^[0-9A-Z]{5}$/.test(value) ? value : undefined;
+    const pgCode = code === "P2034" ? "40001" : code === "P2010" ? (state(meta?.code) ?? state(driver?.originalCode)) : undefined;
     if (pgCode) {
       const converted = new Error("Finance transaction failed") as Error & { code: string; constraint?: string };
       converted.code = pgCode;
