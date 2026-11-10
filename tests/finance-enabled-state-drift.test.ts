@@ -1577,3 +1577,23 @@ test("merge request is refused in section 114", () => {
   assert.equal(inv.blockers_resolved, 0);
   assert.equal(inv.gates_opened, 0);
 });
+
+test("next step approval sha question is answered in section 115", () => {
+  const log = read("docs/finance-release-log.md");
+  assert.match(log, /## ١١٥\./);
+  assert.match(log, /PROCEDURAL_QUESTION_ABOUT_A_NEXT_STEP_APPROVAL_SHA/);
+  assert.match(log, /NEXT_STEP_APPROVAL_SHA_QUESTION_ANSWERED_DESCRIPTIVELY_NO_SHA_DELIVERED/);
+  assert.match(log, /A_SHA_IS_PINNED_TO_A_REVIEWED_TEXT_NOT_TO_AN_APPROVAL/);
+  assert.match(log, /SHAS_IDENTIFY_BUT_DO_NOT_AUTHORIZE_EXECUTION/);
+  assert.match(log, /no_sha_delivered=true/);
+  assert.match(log, /NO_TRUE_NO_DEPLOY_NO_SYNC_NO_MANUAL_DEPLOY_NO_BLUEPRINT_NO_SQL_NO_SRC_NO_RENDER_YAML_NO_FINANCIAL_ACTION/);
+  const probe = read("docs/finance-app-connection-probe-result-ar.md");
+  assert.match(probe, /## ٨٨\./);
+  const ev = read("prototypes/finance-app-identity/evaluate-phase4-execution.mjs");
+  assert.match(ev, /SHA_QUESTION_DOES_NOT_VERIFY_OR_CLOSE_ANY_GATE/);
+  assert.match(ev, /NO_NEXT_STEP_APPROVAL_SHA_EXISTS/);
+  const inv: { blockers: Array<{ status: string }>; blockers_resolved: number; gates_opened: number } = JSON.parse(read("prototypes/finance-app-identity/readiness-blockers-inventory.test-only.json"));
+  assert.equal(inv.blockers[0].status, "UNRESOLVED");
+  assert.equal(inv.blockers_resolved, 0);
+  assert.equal(inv.gates_opened, 0);
+});

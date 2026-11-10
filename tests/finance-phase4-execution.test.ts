@@ -5387,3 +5387,128 @@ test("the merge request opens no gate, delivers no phrase and changes no state",
   assert.ok(out.limitations.includes("PULL_REQUEST_STAYS_OPEN_NOT_MERGED"));
   assert.equal(evaluate(SRC_REVIEWED_TEXT_TOPIC_LABEL).merge_pull_request_request, null);
 });
+
+
+const NEXT_STEP_APPROVAL_SHA_QUESTION = {
+  ...structuredClone(MERGE_PULL_REQUEST_REQUEST),
+  next_step_approval_sha_question: {
+    operator_text: "اين بصمه الموافقه للخطوه القادمه",
+    kind: "PROCEDURAL_QUESTION_ABOUT_A_NEXT_STEP_APPROVAL_SHA",
+    received_in_chat: true,
+    verdict: "NEXT_STEP_APPROVAL_SHA_QUESTION_ANSWERED_DESCRIPTIVELY_NO_SHA_DELIVERED",
+    acknowledged_descriptively: true,
+    differs_from_section_114: "A_SHA_QUESTION_NOT_A_MERGE_REQUEST",
+    is_a_question: true,
+    is_an_approval: false,
+    is_a_decision: false,
+    approval_verb_present: false,
+    is_a_separate_verbatim_approval: false,
+    references_pinned_sha: false,
+    no_pinned_sha_in_message: true,
+    answer_scope: "DESCRIPTIVE_ONLY_WHICH_SHAS_EXIST_AND_WHY_NO_APPROVAL_SHA_EXISTS",
+    known_shas_verified: true,
+    reviewed_text_sha: "629e28dfa63aae13714a3858c7df0484a1a2486bd03b0db133aa37dcfbd62f1e",
+    rollback_plan_sha: "3a54fa51d91d40d6dab25ce1dcda6c86371a9872f716eff76c01148927fd703c",
+    old_probe_sha: "d960c559927eda3117b1793f5ff46249be81c2923b3e2233cfcb4f953b9d83eb",
+    no_next_step_approval_sha_exists: true,
+    no_sha_delivered: true,
+    no_reviewed_text_for_src_changes: true,
+    no_acceptance_criteria_for_src_changes: true,
+    no_src_artifact_sha: true,
+    session_does_not_author_reviewed_src_text: true,
+    src_modification_is_prohibited: true,
+    deploy_is_prohibited: true,
+    no_blanket_approval: true,
+    current_step_index: "6/11",
+    next_descriptive_step: "SEPARATE_SRC_AND_DEPLOY_APPROVALS_IF_NEEDED",
+    strict_reject_phrase: "تعذّر التحقق من نتيجة الطلب المحفوظ؛ يلزم مراجعة أو ترحيل الطلب القديم.",
+    no_approval_phrase_solicited: true,
+    no_template_delivered: true,
+    no_phrase_delivered: true,
+    no_reenable_decision_solicited: true,
+    no_command_sent: true,
+    no_sql_delivered: true,
+    no_gate_opened: true,
+    no_inventory_change: true,
+    no_action_taken_on_production: true,
+    no_src_modified: true,
+    no_render_yaml_modified: true,
+    no_deploy: true,
+    no_sync: true,
+    no_true: true,
+    no_secrets_in_chat: true,
+    no_file_reference: true,
+    blockers_resolved: 0,
+    gates_opened: 0,
+    next_gate: "SEPARATE_REENABLE_DECISION",
+    reenable_gate: "CLOSED",
+    overall: "NOT_READY",
+  },
+};
+
+test("a question about the next-step approval SHA delivers no SHA", () => {
+  const out = evaluate(NEXT_STEP_APPROVAL_SHA_QUESTION);
+  assert.equal(out.next_step_approval_sha_question.kind,
+    "PROCEDURAL_QUESTION_ABOUT_A_NEXT_STEP_APPROVAL_SHA");
+  assert.equal(out.next_step_approval_sha_question.verdict,
+    "NEXT_STEP_APPROVAL_SHA_QUESTION_ANSWERED_DESCRIPTIVELY_NO_SHA_DELIVERED");
+  assert.equal(out.next_step_approval_sha_question.is_a_question, true);
+  assert.equal(out.next_step_approval_sha_question.is_an_approval, false);
+  assert.equal(out.next_step_approval_sha_question.approval_verb_present, false);
+  assert.equal(out.next_step_approval_sha_question.no_pinned_sha_in_message, true);
+  assert.equal(out.next_step_approval_sha_question.no_next_step_approval_sha_exists, true);
+  assert.equal(out.next_step_approval_sha_question.no_sha_delivered, true);
+  assert.equal(out.next_step_approval_sha_question.differs_from_section_114,
+    "A_SHA_QUESTION_NOT_A_MERGE_REQUEST");
+  assert.equal(out.overall_release_status, "NOT_READY");
+});
+
+test("the three known SHAs identify artifacts not an approval", () => {
+  const out = evaluate(NEXT_STEP_APPROVAL_SHA_QUESTION);
+  assert.equal(out.next_step_approval_sha_question.known_shas_verified, true);
+  assert.equal(out.next_step_approval_sha_question.reviewed_text_sha,
+    "629e28dfa63aae13714a3858c7df0484a1a2486bd03b0db133aa37dcfbd62f1e");
+  assert.equal(out.next_step_approval_sha_question.rollback_plan_sha,
+    "3a54fa51d91d40d6dab25ce1dcda6c86371a9872f716eff76c01148927fd703c");
+  assert.equal(out.next_step_approval_sha_question.old_probe_sha,
+    "d960c559927eda3117b1793f5ff46249be81c2923b3e2233cfcb4f953b9d83eb");
+  assert.equal(out.next_step_approval_sha_question.no_reviewed_text_for_src_changes, true);
+  assert.equal(out.next_step_approval_sha_question.no_acceptance_criteria_for_src_changes, true);
+  assert.equal(out.next_step_approval_sha_question.no_src_artifact_sha, true);
+  assert.equal(out.next_step_approval_sha_question.session_does_not_author_reviewed_src_text, true);
+  assert.equal(out.next_step_approval_sha_question.src_modification_is_prohibited, true);
+  assert.equal(out.next_step_approval_sha_question.deploy_is_prohibited, true);
+  assert.equal(out.next_step_approval_sha_question.current_step_index, "6/11");
+  assert.equal(out.next_step_approval_sha_question.next_descriptive_step,
+    "SEPARATE_SRC_AND_DEPLOY_APPROVALS_IF_NEEDED");
+  for (const w of ["NO_NEXT_STEP_APPROVAL_SHA_EXISTS",
+    "SHAS_IDENTIFY_BUT_DO_NOT_AUTHORIZE_EXECUTION",
+    "A_SHA_IS_PINNED_TO_A_REVIEWED_TEXT_NOT_TO_AN_APPROVAL",
+    "NO_REVIEWED_TEXT_FOR_SRC_CHANGES_EXISTS",
+    "APPROVAL_CANNOT_PRECEDE_THE_PINNED_TEXT_IT_NAMES",
+    "SESSION_DOES_NOT_AUTHOR_REVIEWED_SRC_TEXT",
+    "NO_BLANKET_APPROVAL_EACH_APPROVAL_NEEDS_ITS_OWN_SEPARATE_MESSAGE",
+    "SRC_MODIFICATION_IS_PROHIBITED",
+    "DEPLOY_AND_SYNC_AND_TRUE_ARE_PROHIBITED",
+    "A_FIXED_CONDITION_CANNOT_BE_WAIVED_BY_THE_SESSION",
+    "SESSION_NEVER_EXECUTES_PRODUCTION_SQL_OR_DEPLOYS_OR_SETS_ENV_VARS",
+    "STRICT_REJECT_POLICY_STILL_IN_FORCE"])
+    assert.ok(out.warnings.includes(w), w);
+});
+
+test("the SHA question delivers no phrase and opens no gate", () => {
+  const out = evaluate(NEXT_STEP_APPROVAL_SHA_QUESTION);
+  for (const k of ["no_approval_phrase_solicited", "no_template_delivered",
+    "no_phrase_delivered", "no_reenable_decision_solicited", "no_command_sent",
+    "no_sql_delivered", "no_gate_opened", "no_inventory_change",
+    "no_action_taken_on_production", "no_src_modified", "no_render_yaml_modified",
+    "no_deploy", "no_sync", "no_true", "no_secrets_in_chat", "no_file_reference"])
+    assert.equal((out.next_step_approval_sha_question as unknown as Record<string, boolean>)[k], true, k);
+  assert.equal(out.next_step_approval_sha_question.blockers_resolved, 0);
+  assert.equal(out.next_step_approval_sha_question.gates_opened, 0);
+  assert.equal(out.next_step_approval_sha_question.reenable_gate, "CLOSED");
+  assert.equal(out.next_step_approval_sha_question.finance_enabled, false);
+  assert.equal(out.next_gate, "SEPARATE_REENABLE_DECISION");
+  assert.ok(out.limitations.includes("SHA_QUESTION_DOES_NOT_VERIFY_OR_CLOSE_ANY_GATE"));
+  assert.equal(evaluate(MERGE_PULL_REQUEST_REQUEST).next_step_approval_sha_question, null);
+});
