@@ -66,13 +66,17 @@
 
 أُعدّ ملفان للمراجعة فقط، ولم يُشغَّلا:
 
-- `prisma/manual-finance-controls-upgrade.sql`، SHA-256: `e95c0674f4855d0d0e6a67bd73a592b494e962cdea2556605d0f3d83c1a14c5c`.
+- `prisma/manual-finance-controls-upgrade.sql`، SHA-256: `a32ae32da6a1b3409880c696043fafb9780aebe08229c2608a50e2030f5d2617`.
   يشترط الجرد نفسه قبل أي تغيير، ويضيف `request_results` الفارغ بمالكية الإدارة، ثم RLS على 19 جدولًا بسياسة `selahtone_app_all` لدور التطبيق فقط. هذه ليست عزلة فروع؛ قرارات المستخدم والفرع تبقى داخل معاملات التطبيق. لا `FORCE` لأن الإدارة مالكة وتحتاج الصيانة، والتطبيق غير مالك وبلا BYPASSRLS. يضيف عشرة محفزات append-only على movements وrequests وrequest_results وaudit_events وcategory_audit وcategory_requests وexpense_corrections وopening_corrections وhistorical_commerce وreconciliation_notes. لا يمس صفًا قائمًا ولا يفعّل المالية.
-- `prisma/manual-finance-controls-rollback.sql`، SHA-256: `60cf62443398f8b51f173b235d709902f8f3d733ee8b1639862e8d8d20c82a21`.
+- `prisma/manual-finance-controls-rollback.sql`، SHA-256: `1d0b715139495ff2a78985503572f48204e6c1fd3b050a59f1f9b4d352b692bd`.
   يرفض أي روابط نتائج موجودة، ويزيل الضوابط والجدول الفارغ فقط ويعيد حالة 18 جدولًا بلا حذف صفوف العمل.
 
 اختبار `npm run check:finance:controls` نجح **4/4** على PGlite اصطناعي: منع دور آخر رغم ACL واسع، السماح بقراءة وكتابة مسار التطبيق، إطلاق كل محفزات UPDATE العشرة، منع الرجوع عند وجود روابط، والرجوع النظيف مع بقاء صف قائم. هذا دليل معملي فقط، ولا يغلق enforcement على الإنتاج ولا بقية موانع الجاهزية. يلزم مراجعة النصين ثم موافقة SQL إنتاجية منفصلة؛ لا نشر أو تفعيل مشمول.
 
 ### تصحيح صلاحية الإنشاء بعد المحاولة الإنتاجية
 
-أعاد التنفيذ `ERROR: permission denied for schema finance (SQLSTATE 42501)`؛ لم يظهر تقرير نجاح وبقي controls على 18 جدولًا وصفر RLS/محفزات. السبب هو أن دور SQL Editor لا يملك CREATE مباشرة على المخطط المملوك للإدارة. عُدّل المرشح ليمنح USAGE/CREATE مؤقتًا لدور SQL Editor المالك لـ`public.users`، فينشئ الجدول والـFK ثم ينقل ملكيته للإدارة وتُسحب الصلاحيتان قبل COMMIT، دون منح دائم على `public` أو `finance`. البصمتان الجديدتان هما `e95c0674f4855d0d0e6a67bd73a592b494e962cdea2556605d0f3d83c1a14c5c` للترقية و`60cf62443398f8b51f173b235d709902f8f3d733ee8b1639862e8d8d20c82a21` للرجوع. اختُبر الآن بدور `finance_release_operator` غير ممتاز، وبإثبات `CREATE=false` على finance قبل النجاح وعودة USAGE/CREATE=false بعده مع ثبات الـFK والملكية. هذا نص جديد يحتاج موافقة تشغيل مستقلة؛ الموافقة على النص السابق لا تغطيه.
+أعاد التنفيذ `ERROR: permission denied for schema finance (SQLSTATE 42501)`؛ لم يظهر تقرير نجاح وبقي controls على 18 جدولًا وصفر RLS/محفزات. السبب هو أن دور SQL Editor لا يملك CREATE مباشرة على المخطط المملوك للإدارة. عُدّل المرشح ليمنح USAGE/CREATE مؤقتًا لدور SQL Editor المالك لـ`public.users`، فينشئ الجدول والـFK ثم ينقل ملكيته للإدارة وتُسحب الصلاحيتان قبل COMMIT، دون منح دائم على `public` أو `finance`. البصمتان الجديدتان هما `a32ae32da6a1b3409880c696043fafb9780aebe08229c2608a50e2030f5d2617` للترقية و`1d0b715139495ff2a78985503572f48204e6c1fd3b050a59f1f9b4d352b692bd` للرجوع. اختُبر الآن بدور `finance_release_operator` غير ممتاز، وبإثبات `CREATE=false` على finance قبل النجاح وعودة USAGE/CREATE=false بعده مع ثبات الـFK والملكية. هذا نص جديد يحتاج موافقة تشغيل مستقلة؛ الموافقة على النص السابق لا تغطيه.
+
+### الحفاظ على USAGE الموجود مسبقًا
+
+أوقف فحص الشروط التنفيذ برسالة `operator already has schema privileges` قبل أي كتابة. بالجمع مع خطأ CREATE السابق، الحالة المطلوبة هي USAGE موجود وCREATE غائب. عُدّل المرشح ليشترط هذه الحالة، ويمنح CREATE وحده مؤقتًا ثم يسحبه، دون المساس بـUSAGE. البصمتان: `a32ae32da6a1b3409880c696043fafb9780aebe08229c2608a50e2030f5d2617` للترقية و`1d0b715139495ff2a78985503572f48204e6c1fd3b050a59f1f9b4d352b692bd` للرجوع. الاختبار يثبت بقاء USAGE=true قبل/بعد وCREATE=true فقط داخل التنفيذ. يلزم اعتماد النص الجديد منفصلًا.

@@ -3,11 +3,11 @@
 -- وrequest_results غير موجود. لا يرحّل طلبات قديمة ولا يملأ روابطها اصطناعيًا.
 -- يضيف request_results، وRLS بمنع افتراضي مع سياسة لدور التطبيق وحده، ومحفزات
 -- منع UPDATE/DELETE/TRUNCATE على السجلات المحددة أدناه. لا يفعل FINANCE_ENABLED.
--- sha256: e95c0674f4855d0d0e6a67bd73a592b494e962cdea2556605d0f3d83c1a14c5c
+-- sha256: a32ae32da6a1b3409880c696043fafb9780aebe08229c2608a50e2030f5d2617
 --
 -- التنفيذ المستقبلي: الملف كاملًا في Neon SQL Editor داخل نافذة متفق عليها.
--- يمنح دور الإدارة USAGE/CREATE مؤقتًا لدور SQL Editor المالك لـpublic.users
--- لإنشاء الجدول والـFK، ثم يعود الجدول للإدارة وتُسحب الصلاحيتان قبل COMMIT.
+-- يحافظ على USAGE الموجود مسبقًا، ويمنح CREATE مؤقتًا لدور SQL Editor المالك
+-- لـpublic.users لإنشاء الجدول والـFK، ثم يسحب CREATE قبل COMMIT.
 -- لا منح جديد أو دائم على public.users.
 -- إعادة التشغيل مرفوضة؛ الرجوع له ملف مستقل ولا يعمل إذا احتوى request_results على صفوف.
 BEGIN;
@@ -26,8 +26,8 @@ BEGIN
  IF NOT pg_has_role(session_user,'selahtone_finance_admin','MEMBER') THEN
   RAISE EXCEPTION 'finance controls: session_user lacks the finance admin role';
  END IF;
- IF has_schema_privilege(session_user,'finance','USAGE') OR has_schema_privilege(session_user,'finance','CREATE') THEN
-  RAISE EXCEPTION 'finance controls: operator already has schema privileges; review before temporary grants';
+ IF NOT has_schema_privilege(session_user,'finance','USAGE') OR has_schema_privilege(session_user,'finance','CREATE') THEN
+  RAISE EXCEPTION 'finance controls: expected existing USAGE without CREATE; review before temporary grants';
  END IF;
  IF to_regclass('finance_release.migrations') IS NULL THEN
   RAISE EXCEPTION 'finance controls: migration ledger is missing';
@@ -79,9 +79,9 @@ BEGIN
 END $$;
 
 -- الروابط الجديدة فقط. الطلبات القديمة بلا رابط تبقى مرفوضة ولا تُخمن نتائجها.
--- USAGE/CREATE مؤقتان لدور SQL Editor المالك لـpublic.users؛ ينشئ الجدول والـFK
--- والمنح ثم ينقل ملكية الجدول للإدارة. تُسحب الصلاحيتان قبل COMMIT، والفشل يلغيها.
-DO $$ BEGIN EXECUTE format('GRANT USAGE,CREATE ON SCHEMA finance TO %I',session_user); END $$;
+-- CREATE مؤقت لدور SQL Editor المالك لـpublic.users؛ ينشئ الجدول والـFK والمنح
+-- ثم ينقل ملكية الجدول للإدارة. يبقى USAGE القديم كما هو ويُسحب CREATE قبل COMMIT.
+DO $$ BEGIN EXECUTE format('GRANT CREATE ON SCHEMA finance TO %I',session_user); END $$;
 RESET ROLE;
 CREATE TABLE finance.request_results (
  request_id UUID PRIMARY KEY,
@@ -95,7 +95,7 @@ REVOKE ALL ON finance.request_results FROM PUBLIC;
 GRANT SELECT,INSERT,UPDATE ON finance.request_results TO selahtone_app;
 ALTER TABLE finance.request_results OWNER TO selahtone_finance_admin;
 SET LOCAL ROLE selahtone_finance_admin;
-DO $$ BEGIN EXECUTE format('REVOKE USAGE,CREATE ON SCHEMA finance FROM %I',session_user); END $$;
+DO $$ BEGIN EXECUTE format('REVOKE CREATE ON SCHEMA finance FROM %I',session_user); END $$;
 
 -- هذه ليست عزلة فروع؛ التطبيق يحتاج كل الصفوف ويقرر صلاحية المستخدم داخل معاملته.
 -- RLS يضيف منعًا افتراضيًا لأي دور غير مالك حتى لو مُنح ACL بالخطأ مستقبلًا.
@@ -131,7 +131,7 @@ BEGIN
 END $$;
 
 INSERT INTO finance_release.migrations(name,checksum)
-VALUES('finance_controls_upgrade','e95c0674f4855d0d0e6a67bd73a592b494e962cdea2556605d0f3d83c1a14c5c');
+VALUES('finance_controls_upgrade','a32ae32da6a1b3409880c696043fafb9780aebe08229c2608a50e2030f5d2617');
 
 SELECT jsonb_build_object(
  'status','CONTROLS_INSTALLED_NOT_AN_APPLICATION_ACTIVATION',
