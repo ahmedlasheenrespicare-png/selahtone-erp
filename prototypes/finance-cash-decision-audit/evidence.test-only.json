@@ -1,0 +1,63 @@
+{
+  "record_id": "finance-cash-decision-evidence-2026-11-11",
+  "scope": "SYNTHETIC_PGLITE_ONLY",
+  "production_database_used": false,
+  "finance_enabled_changed": false,
+  "real_cash_refund_attempted": false,
+  "command": "npm run check:finance:decision-evidence",
+  "result": {
+    "tests": 30,
+    "passed": 30,
+    "failed": 0
+  },
+  "principal_fixture": {
+    "movements_before_tampering": 9,
+    "linked_before_tampering": 9,
+    "orphans_before_tampering": 0,
+    "covered_effects": [
+      "TRANSFER",
+      "OPENING_CORRECTION",
+      "ACCOUNT_FUNDED_EXPENSE",
+      "SAME_TRANSACTION_CASH_COLLECTION",
+      "CASH_COUNT_DIFFERENCE",
+      "PAID_EXPENSE_CORRECTION",
+      "SETTLEMENT_WITH_TWO_POSTED_EFFECTS"
+    ],
+    "zero_movement_cases": [
+      "NONCASH_EXPENSE",
+      "MATCHED_CASH_COUNT",
+      "ZERO_DIFFERENCE_SETTLEMENT",
+      "REJECTED_SETTLEMENT",
+      "CANCELLED_CASH_COUNT",
+      "HISTORICAL_COMMERCE_ATTESTATION"
+    ],
+    "tamper_detection": [
+      "RAW_MOVEMENT_WITHOUT_REQUEST_OR_DECISION",
+      "REQUEST_ACTOR_DIFFERENT_FROM_MOVEMENT_ACTOR",
+      "EXPENSE_APPROVAL_AFTER_MOVEMENT"
+    ],
+    "database_constraint_checks": [
+      "ACTUALLY_PAID_CANNOT_BE_TAMPERED_TO_FALSE"
+    ]
+  },
+  "cash_refund_guard": {
+    "source_order_verified": "DISABLED_FINANCE_GUARD_BEFORE_COMMERCE_REFUND_CREATE",
+    "render_finance_enabled": false,
+    "limit": "SOURCE_AND_CONFIGURATION_ASSERTION_ONLY_NOT_A_NEW_REFUND_EXECUTION"
+  },
+  "evidence_meaning": [
+    "Each accepted synthetic movement joins its typed request/result or actual commerce request, decision actor, and transaction timestamp.",
+    "Expense payment requires a prior approval; settlement requires a non-self reviewer; correction and count movements require their resolved review records.",
+    "A movement timestamp before its required decision does not satisfy the audit.",
+    "A saved log or attestation is not evidence that physical cash changed hands."
+  ],
+  "limits": [
+    "PGlite is disposable PostgreSQL-compatible test infrastructure, not Render/Neon or a native-PostgreSQL production rehearsal.",
+    "Persisted actor IDs and confirmations prove the consistency of synthetic records, not the presence or intent of an actual human.",
+    "No claim is made about unknown legacy/production movements; this audit did not query them.",
+    "Transaction timestamps establish record ordering, not the time of a physical handover.",
+    "The new-cash-refund check is static source/config evidence; no real refund was attempted and no Prisma commerce runtime test was run in this task.",
+    "Full repository typecheck could not be completed after npm ci because Prisma generation attempted to reach the unavailable binaries.prisma.sh host; the executable test files passed through tsx."
+  ],
+  "closure": "RESOLVED_FOR_SYNTHETIC_TIMING_AND_DECISION_EVIDENCE_ONLY"
+}

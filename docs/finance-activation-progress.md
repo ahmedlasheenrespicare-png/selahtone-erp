@@ -148,3 +148,11 @@
 سُجل المرشح `finance-controls-2026-11-11-710bafab-bfd2a226` من base ‏`cd1de8ac…`؛ ملفا SQL وبصماتهما لم تتغير. أضيف اختبار PostgreSQL أصلي معزول ينفذ دورتين كاملتين upgrade→rollback، ويقارن بعد كل رجوع الحالة المنطقية الأصلية كاملة: المخططات والكائنات والملكية والأعمدة والقيود والفهارس والدوال والمحفزات والسياسات ومنح الجداول والمخططات وسجل migrations بلا أزمنة، والصف القديم وpublic.users. تطابقت البصمة في الدورتين، ولم تبق request_results أو سياسات أو محفزات أو منح مؤقتة. نجحت مجموعة controls 7/7، وrelease-scripts 10/10 بما فيها PostgreSQL الأصلي، وTypeScript.
 
 السجل `prototypes/finance-app-identity/controls-release-candidate-rehearsal.test-only.json`. أُغلق مانع ROLLED_BACK_REHEARSED_RELEASE_CANDIDATE_VERSION لمرشح الضوابط فقط؛ لم يُنفذ رجوع إنتاجي أو restore لنسخة احتياطية إنتاجية، ولا يُستنتج تفعيل. FINANCE_ENABLED=false.
+
+### دليل توقيت الحركة والقرار البشري على بيانات اصطناعية — 2026-11-11
+
+أضيف مدقق قراءة فقط في `prototypes/finance-cash-decision-audit/audit.test-only.ts` واختبار `tests/finance-cash-decision-evidence.test.ts`. نجح `npm run check:finance:decision-evidence` **30/30**: تسع حركات اصطناعية مرتبطة كلها وصفر يتيم قبل العبث، تغطي التحويل وتصحيح الافتتاح ومصروف الحساب والتحصيل النقدي في معاملة التجارة نفسها وفرق الجرد وتصحيح المصروف المدفوع وآثار التسوية. ولم تنشأ حركة للدفع غير النقدي أو الجرد المطابق أو التسوية الصفرية أو المرفوضة أو الجرد الملغى أو الإقرار التاريخي.
+
+كشف الاختبار حركة خام بلا طلب، واختلاف جهة الطلب عن جهة الحركة، واعتماد مصروف لاحقًا للحركة. كما أثبت قيد قاعدة البيانات منع قلب `actually_paid`. يبقى حارس الرد النقدي قبل `commerceRefund.create` و`FINANCE_ENABLED=false`؛ لم يُنفذ رد حقيقي ولا اتصال بقاعدة إنتاج.
+
+السجل `prototypes/finance-cash-decision-audit/evidence.test-only.json`. أُغلق المانع لدليل السجل الاصطناعي فقط: actor/attestation لا يثبتان حضور شخص أو انتقال نقد مادي، والأزمنة ترتيب معاملات لا توقيت تسليم فعلي، ولا شمول لبيانات قديمة أو إنتاجية غير مفحوصة. فحص الرد النقدي هنا مصدر/إعداد ثابت لا تشغيل Prisma. تعذر typecheck الكامل بعد `npm ci` لأن Prisma generate احتاج مضيف binaries.prisma.sh غير المتاح؛ اختبارات tsx التنفيذية ناجحة. المانع التالي نافذة التحويل.
