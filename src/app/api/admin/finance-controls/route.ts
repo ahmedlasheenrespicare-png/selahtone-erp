@@ -14,6 +14,7 @@ const headers = { "Cache-Control": "private, no-store" };
 
 type ControlsMetadata = {
   schemas: Array<{ schema: string; tables: number; rlsEnabled: number; rlsForced: number; policies: number; tableNames: string[] }>;
+  migrationLedgerStatus: "READ" | "NOT_PRESENT" | "NOT_READABLE_BY_APP_ROLE";
   migrationLedger: Array<{ name: string; checksum: string; appliedAt: string; appliedBy: string }>;
   ownership: { objects: number; ownedByAdmin: number; ownedByApp: number; mismatches: string[] };
   privileges: {
@@ -55,10 +56,24 @@ async function observe(tx: Prisma.TransactionClient): Promise<ControlsMetadata> 
        WHERE n.nspname=$1 AND c.relkind='r' ORDER BY c.relname`, schema.schema,
     )).map((row) => row.name);
   }
+  // The application role deliberately need not read the release ledger. Test
+  // both USAGE and SELECT before referencing it: a permission error would abort
+  // the whole read-only transaction and hide the otherwise readable controls.
   const ledgerExists = await tx.$queryRawUnsafe<Array<{ present: boolean }>>(
     `SELECT to_regclass('finance_release.migrations') IS NOT NULL AS present`,
   );
-  const migrationLedger = ledgerExists[0]?.present
+  const present = ledgerExists[0]?.present === true;
+  // Privilege functions taking object names reject a missing schema, so only
+  // call them after the catalog lookup proves the relation exists.
+  const ledgerAccess = present
+    ? await tx.$queryRawUnsafe<Array<{ readable: boolean }>>(`
+        SELECT COALESCE(has_schema_privilege(current_user,'finance_release','USAGE'),false)
+          AND COALESCE(has_table_privilege(current_user,'finance_release.migrations','SELECT'),false)
+          AS readable`)
+    : [];
+  const readable = present && ledgerAccess[0]?.readable === true;
+  const migrationLedgerStatus = readable ? "READ" : present ? "NOT_READABLE_BY_APP_ROLE" : "NOT_PRESENT";
+  const migrationLedger = readable
     ? await tx.$queryRawUnsafe<ControlsMetadata["migrationLedger"]>(`
         SELECT name::text, checksum::text, applied_at::text AS "appliedAt", applied_by::text AS "appliedBy"
         FROM finance_release.migrations ORDER BY name`)
@@ -91,6 +106,7 @@ async function observe(tx: Prisma.TransactionClient): Promise<ControlsMetadata> 
 
   return {
     schemas,
+    migrationLedgerStatus,
     migrationLedger,
     ownership: {
       objects: ownership[0]?.objects ?? 0,

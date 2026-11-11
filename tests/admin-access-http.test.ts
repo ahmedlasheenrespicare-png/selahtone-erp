@@ -86,10 +86,15 @@ test("only the system admin can change valid permissions and role/account preced
     const controlsResponse = await get("/api/admin/finance-controls", admin);
     const controlsText = await controlsResponse.text();
     assert.equal(controlsResponse.status, 200, controlsText);
-    const controls = JSON.parse(controlsText) as { status: string; rollbackObserved: boolean; financeEnabled: boolean };
+    const controls = JSON.parse(controlsText) as {
+      status: string; rollbackObserved: boolean; financeEnabled: boolean;
+      controls: { migrationLedgerStatus: string; schemas: Array<{ tableNames: string[] }> };
+    };
     assert.equal(controls.status, "OBSERVED_NOT_AN_ENFORCEMENT_TEST");
     assert.equal(controls.rollbackObserved, true);
     assert.equal(controls.financeEnabled, false);
+    assert.equal(controls.controls.migrationLedgerStatus, "NOT_PRESENT");
+    assert.ok(controls.controls.schemas.every((schema) => Array.isArray(schema.tableNames)));
     assert.doesNotMatch(controlsText, /postgres(?:ql)?:\/\/|password|DATABASE_URL/i);
     const adminPage = await (await get("/admin", admin)).text();
     const form = forms(adminPage).find((entry) => entry.includes('name="kind"')); assert.ok(form);
