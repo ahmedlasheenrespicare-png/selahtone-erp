@@ -6,7 +6,7 @@
   "authorization_received_verbatim": "تكليف منفصل صريح بتحليل أوفلاين للموانع",
   "no_action_boundary": "NO_SRC_NO_RENDER_YAML_NO_PRODUCTION_SQL_NO_DEPLOY_NO_SYNC_NO_TRUE",
   "overall_status": "NOT_READY",
-  "blockers_resolved": 5,
+  "blockers_resolved": 6,
   "gates_opened": 0,
   "no_blanket_approval": true,
   "strict_reject_phrase": "تعذّر التحقق من نتيجة الطلب المحفوظ؛ يلزم مراجعة أو ترحيل الطلب القديم.",
@@ -94,12 +94,14 @@
     },
     {
       "id": "ROLLED_BACK_REHEARSED_RELEASE_CANDIDATE_VERSION",
-      "status": "UNRESOLVED",
-      "current_evidence": "مسودة مرشح ترقية للمراجعة فقط + runbook + restore-drill.sh؛ آخر نسخة يدوية قديمة غير مُختبَرة",
-      "gap": "لا نسخة مرشحة مُوسومة مُختبَرة ولا بروفة رجوع مُجرَّبة على الإصدار الحالي.",
+      "status": "RESOLVED",
+      "current_evidence": "CANDIDATE_finance-controls-2026-11-11-710bafab-bfd2a226; PG18_6_TWO_FULL_UPGRADE_ROLLBACK_CYCLES_EXACT_LOGICAL_FINGERPRINT_MATCH; CONTROLS_7_OF_7",
+      "gap": "مغلق لبروفة رجوع مرشح الضوابط المسجل على PostgreSQL اصطناعي؛ لا يثبت رجوع Render/Neon ولا حالة نسخة احتياطية إنتاجية ولا التفعيل.",
       "offline_design": "تحديد معيار قبول للنسخة المرشحة وبصمات قبل/بعد وبروفة رجوع كاملة على قاعدة اختبار معزولة.",
       "acceptance_criteria": "تطابق بصمات ما قبل/ما بعد، ونجاح بروفة الرجوع، وتسجيل النسخة الموسومة، بلمس قاعدة اختبار فقط.",
-      "requires": "SEPARATE_REVIEWED_TEXT_THEN_SEPARATE_VERBATIM_APPROVAL_BEFORE_EXECUTION"
+      "requires": "SEPARATE_REVIEWED_TEXT_THEN_SEPARATE_VERBATIM_APPROVAL_BEFORE_EXECUTION",
+      "rehearsal_record": "controls-release-candidate-rehearsal.test-only.json",
+      "candidate_id": "finance-controls-2026-11-11-710bafab-bfd2a226"
     },
     {
       "id": "CASH_MOVEMENT_TIMING_AND_HUMAN_REVIEW_EVIDENCE",

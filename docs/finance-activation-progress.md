@@ -142,3 +142,9 @@
 على PostgreSQL 18.6 معزول أثبت `check:prisma:commit-lifecycle` بحد اتصال واحد أن قيد FK مؤجلًا يفشل عند COMMIT برمز P2003، وعدد الصفوف صفر، والاستعلام التالي ومعاملة صحيحة ينجحان. ثم قطع socket فعلي عند حدود COMMIT: وصل الخطأ للمتصل، ولم يُصنف retryable، وأُتلف الاتصال ونجح اتصال بديل، ولم يظهر الصف. نجح أيضًا cutover الحقيقي 25/25 بعد تحويل توثيق التسريب القديم إلى regression: FINANCE_CASH_LINK_REQUIRED عند COMMIT، صفر أثر، checkedOut=0، جلسة rollback نظيفة واستعلام لاحق ناجح. TypeScript ناجح.
 
 النطاق مختبر PostgreSQL/PrismaPg اصطناعي فقط، لا اتصال Render/Neon ولا إثبات COMMIT مجهول النتيجة بعد استلام الخادم له. التطبيق المنشور الحالي يستخدم Prisma الأصلي ولم يتبدل. أُغلق مانع PRISMAPG_6_19_3_COMMIT_FAILURE_LIFECYCLE فقط؛ FINANCE_ENABLED=false.
+
+### بروفة رجوع مرشح الضوابط وبصمة كاملة — 2026-11-11
+
+سُجل المرشح `finance-controls-2026-11-11-710bafab-bfd2a226` من base ‏`cd1de8ac…`؛ ملفا SQL وبصماتهما لم تتغير. أضيف اختبار PostgreSQL أصلي معزول ينفذ دورتين كاملتين upgrade→rollback، ويقارن بعد كل رجوع الحالة المنطقية الأصلية كاملة: المخططات والكائنات والملكية والأعمدة والقيود والفهارس والدوال والمحفزات والسياسات ومنح الجداول والمخططات وسجل migrations بلا أزمنة، والصف القديم وpublic.users. تطابقت البصمة في الدورتين، ولم تبق request_results أو سياسات أو محفزات أو منح مؤقتة. نجحت مجموعة controls 7/7، وrelease-scripts 10/10 بما فيها PostgreSQL الأصلي، وTypeScript.
+
+السجل `prototypes/finance-app-identity/controls-release-candidate-rehearsal.test-only.json`. أُغلق مانع ROLLED_BACK_REHEARSED_RELEASE_CANDIDATE_VERSION لمرشح الضوابط فقط؛ لم يُنفذ رجوع إنتاجي أو restore لنسخة احتياطية إنتاجية، ولا يُستنتج تفعيل. FINANCE_ENABLED=false.
