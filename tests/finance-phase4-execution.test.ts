@@ -6163,3 +6163,141 @@ test("the SQL delivery request opens no gate and changes no state", () => {
   assert.ok(out.limitations.includes("NO_REQUEST_SOLICITED_NO_PHRASE_SOLICITED"));
   assert.equal(evaluate(OWNER_BLANKET_EXECUTION_REQUEST).sql_or_command_delivery_request, null);
 });
+
+
+const PERMISSIONS_TABLE_READ_FAILURE_REPORT = {
+  received_in_chat: true,
+  permissions_table_read_failure_report: {
+    operator_text: "تعذرت قراءة جدول الصلاحيات. يُغلق الوصول المقيّد لغير الأدمن مؤقتًا، ولا يمكن حفظ التغييرات حتى إصلاح قاعدة البيانات.",
+    kind: "OPERATOR_STATUS_REPORT_ABOUT_A_PERMISSIONS_TABLE_READ_FAILURE",
+    received_in_chat: true,
+    verdict: "PERMISSIONS_TABLE_READ_FAILURE_REPORT_ACKNOWLEDGED_DESCRIPTIVELY_NO_GATE_OPENED",
+    acknowledged_descriptively: true,
+    differs_from_section_120: "AN_OPERATOR_STATUS_REPORT_NOT_A_REQUEST_FOR_SQL_OR_COMMANDS",
+    is_a_status_report: true,
+    is_a_decision: false,
+    is_an_approval: false,
+    is_a_separate_verbatim_approval: false,
+    approval_verb_present: false,
+    references_pinned_sha: false,
+    no_pinned_sha_in_message: true,
+    answer_scope: "DESCRIPTIVE_ONLY_OPERATOR_REPORT_RECORDED_NO_TEMPLATE_NO_PHRASE_SOLICITED",
+    reported_condition: "PERMISSIONS_TABLE_READ_FAILED",
+    reported_access_state: "RESTRICTED_NON_ADMIN_ACCESS_TEMPORARILY_CLOSED",
+    reported_save_state: "CHANGES_CANNOT_BE_SAVED_UNTIL_DATABASE_IS_REPAIRED",
+    report_is_operator_claimed_not_session_verified: true,
+    not_a_connectivity_proof: true,
+    not_an_identity_probe_from_the_deployed_process: true,
+    not_a_c4_or_c5_result: true,
+    not_a_pass_or_fail_verdict_for_production: true,
+    no_rows_or_values_in_chat: true,
+    no_database_url_in_chat: true,
+    no_secrets_in_chat: true,
+    no_file_reference: true,
+    no_sql_delivered: true,
+    no_command_sent: true,
+    no_phrase_delivered: true,
+    no_template_delivered: true,
+    no_approval_phrase_solicited: true,
+    no_request_solicited: true,
+    no_reenable_decision_solicited: true,
+    no_database_repair_by_session: true,
+    no_gate_opened: true,
+    no_inventory_change: true,
+    no_action_taken_on_production: true,
+    no_src_modified: true,
+    no_render_yaml_modified: true,
+    no_deploy: true,
+    no_sync: true,
+    no_true: true,
+    no_financial_action: true,
+    session_bound: "SESSION_NEVER_EXECUTES_PRODUCTION_SQL_OR_DEPLOYS_OR_SETS_ENV_VARS",
+    no_action_scope: "NO_SRC_NO_RENDER_YAML_NO_PRODUCTION_SQL_NO_DEPLOY_NO_SYNC_NO_TRUE",
+    execution_rule: "EXECUTION_BY_THE_OPERATOR_NOT_THE_SESSION",
+    strict_reject_phrase: "تعذّر التحقق من نتيجة الطلب المحفوظ؛ يلزم مراجعة أو ترحيل الطلب القديم.",
+    current_step_index: "6/11",
+    next_descriptive_step: "SEPARATE_SRC_AND_DEPLOY_APPROVALS_IF_NEEDED",
+    separate_in_service_path_approval: true,
+    src_and_deploy_approvals: false,
+    remaining_blockers: 9,
+    blockers_resolved: 0,
+    gates_opened: 0,
+    next_gate: "SEPARATE_REENABLE_DECISION",
+    reenable_gate: "CLOSED",
+    overall: "NOT_READY",
+  },
+};
+
+test("a permissions table read failure report is acknowledged descriptively", () => {
+  const out = evaluate(PERMISSIONS_TABLE_READ_FAILURE_REPORT);
+  assert.equal(out.permissions_table_read_failure_report.kind,
+    "OPERATOR_STATUS_REPORT_ABOUT_A_PERMISSIONS_TABLE_READ_FAILURE");
+  assert.equal(out.permissions_table_read_failure_report.verdict,
+    "PERMISSIONS_TABLE_READ_FAILURE_REPORT_ACKNOWLEDGED_DESCRIPTIVELY_NO_GATE_OPENED");
+  assert.equal(out.permissions_table_read_failure_report.is_a_status_report, true);
+  assert.equal(out.permissions_table_read_failure_report.is_a_decision, false);
+  assert.equal(out.permissions_table_read_failure_report.is_an_approval, false);
+  assert.equal(out.permissions_table_read_failure_report.approval_verb_present, false);
+  assert.equal(out.permissions_table_read_failure_report.no_pinned_sha_in_message, true);
+  assert.equal(out.permissions_table_read_failure_report.reported_condition,
+    "PERMISSIONS_TABLE_READ_FAILED");
+  assert.equal(out.permissions_table_read_failure_report.reported_access_state,
+    "RESTRICTED_NON_ADMIN_ACCESS_TEMPORARILY_CLOSED");
+  assert.equal(out.permissions_table_read_failure_report.reported_save_state,
+    "CHANGES_CANNOT_BE_SAVED_UNTIL_DATABASE_IS_REPAIRED");
+  assert.equal(out.permissions_table_read_failure_report.differs_from_section_120,
+    "AN_OPERATOR_STATUS_REPORT_NOT_A_REQUEST_FOR_SQL_OR_COMMANDS");
+  assert.equal(out.overall_release_status, "NOT_READY");
+});
+
+test("an operator report is not a connectivity proof or a C4/C5 result", () => {
+  const out = evaluate(PERMISSIONS_TABLE_READ_FAILURE_REPORT);
+  assert.equal(out.permissions_table_read_failure_report.report_is_operator_claimed_not_session_verified, true);
+  assert.equal(out.permissions_table_read_failure_report.not_a_connectivity_proof, true);
+  assert.equal(out.permissions_table_read_failure_report.not_an_identity_probe_from_the_deployed_process, true);
+  assert.equal(out.permissions_table_read_failure_report.not_a_c4_or_c5_result, true);
+  assert.equal(out.permissions_table_read_failure_report.not_a_pass_or_fail_verdict_for_production, true);
+  assert.equal(out.permissions_table_read_failure_report.no_rows_or_values_in_chat, true);
+  assert.equal(out.permissions_table_read_failure_report.no_database_url_in_chat, true);
+  assert.equal(out.permissions_table_read_failure_report.no_secrets_in_chat, true);
+  for (const w of ["OPERATOR_STATUS_REPORT_ONLY_NOT_A_CONNECTIVITY_PROOF",
+    "NOT_AN_IDENTITY_PROBE_FROM_A_CONNECTION_CREATED_INSIDE_THE_DEPLOYED_PROCESS",
+    "NO_PASS_OR_FAIL_VERDICT_INFERRED_FROM_AN_OPERATOR_REPORT",
+    "NO_SQL_NO_COMMANDS_NO_DATABASE_REPAIR_BY_SESSION",
+    "SESSION_NEVER_EXECUTES_PRODUCTION_SQL_OR_DEPLOYS_OR_SETS_ENV_VARS",
+    "NO_BLANKET_APPROVAL_EACH_APPROVAL_NEEDS_ITS_OWN_SEPARATE_MESSAGE",
+    "DEPLOY_AND_SYNC_AND_TRUE_ARE_PROHIBITED",
+    "A_FIXED_CONDITION_CANNOT_BE_WAIVED_BY_THE_SESSION",
+    "STRICT_REJECT_POLICY_STILL_IN_FORCE"])
+    assert.ok(out.warnings.includes(w), w);
+});
+
+test("the report opens no gate and changes no inventory state", () => {
+  const out = evaluate(PERMISSIONS_TABLE_READ_FAILURE_REPORT);
+  for (const k of ["no_file_reference", "no_sql_delivered", "no_command_sent",
+    "no_phrase_delivered", "no_template_delivered", "no_approval_phrase_solicited",
+    "no_request_solicited", "no_reenable_decision_solicited",
+    "no_database_repair_by_session", "no_gate_opened", "no_inventory_change",
+    "no_action_taken_on_production", "no_src_modified", "no_render_yaml_modified",
+    "no_deploy", "no_sync", "no_true", "no_financial_action"])
+    assert.equal((out.permissions_table_read_failure_report as unknown as Record<string, boolean>)[k], true, k);
+  assert.equal(out.permissions_table_read_failure_report.current_step_index, "6/11");
+  assert.equal(out.permissions_table_read_failure_report.next_descriptive_step,
+    "SEPARATE_SRC_AND_DEPLOY_APPROVALS_IF_NEEDED");
+  assert.equal(out.permissions_table_read_failure_report.separate_in_service_path_approval, true);
+  assert.equal(out.permissions_table_read_failure_report.src_and_deploy_approvals, false);
+  assert.equal(out.permissions_table_read_failure_report.remaining_blockers, 9);
+  assert.equal(out.permissions_table_read_failure_report.blockers_resolved, 0);
+  assert.equal(out.permissions_table_read_failure_report.gates_opened, 0);
+  assert.equal(out.permissions_table_read_failure_report.reenable_gate, "CLOSED");
+  assert.equal(out.permissions_table_read_failure_report.finance_enabled, false);
+  // The top-level next_gate is resolved from accumulated historical observation
+  // fields; those /tmp observations are absent on this fresh branch, so the
+  // recorded gate is asserted on the report itself (and NOT_READY overall).
+  assert.equal(out.permissions_table_read_failure_report.next_gate, "SEPARATE_REENABLE_DECISION");
+  assert.equal(out.permissions_table_read_failure_report.gate_status, "CLOSED_NOT_READY");
+  assert.equal(out.overall_release_status, "NOT_READY");
+  assert.ok(out.limitations.includes("PERMISSIONS_TABLE_READ_FAILURE_REPORT_DOES_NOT_VERIFY_OR_CLOSE_ANY_GATE"));
+  assert.ok(out.limitations.includes("NO_INVENTORY_CHANGE"));
+  assert.equal(evaluate({ received_in_chat: true }).permissions_table_read_failure_report, null);
+});

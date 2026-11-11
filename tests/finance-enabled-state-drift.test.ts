@@ -1701,3 +1701,25 @@ test("sql or command delivery request is refused in section 120", () => {
   assert.equal(inv.blockers_resolved, 0);
   assert.equal(inv.gates_opened, 0);
 });
+
+test("permissions table read failure report is recorded in section 121", () => {
+  const log = read("docs/finance-release-log.md");
+  assert.match(log, /## ١٢١\./);
+  assert.match(log, /OPERATOR_STATUS_REPORT_ABOUT_A_PERMISSIONS_TABLE_READ_FAILURE/);
+  assert.match(log, /PERMISSIONS_TABLE_READ_FAILURE_REPORT_ACKNOWLEDGED_DESCRIPTIVELY_NO_GATE_OPENED/);
+  assert.match(log, /OPERATOR_STATUS_REPORT_ONLY_NOT_A_CONNECTIVITY_PROOF/);
+  assert.match(log, /NOT_AN_IDENTITY_PROBE_FROM_A_CONNECTION_CREATED_INSIDE_THE_DEPLOYED_PROCESS/);
+  assert.match(log, /NO_PASS_OR_FAIL_VERDICT_INFERRED_FROM_AN_OPERATOR_REPORT/);
+  assert.match(log, /NO_SQL_NO_COMMANDS_NO_DATABASE_REPAIR_BY_SESSION/);
+  assert.match(log, /NO_TRUE_NO_DEPLOY_NO_SYNC_NO_MANUAL_DEPLOY_NO_BLUEPRINT_NO_SQL_NO_SRC_NO_RENDER_YAML_NO_FINANCIAL_ACTION/);
+  const probe = read("docs/finance-app-connection-probe-result-ar.md");
+  assert.match(probe, /## ٩٤\./);
+  const ev = read("prototypes/finance-app-identity/evaluate-phase4-execution.mjs");
+  assert.match(ev, /PERMISSIONS_TABLE_READ_FAILURE_REPORT_DOES_NOT_VERIFY_OR_CLOSE_ANY_GATE/);
+  assert.match(ev, /NO_SQL_NO_COMMANDS_NO_DATABASE_REPAIR_BY_SESSION/);
+  const inv: { blockers: Array<{ status: string }>; blockers_resolved: number; gates_opened: number } = JSON.parse(read("prototypes/finance-app-identity/readiness-blockers-inventory.test-only.json"));
+  assert.equal(inv.blockers[0].status, "UNRESOLVED");
+  assert.equal(inv.blockers.length, 9);
+  assert.equal(inv.blockers_resolved, 0);
+  assert.equal(inv.gates_opened, 0);
+});

@@ -554,6 +554,14 @@ const ownerBlanketExecutionRequest = (isObject && payload.owner_blanket_executio
 const sqlOrCommandDeliveryRequest = (isObject && payload.sql_or_command_delivery_request
   && typeof payload.sql_or_command_delivery_request === 'object')
   ? payload.sql_or_command_delivery_request : null;
+// An operator status report: reading the permissions table failed, non-admin
+// restricted access is temporarily closed, and changes cannot be saved until
+// the database is repaired. This is a claimed runtime condition, not a
+// connectivity proof, not a C4/C5 result, not a decision and not an approval.
+// Record descriptively only; no SQL, no repair, no gate, no inventory change.
+const permissionsTableReadFailureReport = (isObject && payload.permissions_table_read_failure_report
+  && typeof payload.permissions_table_read_failure_report === 'object')
+  ? payload.permissions_table_read_failure_report : null;
 // Flat resolver instead of a deeply nested ternary: same precedence, fewer
 // opportunities for an unbalanced parenthesis.
 const resolveNextGate = () => {
@@ -608,6 +616,73 @@ const out = {
   operator_statement_status: isObject ? (payload.operator_statement_status ?? null) : null,
   phase4_sql_gate: commitConfirmed ? 'CLOSED_SQL_ONLY' : 'OPEN_SQL',
   next_gate: resolveNextGate(),
+  permissions_table_read_failure_report: permissionsTableReadFailureReport ? {
+    operator_text: permissionsTableReadFailureReport.operator_text ?? null,
+    kind: 'OPERATOR_STATUS_REPORT_ABOUT_A_PERMISSIONS_TABLE_READ_FAILURE',
+    verdict: 'PERMISSIONS_TABLE_READ_FAILURE_REPORT_ACKNOWLEDGED_DESCRIPTIVELY_NO_GATE_OPENED',
+    acknowledged_descriptively: true,
+    differs_from_section_120: 'AN_OPERATOR_STATUS_REPORT_NOT_A_REQUEST_FOR_SQL_OR_COMMANDS',
+    is_a_status_report: true,
+    is_a_decision: false,
+    is_an_approval: false,
+    is_a_separate_verbatim_approval: false,
+    approval_verb_present: false,
+    references_pinned_sha: false,
+    no_pinned_sha_in_message: true,
+    answer_scope: 'DESCRIPTIVE_ONLY_OPERATOR_REPORT_RECORDED_NO_TEMPLATE_NO_PHRASE_SOLICITED',
+    reported_condition: 'PERMISSIONS_TABLE_READ_FAILED',
+    reported_access_state: 'RESTRICTED_NON_ADMIN_ACCESS_TEMPORARILY_CLOSED',
+    reported_save_state: 'CHANGES_CANNOT_BE_SAVED_UNTIL_DATABASE_IS_REPAIRED',
+    report_is_operator_claimed_not_session_verified: true,
+    not_a_connectivity_proof: true,
+    not_an_identity_probe_from_the_deployed_process: true,
+    not_a_c4_or_c5_result: true,
+    not_a_pass_or_fail_verdict_for_production: true,
+    no_rows_or_values_in_chat: true,
+    no_database_url_in_chat: true,
+    no_secrets_in_chat: true,
+    no_file_reference: permissionsTableReadFailureReport.no_file_reference === true,
+    no_sql_delivered: permissionsTableReadFailureReport.no_sql_delivered === true,
+    no_command_sent: permissionsTableReadFailureReport.no_command_sent === true,
+    no_phrase_delivered: permissionsTableReadFailureReport.no_phrase_delivered === true,
+    no_template_delivered: permissionsTableReadFailureReport.no_template_delivered === true,
+    no_approval_phrase_solicited: permissionsTableReadFailureReport.no_approval_phrase_solicited === true,
+    no_request_solicited: permissionsTableReadFailureReport.no_request_solicited === true,
+    no_reenable_decision_solicited: permissionsTableReadFailureReport.no_reenable_decision_solicited === true,
+    no_database_repair_by_session: permissionsTableReadFailureReport.no_database_repair_by_session === true,
+    no_gate_opened: permissionsTableReadFailureReport.no_gate_opened === true,
+    no_inventory_change: permissionsTableReadFailureReport.no_inventory_change === true,
+    no_action_taken_on_production: permissionsTableReadFailureReport.no_action_taken_on_production === true,
+    no_src_modified: permissionsTableReadFailureReport.no_src_modified === true,
+    no_render_yaml_modified: permissionsTableReadFailureReport.no_render_yaml_modified === true,
+    no_deploy: permissionsTableReadFailureReport.no_deploy === true,
+    no_sync: permissionsTableReadFailureReport.no_sync === true,
+    no_true: permissionsTableReadFailureReport.no_true === true,
+    no_financial_action: permissionsTableReadFailureReport.no_financial_action === true,
+    session_bound: 'SESSION_NEVER_EXECUTES_PRODUCTION_SQL_OR_DEPLOYS_OR_SETS_ENV_VARS',
+    no_action_scope: 'NO_SRC_NO_RENDER_YAML_NO_PRODUCTION_SQL_NO_DEPLOY_NO_SYNC_NO_TRUE',
+    execution_rule: 'EXECUTION_BY_THE_OPERATOR_NOT_THE_SESSION',
+    strict_reject_phrase: 'تعذّر التحقق من نتيجة الطلب المحفوظ؛ يلزم مراجعة أو ترحيل الطلب القديم.',
+    still_required: [
+      'SEPARATE_SRC_AND_DEPLOY_APPROVALS_IF_NEEDED',
+      'EXECUTION_BY_THE_OPERATOR_NOT_THE_SESSION', 'OFFLINE_EVALUATION',
+      'SEPARATE_REENABLE_DECISION_NOT_SOLICITED',
+    ],
+    current_step_index: '6/11',
+    next_descriptive_step: 'SEPARATE_SRC_AND_DEPLOY_APPROVALS_IF_NEEDED',
+    separate_in_service_path_approval: true,
+    src_and_deploy_approvals: false,
+    remaining_blockers: 9,
+    blockers_resolved: 0,
+    gates_opened: 0,
+    next_gate: 'SEPARATE_REENABLE_DECISION',
+    gate_status: 'CLOSED_NOT_READY',
+    reenable_gate: 'CLOSED',
+    reenable_decision_solicited: false,
+    c1_c2_for_deployed_app: 'FAIL',
+    finance_enabled: false,
+    overall: 'NOT_READY',
+  } : null,
   sql_or_command_delivery_request: sqlOrCommandDeliveryRequest ? {
     operator_text: sqlOrCommandDeliveryRequest.operator_text ?? null,
     kind: 'REQUEST_TO_DELIVER_SQL_OR_COMMANDS_AND_EXECUTE_THEM',
@@ -3522,6 +3597,18 @@ const out = {
     'PARTIAL_RESULT_IS_NOT_A_SUCCESS_PROOF',
     'DOES_NOT_AUTHORIZE_DATABASE_URL_CHANGE_OR_DEPLOY',
     'NO_PROOF_OF_CASH_MOVEMENT_TIMING_OR_HUMAN_REVIEW',
+    ...(permissionsTableReadFailureReport ? [
+      'PERMISSIONS_TABLE_READ_FAILURE_REPORT_ACKNOWLEDGED_DESCRIPTIVELY_NO_GATE_OPENED',
+      'OPERATOR_STATUS_REPORT_ONLY_NOT_A_CONNECTIVITY_PROOF',
+      'NOT_AN_IDENTITY_PROBE_FROM_A_CONNECTION_CREATED_INSIDE_THE_DEPLOYED_PROCESS',
+      'NO_PASS_OR_FAIL_VERDICT_INFERRED_FROM_AN_OPERATOR_REPORT',
+      'NO_SQL_NO_COMMANDS_NO_DATABASE_REPAIR_BY_SESSION',
+      'SESSION_NEVER_EXECUTES_PRODUCTION_SQL_OR_DEPLOYS_OR_SETS_ENV_VARS',
+      'NO_BLANKET_APPROVAL_EACH_APPROVAL_NEEDS_ITS_OWN_SEPARATE_MESSAGE',
+      'DEPLOY_AND_SYNC_AND_TRUE_ARE_PROHIBITED',
+      'A_FIXED_CONDITION_CANNOT_BE_WAIVED_BY_THE_SESSION',
+      'STRICT_REJECT_POLICY_STILL_IN_FORCE',
+    ] : []),
     ...(sqlOrCommandDeliveryRequest ? [
       'SQL_OR_COMMAND_DELIVERY_REQUEST_REFUSED_STRICT_REJECT_NOT_ACTIONABLE',
       'NO_SQL_NO_COMMANDS_NO_TEMPLATES_DELIVERED_IN_CHAT',
@@ -4316,6 +4403,10 @@ const out = {
       'BLOCKER_1_REMAINS_UNRESOLVED',
       'NO_BLANKET_APPROVAL'] : []),
     ...(namedTextApproval ? ['NAMED_TEXT_APPROVAL_DOES_NOT_VERIFY_OR_CLOSE_ANY_GATE',
+      'BLOCKER_1_REMAINS_UNRESOLVED',
+      'NO_BLANKET_APPROVAL'] : []),
+    ...(permissionsTableReadFailureReport ? ['PERMISSIONS_TABLE_READ_FAILURE_REPORT_DOES_NOT_VERIFY_OR_CLOSE_ANY_GATE',
+      'NO_INVENTORY_CHANGE',
       'BLOCKER_1_REMAINS_UNRESOLVED',
       'NO_BLANKET_APPROVAL'] : []),
     ...(sqlOrCommandDeliveryRequest ? ['SQL_OR_COMMAND_DELIVERY_REQUEST_DOES_NOT_VERIFY_OR_CLOSE_ANY_GATE',
