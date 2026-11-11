@@ -28,5 +28,23 @@
     "TEST_ONLY_CUTOVER_SQL_CAN_RUN_ON_PRODUCTION",
     "SUCCESSFUL_BUILD_PROVES_DATABASE_IDENTITY"
   ],
-  "next_allowed_step": "OPERATOR_SUPPLIES_DESCRIPTIVE_CURRENT_STATE_AND_SELECTS_PATH_THEN_SEPARATE_REVIEW"
+  "operator_choices_2026_11_11": {
+    "path": "A_FLAG_ONLY_NO_SQL_NO_ROLE_CHANGE_NO_CODE_DEPLOY",
+    "current_finance_enabled_false_operator_reported": true,
+    "finance_route_redirects_operator_reported": true,
+    "open_actual_opening_balances_now": true,
+    "initial_scope": "ALL_USERS",
+    "cash_refund": "ALLOWED_OPERATIONALLY",
+    "rollback_to_false_on_problem": true,
+    "interpretation_limit": "These are operator preferences for preflight planning, not a final activation command."
+  },
+  "remaining_before_go_review": [
+    "CURRENT_DEPLOY_COMMIT_AND_COMPATIBILITY",
+    "ACTUAL_OPENING_COUNT_ACTORS_TIME_AND_BRANCH_CUSTODY_COVERAGE",
+    "ALL_STAFF_ACTIVE_STATUS_AND_PERMISSION_REVIEW",
+    "REFUND_ACCOUNT_CHECKPOINT_REVIEW_BALANCE_AND_HUMAN_DECISION_READINESS",
+    "BACKUP_AND_MONITORING_OWNER_AND_WINDOW",
+    "SEPARATE_FINAL_ACTIVATION_DECISION"
+  ],
+  "next_allowed_step": "COMPLETE_OPENING_COUNT_AND_OPERATIONAL_DETAILS_THEN_SEPARATE_FINAL_GO_NO_GO_REVIEW"
 }
