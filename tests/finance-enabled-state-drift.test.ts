@@ -1617,3 +1617,23 @@ test("bare src files change approval is refused in section 116", () => {
   assert.equal(inv.blockers_resolved, 0);
   assert.equal(inv.gates_opened, 0);
 });
+
+test("approval sha delivery question is answered in section 117", () => {
+  const log = read("docs/finance-release-log.md");
+  assert.match(log, /## ١١٧\./);
+  assert.match(log, /QUESTION_ASSUMING_A_SHA_IS_DELIVERED_WITH_AN_APPROVAL/);
+  assert.match(log, /APPROVAL_SHA_DELIVERY_QUESTION_ANSWERED_DESCRIPTIVELY_NO_SHA_DELIVERED/);
+  assert.match(log, /NO_APPROVAL_SHA_EXISTS_TO_DELIVER/);
+  assert.match(log, /PRIOR_APPROVALS_REFERENCED_ARTIFACT_SHAS_ONLY/);
+  assert.match(log, /no_sha_delivered=true/);
+  assert.match(log, /NO_TRUE_NO_DEPLOY_NO_SYNC_NO_MANUAL_DEPLOY_NO_BLUEPRINT_NO_SQL_NO_SRC_NO_RENDER_YAML_NO_FINANCIAL_ACTION/);
+  const probe = read("docs/finance-app-connection-probe-result-ar.md");
+  assert.match(probe, /## ٩٠\./);
+  const ev = read("prototypes/finance-app-identity/evaluate-phase4-execution.mjs");
+  assert.match(ev, /APPROVAL_SHA_DELIVERY_QUESTION_DOES_NOT_VERIFY_OR_CLOSE_ANY_GATE/);
+  assert.match(ev, /A_SHA_IS_PINNED_TO_A_REVIEWED_TEXT_NOT_TO_AN_APPROVAL/);
+  const inv: { blockers: Array<{ status: string }>; blockers_resolved: number; gates_opened: number } = JSON.parse(read("prototypes/finance-app-identity/readiness-blockers-inventory.test-only.json"));
+  assert.equal(inv.blockers[0].status, "UNRESOLVED");
+  assert.equal(inv.blockers_resolved, 0);
+  assert.equal(inv.gates_opened, 0);
+});
