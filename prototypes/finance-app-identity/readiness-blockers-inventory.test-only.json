@@ -40,13 +40,24 @@
     {
       "id": "RLS_AND_TRIGGER_ENFORCEMENT_TESTED_WITH_THE_APP_ROLE",
       "status": "UNRESOLVED",
-      "current_evidence": "DEPLOYED_SCHEMA_INVENTORY_CONFIRMED_RLS_0_TRIGGERS_0_REQUEST_RESULTS_ABSENT; SYNTHETIC_CANDIDATE_4_OF_4_NOT_EXECUTED",
-      "gap": "مرشح SQL ورجوع ببصمتين جاهزان للمراجعة؛ لم يُنفذا ولم تُختبر السياسات على الإنتاج. يلزم موافقة SQL منفصلة ثم فحص deployed controls ومسار سماح/منع.",
+      "current_evidence": "PRODUCTION_CONTROLS_COMMITTED_19_TABLES_19_RLS_19_POLICIES_10_TRIGGERS_OWNER_ADMIN_TEMP_GRANTS_REVOKED; APP_ROLE_ENFORCEMENT_NOT_YET_TESTED",
+      "gap": "الترقية ثابتة بعد COMMIT والسجل مطابق والصلاحيات المؤقتة مسحوبة؛ يلزم اختبار سماح/منع فعلي بدور التطبيق مع ROLLBACK بلا بيانات دائمة.",
       "offline_design": "مصفوفة سياسات مقترحة لكل جدول + سيناريوهات سماح/منع مخبرية على PostgreSQL مؤقت مع دور selahtone_app، وفصل «وجود المحفّز» عن «تنفيذه».",
       "acceptance_criteria": "منع افتراضي موثّق، ومسار كتابة مسموح واحد على الأقل مُختبَر، ورفض أي مسار يتجاوز السياسة، بلا إجراء مالي حقيقي.",
       "requires": "SEPARATE_REVIEWED_TEXT_THEN_SEPARATE_VERBATIM_APPROVAL_BEFORE_EXECUTION",
       "candidate_upgrade_sha256": "710bafab25399e44c80e28984028c6691f608362346bb37b8bab318bcde83a75",
-      "candidate_rollback_sha256": "bfd2a22620deb37369539b541778457fa877b748c80f0f6591d826a61f6c52be"
+      "candidate_rollback_sha256": "bfd2a22620deb37369539b541778457fa877b748c80f0f6591d826a61f6c52be",
+      "production_committed_verification": {
+        "migration_recorded": true,
+        "request_results_owner": "selahtone_finance_admin",
+        "request_results_rows": 0,
+        "rls_enabled": 19,
+        "policies": 19,
+        "append_only_triggers": 10,
+        "temporary_finance_usage_remaining": false,
+        "temporary_finance_create_remaining": false,
+        "temporary_users_references_remaining": false
+      }
     },
     {
       "id": "ATOMIC_ACCESS_CONTROL_GAP_RESOLVED",
@@ -122,16 +133,20 @@
     "controls": {
       "checkedAt": "2026-11-11T02:39:41.168Z",
       "deploymentCommit": "780af461098eb3290a3b43b3f945a4a0727ba265",
-      "status": "OBSERVED_NOT_AN_ENFORCEMENT_TEST",
+      "status": "COMMITTED_OBJECT_STATE_NOT_AN_ENFORCEMENT_TEST",
       "rollbackObserved": true,
-      "financeTables": 18,
-      "rlsEnabled": 0,
+      "financeTables": 19,
+      "rlsEnabled": 19,
       "rlsForced": 0,
-      "policies": 0,
-      "productionTriggers": 0,
+      "policies": 19,
+      "productionTriggers": 10,
       "financeEnabled": false,
-      "requestResultsPresent": false,
-      "schemaVersion": "18_TABLES_WITH_CUSTODY_REQUESTS_AND_SETTLEMENTS_WITHOUT_REQUEST_RESULTS"
+      "requestResultsPresent": true,
+      "schemaVersion": "19_TABLES_WITH_COMMITTED_RLS_POLICIES_AND_APPEND_ONLY_TRIGGERS",
+      "requestResultsRows": 0,
+      "requestResultsOwner": "selahtone_finance_admin",
+      "migrationRecorded": true,
+      "temporaryGrantsRevoked": true
     }
   }
 }
