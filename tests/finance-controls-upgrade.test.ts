@@ -39,9 +39,9 @@ async function run(pg: PGlite, sql: string): Promise<void> {
 }
 async function fixture(): Promise<PGlite> {
   const pg = new PGlite();
-  await pg.exec("CREATE ROLE selahtone_app LOGIN; CREATE ROLE selahtone_finance_admin NOLOGIN; CREATE ROLE finance_intruder LOGIN;");
+  await pg.exec("CREATE ROLE selahtone_app LOGIN; CREATE ROLE selahtone_finance_admin NOLOGIN; CREATE ROLE finance_intruder LOGIN; CREATE ROLE finance_release_operator NOINHERIT LOGIN;");
   const current = (await pg.query<{ user: string }>("SELECT current_user AS user")).rows[0].user;
-  await pg.exec(`GRANT selahtone_finance_admin TO ${current}`);
+  await pg.exec(`GRANT selahtone_finance_admin TO ${current},finance_release_operator`);
   await pg.exec("CREATE SCHEMA finance; CREATE SCHEMA finance_release;");
   for (const table of baselineTables) await pg.exec(`CREATE TABLE finance.${table}(id bigint PRIMARY KEY)`);
   await pg.exec("CREATE TABLE finance_release.migrations(name text PRIMARY KEY,checksum char(64) NOT NULL,applied_at timestamptz NOT NULL DEFAULT now(),applied_by name NOT NULL DEFAULT session_user)");
@@ -51,7 +51,15 @@ async function fixture(): Promise<PGlite> {
   await pg.exec("GRANT USAGE ON SCHEMA finance TO selahtone_app,finance_intruder");
   await pg.exec("GRANT SELECT,INSERT,UPDATE ON ALL TABLES IN SCHEMA finance TO selahtone_app");
   await pg.exec("GRANT ALL ON ALL TABLES IN SCHEMA finance TO finance_intruder");
+  await pg.exec("ALTER TABLE public.users OWNER TO finance_release_operator");
   return pg;
+}
+/** Execute with a non-superuser SQL-editor identity: it owns public.users and
+ * is a finance-admin member, but has no direct CREATE grant on finance. */
+async function apply(pg: PGlite, script = upgrade): Promise<void> {
+  await pg.exec("SET SESSION AUTHORIZATION finance_release_operator");
+  try { await run(pg, script); }
+  finally { await pg.exec("RESET ROLE; SET SESSION AUTHORIZATION postgres"); }
 }
 async function controls(pg: PGlite) {
   return (await pg.query<{ tables: number; rls: number; forced: number; policies: number; triggers: number }>(`SELECT
@@ -70,10 +78,18 @@ test("checksums pin both reviewed files", () => {
 test("default deny, one allowed app path, and every append-only trigger are exercised", { timeout: 120_000 }, async () => {
   const pg = await fixture();
   try {
-    await run(pg, upgrade);
+    await pg.exec("SET SESSION AUTHORIZATION finance_release_operator");
+    assert.equal((await pg.query<{ allowed: boolean }>("SELECT has_schema_privilege(current_user,'finance','CREATE') AS allowed")).rows[0].allowed, false);
+    await pg.exec("SET SESSION AUTHORIZATION postgres");
+    await apply(pg);
     assert.deepEqual(await controls(pg), { tables: 19, rls: 19, forced: 0, policies: 19, triggers: appendOnly.length });
     assert.equal((await pg.query<{ n: number }>("SELECT count(*)::int AS n FROM finance.requests")).rows[0].n, 1, "existing rows survive");
     assert.equal((await pg.query<{ owner: string }>("SELECT pg_get_userbyid(relowner)::text AS owner FROM pg_class WHERE oid='finance.request_results'::regclass")).rows[0].owner, "selahtone_finance_admin");
+    assert.equal((await pg.query<{ n: number }>("SELECT count(*)::int AS n FROM pg_constraint WHERE conrelid='finance.request_results'::regclass AND contype='f' AND confrelid='public.users'::regclass")).rows[0].n, 1);
+    await pg.exec("SET SESSION AUTHORIZATION finance_release_operator");
+    const operatorGrants = await pg.query<{ usage: boolean; create: boolean }>("SELECT has_schema_privilege(current_user,'finance','USAGE') AS usage,has_schema_privilege(current_user,'finance','CREATE') AS create");
+    assert.deepEqual(operatorGrants.rows[0], { usage: false, create: false }, "temporary schema grants must be revoked");
+    await pg.exec("SET SESSION AUTHORIZATION postgres");
 
     await pg.exec("SET ROLE selahtone_app");
     for (const table of [...baselineTables, "request_results"]) await pg.query(`SELECT count(*) FROM finance.${table}`);
@@ -91,8 +107,8 @@ test("default deny, one allowed app path, and every append-only trigger are exer
     await assert.rejects(() => pg.exec("INSERT INTO finance.request_results(request_id,action,actor_id,result_table,result_id) VALUES('22222222-2222-4222-8222-222222222222','TEST',1,'requests',1)"), /row-level security|permission denied/);
     await pg.exec("RESET ROLE");
 
-    await assert.rejects(() => run(pg, upgrade), /already applied|request_results already exists/);
-    await assert.rejects(() => run(pg, rollback), /request results exist/);
+    await assert.rejects(() => apply(pg), /already applied|request_results already exists/);
+    await assert.rejects(() => apply(pg, rollback), /request results exist/);
     assert.equal((await pg.query<{ n: number }>("SELECT count(*)::int AS n FROM finance.request_results")).rows[0].n, 1);
   } finally { await pg.close(); }
 });
@@ -100,7 +116,7 @@ test("default deny, one allowed app path, and every append-only trigger are exer
 test("rollback restores the observed 18-table control state without touching existing rows", { timeout: 120_000 }, async () => {
   const pg = await fixture();
   try {
-    await run(pg, upgrade); await run(pg, rollback);
+    await apply(pg); await apply(pg, rollback);
     assert.deepEqual(await controls(pg), { tables: 18, rls: 0, forced: 0, policies: 0, triggers: 0 });
     assert.equal((await pg.query<{ value: string | null }>("SELECT to_regclass('finance.request_results')::text AS value")).rows[0].value, null);
     assert.equal((await pg.query<{ value: string | null }>("SELECT to_regprocedure('finance.append_only_guard()')::text AS value")).rows[0].value, null);
@@ -113,7 +129,7 @@ test("candidate refuses a different schema before creating anything", async () =
   const pg = await fixture();
   try {
     await pg.exec("DROP TABLE finance.settlements");
-    await assert.rejects(() => run(pg, upgrade), /expected the observed 18-table schema/);
+    await assert.rejects(() => apply(pg), /expected the observed 18-table schema/);
     assert.equal((await pg.query<{ value: string | null }>("SELECT to_regclass('finance.request_results')::text AS value")).rows[0].value, null);
     assert.deepEqual(await controls(pg), { tables: 17, rls: 0, forced: 0, policies: 0, triggers: 0 });
   } finally { await pg.close(); }

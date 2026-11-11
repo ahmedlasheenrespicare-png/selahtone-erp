@@ -66,9 +66,13 @@
 
 أُعدّ ملفان للمراجعة فقط، ولم يُشغَّلا:
 
-- `prisma/manual-finance-controls-upgrade.sql`، SHA-256: `8723b35dd7ea3b17358987d0a17ae068154cbcde76b405e123e9402d1e68ca51`.
+- `prisma/manual-finance-controls-upgrade.sql`، SHA-256: `e95c0674f4855d0d0e6a67bd73a592b494e962cdea2556605d0f3d83c1a14c5c`.
   يشترط الجرد نفسه قبل أي تغيير، ويضيف `request_results` الفارغ بمالكية الإدارة، ثم RLS على 19 جدولًا بسياسة `selahtone_app_all` لدور التطبيق فقط. هذه ليست عزلة فروع؛ قرارات المستخدم والفرع تبقى داخل معاملات التطبيق. لا `FORCE` لأن الإدارة مالكة وتحتاج الصيانة، والتطبيق غير مالك وبلا BYPASSRLS. يضيف عشرة محفزات append-only على movements وrequests وrequest_results وaudit_events وcategory_audit وcategory_requests وexpense_corrections وopening_corrections وhistorical_commerce وreconciliation_notes. لا يمس صفًا قائمًا ولا يفعّل المالية.
-- `prisma/manual-finance-controls-rollback.sql`، SHA-256: `c781fc50a935151c6215a48366f7db278d2c9201f86138b33510605ffced3972`.
+- `prisma/manual-finance-controls-rollback.sql`، SHA-256: `60cf62443398f8b51f173b235d709902f8f3d733ee8b1639862e8d8d20c82a21`.
   يرفض أي روابط نتائج موجودة، ويزيل الضوابط والجدول الفارغ فقط ويعيد حالة 18 جدولًا بلا حذف صفوف العمل.
 
 اختبار `npm run check:finance:controls` نجح **4/4** على PGlite اصطناعي: منع دور آخر رغم ACL واسع، السماح بقراءة وكتابة مسار التطبيق، إطلاق كل محفزات UPDATE العشرة، منع الرجوع عند وجود روابط، والرجوع النظيف مع بقاء صف قائم. هذا دليل معملي فقط، ولا يغلق enforcement على الإنتاج ولا بقية موانع الجاهزية. يلزم مراجعة النصين ثم موافقة SQL إنتاجية منفصلة؛ لا نشر أو تفعيل مشمول.
+
+### تصحيح صلاحية الإنشاء بعد المحاولة الإنتاجية
+
+أعاد التنفيذ `ERROR: permission denied for schema finance (SQLSTATE 42501)`؛ لم يظهر تقرير نجاح وبقي controls على 18 جدولًا وصفر RLS/محفزات. السبب هو أن دور SQL Editor لا يملك CREATE مباشرة على المخطط المملوك للإدارة. عُدّل المرشح ليمنح USAGE/CREATE مؤقتًا لدور SQL Editor المالك لـ`public.users`، فينشئ الجدول والـFK ثم ينقل ملكيته للإدارة وتُسحب الصلاحيتان قبل COMMIT، دون منح دائم على `public` أو `finance`. البصمتان الجديدتان هما `e95c0674f4855d0d0e6a67bd73a592b494e962cdea2556605d0f3d83c1a14c5c` للترقية و`60cf62443398f8b51f173b235d709902f8f3d733ee8b1639862e8d8d20c82a21` للرجوع. اختُبر الآن بدور `finance_release_operator` غير ممتاز، وبإثبات `CREATE=false` على finance قبل النجاح وعودة USAGE/CREATE=false بعده مع ثبات الـFK والملكية. هذا نص جديد يحتاج موافقة تشغيل مستقلة؛ الموافقة على النص السابق لا تغطيه.
