@@ -3,12 +3,12 @@
 -- وrequest_results غير موجود. لا يرحّل طلبات قديمة ولا يملأ روابطها اصطناعيًا.
 -- يضيف request_results، وRLS بمنع افتراضي مع سياسة لدور التطبيق وحده، ومحفزات
 -- منع UPDATE/DELETE/TRUNCATE على السجلات المحددة أدناه. لا يفعل FINANCE_ENABLED.
--- sha256: 6886c2f1eaa81b58f566b2599cd0d2c4b8c5a9c040bb57b6a2ba9914fcc272c8
+-- sha256: 710bafab25399e44c80e28984028c6691f608362346bb37b8bab318bcde83a75
 --
 -- التنفيذ المستقبلي: الملف كاملًا في Neon SQL Editor داخل نافذة متفق عليها.
--- منح USAGE وCREATE على finance وUSAGE على finance_release وREFERENCES على
--- public.users مؤقتًا يتيح للإدارة إنشاء الجدول والـFK وتسجيل الترقية بمالكيتها؛
--- لا نقل ملكية، وتُسحب كل الصلاحيات المؤقتة قبل COMMIT.
+-- منح USAGE وCREATE على finance وREFERENCES على public.users مؤقتًا يتيح للإدارة
+-- إنشاء الجدول والـFK مباشرةً بمالكيتها؛ لا نقل ملكية. يتولى neondb_owner سجل
+-- الترقية بعد RESET ROLE، وتُسحب كل الصلاحيات المؤقتة قبل COMMIT.
 -- إعادة التشغيل مرفوضة؛ الرجوع له ملف مستقل ولا يعمل إذا احتوى request_results على صفوف.
 BEGIN;
 SET LOCAL statement_timeout = '10s';
@@ -32,7 +32,6 @@ BEGIN
  END IF;
  IF has_schema_privilege('selahtone_finance_admin','finance','USAGE')
     OR has_schema_privilege('selahtone_finance_admin','finance','CREATE')
-    OR has_schema_privilege('selahtone_finance_admin','finance_release','USAGE')
     OR has_table_privilege('selahtone_finance_admin','public.users','REFERENCES') THEN
   RAISE EXCEPTION 'finance controls: unexpected pre-existing temporary admin privileges; review before grants';
  END IF;
@@ -91,7 +90,6 @@ DO $$
 BEGIN
  GRANT USAGE ON SCHEMA finance TO selahtone_finance_admin;
  GRANT CREATE ON SCHEMA finance TO selahtone_finance_admin;
- GRANT USAGE ON SCHEMA finance_release TO selahtone_finance_admin;
  GRANT REFERENCES ON public.users TO selahtone_finance_admin;
 EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'FINANCE_STAGE_TEMP_ADMIN_GRANTS: %',SQLERRM;
 END $$;
@@ -154,18 +152,20 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'FINANCE_STAGE_APPEND_ONLY_TRIGGERS: %',SQLERRM;
 END $$;
 
+RESET ROLE;
 DO $$
 BEGIN
+ IF current_user <> session_user OR session_user <> 'neondb_owner' THEN
+  RAISE EXCEPTION 'FINANCE_STAGE_MIGRATION_LEDGER: expected neondb_owner after RESET ROLE';
+ END IF;
  INSERT INTO finance_release.migrations(name,checksum)
- VALUES('finance_controls_upgrade','6886c2f1eaa81b58f566b2599cd0d2c4b8c5a9c040bb57b6a2ba9914fcc272c8');
+ VALUES('finance_controls_upgrade','710bafab25399e44c80e28984028c6691f608362346bb37b8bab318bcde83a75');
 EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'FINANCE_STAGE_MIGRATION_LEDGER: %',SQLERRM;
 END $$;
-RESET ROLE;
 DO $$
 BEGIN
  REVOKE CREATE ON SCHEMA finance FROM selahtone_finance_admin;
  REVOKE USAGE ON SCHEMA finance FROM selahtone_finance_admin;
- REVOKE USAGE ON SCHEMA finance_release FROM selahtone_finance_admin;
  REVOKE REFERENCES ON public.users FROM selahtone_finance_admin;
 EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'FINANCE_STAGE_REVOKE_TEMP_ADMIN_GRANTS: %',SQLERRM;
 END $$;

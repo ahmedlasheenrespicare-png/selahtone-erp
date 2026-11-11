@@ -47,7 +47,7 @@ async function fixture(): Promise<PGlite> {
   await pg.exec("CREATE TABLE finance_release.migrations(name text PRIMARY KEY,checksum char(64) NOT NULL,applied_at timestamptz NOT NULL DEFAULT now(),applied_by name NOT NULL DEFAULT session_user)");
   await pg.exec("CREATE TABLE public.users(id bigint PRIMARY KEY); INSERT INTO public.users VALUES(1); INSERT INTO finance.requests VALUES(1)");
   for (const table of baselineTables) await pg.exec(`ALTER TABLE finance.${table} OWNER TO selahtone_finance_admin`);
-  await pg.exec("ALTER SCHEMA finance OWNER TO finance_release_operator; ALTER SCHEMA finance_release OWNER TO finance_release_operator; ALTER TABLE finance_release.migrations OWNER TO selahtone_finance_admin");
+  await pg.exec("ALTER SCHEMA finance OWNER TO finance_release_operator; ALTER SCHEMA finance_release OWNER TO finance_release_operator; ALTER TABLE finance_release.migrations OWNER TO finance_release_operator");
   await pg.exec("GRANT USAGE ON SCHEMA finance TO selahtone_app,finance_intruder");
   await pg.exec("GRANT SELECT,INSERT,UPDATE ON ALL TABLES IN SCHEMA finance TO selahtone_app");
   await pg.exec("GRANT ALL ON ALL TABLES IN SCHEMA finance TO finance_intruder");
