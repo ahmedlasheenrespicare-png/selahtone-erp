@@ -47,7 +47,7 @@ async function fixture(): Promise<PGlite> {
   await pg.exec("CREATE TABLE finance_release.migrations(name text PRIMARY KEY,checksum char(64) NOT NULL,applied_at timestamptz NOT NULL DEFAULT now(),applied_by name NOT NULL DEFAULT session_user)");
   await pg.exec("CREATE TABLE public.users(id bigint PRIMARY KEY); INSERT INTO public.users VALUES(1); INSERT INTO finance.requests VALUES(1)");
   for (const table of baselineTables) await pg.exec(`ALTER TABLE finance.${table} OWNER TO selahtone_finance_admin`);
-  await pg.exec("ALTER SCHEMA finance OWNER TO finance_release_operator; ALTER SCHEMA finance_release OWNER TO selahtone_finance_admin; ALTER TABLE finance_release.migrations OWNER TO selahtone_finance_admin");
+  await pg.exec("ALTER SCHEMA finance OWNER TO finance_release_operator; ALTER SCHEMA finance_release OWNER TO finance_release_operator; ALTER TABLE finance_release.migrations OWNER TO selahtone_finance_admin");
   await pg.exec("GRANT USAGE ON SCHEMA finance TO selahtone_app,finance_intruder");
   await pg.exec("GRANT SELECT,INSERT,UPDATE ON ALL TABLES IN SCHEMA finance TO selahtone_app");
   await pg.exec("GRANT ALL ON ALL TABLES IN SCHEMA finance TO finance_intruder");
@@ -95,6 +95,7 @@ test("default deny, one allowed app path, and every append-only trigger are exer
     assert.equal((await pg.query<{ allowed: boolean }>("SELECT has_table_privilege('selahtone_finance_admin','public.users','REFERENCES') AS allowed")).rows[0].allowed, false, "temporary REFERENCES must be revoked");
     assert.equal((await pg.query<{ allowed: boolean }>("SELECT has_schema_privilege('selahtone_finance_admin','finance','CREATE') AS allowed")).rows[0].allowed, false, "temporary schema CREATE must be revoked");
     assert.equal((await pg.query<{ allowed: boolean }>("SELECT has_schema_privilege('selahtone_finance_admin','finance','USAGE') AS allowed")).rows[0].allowed, false, "temporary schema USAGE must be revoked");
+    assert.equal((await pg.query<{ allowed: boolean }>("SELECT has_schema_privilege('selahtone_finance_admin','finance_release','USAGE') AS allowed")).rows[0].allowed, false, "temporary ledger schema USAGE must be revoked");
     await pg.exec("SET SESSION AUTHORIZATION finance_release_operator");
     const operatorGrants = await pg.query<{ usage: boolean; create: boolean }>("SELECT has_schema_privilege(current_user,'finance','USAGE') AS usage,has_schema_privilege(current_user,'finance','CREATE') AS create");
     assert.deepEqual(operatorGrants.rows[0], { usage: true, create: true }, "existing schema privileges must remain untouched");
