@@ -1,0 +1,52 @@
+{
+  "record_id": "operator-log-decisions-2026-11-11",
+  "status": "PARTIAL_AWAITING_TIMESTAMPS_AND_TWO_EVENT_DECISIONS",
+  "source_type": "OPERATOR_CHAT_RESPONSE_ONLY_NOT_INDEPENDENT_RENDER_LOG",
+  "secrets_or_business_rows_requested": false,
+  "events": {
+    "original_finance_disabled": {
+      "operator_answer_verbatim": "انا كنت اجرب قفل الماليه امس فقط لا غير",
+      "date": "2026-11-10",
+      "date_derivation": "The operator said 'yesterday' in the conversation dated 2026-11-11; no exact timestamp was supplied.",
+      "timestamp": null,
+      "timezone": null,
+      "actor": "THE_OPERATOR_WHO_ANSWERED",
+      "decision": "EXPERIMENT_WITH_LOCKING_FINANCE_ONLY",
+      "scope": "NO_OTHER_ACTION_REPORTED_BY_THIS_ANSWER",
+      "deployment_completed": null,
+      "follow_up": "OPERATOR_SELECTED_RENDER_TIMESTAMP_BUT_NO_TIMESTAMP_WAS_INCLUDED",
+      "independent_render_reference": null
+    },
+    "finance_reenabled": {
+      "response": "OPERATOR_SELECTED_RENDER_TIMESTAMP_TWICE_BUT_NO_TIMESTAMP_OR_EVENT_DETAILS_WERE_INCLUDED",
+      "timestamp": null,
+      "timezone": null,
+      "actor": null,
+      "decision": null,
+      "intentional_or_blueprint_sync": null,
+      "deployment_completed": null
+    },
+    "restoration": {
+      "response": "OPERATOR_IDENTIFIED_CONFIGURATION_RESTORATION_BUT_SUPPLIED_NO_TIMESTAMP_ACTOR_OR_FINAL_STATE",
+      "restoration_type": "CONFIGURATION_RESTORATION",
+      "timestamp": null,
+      "timezone": null,
+      "actor": null,
+      "decision": null,
+      "final_state": null,
+      "completion_observed": null
+    }
+  },
+  "sources_answer": "RENDER_SELECTED_WITHOUT_LOG_OR_REFERENCE_DETAILS",
+  "not_established": [
+    "EXACT_YEAR_TIMESTAMP_AND_TIMEZONE_FOR_EACH_EVENT",
+    "ACTOR_AND_DECISION_FOR_REENABLE_AND_RESTORATION",
+    "RESTORATION_TYPE_AND_FINAL_STATE",
+    "DEPLOYMENT_COMPLETION_OBSERVATIONS",
+    "INDEPENDENT_RENDER_EVIDENCE",
+    "DATABASE_URL_CONFIGURATION"
+  ],
+  "closure": "BLOCKER_REMAINS_UNRESOLVED",
+  "activation_gate_opened": false,
+  "finance_enabled_changed": false
+}

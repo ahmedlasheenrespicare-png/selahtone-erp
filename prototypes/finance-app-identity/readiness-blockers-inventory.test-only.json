@@ -128,11 +128,13 @@
     {
       "id": "LOG_YEAR_TIMESTAMPS_AND_OPERATOR_DECISIONS_SUPPLIED",
       "status": "UNRESOLVED",
-      "current_evidence": "سجلان بلا سنة ولا طوابع ولا قيم env؛ أحداث false/true/الاستعادة بلا مَن/متى/قرار",
+      "current_evidence": "OPERATOR_PARTIAL_2026-11-11: false كان تجربة قفل من المشغّل يوم 2026-11-10 بلا ساعة؛ الاستعادة إعداد سابق بلا وقت/فاعل/حالة نهائية؛ true بلا تفاصيل؛ لم تُرفق سجلات Render",
       "gap": "لا يمكن ربط التغييرات بقراراتها زمنيًا؛ والسجل لا يُثبت ضبط DATABASE_URL.",
       "offline_design": "قائمة معلومات وصفية مطلوبة من المشغّل فقط، بلا قيمة رابط ولا كلمة مرور ولا صفوف بيانات.",
       "acceptance_criteria": "سنة + طوابع + مَن/متى/قرار لكل من false الأصلي، وإعادة true، والاستعادة، موثّقة وصفيًا.",
-      "requires": "OPERATOR_SUPPLIED_DESCRIPTIVE_INFORMATION_ONLY"
+      "requires": "OPERATOR_SUPPLIED_DESCRIPTIVE_INFORMATION_ONLY",
+      "request_template": "operator-log-decisions-request.test-only.md",
+      "partial_observation": "operator-log-decisions-observation.test-only.json"
     },
     {
       "id": "RENDER_YAML_TRUE_WITHOUT_SYNC_FALSE_RECONCILED",
