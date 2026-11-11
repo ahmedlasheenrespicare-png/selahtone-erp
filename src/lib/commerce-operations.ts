@@ -11,7 +11,7 @@ import { financePort } from "./finance/port";
 import { finishCashCustodyCollection, lockCashCollectorCustody } from "./finance/collection-custody-guard";
 import { FinanceProblem } from "./finance/types";
 import { parseDiscountSetting, parseMoneyMovement, parseReturnInput, parseSaleInput, type ReturnLineInput, type SaleInput } from "./commerce-validation";
-import { assertTransactionWriteAccess } from "./transaction-access";
+import { assertTransactionSession, assertTransactionWriteAccess, lockTransactionSession, type TransactionActor } from "./transaction-access";
 
 type Db = PrismaClient;
 type Transaction = Parameters<Parameters<Db["$transaction"]>[0]>[0];
@@ -36,9 +36,13 @@ function salesStockDecoupled(): boolean { return process.env.SALES_STOCK_DECOUPL
 function ensureMatchingRequest(record: { requestHash: string; createdById: bigint }, actorId: bigint, expectedHash: string): void {
   if (record.createdById !== actorId || record.requestHash.trim() !== expectedHash) throw new InventoryProblem("استُخدم هذا الطلب مسبقًا ببيانات مختلفة. افتح نموذجًا جديدًا.");
 }
-async function withSerializableRetry<T>(db: Db, work: (tx: Transaction) => Promise<T>): Promise<T> {
+async function withSerializableRetry<T>(db: Db, actor: TransactionActor, work: (tx: Transaction) => Promise<T>): Promise<T> {
   for (let attempt = 0; ; attempt++) {
-    try { return await db.$transaction(work, { isolationLevel: "Serializable", maxWait: 5000, timeout: 20000 }); }
+    try { return await db.$transaction(async tx => {
+      const result = await work(tx);
+      await assertTransactionSession(tx, actor);
+      return result;
+    }, { isolationLevel: "Serializable", maxWait: 5000, timeout: 20000 }); }
     catch (error) {
       // Retry only known aborted transaction conflicts, including raw Prisma SQL.
       if (isRetryableTransactionConflict(error) && attempt < 2) continue;
@@ -46,12 +50,14 @@ async function withSerializableRetry<T>(db: Db, work: (tx: Transaction) => Promi
     }
   }
 }
-async function authorize(tx: Transaction, actorId: bigint, action: CommerceAction, branchId: bigint | null, branchActive: boolean, accessKey: string): Promise<void> {
-  const actor = await tx.user.findUnique({ where: { id: actorId }, select: { status: true, roleCode: true, branchId: true, mustChangePassword: true, canCancelSales: true } });
-  if (!actor || !canPerformCommerce({ role: actor.roleCode, status: actor.status, mustChangePassword: actor.mustChangePassword, branchId: actor.branchId, canCancelSales: actor.canCancelSales }, action, branchId, branchActive)) {
+async function authorize(tx: Transaction, actor: TransactionActor, action: CommerceAction, branchId: bigint | null, branchActive: boolean, accessKey: string): Promise<void> {
+  const actorId = actor.id;
+  const actorRow = await tx.user.findUnique({ where: { id: actorId }, select: { status: true, roleCode: true, branchId: true, mustChangePassword: true, canCancelSales: true } });
+  if (!actorRow || !canPerformCommerce({ role: actorRow.roleCode, status: actorRow.status, mustChangePassword: actorRow.mustChangePassword, branchId: actorRow.branchId, canCancelSales: actorRow.canCancelSales }, action, branchId, branchActive)) {
     throw new InventoryProblem("ليس لديك صلاحية لتنفيذ العملية في هذا الفرع.");
   }
   await assertTransactionWriteAccess(tx, actorId, accessKey);
+  await lockTransactionSession(tx, actor);
 }
 function businessDate(): Date {
   const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
@@ -64,19 +70,20 @@ function knownMath(error: unknown): never {
 }
 
 /** Record a sale, its first collection, serial assignments and stock decrement atomically. */
-export async function createCommerceSale(db: Db, actorId: bigint, raw: unknown): Promise<WriteResult> {
+export async function createCommerceSale(db: Db, actor: TransactionActor, raw: unknown): Promise<WriteResult> {
+  const actorId = actor.id;
   const parsed = parseSaleInput(raw);
   if (!parsed.ok) throw new InventoryProblem("راجع بيانات البيع ثم حاول مجددًا.", parsed.errors);
   const input: SaleInput = parsed.value;
   const requestHash = digest({ actorId: actorId.toString(), ...input });
   try {
-    return await withSerializableRetry(db, async (tx) => {
+    return await withSerializableRetry(db, actor, async (tx) => {
       const warehouse = await tx.warehouse.findUnique({ where: { id: BigInt(input.warehouseId) }, include: { branch: { select: { isActive: true } } } });
       if (!warehouse || !warehouse.isActive || !warehouse.holdsStock || !warehouse.branch.isActive) throw new InventoryProblem("المستودع أو الفرع غير نشط، أو لا يحتفظ بمخزون.");
-      await authorize(tx, actorId, "CREATE_SALE", warehouse.branchId, warehouse.branch.isActive, "/sales/new");
+      await authorize(tx, actor, "CREATE_SALE", warehouse.branchId, warehouse.branch.isActive, "/sales/new");
       const prior = await tx.commerceSale.findUnique({ where: { requestId: input.requestId } });
       if (prior) { ensureMatchingRequest(prior, actorId, requestHash); return { id: prior.id.toString(), replayed: true }; }
-      const actor = await tx.user.findUniqueOrThrow({ where: { id: actorId }, select: { roleCode: true } });
+      const actorRow = await tx.user.findUniqueOrThrow({ where: { id: actorId }, select: { roleCode: true } });
       // Serialize a staff sale's limit with manager changes to the global setting.
       await tx.$queryRaw`SELECT "id" FROM "commerce_settings" WHERE "id" = 1 FOR SHARE`;
       const settings = await tx.commerceSettings.findUnique({ where: { id: 1 } });
@@ -104,7 +111,7 @@ export async function createCommerceSale(db: Db, actorId: bigint, raw: unknown):
       });
       const discount = scaledInteger(input.discount, 2);
       const calculation = calculateInclusiveSale(prepared.map((item) => ({ quantityHundredths: item.quantity, unitPriceCents: scaled(item.product.salePrice, 2), tax: item.reviewedTax })), discount);
-      if (actor.roleCode === "CS_AGENT" && !staffDiscountAllowed(calculation.subtotalCents, discount, BigInt(settings.staffDiscountBps))) throw new InventoryProblem("الخصم يتجاوز الحد المسموح لموظف الفرع.");
+      if (actorRow.roleCode === "CS_AGENT" && !staffDiscountAllowed(calculation.subtotalCents, discount, BigInt(settings.staffDiscountBps))) throw new InventoryProblem("الخصم يتجاوز الحد المسموح لموظف الفرع.");
       const firstPayment = scaledInteger(input.initialPayment, 2);
       validateCollectionAmount(calculation.finalCents, firstPayment);
       const cashCustody = await lockCashCollectorCustody(tx, warehouse.branchId, actorId, input.method);
@@ -161,10 +168,10 @@ export async function createCommerceSale(db: Db, actorId: bigint, raw: unknown):
       // A unique conflict can be reported after the original transaction's
       // authorization snapshot is obsolete. Replay must reauthorize in a fresh
       // transaction, exactly like the ordinary prior-request path.
-      const prior = await withSerializableRetry(db, async tx => {
+      const prior = await withSerializableRetry(db, actor, async tx => {
         const warehouse = await tx.warehouse.findUnique({ where: { id: BigInt(input.warehouseId) }, include: { branch: { select: { isActive: true } } } });
         if (!warehouse || !warehouse.isActive || !warehouse.holdsStock || !warehouse.branch.isActive) throw new InventoryProblem("المستودع أو الفرع غير نشط، أو لا يحتفظ بمخزون.");
-        await authorize(tx, actorId, "CREATE_SALE", warehouse.branchId, warehouse.branch.isActive, "/sales/new");
+        await authorize(tx, actor, "CREATE_SALE", warehouse.branchId, warehouse.branch.isActive, "/sales/new");
         return tx.commerceSale.findUnique({ where: { requestId: input.requestId } });
       });
       if (prior) { ensureMatchingRequest(prior, actorId, requestHash); return { id: prior.id.toString(), replayed: true }; }
@@ -174,10 +181,10 @@ export async function createCommerceSale(db: Db, actorId: bigint, raw: unknown):
   }
 }
 
-async function lockSale(tx: Transaction, actorId: bigint, saleId: bigint, action: CommerceAction, accessKey: string) {
+async function lockSale(tx: Transaction, actor: TransactionActor, saleId: bigint, action: CommerceAction, accessKey: string) {
   const sale = await tx.commerceSale.findUnique({ where: { id: saleId }, include: { branch: { select: { isActive: true } } } });
   if (!sale) throw new InventoryProblem("الفاتورة غير موجودة أو غير متاحة.");
-  await authorize(tx, actorId, action, sale.branchId, sale.branch.isActive, accessKey);
+  await authorize(tx, actor, action, sale.branchId, sale.branch.isActive, accessKey);
   // Serialize return, collection and refund calculations for this invoice.
   const locked = await tx.$queryRaw<Array<{ id: bigint }>>`SELECT "id" FROM "commerce_sales" WHERE "id" = ${saleId} FOR UPDATE`;
   if (locked.length !== 1) throw new InventoryProblem("الفاتورة غير متاحة.");
@@ -201,14 +208,15 @@ async function position(tx: Transaction, saleId: bigint, total: DecimalLike) {
 }
 
 /** A later collection records receipt of funds; it never initiates a payment. */
-export async function recordCommerceCollection(db: Db, actorId: bigint, raw: unknown): Promise<WriteResult> {
+export async function recordCommerceCollection(db: Db, actor: TransactionActor, raw: unknown): Promise<WriteResult> {
+  const actorId = actor.id;
   const parsed = parseMoneyMovement(raw, false);
   if (!parsed.ok) throw new InventoryProblem("راجع التحصيل ثم حاول مجددًا.", parsed.errors);
   const input = parsed.value;
   const requestHash = digest({ actorId: actorId.toString(), type: "COLLECTION", ...input });
   try {
-    return await withSerializableRetry(db, async (tx) => {
-      const sale = await lockSale(tx, actorId, BigInt(input.saleId), "RECORD_COLLECTION", "/sales#collect");
+    return await withSerializableRetry(db, actor, async (tx) => {
+      const sale = await lockSale(tx, actor, BigInt(input.saleId), "RECORD_COLLECTION", "/sales#collect");
       const prior = await tx.commerceCollection.findUnique({ where: { requestId: input.requestId } });
       if (prior) { ensureMatchingRequest(prior, actorId, requestHash); return { id: prior.id.toString(), replayed: true }; }
       await markSaleWrite(tx, sale.id);
@@ -227,8 +235,8 @@ export async function recordCommerceCollection(db: Db, actorId: bigint, raw: unk
     if (isCode(error, "P2002")) {
       // Recheck present access and lock the invoice in a fresh transaction
       // before resolving the duplicate as replay.
-      const prior = await withSerializableRetry(db, async tx => {
-        await lockSale(tx, actorId, BigInt(input.saleId), "RECORD_COLLECTION", "/sales#collect");
+      const prior = await withSerializableRetry(db, actor, async tx => {
+        await lockSale(tx, actor, BigInt(input.saleId), "RECORD_COLLECTION", "/sales#collect");
         return tx.commerceCollection.findUnique({ where: { requestId: input.requestId } });
       });
       if (prior) { ensureMatchingRequest(prior, actorId, requestHash); return { id: prior.id.toString(), replayed: true }; }
@@ -270,7 +278,8 @@ async function postRefundMovement(
   }
 }
 
-export async function recordCommerceRefund(db: Db, actorId: bigint, raw: unknown): Promise<WriteResult> {
+export async function recordCommerceRefund(db: Db, actor: TransactionActor, raw: unknown): Promise<WriteResult> {
+  const actorId = actor.id;
   // A pre-finance legacy cash request may have no account. Parse it so an
   // exact stored request can replay; all new cash writes validate below.
   const parsed = parseMoneyMovement(raw, true, { allowMissingCashAccountForReplay: true });
@@ -291,8 +300,8 @@ export async function recordCommerceRefund(db: Db, actorId: bigint, raw: unknown
     } else ensureMatchingRequest(prior, actorId, requestHash);
   };
   try {
-    return await withSerializableRetry(db, async (tx) => {
-      const sale = await lockSale(tx, actorId, BigInt(input.saleId), "RECORD_REFUND", "/sales#refund");
+    return await withSerializableRetry(db, actor, async (tx) => {
+      const sale = await lockSale(tx, actor, BigInt(input.saleId), "RECORD_REFUND", "/sales#refund");
       const prior = await tx.commerceRefund.findUnique({ where: { requestId: input.requestId } });
       if (prior) { checkPrior(prior); return { id: prior.id.toString(), replayed: true }; }
       // With finance disabled there is no account checkpoint to review. Do not
@@ -315,8 +324,8 @@ export async function recordCommerceRefund(db: Db, actorId: bigint, raw: unknown
     });
   } catch (error) {
     if (isCode(error, "P2002")) {
-      const prior = await withSerializableRetry(db, async tx => {
-        await lockSale(tx, actorId, BigInt(input.saleId), "RECORD_REFUND", "/sales#refund");
+      const prior = await withSerializableRetry(db, actor, async tx => {
+        await lockSale(tx, actor, BigInt(input.saleId), "RECORD_REFUND", "/sales#refund");
         return tx.commerceRefund.findUnique({ where: { requestId: input.requestId } });
       });
       if (prior) { checkPrior(prior); return { id: prior.id.toString(), replayed: true }; }
@@ -331,14 +340,15 @@ export async function recordCommerceRefund(db: Db, actorId: bigint, raw: unknown
  * Physical items are restored at their snapshotted sale cost, blended with the
  * current warehouse average (which may have changed due to later receipts).
  */
-export async function returnCommerceSale(db: Db, actorId: bigint, raw: unknown): Promise<WriteResult> {
+export async function returnCommerceSale(db: Db, actor: TransactionActor, raw: unknown): Promise<WriteResult> {
+  const actorId = actor.id;
   const parsed = parseReturnInput(raw);
   if (!parsed.ok) throw new InventoryProblem("راجع المرتجع ثم حاول مجددًا.", parsed.errors);
   const input = parsed.value;
   const requestHash = digest({ actorId: actorId.toString(), ...input });
   try {
-    return await withSerializableRetry(db, async (tx) => {
-      const sale = await lockSale(tx, actorId, BigInt(input.saleId), "RETURN_OR_CANCEL", input.cancel ? "/sales#cancel" : "/sales#return");
+    return await withSerializableRetry(db, actor, async (tx) => {
+      const sale = await lockSale(tx, actor, BigInt(input.saleId), "RETURN_OR_CANCEL", input.cancel ? "/sales#cancel" : "/sales#return");
       const prior = await tx.commerceReturn.findUnique({ where: { requestId: input.requestId } });
       if (prior) { ensureMatchingRequest(prior, actorId, requestHash); return { id: prior.id.toString(), replayed: true }; }
       await markSaleWrite(tx, sale.id);
@@ -407,8 +417,8 @@ export async function returnCommerceSale(db: Db, actorId: bigint, raw: unknown):
     });
   } catch (error) {
     if (isCode(error, "P2002")) {
-      const prior = await withSerializableRetry(db, async tx => {
-        await lockSale(tx, actorId, BigInt(input.saleId), "RETURN_OR_CANCEL", input.cancel ? "/sales#cancel" : "/sales#return");
+      const prior = await withSerializableRetry(db, actor, async tx => {
+        await lockSale(tx, actor, BigInt(input.saleId), "RETURN_OR_CANCEL", input.cancel ? "/sales#cancel" : "/sales#return");
         return tx.commerceReturn.findUnique({ where: { requestId: input.requestId } });
       });
       if (prior) { ensureMatchingRequest(prior, actorId, requestHash); return { id: prior.id.toString(), replayed: true }; }
@@ -419,14 +429,15 @@ export async function returnCommerceSale(db: Db, actorId: bigint, raw: unknown):
 }
 
 /** Manager-only setting; each change is idempotent and retains an audit row. */
-export async function changeStaffDiscountLimit(db: Db, actorId: bigint, raw: unknown): Promise<WriteResult> {
+export async function changeStaffDiscountLimit(db: Db, actor: TransactionActor, raw: unknown): Promise<WriteResult> {
+  const actorId = actor.id;
   const parsed = parseDiscountSetting(raw);
   if (!parsed.ok) throw new InventoryProblem("راجع نسبة الخصم.", parsed.errors);
   const input = parsed.value;
   const requestHash = digest({ actorId: actorId.toString(), ...input });
   try {
-    return await withSerializableRetry(db, async (tx) => {
-      await authorize(tx, actorId, "CONFIGURE_DISCOUNT", null, false, "/sales/settings");
+    return await withSerializableRetry(db, actor, async (tx) => {
+      await authorize(tx, actor, "CONFIGURE_DISCOUNT", null, false, "/sales/settings");
       const prior = await tx.commerceSettingsChange.findUnique({ where: { requestId: input.requestId } });
       if (prior) { ensureMatchingRequest(prior, actorId, requestHash); return { id: prior.id.toString(), replayed: true }; }
       const locked = await tx.$queryRaw<Array<{ id: number }>>`SELECT "id" FROM "commerce_settings" WHERE "id" = 1 FOR UPDATE`;
@@ -437,8 +448,8 @@ export async function changeStaffDiscountLimit(db: Db, actorId: bigint, raw: unk
     });
   } catch (error) {
     if (isCode(error, "P2002")) {
-      const prior = await withSerializableRetry(db, async tx => {
-        await authorize(tx, actorId, "CONFIGURE_DISCOUNT", null, false, "/sales/settings");
+      const prior = await withSerializableRetry(db, actor, async tx => {
+        await authorize(tx, actor, "CONFIGURE_DISCOUNT", null, false, "/sales/settings");
         return tx.commerceSettingsChange.findUnique({ where: { requestId: input.requestId } });
       });
       if (prior) { ensureMatchingRequest(prior, actorId, requestHash); return { id: prior.id.toString(), replayed: true }; }

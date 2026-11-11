@@ -10,7 +10,7 @@ import { canPerformCommerce, type CommerceAction } from "./commerce-policy";
 import { duplicatesCatalogLine } from "./commerce-validation";
 import { scaledInteger } from "./inventory-math";
 import { InventoryProblem } from "./inventory-operations";
-import { assertTransactionWriteAccess } from "./transaction-access";
+import { assertTransactionSession, assertTransactionWriteAccess, lockTransactionSession, type TransactionActor } from "./transaction-access";
 import { finishCashCustodyCollection, lockCashCollectorCustody } from "./finance/collection-custody-guard";
 import {
   parseCatalogActive, parseCatalogField, parseCatalogFieldUpdate, parseCatalogId, parseCatalogName,
@@ -58,12 +58,27 @@ async function withSerializableRetry<T>(db: Db, work: (tx: Transaction) => Promi
     }
   }
 }
-async function authorize(tx: Transaction, actorId: bigint, action: CommerceAction, branchId: bigint | null, branchActive: boolean): Promise<void> {
-  const actor = await tx.user.findUnique({ where: { id: actorId }, select: { status: true, roleCode: true, branchId: true, mustChangePassword: true, canCancelSales: true } });
-  if (!actor || !canPerformCommerce({ role: actor.roleCode, status: actor.status, mustChangePassword: actor.mustChangePassword, branchId: actor.branchId, canCancelSales: actor.canCancelSales }, action, branchId, branchActive)) {
+async function withAuthenticatedSerializableRetry<T>(db: Db, actor: TransactionActor, work: (tx: Transaction) => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try { return await db.$transaction(async tx => {
+      const result = await work(tx);
+      await assertTransactionSession(tx, actor);
+      return result;
+    }, { isolationLevel: "Serializable", maxWait: 5000, timeout: 20000 }); }
+    catch (error) {
+      if (isRetryableTransactionConflict(error) && attempt < 2) continue;
+      throw error;
+    }
+  }
+}
+async function authorize(tx: Transaction, actor: TransactionActor, action: CommerceAction, branchId: bigint | null, branchActive: boolean): Promise<void> {
+  const actorId = actor.id;
+  const actorRow = await tx.user.findUnique({ where: { id: actorId }, select: { status: true, roleCode: true, branchId: true, mustChangePassword: true, canCancelSales: true } });
+  if (!actorRow || !canPerformCommerce({ role: actorRow.roleCode, status: actorRow.status, mustChangePassword: actorRow.mustChangePassword, branchId: actorRow.branchId, canCancelSales: actorRow.canCancelSales }, action, branchId, branchActive)) {
     throw new InventoryProblem("ليس لديك صلاحية لتنفيذ العملية في هذا الفرع.");
   }
   await assertTransactionWriteAccess(tx, actorId, "/sales/new");
+  await lockTransactionSession(tx, actor);
 }
 function knownMath(error: unknown): never {
   if (error instanceof CommerceMathError) throw new InventoryProblem(error.message);
@@ -103,20 +118,21 @@ export async function loadSalesCatalog(db: Db, includeInactive = false): Promise
   }));
 }
 
-export async function createCatalogSale(db: Db, actorId: bigint, raw: unknown): Promise<WriteResult> {
+export async function createCatalogSale(db: Db, actor: TransactionActor, raw: unknown): Promise<WriteResult> {
+  const actorId = actor.id;
   const parsed = parseCatalogSaleInput(raw);
   if (!parsed.ok) throw new InventoryProblem("راجع بيانات البيع ثم حاول مجددًا.", parsed.errors);
   const input: CatalogSaleInput = parsed.value;
   const requestHash = digest({ actorId: actorId.toString(), ...input });
   try {
-    return await withSerializableRetry(db, async (tx) => {
+    return await withAuthenticatedSerializableRetry(db, actor, async (tx) => {
       const branchId = BigInt(input.branchId);
       const branch = await tx.branch.findUnique({ where: { id: branchId }, select: { isActive: true } });
       if (!branch) throw new InventoryProblem("الفرع غير موجود.");
-      await authorize(tx, actorId, "CREATE_SALE", branchId, branch.isActive);
+      await authorize(tx, actor, "CREATE_SALE", branchId, branch.isActive);
       const prior = await tx.commerceSale.findUnique({ where: { requestId: input.requestId } });
       if (prior) { ensureMatchingRequest(prior, actorId, requestHash); return { id: prior.id.toString(), replayed: true }; }
-      const actor = await tx.user.findUniqueOrThrow({ where: { id: actorId }, select: { roleCode: true } });
+      const actorRow = await tx.user.findUniqueOrThrow({ where: { id: actorId }, select: { roleCode: true } });
       await tx.$queryRaw`SELECT "id" FROM "commerce_settings" WHERE "id" = 1 FOR SHARE`;
       const settings = await tx.commerceSettings.findUnique({ where: { id: 1 } });
       if (!settings || settings.staffDiscountBps < 0 || settings.staffDiscountBps > 10000
@@ -155,9 +171,9 @@ export async function createCatalogSale(db: Db, actorId: bigint, raw: unknown): 
       const totalCents = subtotalCents - discountCents;
       // السقف يسري على كل دور، لا على موظف الكاونتر وحده: كان المحاسب والمدير
       // قبل هذا يمنحان أي خصم بلا حدّ. والمدير وحده له سقف أعلى يُضبط من الإعدادات.
-      const ceilingBps = actor.roleCode === "MANAGER" ? settings.managerDiscountBps : settings.staffDiscountBps;
+      const ceilingBps = actorRow.roleCode === "MANAGER" ? settings.managerDiscountBps : settings.staffDiscountBps;
       if (!staffDiscountAllowed(subtotalCents, discountCents, BigInt(ceilingBps))) {
-        throw new InventoryProblem(actor.roleCode === "MANAGER"
+        throw new InventoryProblem(actorRow.roleCode === "MANAGER"
           ? "الخصم يتجاوز سقف المدير المسموح."
           : "الخصم يتجاوز الحد المسموح لدورك.");
       }
@@ -204,11 +220,11 @@ export async function createCatalogSale(db: Db, actorId: bigint, raw: unknown): 
     if (isDuplicate(error)) {
       // Duplicate-key recovery must not reuse stale authorization from the
       // aborted transaction; apply the same branch and actor checks as replay.
-      const prior = await withSerializableRetry(db, async tx => {
+      const prior = await withAuthenticatedSerializableRetry(db, actor, async tx => {
         const branchId = BigInt(input.branchId);
         const branch = await tx.branch.findUnique({ where: { id: branchId }, select: { isActive: true } });
         if (!branch) throw new InventoryProblem("الفرع غير موجود.");
-        await authorize(tx, actorId, "CREATE_SALE", branchId, branch.isActive);
+        await authorize(tx, actor, "CREATE_SALE", branchId, branch.isActive);
         return tx.commerceSale.findUnique({ where: { requestId: input.requestId } });
       });
       if (prior) { ensureMatchingRequest(prior, actorId, requestHash); return { id: prior.id.toString(), replayed: true }; }
@@ -224,11 +240,13 @@ export async function createCatalogSale(db: Db, actorId: bigint, raw: unknown): 
 type AuditEntity = "CATEGORY" | "TYPE" | "FIELD";
 type AuditAction = "CREATE" | "UPDATE" | "ACTIVATE" | "DEACTIVATE";
 
-async function authorizeManager(tx: Transaction, actorId: bigint): Promise<void> {
-  const actor = await tx.user.findUnique({ where: { id: actorId }, select: { status: true, roleCode: true, mustChangePassword: true } });
-  if (!actor || actor.status !== "ACTIVE" || actor.mustChangePassword || actor.roleCode !== "MANAGER") {
+async function authorizeManager(tx: Transaction, actor: TransactionActor): Promise<void> {
+  const actorId = actor.id;
+  const actorRow = await tx.user.findUnique({ where: { id: actorId }, select: { status: true, roleCode: true, mustChangePassword: true } });
+  if (!actorRow || actorRow.status !== "ACTIVE" || actorRow.mustChangePassword || actorRow.roleCode !== "MANAGER") {
     throw new InventoryProblem("إدارة أصناف البيع متاحة للمدير فقط.");
   }
+  await lockTransactionSession(tx, actor);
 }
 
 function problem(error: unknown, parsed: { ok: boolean; errors?: Record<string, string> }): never {
@@ -253,10 +271,11 @@ async function recordAudit(
 
 /** كل كتابة إدارة: تحقق ← صلاحية مدير ← تغيير ← سجل، في معاملة واحدة. */
 async function adminWrite<T>(
-  db: Db, actorId: bigint, requestId: string,
+  db: Db, actor: TransactionActor, requestId: string,
   expected: { entity: AuditEntity; action: AuditAction; entityId?: bigint; after: Record<string, string | number | boolean>; reason?: string },
   work: (tx: Transaction) => Promise<{ id: bigint; audit: { entity: AuditEntity; entityId: bigint; action: AuditAction; before: unknown; after: unknown; reason: string } }>,
 ): Promise<WriteResult> {
+  const actorId = actor.id;
   const checkPrior = (prior: {actorId:bigint;entityId:bigint;entity:string;action:string;afterData:unknown;reason:string}) => {
     if (prior.actorId !== actorId || prior.entity !== expected.entity || prior.action !== expected.action ||
       (expected.entityId !== undefined && prior.entityId !== expected.entityId))
@@ -275,8 +294,8 @@ async function adminWrite<T>(
       throw new InventoryProblem("استُخدم هذا الطلب مسبقًا ببيانات مختلفة. أعد فتح الشاشة.");
   };
   try {
-    const result = await withSerializableRetry(db, async (tx) => {
-      await authorizeManager(tx, actorId);
+    const result = await withAuthenticatedSerializableRetry(db, actor, async (tx) => {
+      await authorizeManager(tx, actor);
       const existing = await tx.salesCatalogAudit.findUnique({ where: { requestId }, select: { actorId: true, entityId: true, entity: true, action: true, afterData: true, reason: true } });
       if (existing) {
         checkPrior(existing);
@@ -292,8 +311,8 @@ async function adminWrite<T>(
     return { id: result.id.toString(), replayed: result.replayed };
   } catch (error) {
     if (isDuplicate(error)) {
-      const prior = await withSerializableRetry(db, async tx => {
-        await authorizeManager(tx, actorId);
+      const prior = await withAuthenticatedSerializableRetry(db, actor, async tx => {
+        await authorizeManager(tx, actor);
         return tx.salesCatalogAudit.findUnique({ where: { requestId }, select: { actorId: true, entityId: true, entity: true, action: true, afterData: true, reason: true } });
       });
       if (prior) {
@@ -310,12 +329,13 @@ const snapshot = (row: { nameAr: string; sortOrder: number; isActive: boolean })
 const fieldSnapshot = (row: { fieldKey: string; labelAr: string; isRequired: boolean; sortOrder: number; isActive: boolean }) =>
   ({ fieldKey: row.fieldKey, labelAr: row.labelAr, isRequired: row.isRequired, sortOrder: row.sortOrder, isActive: row.isActive });
 
-export async function createSalesCategory(db: Db, actorId: bigint, raw: unknown): Promise<WriteResult> {
+export async function createSalesCategory(db: Db, actor: TransactionActor, raw: unknown): Promise<WriteResult> {
+  const actorId = actor.id;
   const parsed = parseCatalogName(raw, true);
   if (!parsed.ok) throw new InventoryProblem("راجع بيانات التصنيف ثم حاول مجددًا.", parsed.errors);
   const input: CatalogNameInput = parsed.value;
   try {
-    return await adminWrite(db, actorId, input.requestId, { entity: "CATEGORY", action: "CREATE", after: { code: input.code!, nameAr: input.nameAr, sortOrder: input.sortOrder } }, async (tx) => {
+    return await adminWrite(db, actor, input.requestId, { entity: "CATEGORY", action: "CREATE", after: { code: input.code!, nameAr: input.nameAr, sortOrder: input.sortOrder } }, async (tx) => {
       const created = await tx.salesItemCategory.create({
         data: { code: input.code!, nameAr: input.nameAr, sortOrder: input.sortOrder, createdById: actorId, updatedById: actorId },
         select: { id: true, nameAr: true, sortOrder: true, isActive: true },
@@ -325,12 +345,13 @@ export async function createSalesCategory(db: Db, actorId: bigint, raw: unknown)
   } catch (error) { return problem(error, parsed); }
 }
 
-export async function updateSalesCategory(db: Db, actorId: bigint, raw: unknown): Promise<WriteResult> {
+export async function updateSalesCategory(db: Db, actor: TransactionActor, raw: unknown): Promise<WriteResult> {
+  const actorId = actor.id;
   const parsed = parseCatalogId(raw);
   if (!parsed.ok) throw new InventoryProblem("راجع بيانات التصنيف ثم حاول مجددًا.", parsed.errors);
   const input: CatalogIdInput = parsed.value;
   try {
-    return await adminWrite(db, actorId, input.requestId, { entity: "CATEGORY", action: "UPDATE", entityId: BigInt(input.id), after: { nameAr: input.nameAr!, sortOrder: input.sortOrder! } }, async (tx) => {
+    return await adminWrite(db, actor, input.requestId, { entity: "CATEGORY", action: "UPDATE", entityId: BigInt(input.id), after: { nameAr: input.nameAr!, sortOrder: input.sortOrder! } }, async (tx) => {
       const before = await tx.salesItemCategory.findUnique({ where: { id: BigInt(input.id) }, select: { nameAr: true, sortOrder: true, isActive: true } });
       if (!before) throw new InventoryProblem("التصنيف غير موجود.");
       const updated = await tx.salesItemCategory.update({
@@ -343,12 +364,13 @@ export async function updateSalesCategory(db: Db, actorId: bigint, raw: unknown)
   } catch (error) { return problem(error, parsed); }
 }
 
-export async function setSalesCategoryActive(db: Db, actorId: bigint, raw: unknown): Promise<WriteResult> {
+export async function setSalesCategoryActive(db: Db, actor: TransactionActor, raw: unknown): Promise<WriteResult> {
+  const actorId = actor.id;
   const parsed = parseCatalogActive(raw);
   if (!parsed.ok) throw new InventoryProblem("راجع بيانات التصنيف ثم حاول مجددًا.", parsed.errors);
   const input: CatalogActiveInput = parsed.value;
   try {
-    return await adminWrite(db, actorId, input.requestId, { entity: "CATEGORY", action: input.active ? "ACTIVATE" : "DEACTIVATE", entityId: BigInt(input.id), after: { isActive: input.active }, reason: input.reason }, async (tx) => {
+    return await adminWrite(db, actor, input.requestId, { entity: "CATEGORY", action: input.active ? "ACTIVATE" : "DEACTIVATE", entityId: BigInt(input.id), after: { isActive: input.active }, reason: input.reason }, async (tx) => {
       const before = await tx.salesItemCategory.findUnique({ where: { id: BigInt(input.id) }, select: { nameAr: true, sortOrder: true, isActive: true } });
       if (!before) throw new InventoryProblem("التصنيف غير موجود.");
       const updated = await tx.salesItemCategory.update({
@@ -360,12 +382,13 @@ export async function setSalesCategoryActive(db: Db, actorId: bigint, raw: unkno
   } catch (error) { return problem(error, parsed); }
 }
 
-export async function createSalesType(db: Db, actorId: bigint, raw: unknown): Promise<WriteResult> {
+export async function createSalesType(db: Db, actor: TransactionActor, raw: unknown): Promise<WriteResult> {
+  const actorId = actor.id;
   const parsed = parseCatalogTypeCreate(raw);
   if (!parsed.ok) throw new InventoryProblem("راجع بيانات الصنف ثم حاول مجددًا.", parsed.errors);
   const input: CatalogTypeCreateInput = parsed.value;
   try {
-    return await adminWrite(db, actorId, input.requestId, { entity: "TYPE", action: "CREATE", after: { categoryId: input.categoryId, nameAr: input.nameAr, sortOrder: input.sortOrder } }, async (tx) => {
+    return await adminWrite(db, actor, input.requestId, { entity: "TYPE", action: "CREATE", after: { categoryId: input.categoryId, nameAr: input.nameAr, sortOrder: input.sortOrder } }, async (tx) => {
       const category = await tx.salesItemCategory.findUnique({ where: { id: BigInt(input.categoryId) }, select: { id: true } });
       if (!category) throw new InventoryProblem("التصنيف غير موجود.");
       const created = await tx.salesItemType.create({
@@ -377,12 +400,13 @@ export async function createSalesType(db: Db, actorId: bigint, raw: unknown): Pr
   } catch (error) { return problem(error, parsed); }
 }
 
-export async function updateSalesType(db: Db, actorId: bigint, raw: unknown): Promise<WriteResult> {
+export async function updateSalesType(db: Db, actor: TransactionActor, raw: unknown): Promise<WriteResult> {
+  const actorId = actor.id;
   const parsed = parseCatalogId(raw);
   if (!parsed.ok) throw new InventoryProblem("راجع بيانات الصنف ثم حاول مجددًا.", parsed.errors);
   const input: CatalogIdInput = parsed.value;
   try {
-    return await adminWrite(db, actorId, input.requestId, { entity: "TYPE", action: "UPDATE", entityId: BigInt(input.id), after: { nameAr: input.nameAr!, sortOrder: input.sortOrder! } }, async (tx) => {
+    return await adminWrite(db, actor, input.requestId, { entity: "TYPE", action: "UPDATE", entityId: BigInt(input.id), after: { nameAr: input.nameAr!, sortOrder: input.sortOrder! } }, async (tx) => {
       const before = await tx.salesItemType.findUnique({ where: { id: BigInt(input.id) }, select: { nameAr: true, sortOrder: true, isActive: true } });
       if (!before) throw new InventoryProblem("الصنف غير موجود.");
       const updated = await tx.salesItemType.update({
@@ -394,12 +418,13 @@ export async function updateSalesType(db: Db, actorId: bigint, raw: unknown): Pr
   } catch (error) { return problem(error, parsed); }
 }
 
-export async function setSalesTypeActive(db: Db, actorId: bigint, raw: unknown): Promise<WriteResult> {
+export async function setSalesTypeActive(db: Db, actor: TransactionActor, raw: unknown): Promise<WriteResult> {
+  const actorId = actor.id;
   const parsed = parseCatalogActive(raw);
   if (!parsed.ok) throw new InventoryProblem("راجع بيانات الصنف ثم حاول مجددًا.", parsed.errors);
   const input: CatalogActiveInput = parsed.value;
   try {
-    return await adminWrite(db, actorId, input.requestId, { entity: "TYPE", action: input.active ? "ACTIVATE" : "DEACTIVATE", entityId: BigInt(input.id), after: { isActive: input.active }, reason: input.reason }, async (tx) => {
+    return await adminWrite(db, actor, input.requestId, { entity: "TYPE", action: input.active ? "ACTIVATE" : "DEACTIVATE", entityId: BigInt(input.id), after: { isActive: input.active }, reason: input.reason }, async (tx) => {
       const before = await tx.salesItemType.findUnique({ where: { id: BigInt(input.id) }, select: { nameAr: true, sortOrder: true, isActive: true } });
       if (!before) throw new InventoryProblem("الصنف غير موجود.");
       const updated = await tx.salesItemType.update({
@@ -411,12 +436,13 @@ export async function setSalesTypeActive(db: Db, actorId: bigint, raw: unknown):
   } catch (error) { return problem(error, parsed); }
 }
 
-export async function createSalesField(db: Db, actorId: bigint, raw: unknown): Promise<WriteResult> {
+export async function createSalesField(db: Db, actor: TransactionActor, raw: unknown): Promise<WriteResult> {
+  const actorId = actor.id;
   const parsed = parseCatalogField(raw);
   if (!parsed.ok) throw new InventoryProblem("راجع بيانات الحقل ثم حاول مجددًا.", parsed.errors);
   const input: CatalogFieldInput = parsed.value;
   try {
-    return await adminWrite(db, actorId, input.requestId, { entity: "FIELD", action: "CREATE", after: { typeId: input.typeId, fieldKey: input.fieldKey, labelAr: input.labelAr, isRequired: input.isRequired, sortOrder: input.sortOrder } }, async (tx) => {
+    return await adminWrite(db, actor, input.requestId, { entity: "FIELD", action: "CREATE", after: { typeId: input.typeId, fieldKey: input.fieldKey, labelAr: input.labelAr, isRequired: input.isRequired, sortOrder: input.sortOrder } }, async (tx) => {
       const type = await tx.salesItemType.findUnique({ where: { id: BigInt(input.typeId) }, select: { id: true } });
       if (!type) throw new InventoryProblem("الصنف غير موجود.");
       const created = await tx.salesItemField.create({
@@ -431,12 +457,13 @@ export async function createSalesField(db: Db, actorId: bigint, raw: unknown): P
   } catch (error) { return problem(error, parsed); }
 }
 
-export async function updateSalesField(db: Db, actorId: bigint, raw: unknown): Promise<WriteResult> {
+export async function updateSalesField(db: Db, actor: TransactionActor, raw: unknown): Promise<WriteResult> {
+  const actorId = actor.id;
   const parsed = parseCatalogFieldUpdate(raw);
   if (!parsed.ok) throw new InventoryProblem("راجع بيانات الحقل ثم حاول مجددًا.", parsed.errors);
   const input: CatalogFieldUpdateInput = parsed.value;
   try {
-    return await adminWrite(db, actorId, input.requestId, { entity: "FIELD", action: "UPDATE", entityId: BigInt(input.id), after: { labelAr: input.labelAr, isRequired: input.isRequired, sortOrder: input.sortOrder } }, async (tx) => {
+    return await adminWrite(db, actor, input.requestId, { entity: "FIELD", action: "UPDATE", entityId: BigInt(input.id), after: { labelAr: input.labelAr, isRequired: input.isRequired, sortOrder: input.sortOrder } }, async (tx) => {
       const before = await tx.salesItemField.findUnique({ where: { id: BigInt(input.id) }, select: { fieldKey: true, labelAr: true, isRequired: true, sortOrder: true, isActive: true } });
       if (!before) throw new InventoryProblem("الحقل غير موجود.");
       const updated = await tx.salesItemField.update({
@@ -449,12 +476,13 @@ export async function updateSalesField(db: Db, actorId: bigint, raw: unknown): P
   } catch (error) { return problem(error, parsed); }
 }
 
-export async function setSalesFieldActive(db: Db, actorId: bigint, raw: unknown): Promise<WriteResult> {
+export async function setSalesFieldActive(db: Db, actor: TransactionActor, raw: unknown): Promise<WriteResult> {
+  const actorId = actor.id;
   const parsed = parseCatalogActive(raw);
   if (!parsed.ok) throw new InventoryProblem("راجع بيانات الحقل ثم حاول مجددًا.", parsed.errors);
   const input: CatalogActiveInput = parsed.value;
   try {
-    return await adminWrite(db, actorId, input.requestId, { entity: "FIELD", action: input.active ? "ACTIVATE" : "DEACTIVATE", entityId: BigInt(input.id), after: { isActive: input.active }, reason: input.reason }, async (tx) => {
+    return await adminWrite(db, actor, input.requestId, { entity: "FIELD", action: input.active ? "ACTIVATE" : "DEACTIVATE", entityId: BigInt(input.id), after: { isActive: input.active }, reason: input.reason }, async (tx) => {
       const before = await tx.salesItemField.findUnique({ where: { id: BigInt(input.id) }, select: { fieldKey: true, labelAr: true, isRequired: true, sortOrder: true, isActive: true } });
       if (!before) throw new InventoryProblem("الحقل غير موجود.");
       const updated = await tx.salesItemField.update({
@@ -475,7 +503,8 @@ export type CatalogAuditRow = {
 /** سجل التغييرات: للمدير فقط. الأصل محفوظ قبل التعديل وبعده. */
 export async function listCatalogAudit(db: Db, actorId: bigint, take = 50): Promise<CatalogAuditRow[]> {
   const rows = await db.$transaction(async (tx) => {
-    await authorizeManager(tx, actorId);
+    const actor = await tx.user.findUnique({ where: { id: actorId }, select: { status: true, roleCode: true, mustChangePassword: true } });
+    if (!actor || actor.status !== "ACTIVE" || actor.mustChangePassword || actor.roleCode !== "MANAGER") throw new InventoryProblem("إدارة أصناف البيع متاحة للمدير فقط.");
     return tx.salesCatalogAudit.findMany({
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: Math.min(Math.max(take, 1), 200),

@@ -19,6 +19,7 @@ import type { FinanceDatabase } from "../src/lib/finance/types";
 import { testCollectionService, testCountClosePeriodGuard, testHolderPaymentService } from "../prototypes/finance-collection-policy/runtime-adapters.test-only";
 import { reviewTestPeriod } from "../prototypes/finance-collection-policy/period.test-only";
 import { allocateTestCollection } from "../prototypes/finance-collection-policy/allocate.test-only";
+import { actor } from "./helpers/commerce-actor";
 
 const root = process.cwd();
 const require = createRequire(join(root, "package.json"));
@@ -29,7 +30,7 @@ test("experimental count/closure guard rolls back boundary mismatch and preserve
   const previous = process.env.FINANCE_ENABLED; process.env.FINANCE_ENABLED = "true";
   try {
     execFileSync(process.execPath, [join(root, "scripts/local-pglite-preview.cjs")], { cwd: root, env: { ...process.env, PREVIEW_PGLITE_DIR: dir, PREVIEW_PASSWORD: "Synthetic-Test-2026!" }, stdio: "pipe", timeout: 60_000 });
-    pg = new PGlite(dir);
+    pg = new PGlite(dir); await pg.exec(readFileSync(join(root,"tests/fixtures/commerce-auth-sessions.sql"),"utf8"));
     await pg.exec("SET selahtone.finance_release_candidate_test_only='yes'; SET selahtone.collection_policy_test_only='yes'");
     for (const f of ["prototypes/finance-release/release-candidate.test-only.sql", "prisma/manual-settlement-upgrade.sql", "prisma/manual-custody-closure-upgrade.sql", "prisma/manual-custody-and-count-requests.sql", "prototypes/finance-collection-policy/allocations.test-only.sql"]) await pg.exec(readFileSync(join(root, f), "utf8"));
     client = new WasmClient({ adapter: new PrismaPGlite(pg) });
@@ -38,7 +39,7 @@ test("experimental count/closure guard rolls back boundary mismatch and preserve
     await pg.exec("UPDATE commerce_sales SET created_by_id=3 WHERE id=2; UPDATE commerce_collections SET created_at=now()-interval '10 days'");
     const account = await openAccount(db, "1", { requestId: randomUUID(), branchId: "1", kind: "CUSTODY", holderId: "3", openingAmount: "0", openingDate: today, counted: true }, today);
     const guarded = testCountClosePeriodGuard(db, account.id);
-    const collection = await recordCommerceCollection(testCollectionService(client, "3"), 3n, { requestId: randomUUID(), saleId: "2", amount: "10", method: "CASH", actuallyPaid: false });
+    const collection = await recordCommerceCollection(testCollectionService(client, "3"), actor(3n) , { requestId: randomUUID(), saleId: "2", amount: "10", method: "CASH", actuallyPaid: false });
     // Deliberately construct the proven timestamp ambiguity: assignment exists,
     // but the current engine's strict > boundary excludes the collection.
     const item = (await db.serializable(tx => reviewTestPeriod(tx, account.id))).collections[0]; assert.ok(item);

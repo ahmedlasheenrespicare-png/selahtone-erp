@@ -17,6 +17,7 @@ import { financePort } from "../src/lib/finance/port";
 import type { FinanceDatabase, FinanceTransaction } from "../src/lib/finance/types";
 import { RECORDED_FLOW_SQL } from "../src/lib/finance/recorded-flow-sql";
 import { readSyntheticRecordedEvents } from "../prototypes/finance-dashboard-flow-audit/sources.test-only";
+import { actor } from "./helpers/commerce-actor";
 
 const root = process.cwd();
 const { PrismaClient: WasmClient } = createRequire(join(root, "package.json"))("@prisma/client/wasm") as { PrismaClient: new (options: { adapter: unknown }) => PrismaClient };
@@ -26,7 +27,7 @@ test("recorded source inventory reflects real synthetic collection, refund and e
   const previous = process.env.FINANCE_ENABLED; process.env.FINANCE_ENABLED = "true";
   try {
     execFileSync(process.execPath, [join(root, "scripts/local-pglite-preview.cjs")], { cwd: root, env: { ...process.env, PREVIEW_PGLITE_DIR: dir, PREVIEW_PASSWORD: "Synthetic-Flow-Test-2026!" }, stdio: "pipe", timeout: 60_000 });
-    pg = new PGlite(dir);
+    pg = new PGlite(dir); await pg.exec(readFileSync(join(root,"tests/fixtures/commerce-auth-sessions.sql"),"utf8"));
     await pg.exec("SET selahtone.finance_release_candidate_test_only='yes'");
     for (const f of ["prototypes/finance-release/release-candidate.test-only.sql", "prisma/manual-settlement-upgrade.sql", "prisma/manual-custody-closure-upgrade.sql", "prisma/manual-custody-and-count-requests.sql"]) await pg.exec(readFileSync(join(root, f), "utf8"));
     const category = (await pg.query<{ id: number }>("INSERT INTO sales_item_categories(code,name_ar) VALUES ('FLOW_TEST','فئة اصطناعية') RETURNING id")).rows[0].id;
@@ -36,14 +37,14 @@ test("recorded source inventory reflects real synthetic collection, refund and e
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo" }).format(new Date());
     const month = today.slice(0,7);
     await openAccount(db, "1", { requestId: randomUUID(), branchId: "1", kind: "CUSTODY", holderId: "3", openingAmount: "0", openingDate: today, counted: true }, today);
-    const sale = await createCatalogSale(client, 3n, { requestId: randomUUID(), branchId: "1", customerName: "عميل اصطناعي", customerPhone: "01000000000", discount: "0", initialPayment: "10", method: "CARD", lines: [{ typeId: String(item), quantity: "1", unitPrice: "100", details: [] }] });
+    const sale = await createCatalogSale(client, actor(3n) , { requestId: randomUUID(), branchId: "1", customerName: "عميل اصطناعي", customerPhone: "01000000000", discount: "0", initialPayment: "10", method: "CARD", lines: [{ typeId: String(item), quantity: "1", unitPrice: "100", details: [] }] });
     const more = { requestId: randomUUID(), saleId: sale.id, amount: "4", method: "CARD", actuallyPaid: false };
-    const collection = await recordCommerceCollection(client, 3n, more);
-    assert.equal((await recordCommerceCollection(client, 3n, more)).replayed,true);
-    await returnCommerceSale(client, 1n, { requestId: randomUUID(), saleId: sale.id, cancel: true, accepted: true, lines: [] });
+    const collection = await recordCommerceCollection(client, actor(3n) , more);
+    assert.equal((await recordCommerceCollection(client, actor(3n) , more)).replayed,true);
+    await returnCommerceSale(client, actor(1n) , { requestId: randomUUID(), saleId: sale.id, cancel: true, accepted: true, lines: [] });
     const refundInput = { requestId: randomUUID(), saleId: sale.id, amount: "3", method: "CARD", actuallyPaid: true };
-    const refund = await recordCommerceRefund(client, 1n, refundInput);
-    assert.equal((await recordCommerceRefund(client, 1n, refundInput)).replayed,true);
+    const refund = await recordCommerceRefund(client, actor(1n) , refundInput);
+    assert.equal((await recordCommerceRefund(client, actor(1n) , refundInput)).replayed,true);
     const expense = await createExpense(db, "3", { requestId: randomUUID(), branchId: "1", categoryId: "1", amount: "5", expenseDate: today, description: "مصروف تدفق اصطناعي" });
     await approveExpense(db, "1", { requestId: randomUUID(), expenseId: expense.id, expectedRevision: "1" });
     const paymentInput = { requestId: randomUUID(), expenseId: expense.id, expectedRevision: "2", method: "CASH", accountId: null, paymentDate: today, actuallyPaid: true, source: "HOLDER_CASH" };

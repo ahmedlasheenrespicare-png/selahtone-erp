@@ -17,6 +17,7 @@ import { closeAccount, confirmSettlement, openAccount, requestSettlement, settle
 import { financePort } from "../src/lib/finance/port";
 import { CUSTODY_EXPECTATION_SQL } from "../src/lib/finance/custody-summary-sql";
 import type { FinanceDatabase } from "../src/lib/finance/types";
+import { actor } from "./helpers/commerce-actor";
 
 const root = process.cwd();
 const require = createRequire(join(root, "package.json"));
@@ -31,7 +32,7 @@ test("cash interim guards reject on-behalf and closed custody; legacy attributio
     execFileSync(process.execPath, [join(root, "scripts/local-pglite-preview.cjs")], {
       cwd: root, env: { ...process.env, PREVIEW_PGLITE_DIR: dir, PREVIEW_PASSWORD: "Synthetic-Access-Test-2026!" }, stdio: "pipe", timeout: 60_000,
     });
-    pg = new PGlite(dir);
+    pg = new PGlite(dir); await pg.exec(readFileSync(join(root,"tests/fixtures/commerce-auth-sessions.sql"),"utf8"));
     await pg.exec("SET selahtone.finance_release_candidate_test_only='yes'");
     for (const file of ["prototypes/finance-release/release-candidate.test-only.sql", "prisma/manual-settlement-upgrade.sql", "prisma/manual-custody-closure-upgrade.sql", "prisma/manual-custody-and-count-requests.sql"]) await pg.exec(readFileSync(join(root, file), "utf8"));
     // Demo seed uses Cairo wall-clock hours that can be in the future.
@@ -46,13 +47,13 @@ test("cash interim guards reject on-behalf and closed custody; legacy attributio
     const account = await openAccount(db, "1", { requestId: randomUUID(), branchId: "1", kind: "CUSTODY", holderId: "3", openingAmount: "0", openingDate: today, counted: true }, today);
     const first = { requestId: randomUUID(), saleId: "2", amount: "37", method: "CASH", actuallyPaid: false };
     const countBefore = await client.commerceCollection.count();
-    await assert.rejects(() => recordCommerceCollection(client!, 3n, first), /التحصيل النقدي بالنيابة عن منشئ الفاتورة متوقف مؤقتًا/);
+    await assert.rejects(() => recordCommerceCollection(client!, actor(3n) , first), /التحصيل النقدي بالنيابة عن منشئ الفاتورة متوقف مؤقتًا/);
     assert.equal(await client.commerceCollection.count(), countBefore, "denial must not save a collection");
     const noncash = { ...first, requestId: randomUUID(), amount: "2", method: "CARD" };
-    assert.equal((await recordCommerceCollection(client, 3n, noncash)).replayed, false);
-    assert.equal((await recordCommerceCollection(client, 3n, noncash)).replayed, true);
+    assert.equal((await recordCommerceCollection(client, actor(3n) , noncash)).replayed, false);
+    assert.equal((await recordCommerceCollection(client, actor(3n) , noncash)).replayed, true);
     const ownCash = { ...first, requestId: randomUUID(), amount: "3" };
-    await assert.rejects(() => recordCommerceCollection(client!, 1n, ownCash), /يلزم وجود عهدة مفتوحة/);
+    await assert.rejects(() => recordCommerceCollection(client!, actor(1n) , ownCash), /يلزم وجود عهدة مفتوحة/);
     await pg.exec("UPDATE users SET branch_id=1 WHERE id=1");
     const managerAccount = await openAccount(db, "1", { requestId: randomUUID(), branchId: "1", kind: "CUSTODY", holderId: "1", openingAmount: "0", openingDate: today, counted: true }, today);
     // Inject a failure after the real collection insert AND custody revision
@@ -81,16 +82,16 @@ test("cash interim guards reject on-behalf and closed custody; legacy attributio
       (SELECT count(*)::int FROM commerce_collections) AS collections,
       (SELECT count(*)::int FROM finance.movements) AS movements`, [managerAccount.id])).rows[0];
     const beforeFailure = await snapshot();
-    await assert.rejects(() => recordCommerceCollection(failingClient, 1n, ownCash), /synthetic failure after custody revision/);
+    await assert.rejects(() => recordCommerceCollection(failingClient, actor(1n) , ownCash), /synthetic failure after custody revision/);
     assert.equal(reachedAfterRevision, true);
     assert.deepEqual(await snapshot(), beforeFailure, "failed transaction must roll back collection, both revisions and movements");
-    assert.equal((await recordCommerceCollection(client, 1n, ownCash)).replayed, false);
+    assert.equal((await recordCommerceCollection(client, actor(1n) , ownCash)).replayed, false);
     const committed = await snapshot();
     assert.equal(BigInt(committed.account_revision), BigInt(beforeFailure.account_revision) + 1n);
     assert.equal(Number(committed.sale_revision), Number(beforeFailure.sale_revision) + 1);
     assert.equal(committed.collections, beforeFailure.collections + 1);
     assert.equal(committed.movements, beforeFailure.movements, "collection does not post an immediate cash movement");
-    assert.equal((await recordCommerceCollection(client, 1n, ownCash)).replayed, true);
+    assert.equal((await recordCommerceCollection(client, actor(1n) , ownCash)).replayed, true);
     assert.deepEqual(await snapshot(), committed, "replay does not bump revisions or create another record");
     // Model a legacy receipt from before the guard, not a new permitted write.
     const legacyInput = { ...first, requestId: randomUUID() };
@@ -98,8 +99,8 @@ test("cash interim guards reject on-behalf and closed custody; legacy attributio
     const requestHash = createHash("sha256").update(JSON.stringify({ actorId: "3", type: "COLLECTION", ...parsed.value })).digest("hex");
     const legacy = await client.commerceCollection.create({ data: { requestId: legacyInput.requestId, requestHash, saleId: 2n, amount: "37", method: "CASH", isInitial: false, createdById: 3n } });
     assert.equal(legacy.createdById, 3n);
-    assert.equal((await recordCommerceCollection(client, 3n, legacyInput)).replayed, true, "an already saved legacy request must remain replayable without another write");
-    await assert.rejects(() => recordCommerceCollection(client!, 3n, { ...legacyInput, amount: "38" }), /بيانات مختلفة/);
+    assert.equal((await recordCommerceCollection(client, actor(3n) , legacyInput)).replayed, true, "an already saved legacy request must remain replayable without another write");
+    await assert.rejects(() => recordCommerceCollection(client!, actor(3n) , { ...legacyInput, amount: "38" }), /بيانات مختلفة/);
     const overview = await settlementOverview(db, "3", account.id);
     assert.equal(overview.sales, "0.00", "legacy cash is still omitted when invoice creator differs");
     assert.equal(overview.sourceRecorderMismatch,true,"the recorder receives a nonblocking warning about the mismatch");
@@ -126,17 +127,17 @@ test("cash interim guards reject on-behalf and closed custody; legacy attributio
       (SELECT count(*)::int FROM finance.movements) AS movements`, [account.id])).rows[0];
     const saleBefore = await saleSnapshot();
     reachedAfterRevision = false;
-    await assert.rejects(() => createCatalogSale(failingClient, 3n, initial), /synthetic failure after custody revision/);
+    await assert.rejects(() => createCatalogSale(failingClient, actor(3n) , initial), /synthetic failure after custody revision/);
     assert.equal(reachedAfterRevision, true);
     assert.deepEqual(await saleSnapshot(), saleBefore, "the whole initial sale and revision must roll back");
-    assert.equal((await createCatalogSale(client, 3n, initial)).replayed, false);
+    assert.equal((await createCatalogSale(client, actor(3n) , initial)).replayed, false);
     const saleCommitted = await saleSnapshot();
     assert.equal(saleCommitted.sales, saleBefore.sales + 1);
     assert.equal(saleCommitted.lines, saleBefore.lines + 1);
     assert.equal(saleCommitted.collections, saleBefore.collections + 1);
     assert.equal(BigInt(saleCommitted.account_revision), BigInt(saleBefore.account_revision) + 1n);
     assert.equal(saleCommitted.movements, saleBefore.movements);
-    assert.equal((await createCatalogSale(client, 3n, initial)).replayed, true);
+    assert.equal((await createCatalogSale(client, actor(3n) , initial)).replayed, true);
     assert.deepEqual(await saleSnapshot(), saleCommitted, "initial-sale replay must not duplicate records or revision");
     // The successful synthetic sale now belongs to the current formula; settle
     // before closing rather than modifying/removing the recorded sale.
@@ -149,14 +150,14 @@ test("cash interim guards reject on-behalf and closed custody; legacy attributio
     // custody; noncash remains available and does not create a cash movement.
     const closedInitial = { ...initial, requestId: randomUUID() };
     const salesBefore = await client.commerceSale.count();
-    await assert.rejects(() => createCatalogSale(client!, 3n, closedInitial), /يلزم وجود عهدة مفتوحة/);
+    await assert.rejects(() => createCatalogSale(client!, actor(3n) , closedInitial), /يلزم وجود عهدة مفتوحة/);
     assert.equal(await client.commerceSale.count(), salesBefore);
     const noncashSale = { ...initial, requestId: randomUUID(), method: "CARD" };
-    const newSale = await createCatalogSale(client, 3n, noncashSale);
+    const newSale = await createCatalogSale(client, actor(3n) , noncashSale);
     assert.equal(newSale.replayed, false);
-    assert.equal((await createCatalogSale(client, 3n, noncashSale)).replayed, true);
+    assert.equal((await createCatalogSale(client, actor(3n) , noncashSale)).replayed, true);
     const later = { requestId: randomUUID(), saleId: newSale.id, amount: "13", method: "CASH", actuallyPaid: false };
-    await assert.rejects(() => recordCommerceCollection(client!, 3n, later), /يلزم وجود عهدة مفتوحة/);
+    await assert.rejects(() => recordCommerceCollection(client!, actor(3n) , later), /يلزم وجود عهدة مفتوحة/);
     assert.equal(await movementCount(), 0);
     // The reverse error: a manager collecting on a staff-created invoice is
     // currently added to that staff member's period, regardless of who collected.
@@ -164,7 +165,7 @@ test("cash interim guards reject on-behalf and closed custody; legacy attributio
       SELECT 4,1,'CS_AGENT','موظف اصطناعي','other-synthetic@selahtone.local',password_hash,'ACTIVE',false,'FULL',false,now() FROM users WHERE id=3`);
     await pg.exec("UPDATE commerce_sales SET created_by_id=4,total=5800 WHERE id=4");
     const other = await openAccount(db, "1", { requestId: randomUUID(), branchId: "1", kind: "CUSTODY", holderId: "4", openingAmount: "0", openingDate: today, counted: true }, today);
-    await assert.rejects(() => recordCommerceCollection(client!, 1n, { requestId: randomUUID(), saleId: "4", amount: "19", method: "CASH", actuallyPaid: false }), /التحصيل النقدي بالنيابة/);
+    await assert.rejects(() => recordCommerceCollection(client!, actor(1n) , { requestId: randomUUID(), saleId: "4", amount: "19", method: "CASH", actuallyPaid: false }), /التحصيل النقدي بالنيابة/);
     await client.commerceCollection.create({ data: { requestId: randomUUID(), requestHash: "b".repeat(64), saleId: 4n, amount: "19", method: "CASH", isInitial: false, createdById: 1n } });
     const creatorOverview=await settlementOverview(db, "4", other.id);
     assert.equal(creatorOverview.sales, "19.00", "legacy manager collection is still attributed to invoice creator");
