@@ -14,9 +14,9 @@ import type { FinanceActionState } from "./finance-state";
 /**
  * Every finance write is a single SERIALIZABLE transaction inside the engine,
  * and the actor's role, status and branch are re-read from the database there.
- * Each write also rechecks the session role, branch and email under the actor lock;
- * The auth session is also checked under a row lock. Access-control rules
- * remain checked outside this transaction.
+ * Each write also rechecks the session role, branch and email under the actor lock.
+ * The auth session and the operation's access-control rules are rechecked inside
+ * the same transaction; the outer permission check is only early UX feedback.
  * These actions only shape the form payload and translate failures; they never
  * trust the browser for identity, role or amounts.
  */
@@ -76,7 +76,7 @@ export async function openAccountAction(_previous: FinanceActionState, formData:
     counted: confirmed(formData, "counted"),
   };
   try {
-    const result = await openAccount(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
+    const result = await openAccount(financeDbForSession(financeDb, guard.session, "/finance/accounts#open"), guard.session.id, raw);
     revalidateFinance();
     return {
       status: "success",
@@ -98,7 +98,7 @@ export async function closeAccountAction(_previous: FinanceActionState, formData
     reason: text(formData, "reason") || null,
   };
   try {
-    const result = await closeAccount(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
+    const result = await closeAccount(financeDbForSession(financeDb, guard.session, "/finance#close-custody"), guard.session.id, raw);
     revalidateFinance();
     return {
       status: "success",
@@ -128,7 +128,7 @@ export async function transferCashAction(_previous: FinanceActionState, formData
     // The engine handles idempotent replay before locking and checking the
     // accounts. A separate precheck here would incorrectly reject a replay
     // after one account is later closed.
-    const result = await transferCash(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
+    const result = await transferCash(financeDbForSession(financeDb, guard.session, "/finance/transfers#transfer"), guard.session.id, raw);
     revalidateFinance();
     return {
       status: "success",
@@ -155,7 +155,7 @@ export async function createExpenseAction(_previous: FinanceActionState, formDat
     taxAmount: text(formData, "taxAmount") || null,
   };
   try {
-    const result = await createExpense(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
+    const result = await createExpense(financeDbForSession(financeDb, guard.session, "/finance/expenses/new"), guard.session.id, raw);
     revalidateFinance();
     return {
       status: "success",
@@ -177,7 +177,7 @@ export async function approveExpenseAction(_previous: FinanceActionState, formDa
     selfApproved: confirmed(formData, "selfApproved"),
   };
   try {
-    const result = await approveExpense(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
+    const result = await approveExpense(financeDbForSession(financeDb, guard.session, "/finance/expenses#approve"), guard.session.id, raw);
     revalidateFinance();
     return {
       status: "success",
@@ -196,7 +196,7 @@ export async function payExpenseAction(_previous: FinanceActionState, formData: 
   // فوريًا، ومثل هذا الدفع لا يصل إلى التسوية أبدًا.
   const raw = payExpensePayload(formData);
   try {
-    const result = await payExpense(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
+    const result = await payExpense(financeDbForSession(financeDb, guard.session, "/finance/expenses#pay"), guard.session.id, raw);
     revalidateFinance();
     return {
       status: "success",
@@ -219,7 +219,7 @@ export async function requestExpenseReviewAction(_previous: FinanceActionState, 
     proposedAmount: text(formData, "proposedAmount") || null,
   };
   try {
-    const result = await requestPaidExpenseReview(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
+    const result = await requestPaidExpenseReview(financeDbForSession(financeDb, guard.session, "/finance/expenses#review"), guard.session.id, raw);
     revalidateFinance();
     return {
       status: "success",
@@ -235,7 +235,7 @@ export async function closeExpenseReviewAction(_previous: FinanceActionState, fo
   const guard = await requireFinanceManager("/finance/expenses#review");
   if ("state" in guard) return guard.state;
   try {
-    const result = await closePaidExpenseReview(financeDbForSession(financeDb, guard.session), guard.session.id, {
+    const result = await closePaidExpenseReview(financeDbForSession(financeDb, guard.session, "/finance/expenses#review"), guard.session.id, {
       requestId: text(formData, "requestId"), reviewId: text(formData, "reviewId"),
       reason: text(formData, "reason"), expectedRevision: text(formData, "expectedRevision"), expectedReviewSnapshot: text(formData, "expectedReviewSnapshot"), reviewedNoChange: confirmed(formData, "reviewedNoChange"),
     });
@@ -258,7 +258,7 @@ export async function requestCountAction(_previous: FinanceActionState, formData
     actuallyCounted: confirmed(formData, "actuallyCounted"),
   };
   try {
-    const result = await requestCashCount(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
+    const result = await requestCashCount(financeDbForSession(financeDb, guard.session, "/finance/counts#request"), guard.session.id, raw);
     revalidateFinance();
     return {
       status: "success",
@@ -282,7 +282,7 @@ export async function confirmCountAction(_previous: FinanceActionState, formData
     stillCurrent: confirmed(formData, "stillCurrent"),
   };
   try {
-    const result = await confirmCashCount(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
+    const result = await confirmCashCount(financeDbForSession(financeDb, guard.session, "/finance/counts#confirm"), guard.session.id, raw);
     revalidateFinance();
     return {
       status: "success",
@@ -303,7 +303,7 @@ export async function cancelCountAction(_previous: FinanceActionState, formData:
     reason: text(formData, "reason"),
   };
   try {
-    const result = await cancelCashCount(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
+    const result = await cancelCashCount(financeDbForSession(financeDb, guard.session, "/finance/counts#cancel"), guard.session.id, raw);
     revalidateFinance();
     return {
       status: "success",
@@ -320,7 +320,7 @@ export async function createCategoryAction(_previous: FinanceActionState, formDa
   if ("state" in guard) return guard.state;
   const raw = { requestId: text(formData, "requestId"), name: text(formData, "name") };
   try {
-    const result = await createAppCategory(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
+    const result = await createAppCategory(financeDbForSession(financeDb, guard.session, "/finance/categories#create"), guard.session.id, raw);
     revalidateFinance();
     return {
       status: "success",
@@ -344,7 +344,7 @@ export async function editCategoryAction(_previous: FinanceActionState, formData
     reason: text(formData, "reason"),
   };
   try {
-    const result = await editAppCategory(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
+    const result = await editAppCategory(financeDbForSession(financeDb, guard.session, "/finance/categories#edit"), guard.session.id, raw);
     revalidateFinance();
     return {
       status: "success",
@@ -369,7 +369,7 @@ export async function requestSettlementAction(_previous: FinanceActionState, for
     actuallyCounted: confirmed(formData, "actuallyCounted"),
   };
   try {
-    const result = await requestSettlement(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
+    const result = await requestSettlement(financeDbForSession(financeDb, guard.session, "/finance/settlements/new#request"), guard.session.id, raw);
     revalidateFinance();
     return {
       status: "success",
@@ -396,7 +396,7 @@ export async function confirmSettlementAction(_previous: FinanceActionState, for
     negativeAcknowledged: confirmed(formData, "negativeAcknowledged"),
   };
   try {
-    const result = await confirmSettlement(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
+    const result = await confirmSettlement(financeDbForSession(financeDb, guard.session, "/finance/transfers#confirm-settlement"), guard.session.id, raw);
     revalidateFinance();
     return {
       status: "success",
@@ -413,7 +413,7 @@ export async function rejectSettlementAction(_previous: FinanceActionState, form
   if ("state" in guard) return guard.state;
   const raw = { requestId: text(formData, "requestId"), settlementId: text(formData, "settlementId"), reason: text(formData, "reason") };
   try {
-    const result = await rejectSettlement(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
+    const result = await rejectSettlement(financeDbForSession(financeDb, guard.session, "/finance/transfers#reject-settlement"), guard.session.id, raw);
     revalidateFinance();
     return { status: "success", id: result.id, message: result.replayed ? "سبق حفظ هذا القرار." : "رُفض طلب التسوية بسبب مدوّن، بلا أي أثر على النقد." };
   } catch (error) {
@@ -427,7 +427,7 @@ export async function cancelSettlementAction(_previous: FinanceActionState, form
   if ("state" in guard) return guard.state;
   const raw = { requestId: text(formData, "requestId"), settlementId: text(formData, "settlementId"), reason: text(formData, "reason") };
   try {
-    const result = await cancelSettlement(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
+    const result = await cancelSettlement(financeDbForSession(financeDb, guard.session, "/finance/settlements#cancel"), guard.session.id, raw);
     revalidateFinance();
     return { status: "success", id: result.id, message: result.replayed ? "سبق حفظ هذا القرار." : "أُلغي طلب التسوية، بلا أي أثر على النقد." };
   } catch (error) {
@@ -441,7 +441,7 @@ export async function requestCustodyAction(_previous: FinanceActionState, formDa
   if ("state" in guard) return guard.state;
   const { session } = guard;
   try {
-    const result = await requestCustody(financeDbForSession(financeDb, session), session.id, {
+    const result = await requestCustody(financeDbForSession(financeDb, session, "/finance/mine#request-custody"), session.id, {
       requestId: formData.get("requestId"), amount: formData.get("amount"), reason: formData.get("reason"),
     });
     revalidateFinance();
@@ -464,7 +464,7 @@ export async function decideCustodyRequestAction(_previous: FinanceActionState, 
     expectedSnapshot: text(formData, "expectedSnapshot"),
   });
   try {
-    const result = await decideCustodyRequest(financeDbForSession(financeDb, session), session.id, payload);
+    const result = await decideCustodyRequest(financeDbForSession(financeDb, session, "/finance/accounts#decide-custody"), session.id, payload);
     revalidateFinance();
     return {
       status: "success",
@@ -485,7 +485,7 @@ export async function requestCountFromHolderAction(_previous: FinanceActionState
   if ("state" in guard) return guard.state;
   const { session } = guard;
   try {
-    const result = await requestCountFromHolder(financeDbForSession(financeDb, session), session.id, {
+    const result = await requestCountFromHolder(financeDbForSession(financeDb, session, "/finance/counts#request-holder"), session.id, {
       requestId: formData.get("requestId"), accountId: formData.get("accountId"), reason: formData.get("reason"),
     });
     revalidateFinance();
@@ -499,7 +499,7 @@ export async function submitHolderCountAction(_previous: FinanceActionState, for
   if ("state" in guard) return guard.state;
   const { session } = guard;
   try {
-    await submitHolderCount(financeDbForSession(financeDb, session), session.id, {
+    await submitHolderCount(financeDbForSession(financeDb, session, "/finance/mine#submit-count"), session.id, {
       requestId: text(formData, "requestId"),
       countId: text(formData, "countId"),
       countedAmount: text(formData, "countedAmount"),

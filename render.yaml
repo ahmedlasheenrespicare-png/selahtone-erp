@@ -29,7 +29,8 @@ services:
       - key: NODE_VERSION
         value: "20"
       - key: FINANCE_ENABLED
-        value: "true"
+        # يبقى الإغلاق الافتراضي حتى تُستوفى بوابات الجاهزية ويُتخذ قرار تفعيل منفصل.
+        value: "false"
       - key: INVENTORY_ENABLED
         value: "true"
       # فصل مؤقت بين البيع والمخزون: «true» فيُسجَّل البيع ولا ينقص الرصيد.
