@@ -1,0 +1,32 @@
+{
+  "record_id": "finance-activation-preflight-2026-11-11",
+  "status": "HOLD_PENDING_SEPARATE_PRODUCTION_CHECKS_AND_ACTIVATION_DECISION",
+  "decision": "WAIT_NO_ACTIVATION",
+  "review_document": "../../docs/finance-activation-preflight-review.md",
+  "finance_enabled_changed": false,
+  "production_database_used": false,
+  "production_environment_used": false,
+  "activation_authorized": false,
+  "deployment_authorized": false,
+  "listed_blockers_resolved": 9,
+  "why_hold": [
+    "CURRENT_LIVE_COMMIT_AND_CONFIG_NOT_CHECKED_IN_THIS_REVIEW",
+    "FLAG_ONLY_VS_SCHEMA_CONVERSION_PATH_NOT_SELECTED",
+    "OPENING_BALANCES_AND_INITIAL_SCOPE_NOT_DEFINED",
+    "CASH_REFUND_OPERATIONAL_POLICY_NOT_DEFINED",
+    "BACKUP_RESTORE_AND_MONITORING_DECISIONS_NOT_CURRENT",
+    "NO_SEPARATE_FINAL_ACTIVATION_DECISION"
+  ],
+  "paths": {
+    "A": "FLAG_ONLY_NO_SQL_NO_ROLE_CHANGE_NO_CODE_DEPLOY_REQUIRES_CURRENT_COMPATIBILITY_EVIDENCE",
+    "B": "ANY_SQL_ROLE_OR_CODE_CHANGE_STOPS_FOR_SEPARATE_PRODUCTION_CONVERSION_DESIGN"
+  },
+  "prohibited_assumptions": [
+    "MERGE_IS_ACTIVATION_APPROVAL",
+    "SYNTHETIC_TESTS_PROVE_PRODUCTION_DATA",
+    "LOG_ENTRY_PROVES_PHYSICAL_CASH",
+    "TEST_ONLY_CUTOVER_SQL_CAN_RUN_ON_PRODUCTION",
+    "SUCCESSFUL_BUILD_PROVES_DATABASE_IDENTITY"
+  ],
+  "next_allowed_step": "OPERATOR_SUPPLIES_DESCRIPTIVE_CURRENT_STATE_AND_SELECTS_PATH_THEN_SEPARATE_REVIEW"
+}
