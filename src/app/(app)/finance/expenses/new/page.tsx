@@ -1,3 +1,4 @@
+import { requirePageAccess, writeAccessAllowed } from "@/lib/access-control-server";
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { AppIcon } from "@/components/app-icon";
@@ -29,7 +30,9 @@ export default async function NewExpensePage({
 }: {
   searchParams?: Promise<{ categoryId?: string }>;
 }) {
+  await requirePageAccess("/finance/expenses/new");
   const { session, canManage } = await financePage();
+  const canWrite = await writeAccessAllowed("/finance/expenses/new");
   const resolvedParams = searchParams ? await searchParams : undefined;
   const requestedCategoryId =
     typeof resolvedParams?.categoryId === "string"
@@ -261,7 +264,9 @@ export default async function NewExpensePage({
         </div>
       )}
 
-      {!branchOptions.length ? (
+      {!canWrite ? (
+        <div className="fin-alert fin-alert--warning" role="status">تسجيل المصروف معطّل بالصلاحيات.</div>
+      ) : !branchOptions.length ? (
         <div className="fin-panel fin-empty">
           لا يوجد فرع نشط؛ أضف فرعًا نشطًا قبل تسجيل مصروف.
         </div>

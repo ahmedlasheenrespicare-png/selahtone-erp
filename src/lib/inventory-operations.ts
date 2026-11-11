@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { isRetryableTransactionConflict } from "./transaction-retry";
 import type { PrismaClient } from "@prisma/client";
 import { parseOpeningInput, positiveDatabaseId, productSku, type FieldErrors, type OpeningInputRaw, type ProductInput } from "./inventory-validation";
 
@@ -21,10 +22,6 @@ function isUniqueError(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "P2002";
 }
 
-function isSerializationError(error: unknown): boolean {
-  return typeof error === "object" && error !== null && "code" in error && error.code === "P2034";
-}
-
 function ensureMatchingRequest(record: { requestHash: string; createdById: bigint }, actorId: bigint, expectedHash: string): void {
   if (record.createdById !== actorId || record.requestHash.trim() !== expectedHash) {
     throw new InventoryProblem("استُخدم هذا الطلب مسبقًا ببيانات مختلفة. افتح نموذجًا جديدًا.");
@@ -45,7 +42,7 @@ async function withSerializableRetry<T>(db: Db, work: (tx: Transaction) => Promi
       return await db.$transaction(work, { isolationLevel: "Serializable", maxWait: 5000, timeout: 20000 });
     } catch (error) {
       // إعادة المحاولة بعد تعارض تسلسلي آمنة؛ المعاملة السابقة رُفضت ولم تُعتمد.
-      if (isSerializationError(error) && attempt < 2) continue;
+      if (isRetryableTransactionConflict(error) && attempt < 2) continue;
       throw error;
     }
   }
@@ -93,7 +90,10 @@ export async function createInventoryProduct(db: Db, actorId: bigint, input: Pro
   } catch (error) {
     if (!isUniqueError(error)) throw error;
     // عند وصول نسختين متزامنتين من الطلب نفسه قد تفوز إحداهما بقيد uniqueness.
-    const prior = await db.inventoryProductCreation.findUnique({ where: { requestId: input.requestId } });
+    const prior = await withSerializableRetry(db, async tx => {
+      await ensureEditor(tx, actorId);
+      return tx.inventoryProductCreation.findUnique({ where: { requestId: input.requestId } });
+    });
     if (prior) {
       ensureMatchingRequest(prior, actorId, requestHash);
       return { id: prior.productId.toString(), replayed: true };
@@ -163,11 +163,20 @@ export async function createInventoryOpening(db: Db, actorId: bigint, raw: Openi
   } catch (error) {
     if (!isUniqueError(error)) throw error;
     if (requestId && requestHash) {
-      const prior = await db.inventoryOpening.findUnique({ where: { requestId } });
-      if (prior) {
-        ensureMatchingRequest(prior, actorId, requestHash);
-        return { id: prior.id.toString(), replayed: true };
-      }
+      // Re-read the actor and product in a fresh transaction, just as in the
+      // ordinary replay path; the aborted transaction may have an old snapshot.
+      const found = await withSerializableRetry(db, async tx => {
+        await ensureEditor(tx, actorId);
+        const product = await tx.product.findUnique({ where: { id: BigInt(productId) }, select: { id: true, category: true, isSerialized: true } });
+        if (!product) throw new InventoryProblem("الصنف المختار غير موجود أو لم يعد متاحًا.");
+        const parsed = parseOpeningInput(raw, product.isSerialized || product.category === "HEARING_AID");
+        if (!parsed.ok) throw new InventoryProblem("راجع البيانات المحددة ثم حاول مجددًا.", parsed.errors);
+        const prior = await tx.inventoryOpening.findUnique({ where: { requestId: parsed.value.requestId } });
+        if (!prior) return null;
+        ensureMatchingRequest(prior, actorId, digest({ actorId: actorId.toString(), ...parsed.value }));
+        return { id: prior.id.toString(), replayed: true as const };
+      });
+      if (found) return found;
     }
     throw new InventoryProblem("سُجّل الرصيد أو أحد الأرقام بالتزامن مع طلبك. لم يُحفظ أي جزء من هذا الطلب؛ راجع المخزون والسيريالات.");
   }

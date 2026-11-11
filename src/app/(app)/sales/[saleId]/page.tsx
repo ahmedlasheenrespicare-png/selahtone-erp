@@ -8,10 +8,12 @@ import type { PaymentMethod } from "@/lib/commerce-validation";
 import { scaledInteger } from "@/lib/inventory-math";
 import { positiveDatabaseId } from "@/lib/inventory-validation";
 import { prisma } from "@/lib/prisma";
-import MovementForm, { type MovementAccountOption } from "./movement-form";
+import MovementForm from "./movement-form";
 import ReturnForm from "./return-form";
 import PrintButton from "./print-button";
 import { loadRefundAccounts } from "./refund-accounts";
+import { getAccessContext, requirePageAccess } from "@/lib/access-control-server";
+import { accessKeyAllowed, writeAllowedForKeys } from "@/lib/access-control";
 
 export const dynamic = "force-dynamic";
 type Props = { params: Promise<{ saleId: string }> };
@@ -32,6 +34,8 @@ function detailEntries(value: unknown): DetailEntry[] {
 const cents = (value: { toFixed: (scale: number) => string }) => scaledInteger(value.toFixed(2), 2);
 
 export default async function SaleDetailPage({ params }: Props) {
+  await requirePageAccess("/sales");
+
   const session = await requireSession();
   const scope = branchScope(session);
   const id = positiveDatabaseId((await params).saleId);
@@ -47,7 +51,13 @@ export default async function SaleDetailPage({ params }: Props) {
     },
   });
   if (!sale) notFound();
-  const cashAccounts = await loadRefundAccounts(sale.branchId);
+  const access = await getAccessContext();
+  const canCollect = writeAllowedForKeys(access.hidden, "/sales#collect");
+  const canReturn = writeAllowedForKeys(access.hidden, "/sales#return");
+  const canCancel = writeAllowedForKeys(access.hidden, "/sales#cancel");
+  const canRefund = (session.role === "MANAGER" || session.role === "ACCOUNTANT") && writeAllowedForKeys(access.hidden, "/sales#refund");
+  const canViewRefundBalances = accessKeyAllowed(access.hidden, "/sales#refund-balances");
+  const cashAccounts = canRefund ? await loadRefundAccounts(sale.branchId, canViewRefundBalances) : [];
   const original = cents(sale.total);
   const returned = sale.returns.flatMap((entry) => entry.lines).reduce((sum, line) => sum + cents(line.total), 0n);
   const collected = sale.collections.reduce((sum, entry) => sum + cents(entry.amount), 0n);
@@ -62,7 +72,6 @@ export default async function SaleDetailPage({ params }: Props) {
   const hasReturns = sale.returns.length > 0;
   const allReturned = remainingLines.length > 0 && remainingLines.every((line) => scaledInteger(line.remaining, 2) === 0n);
   const status = sale.cancelledAt ? "ملغاة" : allReturned ? "مرتجعة بالكامل" : hasReturns ? "مرتجع جزئي" : "مؤكدة";
-  const canRefund = session.role === "MANAGER" || session.role === "ACCOUNTANT";
 
   return <div className="inv-page sale-stack">
     <div className="inv-heading">
@@ -105,10 +114,10 @@ export default async function SaleDetailPage({ params }: Props) {
       <p className="sale-note">المبلغ المستحق للعميل لا يُعد مدفوعًا حتى يُسجّل الرد بعد الدفع الفعلي. النظام لا ينفذ تحويلات مالية.</p>
     </article>
     <div className="sale-grid"><div className="sale-stack">
-      {session.role === "MANAGER" && <ReturnForm requestId={randomUUID()} saleId={id} lines={remainingLines} originalCents={original.toString()} returnedCents={returned.toString()} collectedCents={collected.toString()} refundedCents={refunded.toString()} unavailable={Boolean(sale.cancelledAt) || allReturned} />}
+      {session.role === "MANAGER" && (canReturn || canCancel) && <ReturnForm key={`${canReturn}-${canCancel}`} canReturn={canReturn} canCancel={canCancel} requestId={randomUUID()} saleId={id} lines={remainingLines} originalCents={original.toString()} returnedCents={returned.toString()} collectedCents={collected.toString()} refundedCents={refunded.toString()} unavailable={Boolean(sale.cancelledAt) || allReturned} />}
     </div><div className="sale-stack">
-      <MovementForm mode="collect" saleId={id} requestId={randomUUID()} maximum={balance.dueFromCustomerCents.toString()} />
-      {canRefund && <MovementForm mode="refund" saleId={id} requestId={randomUUID()} maximum={balance.dueToCustomerCents.toString()} accounts={cashAccounts} />}
+      {canCollect && <MovementForm mode="collect" saleId={id} requestId={randomUUID()} maximum={balance.dueFromCustomerCents.toString()} />}
+      {canRefund && <MovementForm mode="refund" saleId={id} requestId={randomUUID()} maximum={balance.dueToCustomerCents.toString()} accounts={cashAccounts} canViewBalances={canViewRefundBalances} financeEnabled={process.env.FINANCE_ENABLED === "true"} />}
     </div></div>
   </div>;
 }

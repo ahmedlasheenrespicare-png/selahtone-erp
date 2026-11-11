@@ -64,7 +64,7 @@ export type PantherSpotlightCardProps = {
   primary: PantherMetricBlock;
   secondary: PantherMetricBlock;
   series?: PantherChartSeries[];
-  actionHref: string;
+  actionHref?: string;
   actionLabel: string;
   layout?: "wallet" | "section";
   /** محتوى إضافي (مثل قوائم البنود التفصيلية) يُرسم داخل البطاقة بين الرسم وزر الإجراء */
@@ -1739,11 +1739,11 @@ export default function PantherSpotlightCard({
           </div>
         ) : null}
 
-        <div className="monthly-panther__foot">
+        {actionHref && <div className="monthly-panther__foot">
           <Link href={actionHref} className="monthly-panther__btn">
             {actionLabel}
           </Link>
-        </div>
+        </div>}
       </div>
     </section>
   );

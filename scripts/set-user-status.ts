@@ -1,5 +1,6 @@
 import "dotenv/config";
-import { PrismaClient, UserStatus } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
+import { setDirectoryUserStatus } from "../src/lib/admin-directory-operations";
 import { emailSchema } from "../src/lib/auth-validation";
 
 const prisma = new PrismaClient();
@@ -10,12 +11,7 @@ async function main() {
   if (!email.success || (status !== "ACTIVE" && status !== "SUSPENDED")) {
     throw new Error("الاستخدام: npm run user:status -- user@example.com ACTIVE|SUSPENDED");
   }
-  const user = await prisma.user.findUnique({ where: { email: email.data }, select: { id: true } });
-  if (!user) throw new Error("المستخدم غير موجود.");
-  await prisma.$transaction([
-    prisma.user.update({ where: { id: user.id }, data: { status: status as UserStatus } }),
-    prisma.authSession.deleteMany({ where: { userId: user.id } }),
-  ]);
+  await setDirectoryUserStatus(prisma, email.data, status, process.env.FINANCE_ENABLED === "true");
   console.log(`✓ حالة المستخدم الآن ${status}، وأُلغيت جميع جلساته.`);
 }
 

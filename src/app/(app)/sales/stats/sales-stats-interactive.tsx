@@ -9,6 +9,9 @@ import type {
   ExecutiveTopItemRow,
 } from "@/lib/sales-stats";
 
+type SafeTopItem = Omit<ExecutiveTopItemRow, "costFormatted" | "profitFormatted" | "profitNum" | "marginPct"> &
+  Partial<Pick<ExecutiveTopItemRow, "costFormatted" | "profitFormatted" | "profitNum" | "marginPct">>;
+
 export type CsvExportPayload = {
   periodLabel: string;
   branchLabel: string;
@@ -22,13 +25,12 @@ export type CsvExportPayload = {
   netCollectedFormatted: string;
   collectionRatePct: number;
   outstandingFormatted: string;
-  stockProfitFormatted: string;
-  stockMarginPct: number;
+  profitability?: { stockProfitFormatted: string; stockMarginPct: number };
   catalogRevenueFormatted: string;
   paymentMethods: ExecutivePaymentMethodRow[];
   branchPerformance: ExecutiveBranchRow[];
   staffPerformance: ExecutiveStaffRow[];
-  topItems: ExecutiveTopItemRow[];
+  topItems: SafeTopItem[];
 };
 
 function csvEscape(value: string | number): string {
@@ -39,14 +41,7 @@ function csvEscape(value: string | number): string {
   return str;
 }
 
-export function SalesStatsActionToolbar({
-  exportPayload,
-  fileSlug,
-}: {
-  exportPayload: CsvExportPayload;
-  fileSlug: string;
-}) {
-  const handleExportCsv = () => {
+export function buildSalesStatsCsv(exportPayload: CsvExportPayload): string {
     const lines: string[][] = [
       ["تقرير إحصائيات المبيعات — سيلاه تون (SelahTone ERP)"],
       ["الفترة الزمنية", exportPayload.periodLabel],
@@ -63,8 +58,10 @@ export function SalesStatsActionToolbar({
       ["صافي المحصّل الفعلي (ج.م)", exportPayload.netCollectedFormatted],
       ["نسبة التحصيل (%)", `${exportPayload.collectionRatePct}%`],
       ["المتبقي على العملاء (ج.م)", exportPayload.outstandingFormatted],
-      ["ربح الأصناف المخزونية (ج.م)", exportPayload.stockProfitFormatted],
-      ["هامش ربح المخزوني (%)", `${exportPayload.stockMarginPct}%`],
+      ...(exportPayload.profitability ? [
+        ["ربح الأصناف المخزونية (ج.م)", exportPayload.profitability.stockProfitFormatted],
+        ["هامش ربح المخزوني (%)", `${exportPayload.profitability.stockMarginPct}%`],
+      ] : []),
       ["إيراد الكتالوج الفني بدون تكلفة (ج.م)", exportPayload.catalogRevenueFormatted],
       [],
       ["طرق الدفع والتحصيل", "عدد الحركات", "صافي المحصّل (ج.م)", "الحصة (%)"],
@@ -122,9 +119,7 @@ export function SalesStatsActionToolbar({
         "الكمية الصافية",
         "صافي الإيراد (ج.م)",
         "المساهمة (%)",
-        "التكلفة (ج.م)",
-        "الربح الصافي (ج.م)",
-        "هامش الربح (%)",
+        ...(exportPayload.profitability ? ["التكلفة (ج.م)", "الربح الصافي (ج.م)", "هامش الربح (%)"] : []),
       ],
       ...exportPayload.topItems.map((i) => [
         i.name,
@@ -133,13 +128,25 @@ export function SalesStatsActionToolbar({
         i.quantityFormatted,
         i.revenueFormatted,
         `${i.sharePct}%`,
-        i.costFormatted ?? "غير مسجل",
-        i.profitFormatted ?? "غير مسجل",
-        i.marginPct !== null ? `${i.marginPct}%` : "—",
+        ...(exportPayload.profitability ? [
+          i.costFormatted ?? "غير مسجل", i.profitFormatted ?? "غير مسجل",
+          i.marginPct != null ? `${i.marginPct}%` : "—",
+        ] : []),
       ]),
     ];
 
-    const csvText = "\uFEFF" + lines.map((row) => row.map(csvEscape).join(",")).join("\r\n");
+    return "\uFEFF" + lines.map((row) => row.map(csvEscape).join(",")).join("\r\n");
+}
+
+export function SalesStatsActionToolbar({
+  exportPayload,
+  fileSlug,
+}: {
+  exportPayload: CsvExportPayload;
+  fileSlug: string;
+}) {
+  const handleExportCsv = () => {
+    const csvText = buildSalesStatsCsv(exportPayload);
     const blob = new Blob([csvText], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -180,7 +187,7 @@ export function SalesStatsActionToolbar({
 type SortKey = "revenue" | "quantity" | "profit";
 type ItemKindFilter = "all" | "stock" | "catalog";
 
-export function SalesStatsTopItemsPanel({ items }: { items: ExecutiveTopItemRow[] }) {
+export function SalesStatsTopItemsPanel({ items, showProfitability }: { items: SafeTopItem[]; showProfitability: boolean }) {
   const [sortBy, setSortBy] = useState<SortKey>("revenue");
   const [kindFilter, setKindFilter] = useState<ItemKindFilter>("all");
   const [query, setQuery] = useState("");
@@ -214,7 +221,7 @@ export function SalesStatsTopItemsPanel({ items }: { items: ExecutiveTopItemRow[
         }
         if (sortBy === "profit") {
           if (a.isStock !== b.isStock) return a.isStock ? -1 : 1;
-          return b.profitNum - a.profitNum || b.revenueNum - a.revenueNum;
+          return (b.profitNum ?? 0) - (a.profitNum ?? 0) || b.revenueNum - a.revenueNum;
         }
         return b.revenueNum - a.revenueNum || b.quantityNum - a.quantityNum;
       });
@@ -224,9 +231,9 @@ export function SalesStatsTopItemsPanel({ items }: { items: ExecutiveTopItemRow[
     <div id="top-items-section" className="inv-panel sales-stats-items-panel">
       <div className="inv-panel__heading sales-stats-items-head">
         <div>
-          <h2>أكثر الأصناف مبيعًا ومساهمةً في الإيراد والربح</h2>
+          <h2>أكثر الأصناف مبيعًا ومساهمةً في الإيراد{showProfitability ? " والربح" : ""}</h2>
           <p>
-            صافي الكميات والإيرادات بعد خصم المرتجعات، مع فصل دقيق بين الأصناف المخزونية المسعّرة بالتكلفة وأصناف الكتالوج الفني.
+            صافي الكميات والإيرادات بعد خصم المرتجعات، مع فصل الأصناف المخزونية عن أصناف الكتالوج الفني.
           </p>
         </div>
         {items.length > 0 ? (
@@ -246,13 +253,13 @@ export function SalesStatsTopItemsPanel({ items }: { items: ExecutiveTopItemRow[
               >
                 الأكثر كميةً
               </button>
-              <button
+              {showProfitability ? <button
                 type="button"
                 className={`sales-stats-seg__btn${sortBy === "profit" ? " is-active" : ""}`}
                 onClick={() => setSortBy("profit")}
               >
                 الأعلى ربحًا
-              </button>
+              </button> : null}
             </div>
 
             <div className="sales-stats-seg" role="group" aria-label="تصفية نوع الصنف">
@@ -315,8 +322,8 @@ export function SalesStatsTopItemsPanel({ items }: { items: ExecutiveTopItemRow[
                 <th scope="col">الكمية الصافية</th>
                 <th scope="col">صافي الإيراد</th>
                 <th scope="col">نسبة المساهمة</th>
-                <th scope="col">التكلفة</th>
-                <th scope="col">الربح والهامش</th>
+                {showProfitability ? <><th scope="col">التكلفة</th>
+                <th scope="col">الربح والهامش</th></> : null}
               </tr>
             </thead>
             <tbody>
@@ -356,8 +363,8 @@ export function SalesStatsTopItemsPanel({ items }: { items: ExecutiveTopItemRow[
                       </div>
                     </div>
                   </td>
-                  <td>
-                    {item.costFormatted !== null ? (
+                  {showProfitability ? <><td>
+                    {item.costFormatted != null ? (
                       <span>
                         <bdi dir="ltr">{item.costFormatted}</bdi> ج.م
                       </span>
@@ -366,7 +373,7 @@ export function SalesStatsTopItemsPanel({ items }: { items: ExecutiveTopItemRow[
                     )}
                   </td>
                   <td>
-                    {item.isStock && item.profitFormatted !== null ? (
+                    {item.isStock && item.profitFormatted != null ? (
                       <div className="sales-stats-profit-cell">
                         <strong>
                           <bdi dir="ltr">{item.profitFormatted}</bdi> ج.م
@@ -388,7 +395,7 @@ export function SalesStatsTopItemsPanel({ items }: { items: ExecutiveTopItemRow[
                         بدون تكلفة مسجّلة
                       </span>
                     )}
-                  </td>
+                  </td></> : null}
                 </tr>
               ))}
             </tbody>
@@ -396,9 +403,9 @@ export function SalesStatsTopItemsPanel({ items }: { items: ExecutiveTopItemRow[
         </div>
       )}
 
-      <div className="inv-page__foot sales-stats-foot">
+      {showProfitability ? <div className="inv-page__foot sales-stats-foot">
         الربح يُحتسب حصريًا للأصناف المخزونية المسعّرة بمتوسط التكلفة (صافي الإيراد المخزوني − تكلفة الكمية المباعة بعد خصم المرتجعات). أما أصناف الكتالوج الفني فتُعرض مستقلةً دون افتراض تكلفتها صفرًا.
-      </div>
+      </div> : null}
     </div>
   );
 }

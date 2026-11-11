@@ -14,6 +14,8 @@ import {
   loadSalesStats,
 } from "@/lib/sales-stats";
 import SalesInvoicesView, { type SalesInvoiceRow, type SalesInvoiceStatusKind } from "./sales-invoices-view";
+import { getAccessContext, requirePageAccess } from "@/lib/access-control-server";
+import { writeAllowedForKeys } from "@/lib/access-control";
 
 export const dynamic = "force-dynamic";
 
@@ -40,9 +42,14 @@ function formatLineQty(raw: string): string {
 }
 
 export default async function SalesPage() {
+  await requirePageAccess("/sales");
+
   const session = await requireSession();
   const scope = branchScope(session);
   const canSell = session.role === "MANAGER" || session.role === "CS_AGENT";
+  const access = await getAccessContext();
+  const canStartSale = canSell && writeAllowedForKeys(access.hidden, "/sales/new");
+  const canOpenAction = (href: string) => href.split("?")[0] === "/sales/new" ? canStartSale : access.isAllowed(href);
 
   const [sales, monthSalesData] = await Promise.all([
     prisma.commerceSale.findMany({
@@ -221,25 +228,25 @@ export default async function SalesPage() {
           <p>مبيعات الفروع المتاحة لحسابك، والتحصيلات والمبالغ المستحقة.</p>
         </div>
         <div className="inv-actions">
-          {session.role === "MANAGER" && (
+          {session.role === "MANAGER" && access.isAllowed("/sales/stats") && (
             <Link className="inv-button inv-button--secondary" href="/sales/stats">
               <AppIcon name="reports" />
               <span>إحصائيات المبيعات</span>
             </Link>
           )}
-          {session.role === "MANAGER" && (
+          {session.role === "MANAGER" && access.isAllowed("/sales/catalog") && (
             <Link className="inv-button inv-button--secondary" href="/sales/catalog">
               <AppIcon name="products" />
               <span>أصناف البيع</span>
             </Link>
           )}
-          {session.role === "MANAGER" && (
+          {session.role === "MANAGER" && access.isAllowed("/sales/settings") && (
             <Link className="inv-button inv-button--secondary" href="/sales/settings">
               <AppIcon name="settings" />
               <span>حد خصم الموظف</span>
             </Link>
           )}
-          {canSell && (
+          {canStartSale && (
             <Link className="inv-button" href="/sales/new">
               <span className="inv-button__plus" aria-hidden="true">+</span>
               <span>بيع جديد</span>
@@ -375,9 +382,9 @@ export default async function SalesPage() {
                 series={monthSalesSeries}
                 reportHref={
                   session.role === "MANAGER"
-                    ? "/sales/stats?period=month"
+                    ? (access.isAllowed("/sales/stats") ? "/sales/stats?period=month" : undefined)
                     : canSell
-                      ? "/sales/new"
+                      ? (canStartSale ? "/sales/new" : undefined)
                       : "/sales"
                 }
                 reportLabel={
@@ -403,7 +410,7 @@ export default async function SalesPage() {
                 primary={collectionsSpotlight.primary}
                 secondary={collectionsSpotlight.secondary}
                 series={collectionsSpotlight.series}
-                actionHref={collectionsSpotlight.actionHref}
+                actionHref={canOpenAction(collectionsSpotlight.actionHref) ? collectionsSpotlight.actionHref : undefined}
                 actionLabel={collectionsSpotlight.actionLabel}
               />
             </div>
@@ -479,7 +486,7 @@ export default async function SalesPage() {
           </span>
           <h2>لا توجد فواتير مسجلة في نطاق حسابك</h2>
           <p>ابدأ بتسجيل أول عملية بيع ليظهر سجل الفواتير والتحصيلات هنا مباشرةً.</p>
-          {canSell && (
+          {canStartSale && (
             <Link className="inv-button" href="/sales/new">
               <span className="inv-button__plus" aria-hidden="true">+</span>
               <span>تسجيل بيع جديد</span>
@@ -492,7 +499,7 @@ export default async function SalesPage() {
             <h2>جدول الفواتير الكامل</h2>
             <span>بحث فوري برقم الفاتورة أو اسم العميل أو الهاتف وتصفية بالفرع والحالة</span>
           </div>
-          <SalesInvoicesView rows={rows} branches={branches} />
+          <SalesInvoicesView rows={rows} branches={branches} canOpenInvoice />
           <p className="inv-page__foot">
             يظهر آخر 100 فاتورة في نطاق حسابك. المبلغ المستحق للعميل لا يعني أن رده تم فعليًا إلا بعد تسجيل الرد.
           </p>

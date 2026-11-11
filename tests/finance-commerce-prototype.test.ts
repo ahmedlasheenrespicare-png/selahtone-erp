@@ -86,8 +86,9 @@ test("experiment: real commerce functions and finance lab share one disposable t
     execFileSync(process.execPath,[path.join(root,"node_modules/prisma/build/index.js"),"generate",`--schema=${schemaPath}`],{cwd:root,env,stdio:"pipe",timeout:45_000});
     const {PrismaClient:TestClient}=createRequire(path.join(root,"package.json"))(path.join(tmp,"client")) as {PrismaClient:typeof PrismaClient};
     pg=new PGlite();
-    await pg.exec(read("tests/fixtures/inventory-baseline.sql"));
-    await pg.exec(read("prisma/manual-inventory-upgrade.sql"));await pg.exec(read("prisma/manual-receiving-upgrade.sql"));await pg.exec(read("prisma/manual-commerce-upgrade.sql"));
+    // Same upgrade order as tests/catalog-sales.test.ts: the generated client and
+    // src/lib/commerce-operations.ts read columns the older four-file fixture lacked.
+    for (const f of ["tests/fixtures/inventory-baseline.sql","prisma/manual-inventory-upgrade.sql","prisma/manual-receiving-upgrade.sql","prisma/manual-commerce-upgrade.sql","prisma/manual-catalog-sales-upgrade.sql","prisma/manual-menu-scope-upgrade.sql","prisma/manual-cancel-permission-upgrade.sql","prisma/manual-discount-ceiling-upgrade.sql"]) await pg.exec(read(f));
     await pg.exec(`INSERT INTO tax_rates(code,name_ar,rate,kind,effective_from,is_active) VALUES('LAB-EX','معفى وهمي',0,'EXEMPT','2000-01-01',TRUE);
       UPDATE products SET sale_price=20,tax_rate_id=3 WHERE id=2;
       INSERT INTO stock_levels(warehouse_id,product_id,qty_on_hand,avg_cost) VALUES(1,2,30,4);
@@ -139,21 +140,33 @@ test("experiment: real commerce functions and finance lab share one disposable t
         assert.equal(await db.commerceCollection.count(),beforeCollections);assert.equal(await balance(custody),"40.00");
       } finally {await pg!.exec("DROP TRIGGER reject_lab_collection ON finance_lab.movements; DROP FUNCTION finance_lab.reject_lab_collection()");}
     });
-    await t.test("return alone moves no cash; only actual cash refund debits the paying account",async()=>{
+    await t.test("return alone moves no cash; a NEW cash refund is refused before any write; the lab bridge still debits once",async()=>{
       const before=await movementCount();
       await returnCommerceSale(probeBridge(db,{}),1n,{requestId:req(),saleId,cancel:true,accepted:true,lines:[]});
       assert.equal(await movementCount(),before);assert.equal(await balance(custody),"40.00");
-      const ref=movement(saleId,"5","CASH",true),bridged=probeBridge(db,{accountId:custody,expectedBalance:"40"});
-      await recordCommerceRefund(bridged,2n,ref);assert.equal((await recordCommerceRefund(bridged,2n,ref)).replayed,true);
-      // Refund request identity must also include the source-account choice.
-      assert.equal((await recordCommerceRefund(probeBridge(db,{accountId:vault,expectedBalance:"105"}),2n,ref)).replayed,true);
-      assert.equal(await balance(custody),"35.00");assert.equal(await movementCount(),before+1);
+      // Production now refuses a NEW cash refund before any write while
+      // FINANCE_ENABLED is off. Assert no refund row, no movement, no balance
+      // change: the old assumption that this service routes cash into the lab
+      // no longer holds (the production finance callbacks are out of scope).
+      const ref=movement(saleId,"5","CASH",true);
+      await assert.rejects(()=>recordCommerceRefund(probeBridge(db,{accountId:custody,expectedBalance:"40"}),2n,ref),/الرد النقدي متوقف للمراجعة/);
+      assert.equal(await db.commerceRefund.count(),0);
+      assert.equal(await movementCount(),before);assert.equal(await balance(custody),"40.00");
+      // Non-cash refunds remain recordable and never touch physical cash.
       await recordCommerceRefund(probeBridge(db,{}),1n,movement(saleId,"3","CARD",true));
+      assert.equal(await movementCount(),before);assert.equal(await balance(custody),"40.00");
+      // The laboratory's own one-transaction cash bridge is unchanged; exercise
+      // it directly instead of pretending the production service calls it.
+      const refundId="901",input={branchId:"1",accountId:custody,amount:"5",refundId,expectedBalance:"40",negativeAcknowledged:false};
+      await lab.serializable(tx=>postCashRefundInTransaction(tx,"2",input));
       assert.equal(await balance(custody),"35.00");assert.equal(await movementCount(),before+1);
-      const refunds=await db.commerceRefund.count();
-      await assert.rejects(()=>recordCommerceRefund(probeBridge(db,{accountId:custody,expectedBalance:"99"}),2n,movement(saleId,"1","CASH",true)),(error:unknown)=>error instanceof FinanceProblem&&error.code==="balance_changed");
-      await assert.rejects(()=>recordCommerceRefund(probeBridge(db,{accountId:custody,expectedBalance:"35"}),2n,movement(saleId,"1","CASH",false)));
-      assert.equal(await db.commerceRefund.count(),refunds);assert.equal(await balance(custody),"35.00");
+      // A linked replay is a duplicate, not a second movement. Pass the current
+      // balance so the engine reaches its strict link check (checkBalance runs first).
+      await assert.rejects(()=>lab.serializable(tx=>postCashRefundInTransaction(tx,"2",{...input,expectedBalance:"35"})),(error:unknown)=>error instanceof FinanceProblem&&error.code==="duplicate");
+      assert.equal(await balance(custody),"35.00");assert.equal(await movementCount(),before+1);
+      // A changed reviewed balance is refused without any write.
+      await assert.rejects(()=>lab.serializable(tx=>postCashRefundInTransaction(tx,"2",{...input,expectedBalance:"99"})),(error:unknown)=>error instanceof FinanceProblem&&error.code==="balance_changed");
+      assert.equal(await balance(custody),"35.00");assert.equal(await movementCount(),before+1);
     });
   } finally {if(client)await client.$disconnect().catch(()=>{});if(pg)await pg.close();rmSync(tmp,{recursive:true,force:true});}
 });

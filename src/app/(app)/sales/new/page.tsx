@@ -1,3 +1,4 @@
+import { WriteLockedNotice } from "@/app/(app)/components/write-locked-notice";
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 
@@ -10,11 +11,12 @@ import { buildTypePriceHints } from "@/lib/counter-sale-helpers";
 import { inventoryEnabled } from "@/lib/feature-flags";
 import { financeDb, financeEnabled } from "@/lib/finance/db";
 import { scaledInteger } from "@/lib/inventory-math";
-import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
+
 import { prisma } from "@/lib/prisma";
 import CatalogSaleForm, { type KnownCustomerHint } from "./catalog-sale-form";
 import WarehouseSale from "./warehouse-sale";
 import "./new-sale.css";
+import { requirePageAccess, writeAccessAllowed } from "@/lib/access-control-server";
 
 export const dynamic = "force-dynamic";
 type Props = { searchParams: Promise<{ warehouseId?: string | string[] }> };
@@ -46,8 +48,9 @@ function cairoStartOfTodayUtc(now = new Date()): Date {
 }
 
 export default async function NewSalePage({ searchParams }: Props) {
-  await requireMenuScopeAccess("/sales/new");
+  await requirePageAccess("/sales/new");
   const session = await requireSession();
+  if (!(await writeAccessAllowed("/sales/new"))) return <WriteLockedNotice backHref="/sales" backLabel="العودة إلى المبيعات" />;
 
   // المسار القديم يحتاج مستودعًا ومخزونًا: يُفتح فقط حين يُشغَّل المخزون صراحةً.
   if (inventoryEnabled()) {
@@ -321,9 +324,7 @@ export default async function NewSalePage({ searchParams }: Props) {
             </strong>
             <small className="sales-kpi-card__sub">
               {financeOn
-                ? custodyCheck
-                  ? "مرتبط بعهدتك النقدية المفتوحة ✓"
-                  : "تُسجَّل كمقبوضات نقدية للفرع"
+                ? "تحصيلات مسجّلة اليوم؛ قد تشمل سجلات سابقة"
                 : "المحصّل نقدًا بحسابك اليوم"}
             </small>
           </div>

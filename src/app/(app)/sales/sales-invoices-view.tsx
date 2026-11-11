@@ -32,9 +32,11 @@ type PeriodFilter = "ALL" | "TODAY" | "7D" | "MONTH";
 export default function SalesInvoicesView({
   rows,
   branches,
+  canOpenInvoice,
 }: {
   rows: SalesInvoiceRow[];
   branches: string[];
+  canOpenInvoice: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [branchFilter, setBranchFilter] = useState("ALL");
@@ -260,10 +262,10 @@ export default function SalesInvoicesView({
                   return (
                     <tr key={sale.id} className={sale.statusKind === "cancelled" ? "is-cancelled-row" : undefined}>
                       <td>
-                        <Link href={`/sales/${sale.id}`} className="sales-invoice-badge">
+                        {canOpenInvoice ? <Link href={`/sales/${sale.id}`} className="sales-invoice-badge">
                           <AppIcon name="receipt" />
                           <bdi dir="ltr">{sale.code}</bdi>
-                        </Link>
+                        </Link> : <span className="sales-invoice-badge"><AppIcon name="receipt" /><bdi dir="ltr">{sale.code}</bdi></span>}
                         <small className="sales-lines-hint">{sale.linesCount} {sale.linesCount === 1 ? "بند" : "بنود"}</small>
                       </td>
                       <td>
@@ -312,10 +314,10 @@ export default function SalesInvoicesView({
                       </td>
                       <td className="sales-date-cell">{sale.createdAtFormatted}</td>
                       <td className="sales-open-cell">
-                        <Link href={`/sales/${sale.id}`} className="sales-open-link" aria-label={`فتح فاتورة ${sale.code}`}>
+                        {canOpenInvoice && <Link href={`/sales/${sale.id}`} className="sales-open-link" aria-label={`فتح فاتورة ${sale.code}`}>
                           <span>عرض</span>
                           <AppIcon name="arrow" />
-                        </Link>
+                        </Link>}
                       </td>
                     </tr>
                   );

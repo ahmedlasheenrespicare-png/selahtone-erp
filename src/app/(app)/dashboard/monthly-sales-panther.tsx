@@ -15,7 +15,7 @@ export type MonthlySalesPantherProps = {
   outstandingPercent: number;
   hasSales: boolean;
   series: PantherChartSeries[];
-  reportHref: string;
+  reportHref?: string;
   reportLabel: string;
   /** عند تفعيلها ضغطُ المستخدم على الـHUD يُظهِر/يُخفي التفاصيل (accordion) */
   detailsHudToggle?: boolean;

@@ -1,10 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { writeAccessAllowed, WRITE_DENIED_MESSAGE } from "@/lib/access-control-server";
 import { requireSession, type SessionUser } from "@/lib/auth";
 import { createAppCategory, editAppCategory } from "@/lib/finance/app-categories";
-import { financeDb, financeEnabled } from "@/lib/finance/db";
-import { approveExpense, cancelCashCount, cancelSettlement, confirmCashCount, confirmSettlement, createExpense, openAccount, payExpense, rejectSettlement, requestCashCount, requestPaidExpenseReview, requestSettlement, transferCash, closeAccount, requestCustody, decideCustodyRequest, requestCountFromHolder, submitHolderCount } from "@/lib/finance/engine";
+import { financeDb, financeDbForSession, financeEnabled } from "@/lib/finance/db";
+import { approveExpense, cancelCashCount, cancelSettlement, confirmCashCount, confirmSettlement, createExpense, openAccount, payExpense, closePaidExpenseReview, rejectSettlement, requestCashCount, requestPaidExpenseReview, requestSettlement, transferCash, closeAccount, requestCustody, decideCustodyRequest, requestCountFromHolder, submitHolderCount } from "@/lib/finance/engine";
 import { buildCustodyDecisionPayload } from "@/lib/finance/new-account-helpers";
 import { payExpensePayload } from "@/lib/finance/pay-expense-source";
 import { FinanceProblem } from "@/lib/finance/types";
@@ -13,6 +14,9 @@ import type { FinanceActionState } from "./finance-state";
 /**
  * Every finance write is a single SERIALIZABLE transaction inside the engine,
  * and the actor's role, status and branch are re-read from the database there.
+ * Each write also rechecks the session role, branch and email under the actor lock;
+ * The auth session is also checked under a row lock. Access-control rules
+ * remain checked outside this transaction.
  * These actions only shape the form payload and translate failures; they never
  * trust the browser for identity, role or amounts.
  */
@@ -31,9 +35,10 @@ function unexpected(error: unknown): FinanceActionState {
   return { status: "error", message: "تعذّر التأكد من نتيجة العملية. راجع الصفحة قبل تكرار الطلب؛ يمكن إعادة المحاولة من النموذج نفسه دون تكرار العملية." };
 }
 type Guard = { session: SessionUser } | { state: FinanceActionState };
-async function requireFinanceManager(): Promise<Guard> {
+async function requireFinanceManager(route: string): Promise<Guard> {
   const session = await requireSession();
   if (!financeEnabled()) return { state: { status: "error", message: "وحدة المالية غير مفعّلة في هذا النشر." } };
+  if (!(await writeAccessAllowed(route))) return { state: { status: "error", message: WRITE_DENIED_MESSAGE } };
   if (session.role !== "MANAGER" && session.role !== "ACCOUNTANT") {
     return { state: { status: "error", message: "إدارة الحسابات النقدية متاحة للمدير والمحاسب فقط." } };
   }
@@ -41,9 +46,10 @@ async function requireFinanceManager(): Promise<Guard> {
 }
 /** Recording an expense is open to management and to branch staff; the engine
  * re-reads the actor and refuses any branch that is not the staff member's own. */
-async function requireFinanceWriter(): Promise<Guard> {
+async function requireFinanceWriter(route: string): Promise<Guard> {
   const session = await requireSession();
   if (!financeEnabled()) return { state: { status: "error", message: "وحدة المالية غير مفعّلة في هذا النشر." } };
+  if (!(await writeAccessAllowed(route))) return { state: { status: "error", message: WRITE_DENIED_MESSAGE } };
   return { session };
 }
 function translate(error: unknown): FinanceActionState {
@@ -57,7 +63,7 @@ function revalidateFinance(): void {
 }
 
 export async function openAccountAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
-  const guard = await requireFinanceManager();
+  const guard = await requireFinanceManager("/finance/accounts#open");
   if ("state" in guard) return guard.state;
   const holderId = text(formData, "holderId");
   const raw = {
@@ -70,7 +76,7 @@ export async function openAccountAction(_previous: FinanceActionState, formData:
     counted: confirmed(formData, "counted"),
   };
   try {
-    const result = await openAccount(financeDb, guard.session.id, raw);
+    const result = await openAccount(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
     revalidateFinance();
     return {
       status: "success",
@@ -84,7 +90,7 @@ export async function openAccountAction(_previous: FinanceActionState, formData:
 
 /** إقفال عهدة بعد تصفيتها. ليس حركة مال: فالرصيد صفرٌ سلفًا بتسوية سابقة. */
 export async function closeAccountAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
-  const guard = await requireFinanceManager();
+  const guard = await requireFinanceManager("/finance#close-custody");
   if ("state" in guard) return guard.state;
   const raw = {
     requestId: text(formData, "requestId"),
@@ -92,7 +98,7 @@ export async function closeAccountAction(_previous: FinanceActionState, formData
     reason: text(formData, "reason") || null,
   };
   try {
-    const result = await closeAccount(financeDb, guard.session.id, raw);
+    const result = await closeAccount(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
     revalidateFinance();
     return {
       status: "success",
@@ -105,7 +111,7 @@ export async function closeAccountAction(_previous: FinanceActionState, formData
 }
 
 export async function transferCashAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
-  const guard = await requireFinanceWriter();
+  const guard = await requireFinanceWriter("/finance/transfers#transfer");
   if ("state" in guard) return guard.state;
   const fromId = text(formData, "fromId");
   const toId = text(formData, "toId");
@@ -119,28 +125,10 @@ export async function transferCashAction(_previous: FinanceActionState, formData
     negativeAcknowledged: confirmed(formData, "negativeAcknowledged"),
   };
   try {
-    if (/^\d+$/.test(fromId) && /^\d+$/.test(toId)) {
-      const closedCheck = await financeDb
-        .serializable((tx) =>
-          tx.query<{ id: string }>(
-            `SELECT id::text AS id
-               FROM finance.accounts
-              WHERE id IN ($1::bigint, $2::bigint)
-                AND closed_at IS NOT NULL
-              LIMIT 1`,
-            [fromId, toId],
-          ),
-        )
-        .catch(() => ({ rows: [] }));
-      if (closedCheck.rows.length > 0) {
-        return {
-          status: "error",
-          code: "account_closed",
-          message: "لا يجوز التسليم من أو إلى عهدة مقفلة.",
-        };
-      }
-    }
-    const result = await transferCash(financeDb, guard.session.id, raw);
+    // The engine handles idempotent replay before locking and checking the
+    // accounts. A separate precheck here would incorrectly reject a replay
+    // after one account is later closed.
+    const result = await transferCash(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
     revalidateFinance();
     return {
       status: "success",
@@ -153,7 +141,7 @@ export async function transferCashAction(_previous: FinanceActionState, formData
 }
 
 export async function createExpenseAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
-  const guard = await requireFinanceWriter();
+  const guard = await requireFinanceWriter("/finance/expenses/new");
   if ("state" in guard) return guard.state;
   const raw = {
     requestId: text(formData, "requestId"),
@@ -167,7 +155,7 @@ export async function createExpenseAction(_previous: FinanceActionState, formDat
     taxAmount: text(formData, "taxAmount") || null,
   };
   try {
-    const result = await createExpense(financeDb, guard.session.id, raw);
+    const result = await createExpense(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
     revalidateFinance();
     return {
       status: "success",
@@ -180,7 +168,7 @@ export async function createExpenseAction(_previous: FinanceActionState, formDat
 }
 
 export async function approveExpenseAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
-  const guard = await requireFinanceManager();
+  const guard = await requireFinanceManager("/finance/expenses#approve");
   if ("state" in guard) return guard.state;
   const raw = {
     requestId: text(formData, "requestId"),
@@ -189,7 +177,7 @@ export async function approveExpenseAction(_previous: FinanceActionState, formDa
     selfApproved: confirmed(formData, "selfApproved"),
   };
   try {
-    const result = await approveExpense(financeDb, guard.session.id, raw);
+    const result = await approveExpense(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
     revalidateFinance();
     return {
       status: "success",
@@ -202,13 +190,13 @@ export async function approveExpenseAction(_previous: FinanceActionState, formDa
 }
 
 export async function payExpenseAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
-  const guard = await requireFinanceManager();
+  const guard = await requireFinanceManager("/finance/expenses#pay");
   if ("state" in guard) return guard.state;
   // مصدر الصرف (نقد الموظف أو خصم فوري) يُشكَّل في وحدة مُختبَرة: غيابه يعني خصمًا
   // فوريًا، ومثل هذا الدفع لا يصل إلى التسوية أبدًا.
   const raw = payExpensePayload(formData);
   try {
-    const result = await payExpense(financeDb, guard.session.id, raw);
+    const result = await payExpense(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
     revalidateFinance();
     return {
       status: "success",
@@ -221,7 +209,7 @@ export async function payExpenseAction(_previous: FinanceActionState, formData: 
 }
 
 export async function requestExpenseReviewAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
-  const guard = await requireFinanceManager();
+  const guard = await requireFinanceManager("/finance/expenses#review");
   if ("state" in guard) return guard.state;
   const raw = {
     requestId: text(formData, "requestId"),
@@ -231,20 +219,35 @@ export async function requestExpenseReviewAction(_previous: FinanceActionState, 
     proposedAmount: text(formData, "proposedAmount") || null,
   };
   try {
-    const result = await requestPaidExpenseReview(financeDb, guard.session.id, raw);
+    const result = await requestPaidExpenseReview(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
     revalidateFinance();
     return {
       status: "success",
       id: result.id,
-      message: result.replayed ? "سبق حفظ هذا الطلب؛ لم يُنشأ طلب مكرر." : "سُجّل طلب المراجعة. لا يتغير الرصيد ولا المبلغ قبل تأكيد الإدارة.",
+      message: result.replayed ? "سبق حفظ هذا الطلب؛ لم يُنشأ طلب مكرر." : "سُجّل طلب المراجعة دون تغيير المبلغ أو الرصيد؛ يمكن لمراجع آخر مخوّل إغلاقه دون تصحيح بعد فحصه.",
     };
   } catch (error) {
     return translate(error);
   }
 }
 
+export async function closeExpenseReviewAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
+  const guard = await requireFinanceManager("/finance/expenses#review");
+  if ("state" in guard) return guard.state;
+  try {
+    const result = await closePaidExpenseReview(financeDbForSession(financeDb, guard.session), guard.session.id, {
+      requestId: text(formData, "requestId"), reviewId: text(formData, "reviewId"),
+      reason: text(formData, "reason"), expectedRevision: text(formData, "expectedRevision"), expectedReviewSnapshot: text(formData, "expectedReviewSnapshot"), reviewedNoChange: confirmed(formData, "reviewedNoChange"),
+    });
+    revalidateFinance();
+    return { status: "success", id: result.id, message: result.replayed
+      ? "سبق إغلاق الطلب دون تصحيح؛ لم تُسجّل عملية مكررة."
+      : "أُغلق الطلب دون تصحيح أو حركة مالية. لا يثبت الإغلاق أثر الدفع أو التسوية ولا يرفع حراسة التصحيح." };
+  } catch (error) { return translate(error); }
+}
+
 export async function requestCountAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
-  const guard = await requireFinanceManager();
+  const guard = await requireFinanceManager("/finance/counts#request");
   if ("state" in guard) return guard.state;
   const raw = {
     requestId: text(formData, "requestId"),
@@ -255,7 +258,7 @@ export async function requestCountAction(_previous: FinanceActionState, formData
     actuallyCounted: confirmed(formData, "actuallyCounted"),
   };
   try {
-    const result = await requestCashCount(financeDb, guard.session.id, raw);
+    const result = await requestCashCount(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
     revalidateFinance();
     return {
       status: "success",
@@ -270,7 +273,7 @@ export async function requestCountAction(_previous: FinanceActionState, formData
 }
 
 export async function confirmCountAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
-  const guard = await requireFinanceManager();
+  const guard = await requireFinanceManager("/finance/counts#confirm");
   if ("state" in guard) return guard.state;
   const raw = {
     requestId: text(formData, "requestId"),
@@ -279,7 +282,7 @@ export async function confirmCountAction(_previous: FinanceActionState, formData
     stillCurrent: confirmed(formData, "stillCurrent"),
   };
   try {
-    const result = await confirmCashCount(financeDb, guard.session.id, raw);
+    const result = await confirmCashCount(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
     revalidateFinance();
     return {
       status: "success",
@@ -292,7 +295,7 @@ export async function confirmCountAction(_previous: FinanceActionState, formData
 }
 
 export async function cancelCountAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
-  const guard = await requireFinanceManager();
+  const guard = await requireFinanceManager("/finance/counts#cancel");
   if ("state" in guard) return guard.state;
   const raw = {
     requestId: text(formData, "requestId"),
@@ -300,7 +303,7 @@ export async function cancelCountAction(_previous: FinanceActionState, formData:
     reason: text(formData, "reason"),
   };
   try {
-    const result = await cancelCashCount(financeDb, guard.session.id, raw);
+    const result = await cancelCashCount(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
     revalidateFinance();
     return {
       status: "success",
@@ -313,11 +316,11 @@ export async function cancelCountAction(_previous: FinanceActionState, formData:
 }
 
 export async function createCategoryAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
-  const guard = await requireFinanceManager();
+  const guard = await requireFinanceManager("/finance/categories#create");
   if ("state" in guard) return guard.state;
   const raw = { requestId: text(formData, "requestId"), name: text(formData, "name") };
   try {
-    const result = await createAppCategory(financeDb, guard.session.id, raw);
+    const result = await createAppCategory(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
     revalidateFinance();
     return {
       status: "success",
@@ -330,7 +333,7 @@ export async function createCategoryAction(_previous: FinanceActionState, formDa
 }
 
 export async function editCategoryAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
-  const guard = await requireFinanceManager();
+  const guard = await requireFinanceManager("/finance/categories#edit");
   if ("state" in guard) return guard.state;
   const raw = {
     requestId: text(formData, "requestId"),
@@ -341,7 +344,7 @@ export async function editCategoryAction(_previous: FinanceActionState, formData
     reason: text(formData, "reason"),
   };
   try {
-    const result = await editAppCategory(financeDb, guard.session.id, raw);
+    const result = await editAppCategory(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
     revalidateFinance();
     return {
       status: "success",
@@ -355,7 +358,7 @@ export async function editCategoryAction(_previous: FinanceActionState, formData
 
 /** طلب تسوية من الموظف: لا يغيّر النقد ولا العهدة، ويبقى بانتظار اعتماد الإدارة. */
 export async function requestSettlementAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
-  const guard = await requireFinanceWriter();
+  const guard = await requireFinanceWriter("/finance/settlements/new#request");
   if ("state" in guard) return guard.state;
   const raw = {
     requestId: text(formData, "requestId"),
@@ -366,7 +369,7 @@ export async function requestSettlementAction(_previous: FinanceActionState, for
     actuallyCounted: confirmed(formData, "actuallyCounted"),
   };
   try {
-    const result = await requestSettlement(financeDb, guard.session.id, raw);
+    const result = await requestSettlement(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
     revalidateFinance();
     return {
       status: "success",
@@ -378,9 +381,9 @@ export async function requestSettlementAction(_previous: FinanceActionState, for
   }
 }
 
-/** اعتماد التسوية: حركة تسوية + تحويل الفرق كاملًا، بخطوة واحدة ذرّية. */
+/** اعتماد التسوية وتسجيل تعديلها والتحويل المدخل في معاملة واحدة. */
 export async function confirmSettlementAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
-  const guard = await requireFinanceManager();
+  const guard = await requireFinanceManager("/finance/transfers#confirm-settlement");
   if ("state" in guard) return guard.state;
   const raw = {
     requestId: text(formData, "requestId"),
@@ -393,12 +396,12 @@ export async function confirmSettlementAction(_previous: FinanceActionState, for
     negativeAcknowledged: confirmed(formData, "negativeAcknowledged"),
   };
   try {
-    const result = await confirmSettlement(financeDb, guard.session.id, raw);
+    const result = await confirmSettlement(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
     revalidateFinance();
     return {
       status: "success",
       id: result.id,
-      message: result.replayed ? "سبق حفظ هذا الطلب؛ لم تُسجَّل حركة مكررة." : "اُعتُمدت التسوية وسُجّل تحويل الفرق فعليًا.",
+      message: result.replayed ? "سبق حفظ هذا الطلب؛ لم تُسجَّل حركة مكررة." : "اعتُمدت التسوية وسُجّل مبلغ التحويل المُدخل إن كان غير صفر؛ التسجيل والإقرار لا يثبتان انتقال النقد فعليًا.",
     };
   } catch (error) {
     return translate(error);
@@ -406,11 +409,11 @@ export async function confirmSettlementAction(_previous: FinanceActionState, for
 }
 
 export async function rejectSettlementAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
-  const guard = await requireFinanceManager();
+  const guard = await requireFinanceManager("/finance/transfers#reject-settlement");
   if ("state" in guard) return guard.state;
   const raw = { requestId: text(formData, "requestId"), settlementId: text(formData, "settlementId"), reason: text(formData, "reason") };
   try {
-    const result = await rejectSettlement(financeDb, guard.session.id, raw);
+    const result = await rejectSettlement(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
     revalidateFinance();
     return { status: "success", id: result.id, message: result.replayed ? "سبق حفظ هذا القرار." : "رُفض طلب التسوية بسبب مدوّن، بلا أي أثر على النقد." };
   } catch (error) {
@@ -420,11 +423,11 @@ export async function rejectSettlementAction(_previous: FinanceActionState, form
 
 /** إلغاء الطلب من صاحبه (أو الإدارة) قبل الاعتماد: بلا أي أثر مالي. */
 export async function cancelSettlementAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
-  const guard = await requireFinanceWriter();
+  const guard = await requireFinanceWriter("/finance/settlements#cancel");
   if ("state" in guard) return guard.state;
   const raw = { requestId: text(formData, "requestId"), settlementId: text(formData, "settlementId"), reason: text(formData, "reason") };
   try {
-    const result = await cancelSettlement(financeDb, guard.session.id, raw);
+    const result = await cancelSettlement(financeDbForSession(financeDb, guard.session), guard.session.id, raw);
     revalidateFinance();
     return { status: "success", id: result.id, message: result.replayed ? "سبق حفظ هذا القرار." : "أُلغي طلب التسوية، بلا أي أثر على النقد." };
   } catch (error) {
@@ -434,11 +437,11 @@ export async function cancelSettlementAction(_previous: FinanceActionState, form
 
 /** طلب عهدة: يقدّمه الموظف، ويبتّ فيه المدير أو المحاسب. */
 export async function requestCustodyAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
-  const guard = await requireFinanceWriter();
+  const guard = await requireFinanceWriter("/finance/mine#request-custody");
   if ("state" in guard) return guard.state;
   const { session } = guard;
   try {
-    const result = await requestCustody(financeDb, session.id, {
+    const result = await requestCustody(financeDbForSession(financeDb, session), session.id, {
       requestId: formData.get("requestId"), amount: formData.get("amount"), reason: formData.get("reason"),
     });
     revalidateFinance();
@@ -448,7 +451,7 @@ export async function requestCustodyAction(_previous: FinanceActionState, formDa
 
 /** البتّ في طلب عهدة: بالموافقة تُفتح العهدة بجرد فعلي، أو بالرفض بسبب. */
 export async function decideCustodyRequestAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
-  const guard = await requireFinanceManager();
+  const guard = await requireFinanceManager("/finance/accounts#decide-custody");
   if ("state" in guard) return guard.state;
   const { session } = guard;
   const payload = buildCustodyDecisionPayload({
@@ -458,9 +461,10 @@ export async function decideCustodyRequestAction(_previous: FinanceActionState, 
     reason: text(formData, "reason"),
     openingDate: text(formData, "openingDate"),
     countedRaw: text(formData, "counted"),
+    expectedSnapshot: text(formData, "expectedSnapshot"),
   });
   try {
-    const result = await decideCustodyRequest(financeDb, session.id, payload);
+    const result = await decideCustodyRequest(financeDbForSession(financeDb, session), session.id, payload);
     revalidateFinance();
     return {
       status: "success",
@@ -477,11 +481,11 @@ export async function decideCustodyRequestAction(_previous: FinanceActionState, 
 
 /** المدير يطلب جردًا من موظف: فيعدّه الموظف بنفسه ثم يعتمده المدير. */
 export async function requestCountFromHolderAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
-  const guard = await requireFinanceManager();
+  const guard = await requireFinanceManager("/finance/counts#request-holder");
   if ("state" in guard) return guard.state;
   const { session } = guard;
   try {
-    const result = await requestCountFromHolder(financeDb, session.id, {
+    const result = await requestCountFromHolder(financeDbForSession(financeDb, session), session.id, {
       requestId: formData.get("requestId"), accountId: formData.get("accountId"), reason: formData.get("reason"),
     });
     revalidateFinance();
@@ -491,11 +495,11 @@ export async function requestCountFromHolderAction(_previous: FinanceActionState
 
 /** الموظف يعدّ الجرد الموجَّه ويُقرّ أنّه عدّه بنفسه. */
 export async function submitHolderCountAction(_previous: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
-  const guard = await requireFinanceWriter();
+  const guard = await requireFinanceWriter("/finance/mine#submit-count");
   if ("state" in guard) return guard.state;
   const { session } = guard;
   try {
-    await submitHolderCount(financeDb, session.id, {
+    await submitHolderCount(financeDbForSession(financeDb, session), session.id, {
       requestId: text(formData, "requestId"),
       countId: text(formData, "countId"),
       countedAmount: text(formData, "countedAmount"),

@@ -6,7 +6,7 @@ import { MAX_SERIALS_PER_OPENING, parseOpeningInput, type FieldErrors, type Open
 import { createOpeningAction } from "../actions";
 import { initialInventoryActionState, type InventoryActionState } from "../inventory-state";
 
-type ProductOption = { id: string; name: string; sku: string; needsSerials: boolean; purchaseCost: string };
+type ProductOption = { id: string; name: string; sku: string; needsSerials: boolean; purchaseCost: string | null };
 type WarehouseOption = { id: string; name: string; code: string; branch: string };
 type Props = { requestId: string; initialProductId: string; products: ProductOption[]; warehouses: WarehouseOption[] };
 
@@ -86,7 +86,7 @@ export default function OpeningForm({ requestId, initialProductId, products, war
             <div className="inv-field">
               <label htmlFor="opening-unitCost">متوسط تكلفة الوحدة (ج.م) *</label>
               <input id="opening-unitCost" disabled={pending} name="unitCost" inputMode="decimal" dir="ltr" value={values.unitCost} onChange={(e) => update("unitCost", e.target.value)} placeholder="0.00" aria-invalid={!!fieldError("unitCost")} aria-describedby={errorId("unitCost") ?? "opening-unitCost-hint"} />
-              {fieldError("unitCost") ? <p id="opening-unitCost-error" className="inv-field__error">{fieldError("unitCost")}</p> : <p id="opening-unitCost-hint" className="inv-field__hint">تُستخدم لحساب قيمة المخزون.{selectedProduct && ` تكلفة الشراء في دليل الصنف: ${selectedProduct.purchaseCost} ج.م.`}</p>}
+              {fieldError("unitCost") ? <p id="opening-unitCost-error" className="inv-field__error">{fieldError("unitCost")}</p> : <p id="opening-unitCost-hint" className="inv-field__hint">تُستخدم لحساب قيمة المخزون.{selectedProduct?.purchaseCost != null && ` تكلفة الشراء في دليل الصنف: ${selectedProduct.purchaseCost} ج.م.`}</p>}
             </div>
           </div>
         </section>

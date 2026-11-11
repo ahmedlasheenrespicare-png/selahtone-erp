@@ -565,7 +565,7 @@ export default function AccountForm({
                         {custodyStaff.includes(member.id)
                           ? " — لديه عهدة مفتوحة"
                           : closedCustodyStaff.includes(member.id)
-                            ? " — عهدة سابقة مقفلة (متاح)"
+                            ? " — عهدة سابقة مقفلة (تحتاج مراجعة)"
                             : ""}
                       </option>
                     ))}
@@ -576,7 +576,7 @@ export default function AccountForm({
                     </span>
                   ) : hasPriorClosedCustody && !duplicate ? (
                     <span className="fin-field__hint">
-                      لهذا الموظف عهدة سابقة مقفلة بعد تصفيتها؛ يمكن فتح عهدة جديدة له بجرد فعلي جديد.
+                      لهذا الموظف عهدة سابقة مقفلة. قد يمنع قيد قاعدة البيانات فتح عهدة بديلة في الفرع نفسه؛ راجع الإدارة قبل المتابعة.
                     </span>
                   ) : (
                     <span className="fin-field__hint">

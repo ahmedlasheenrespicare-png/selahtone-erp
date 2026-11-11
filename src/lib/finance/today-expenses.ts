@@ -23,6 +23,7 @@ export type TodayExpenseRow = {
   id: string;
   branchId: string;
   branchName: string;
+  branchCode: string;
   categorySnapshot: string;
   description: string;
   beneficiary: string | null;
@@ -80,7 +81,7 @@ export async function loadTodayExpenses(
     : session.role === "CS_AGENT"
       ? session.branchId ?? null
       : undefined;
-  if (branchFilterId === undefined) return null;
+  if (branchFilterId === undefined || (session.role === "CS_AGENT" && !branchFilterId)) return null;
 
   const today = cairoDate();
   return financeDb.serializable(async (tx) => {
@@ -93,6 +94,7 @@ export async function loadTodayExpenses(
       id: string;
       branchId: string;
       branchName: string;
+      branchCode: string;
       categorySnapshot: string;
       amount: string;
       description: string;
@@ -102,7 +104,7 @@ export async function loadTodayExpenses(
       approvedByName: string | null;
       paymentMethod: string | null;
     }>(
-      `SELECT e.id::text AS "id", e.branch_id::text AS "branchId", b.name_ar AS "branchName",
+      `SELECT e.id::text AS "id", e.branch_id::text AS "branchId", b.name_ar AS "branchName", b.code AS "branchCode",
               e.category_snapshot AS "categorySnapshot",
               COALESCE((SELECT c.after_amount FROM finance.expense_corrections c WHERE c.expense_id=e.id ORDER BY c.id DESC LIMIT 1), e.amount)::text AS "amount",
               e.description, e.beneficiary, e.status,
@@ -135,6 +137,7 @@ export async function loadTodayExpenses(
         id: row.id,
         branchId: row.branchId,
         branchName: row.branchName,
+        branchCode: row.branchCode,
         categorySnapshot: row.categorySnapshot,
         description: row.description,
         beneficiary: row.beneficiary,

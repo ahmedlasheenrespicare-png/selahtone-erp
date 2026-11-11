@@ -5,18 +5,17 @@ import { revalidatePath } from "next/cache";
 import { Prisma, type RoleCode, type UserStatus } from "@prisma/client";
 
 import {
-  canSeeAllBranches,
   hashPassword,
   requireSession,
   type SessionUser,
 } from "@/lib/auth";
+import { getAccessContext } from "@/lib/access-control-server";
 import { emailSchema, newPasswordSchema } from "@/lib/auth-validation";
-import { financeDb, financeEnabled } from "@/lib/finance/db";
-import { isMenuScope, type MenuScope } from "@/lib/menu-scope";
+import { financeEnabled } from "@/lib/finance/db";
+import { createDirectoryUser, DirectoryProblem, setDirectoryBranchActive, updateDirectoryUser } from "@/lib/admin-directory-operations";
 import { prisma } from "@/lib/prisma";
 import {
   branchInputError,
-  canManageBranchStructure,
   canManageTargetUser,
   isAdminRole,
   isIdentifier,
@@ -82,17 +81,20 @@ type Guard = { session: SessionUser } | { state: AdminActionState };
 
 async function requireAdmin(): Promise<Guard> {
   const session = await requireSession();
-  if (!canSeeAllBranches(session)) {
-    return { state: fail("إدارة الفروع والمستخدمين متاحة للمدير والمحاسب فقط.") };
+  const ctx = await getAccessContext();
+  if (!ctx.isSystemAdmin) {
+    // الأدمن النظام وحده (manager@selahtone.local افتراضيًا) — لا مديرون ولا محاسبون آخرون.
+    return { state: fail("إدارة الفروع والمستخدمين متاحة للأدمن وحده.") };
   }
   return { session };
 }
 
 async function requireManagerOnly(): Promise<Guard> {
   const session = await requireSession();
-  if (!canManageBranchStructure(session.role)) {
+  const ctx = await getAccessContext();
+  if (!ctx.isSystemAdmin) {
     return {
-      state: fail("هذا الإجراء الإداري متاح للمدير العام فقط."),
+      state: fail("هذا الإجراء الإداري متاح للأدمن وحده."),
     };
   }
   return { session };
@@ -111,27 +113,6 @@ function revalidateDirectory(): void {
     } catch {
       console.error("Admin cache revalidation failed");
     }
-  }
-}
-
-async function findOpenCustodyForUser(userId: bigint): Promise<string | null> {
-  if (!financeEnabled()) return null;
-  try {
-    const res = await financeDb.serializable((tx) =>
-      tx.query<{ id: string }>(
-        `SELECT id::text AS id
-           FROM finance.accounts
-          WHERE kind = 'CUSTODY'
-            AND holder_id = $1::bigint
-            AND closed_at IS NULL
-          ORDER BY id ASC
-          LIMIT 1`,
-        [userId.toString()],
-      ),
-    );
-    return res.rows[0]?.id ?? null;
-  } catch {
-    return null;
   }
 }
 
@@ -228,48 +209,10 @@ export async function setBranchActiveAction(
   if (branchId === null) return fail("الفرع المحدد غير صحيح.");
   const active = flag(formData, "active");
   if (!flag(formData, "confirmed")) return fail("أكّد الإجراء قبل التنفيذ.");
-  if (!active) {
-    const activeUsers = await prisma.user.count({
-      where: { branchId, status: "ACTIVE" as UserStatus },
-    });
-    if (activeUsers > 0) {
-      return fail(
-        `انقل الموظفين النشطين (${activeUsers}) أو أوقف حساباتهم قبل إيقاف الفرع.`,
-      );
-    }
-    if (financeEnabled()) {
-      const openCustodies = await financeDb
-        .serializable((tx) =>
-          tx.query<{ cnt: string }>(
-            `SELECT COUNT(*)::text AS cnt
-               FROM finance.accounts
-              WHERE branch_id = $1::bigint
-                AND kind = 'CUSTODY'
-                AND closed_at IS NULL`,
-            [branchId.toString()],
-          ),
-        )
-        .catch(() => ({ rows: [{ cnt: "0" }] }));
-      const cnt = Number(openCustodies.rows[0]?.cnt ?? 0);
-      if (cnt > 0) {
-        return fail(
-          `يوجد بالفرع ${cnt} عهدة نقدية مفتوحة لم تُقفل بعد؛ صفِّ العُهَد وأقفلها من «الحسابات النقدية» قبل إيقاف الفرع.`,
-        );
-      }
-    }
-  }
   try {
-    await prisma.$transaction([
-      prisma.branch.update({
-        where: { id: branchId },
-        data: { isActive: active },
-      }),
-      prisma.warehouse.updateMany({
-        where: { branchId },
-        data: { isActive: active },
-      }),
-    ]);
+    await setDirectoryBranchActive(prisma, branchId, active, financeEnabled());
   } catch (error) {
+    if (error instanceof DirectoryProblem) return fail(error.message);
     return unexpected(error);
   }
   revalidateDirectory();
@@ -307,48 +250,18 @@ export async function createUserAction(
   }
 
   const branchId = input.branchId.trim() === "" ? null : rowId(input.branchId);
-  if (role === "CS_AGENT") {
-    if (branchId === null) return fail("موظف الفرع يجب أن يكون منسوبًا إلى فرع.");
-    const branch = await prisma.branch.findFirst({
-      where: { id: branchId, isActive: true },
-      select: { id: true },
-    });
-    if (!branch) return fail("الفرع المختار غير موجود أو غير نشط.");
-  } else if (branchId !== null) {
-    const branch = await prisma.branch.findFirst({
-      where: { id: branchId, isActive: true },
-      select: { id: true },
-    });
-    if (!branch) return fail("الفرع المختار غير موجود أو غير نشط.");
-  }
-
+  if (role === "CS_AGENT" && branchId === null) return fail("موظف الفرع يجب أن يكون منسوبًا إلى فرع.");
   const email = emailSchema.parse(input.email);
   const phone = normalizePhone(input.phone);
   const passwordHash = await hashPassword(input.password);
-  const scopeRaw = text(formData, "menuScope");
-  const menuScope: MenuScope =
-    role !== "CS_AGENT" && isMenuScope(scopeRaw) ? scopeRaw : "FULL";
-  const canCancelSales =
-    role === "ACCOUNTANT" && guard.session.role === "MANAGER"
-      ? flag(formData, "canCancelSales")
-      : true;
-
   try {
-    await prisma.user.create({
-      data: {
-        fullName: normalizeName(input.fullName),
-        email,
-        phone: phone || null,
-        passwordHash,
-        roleCode: role as RoleCode,
-        branchId,
-        status: "ACTIVE" as UserStatus,
-        mustChangePassword: flag(formData, "mustChange"),
-        menuScope,
-        canCancelSales,
-      },
+    await createDirectoryUser(prisma, {
+      fullName: normalizeName(input.fullName), email, phone: phone || null,
+      passwordHash, roleCode: role as RoleCode, branchId, status: "ACTIVE" as UserStatus,
+      mustChangePassword: flag(formData, "mustChange"),
     });
   } catch (error) {
+    if (error instanceof DirectoryProblem) return fail(error.message);
     return duplicateValue(error) ?? unexpected(error);
   }
   revalidateDirectory();
@@ -384,7 +297,6 @@ export async function updateUserAction(
       roleCode: true,
       branchId: true,
       status: true,
-      canCancelSales: true,
     },
   });
   if (!existing) return fail("المستخدم غير موجود.");
@@ -420,63 +332,17 @@ export async function updateUserAction(
   if (role === "CS_AGENT" && branchId === null) {
     return fail("موظف الفرع يجب أن يكون منسوبًا إلى فرع.");
   }
-  if (branchId !== null) {
-    const branch = await prisma.branch.findFirst({
-      where: { id: branchId, isActive: true },
-      select: { id: true },
-    });
-    if (!branch) return fail("الفرع المختار غير موجود أو غير نشط.");
-  }
-
   const status: UserStatus = flag(formData, "active") ? "ACTIVE" : "SUSPENDED";
-  const branchChanged =
-    (existing.branchId?.toString() ?? null) !== (branchId?.toString() ?? null);
-  const suspending = status === "SUSPENDED" && existing.status === "ACTIVE";
-
-  if (branchChanged || suspending) {
-    const openCustodyId = await findOpenCustodyForUser(userId);
-    if (openCustodyId) {
-      return fail(
-        `لا يمكن ${
-          suspending ? "إيقاف حساب الموظف" : "نقل الموظف إلى فرع آخر"
-        } وفي ذمّته عهدة نقدية مفتوحة (#${openCustodyId}). صفِّ العهدة وأقفلها من «الحسابات النقدية» أولًا.`,
-      );
-    }
-  }
-
-  const scopeRaw = text(formData, "menuScope");
-  const menuScope: MenuScope =
-    role !== "CS_AGENT" && isMenuScope(scopeRaw) ? scopeRaw : "FULL";
-  const canCancelSales =
-    role === "ACCOUNTANT"
-      ? guard.session.role === "MANAGER"
-        ? flag(formData, "canCancelSales")
-        : existing.canCancelSales
-      : true;
-
   const email = emailSchema.parse(rawEmail);
   const phone = normalizePhone(rawPhone);
-
   try {
-    await prisma.$transaction(async (tx) => {
-      await tx.user.update({
-        where: { id: userId },
-        data: {
-          fullName: normalizeName(rawFullName),
-          email,
-          phone: phone || null,
-          roleCode: role as RoleCode,
-          branchId,
-          status,
-          menuScope,
-          canCancelSales,
-        },
-      });
-      if (status === "SUSPENDED") {
-        await tx.authSession.deleteMany({ where: { userId } });
-      }
+    await updateDirectoryUser(prisma, {
+      userId, actorRole: guard.session.role, financeOn: financeEnabled(),
+      expected: { fullName: existing.fullName, email: existing.email, phone: existing.phone, roleCode: existing.roleCode, branchId: existing.branchId, status: existing.status },
+      data: { fullName: normalizeName(rawFullName), email, phone: phone || null, roleCode: role as RoleCode, branchId, status },
     });
   } catch (error) {
+    if (error instanceof DirectoryProblem) return fail(error.message);
     return duplicateValue(error) ?? unexpected(error);
   }
   revalidateDirectory();

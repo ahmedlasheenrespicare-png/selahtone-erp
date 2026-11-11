@@ -6756,3 +6756,23 @@ a.dash-receipt:focus-visible {
     break-inside: avoid;
   }
 }
+
+/* شارة «قديمة» لذمم آجلة محصّلة اليوم داخل أقسام الوسائل/البطاقة */
+.dash-old-badge {
+  display: inline-block;
+  padding: 0 8px;
+  margin-inline-start: 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.9;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.dash-today-section--old { border-inline-start-color: #b45309; }
+.dash-today-section__icon--old svg { width: 15px; height: 15px; }
+.dash-today-section__sum.is-old { color: #b45309; }
+.dash-today-invoice__meta--sub { display: block; margin-top: 2px; font-size: 11px; color: var(--mp-muted, #6b7280); }

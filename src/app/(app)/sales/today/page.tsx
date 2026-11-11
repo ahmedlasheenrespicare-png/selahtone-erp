@@ -17,7 +17,8 @@ import {
 } from "@/lib/sales-stats";
 import SalesInvoicesView, { type SalesInvoiceRow, type SalesInvoiceStatusKind } from "../sales-invoices-view";
 import { withPinKeys, PinGroups, CollectionsPinGroups } from "@/components/panther-pin-groups";
-import { isPathAllowedForScope } from "@/lib/menu-scope";
+import { getAccessContext, requirePageAccess } from "@/lib/access-control-server";
+import { writeAllowedForKeys } from "@/lib/access-control";
 
 export const dynamic = "force-dynamic";
 
@@ -46,10 +47,16 @@ function formatLineQty(raw: string): string {
 }
 
 export default async function SalesPage() {
+  await requirePageAccess("/sales/today");
+
   const session = await requireSession();
   const scope = branchScope(session);
   const canSell = session.role === "MANAGER" || session.role === "CS_AGENT";
-  const canOpen = (href: string) => isPathAllowedForScope(session.menuScope, href);
+  const access = await getAccessContext();
+  const canOpen = (href: string) => access.isAllowed(href.split("?")[0]);
+  const canOpenInvoice = canOpen("/sales/1");
+  const canStartSale = canSell && writeAllowedForKeys(access.hidden, "/sales/new");
+  const canOpenAction = (href: string) => href.split("?")[0] === "/sales/new" ? canStartSale : canOpen(href);
   // حد يوم القاهرة يُحسب في قاعدة البيانات — لا في Node (توقيت الخادم ليس توقيت العمل)
   const boundsRows = await prisma.$queryRaw<Array<{ start: Date }>>`
     SELECT (DATE_TRUNC('day', NOW() AT TIME ZONE 'Africa/Cairo') AT TIME ZONE 'Africa/Cairo') AS start`;
@@ -327,7 +334,7 @@ export default async function SalesPage() {
                             </strong>
                           </div>
 
-                          <Link
+                          {canOpenInvoice && <Link
                             href={`/sales/${invoice.id}`}
                             className="stat-grid__item is-link sales-wallet-action-link"
                           >
@@ -338,7 +345,7 @@ export default async function SalesPage() {
                               فتح الفاتورة <bdi dir="ltr">{invoice.code}</bdi>
                             </strong>
                             <AppIcon name="arrow" className="stat-grid__arrow" />
-                          </Link>
+                          </Link>}
                         </div>
                       </div>
                     </article>
@@ -376,7 +383,7 @@ export default async function SalesPage() {
                   tone: todayOutstandingNum > 0 ? "negative" : "positive",
                 }}
                 series={todaySalesPinnedSeries}
-                actionHref={session.role === "MANAGER" ? "/sales/stats?period=today" : "/sales"}
+                actionHref={canOpen(session.role === "MANAGER" ? "/sales/stats" : "/sales") ? (session.role === "MANAGER" ? "/sales/stats?period=today" : "/sales") : undefined}
                 actionLabel={session.role === "MANAGER" ? "عرض تقرير مبيعات اليوم" : "سجل المبيعات"}
                 detailsHudToggle
               >
@@ -397,13 +404,13 @@ export default async function SalesPage() {
                 primary={collectionsSpotlight.primary}
                 secondary={collectionsSpotlight.secondary}
                 series={collectionsSpotlight.series}
-                actionHref={collectionsSpotlight.actionHref}
+                actionHref={canOpenAction(collectionsSpotlight.actionHref) ? collectionsSpotlight.actionHref : undefined}
                 actionLabel={collectionsSpotlight.actionLabel}
                 detailsHudToggle
               >
                 <CollectionsPinGroups
                   details={collectionsSpotlight.details}
-                  canOpenInvoice={canOpen("/sales/1")}
+                  canOpenInvoice={canOpenInvoice}
                 />
               </PantherSpotlightCard>
             </div>
@@ -479,7 +486,7 @@ export default async function SalesPage() {
           </span>
           <h2>لا توجد فواتير مسجلة اليوم</h2>
           <p>ستظهر فواتير اليوم هنا فور تسجيلها — بتوقيت القاهرة.</p>
-          {canSell && (
+          {canStartSale && (
             <Link className="inv-button" href="/sales/new">
               <span className="inv-button__plus" aria-hidden="true">+</span>
               <span>تسجيل بيع جديد</span>
@@ -492,7 +499,7 @@ export default async function SalesPage() {
             <h2>جدول فواتير اليوم</h2>
             <span>فواتير اليوم فقط — بحث فوري برقم الفاتورة أو اسم العميل أو الهاتف وتصفية بالفرع والحالة</span>
           </div>
-          <SalesInvoicesView rows={rows} branches={branches} />
+          <SalesInvoicesView rows={rows} branches={branches} canOpenInvoice={canOpenInvoice} />
           <p className="inv-page__foot">
             يعرض كل فواتير اليوم في نطاق حسابك (بلا حد). المبلغ المستحق للعميل لا يعني أن رده تم فعليًا إلا بعد تسجيل الرد.
           </p>

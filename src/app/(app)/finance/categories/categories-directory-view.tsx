@@ -53,6 +53,9 @@ type CategorySort =
 type AuditFilter = "all" | "CREATE" | "RENAME" | "STATUS";
 
 type Props = {
+  canEdit: boolean;
+  canCreateExpense: boolean;
+  canOpenExpenses: boolean;
   categories: CategoryDirectoryItem[];
   auditRows: CategoryAuditItem[];
   currentMonthLabel: string;
@@ -61,6 +64,9 @@ type Props = {
 };
 
 export default function CategoriesDirectoryView({
+  canEdit,
+  canCreateExpense,
+  canOpenExpenses,
   categories,
   auditRows,
   currentMonthLabel,
@@ -642,7 +648,7 @@ export default function CategoriesDirectoryView({
 
                           <td className="no-print">
                             <div className="fin-cat-actions">
-                              <button
+                              {canEdit ? <button
                                 type="button"
                                 className={`fin-voucher-print-btn${
                                   isEditing ? " is-active" : ""
@@ -654,9 +660,9 @@ export default function CategoriesDirectoryView({
                                 }
                               >
                                 <span>{isEditing ? "إغلاق التحرير" : "تعديل"}</span>
-                              </button>
+                              </button> : null}
 
-                              {cat.active ? (
+                              {cat.active && canCreateExpense ? (
                                 <Link
                                   className="fin-voucher-print-btn"
                                   href={`/finance/expenses/new?categoryId=${encodeURIComponent(cat.id)}`}
@@ -666,7 +672,7 @@ export default function CategoriesDirectoryView({
                                 </Link>
                               ) : null}
 
-                              {cat.totalCount > 0 ? (
+                              {cat.totalCount > 0 && canOpenExpenses ? (
                                 <Link
                                   className="fin-button fin-button--text"
                                   href={`/finance/expenses?category=${encodeURIComponent(cat.name)}`}
@@ -678,7 +684,7 @@ export default function CategoriesDirectoryView({
                           </td>
                         </tr>
 
-                        {isEditing ? (
+                        {canEdit && isEditing ? (
                           <tr className="fin-cat-edit-row no-print">
                             <td colSpan={6}>
                               <EditCategoryForm

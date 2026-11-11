@@ -1,3 +1,5 @@
+import { custodyRequestSnapshot } from "@/lib/finance/custody-request-snapshot";
+import { writeAllowedForKeys } from "@/lib/access-control";
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -8,7 +10,7 @@ import { assertFinanceActor, financeDb, financeEnabled } from "@/lib/finance/db"
 import { listAccounts, listCustodyRequests } from "@/lib/finance/engine";
 import { computeBranchAccountCoverage } from "@/lib/finance/new-account-helpers";
 import { cairoDate } from "@/lib/finance/validation";
-import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
+import { getAccessContext, requirePageAccess } from "@/lib/access-control-server";
 import { prisma } from "@/lib/prisma";
 import { formatMoney } from "../format";
 import AccountForm, { type BranchOption, type StaffOption } from "./account-form";
@@ -23,7 +25,10 @@ export default async function FinanceAccountsPage({
   searchParams?: Promise<{ kind?: string; branchId?: string; holderId?: string }>;
 }) {
   const session = await getSession();
-  await requireMenuScopeAccess("/finance/accounts");
+  await requirePageAccess("/finance/accounts");
+  const access = await getAccessContext();
+  const canOpenAccount = writeAllowedForKeys(access.hidden, "/finance/accounts#open");
+  const canDecideCustody = writeAllowedForKeys(access.hidden, "/finance/accounts#decide-custody");
   if (!session) redirect("/login");
   if (session.mustChangePassword) redirect("/change-password");
   if (!financeEnabled()) redirect("/dashboard");
@@ -73,7 +78,7 @@ export default async function FinanceAccountsPage({
       });
       const subDb = { serializable: <T,>(work: (t: typeof tx) => Promise<T>) => work(tx) };
       const loadedAccounts = await listAccounts(subDb, session.id);
-      const loadedRequests = await listCustodyRequests(subDb, session.id, "PENDING");
+      const loadedRequests = canDecideCustody ? await listCustodyRequests(subDb, session.id, "PENDING") : [];
       return { accounts: loadedAccounts, pendingRequests: loadedRequests };
     }),
   ]);
@@ -94,18 +99,33 @@ export default async function FinanceAccountsPage({
     }));
   const staffMap = new Map(staffOptions.map((member) => [member.id, member]));
 
+  // Request labels must use the originating branch and requester even when
+  // the branch or user has since been stopped or the requester was moved.
+  // IDs come only from the already-scoped pending requests.
+  const [requestBranches, requestUsers] = pendingRequests.length ? await Promise.all([
+    prisma.branch.findMany({ where: { id: { in: [...new Set(pendingRequests.map(item => BigInt(String(item.branchId))))] } }, select: { id: true, nameAr: true, isActive: true } }),
+    prisma.user.findMany({ where: { id: { in: [...new Set(pendingRequests.map(item => BigInt(String(item.requesterId))))] } }, select: { id: true, fullName: true, status: true, branchId: true } }),
+  ]) : [[], []];
+  const requestBranchMap = new Map(requestBranches.map(branch => [branch.id.toString(), branch]));
+  const requestUserMap = new Map(requestUsers.map(user => [user.id.toString(), user]));
+
   const coverage = computeBranchAccountCoverage(branchOptions, staffOptions, accounts);
   const today = cairoDate();
 
   const custodyRequests = pendingRequests.map((item) => {
-    const reqStaff = staffMap.get(String(item.requesterId));
+    const branch = requestBranchMap.get(String(item.branchId));
+    const requester = requestUserMap.get(String(item.requesterId));
     return {
       id: String(item.id),
       amount: String(item.amount),
       reason: String(item.reason),
-      requesterName: reqStaff?.name ?? "موظف",
-      branchName: reqStaff ? branchNameById.get(reqStaff.branchId) : undefined,
+      requesterName: requester?.fullName ?? `موظف #${String(item.requesterId)}`,
+      holderUnavailable: !requester || requester.status !== "ACTIVE" || requester.branchId?.toString() !== String(item.branchId),
+      branchUnavailable: !branch || !branch.isActive,
+      branchName: branch ? `${branch.nameAr}${branch.isActive ? "" : " · فرع غير نشط"}` : `فرع #${String(item.branchId)}`,
       createdAt: String(item.createdAt),
+      expectedSnapshot: custodyRequestSnapshot({ id: String(item.id), branchId: String(item.branchId), requesterId: String(item.requesterId), amount: String(item.amount), reason: String(item.reason) }),
+      hasRegisteredCustody: accounts.some(account => account.kind === "CUSTODY" && account.branchId === String(item.branchId) && account.holderId === String(item.requesterId)),
     };
   });
 
@@ -182,22 +202,23 @@ export default async function FinanceAccountsPage({
                 {coverage.openCustodyCount} <small>عهدة قائمة</small>
               </>
             ),
-            sub: `${coverage.availableStaffCount} موظف نشط متاح لفتح عهدة`,
+            sub: `${coverage.availableStaffCount} موظف نشط دون عهدة مفتوحة؛ قد تمنع القيود فتح بديل`,
           },
-          {
-            icon: "cash",
-            label: "طلبات عهدة بانتظار القرار",
+          ...(canDecideCustody ? [{
+            icon: "cash" as const,
+            label: session.role === "ACCOUNTANT" ? "طلبات عهدة فرعك بانتظار القرار" : "طلبات عهدة بانتظار القرار",
             value: (
               <>
                 {custodyRequests.length} <small>طلب</small>
               </>
             ),
-            sub:
-              custodyRequests.length > 0
-                ? "واردة من موظفي الفروع لاعتمادها أو رفضها"
-                : "لا توجد طلبات عهدة معلّقة حاليًا",
-            tone: custodyRequests.length > 0 ? "alert" : "default",
-          },
+            sub: session.role === "ACCOUNTANT" && !session.branchId
+              ? "لا يوجد فرع محدد لحسابك؛ لا يمكنك البت في الطلبات"
+              : custodyRequests.length > 0
+                ? "طلبات ضمن نطاق قرارك بانتظار الموافقة أو الرفض"
+                : "لا توجد طلبات معلّقة ضمن نطاق قرارك",
+            tone: custodyRequests.length > 0 ? "alert" as const : "default" as const,
+          }] : []),
         ]}
       />
 
@@ -225,7 +246,7 @@ export default async function FinanceAccountsPage({
         </li>
       </ol>
 
-      {custodyRequests.length > 0 ? (
+      {canDecideCustody && custodyRequests.length > 0 ? (
         <section className="fin-form-stack" aria-label="طلبات العهدة المعلقة">
           <div className="fin-alert fin-alert--warning" role="status">
             {custodyRequests.length === 1
@@ -243,7 +264,7 @@ export default async function FinanceAccountsPage({
         </section>
       ) : null}
 
-      {!branchOptions.length ? (
+      {!canOpenAccount ? null : !branchOptions.length ? (
         <div className="fin-panel fin-empty">
           لا يوجد فرع نشط؛ أضف فرعًا نشطًا من شاشة «الفروع والمستخدمون» قبل فتح حساب نقدي.
         </div>

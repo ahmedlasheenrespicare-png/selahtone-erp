@@ -36,6 +36,7 @@ async function expectProblem(fn: () => Promise<unknown>, pattern: RegExp) {
 }
 async function setupInventory(pg: PGlite) {
   await pg.exec(baseline); await pg.exec(openingUpgrade); await pg.exec(receivingUpgrade);
+  await pg.exec(readFileSync(path.join(root, "prisma/manual-cancel-permission-upgrade.sql"), "utf8"));
   await pg.exec(`UPDATE tax_rates SET effective_from='2000-01-01' WHERE id=1;
     INSERT INTO tax_rates(code,name_ar,rate,kind,effective_from,is_active) VALUES('TEST-EX','معفى تجريبي',0,'EXEMPT','2000-01-01',TRUE);
     UPDATE products SET sale_price=105,tax_rate_id=1 WHERE id=1;
@@ -78,6 +79,7 @@ test("isolated sales, money and returns", { timeout: 120_000 }, async (t) => {
       } finally { await other.close(); }
     });
     pg = new PGlite(); await setupInventory(pg); await pg.exec(commerceUpgrade); await pg.exec(catalogUpgrade);
+    await pg.exec(readFileSync(path.join(root, "prisma/manual-discount-ceiling-upgrade.sql"), "utf8"));
     db = new TestClient({ adapter: new PrismaPGlite(pg) as never }); const client = db;
     let saleId = ""; let aidLineId = "";
 
@@ -134,8 +136,12 @@ test("isolated sales, money and returns", { timeout: 120_000 }, async (t) => {
       await expectProblem(() => recordCommerceCollection(client, 5n, movement(saleId, "1")), /صلاحية/);
       await expectProblem(() => recordCommerceCollection(client, 2n, movement(saleId, "120.01")), /يزيد/);
       const payment = movement(saleId, "30", { method: "WALLET" });
+      const revisionBefore = (await client.commerceSale.findUniqueOrThrow({ where: { id: BigInt(saleId) }, select: { revision: true } })).revision;
       assert.equal((await recordCommerceCollection(client, 2n, payment)).replayed, false);
+      const afterWrite = (await client.commerceSale.findUniqueOrThrow({ where: { id: BigInt(saleId) }, select: { revision: true } })).revision;
+      assert.equal(afterWrite, revisionBefore + 1);
       assert.equal((await recordCommerceCollection(client, 2n, payment)).replayed, true);
+      assert.equal((await client.commerceSale.findUniqueOrThrow({ where: { id: BigInt(saleId) }, select: { revision: true } })).revision, afterWrite);
       await expectProblem(() => recordCommerceCollection(client, 2n, { ...payment, amount: "31" }), /بيانات مختلفة/);
       assert.equal(await client.commerceCollection.count({ where: { saleId: BigInt(saleId) } }), 2);
     });
@@ -147,8 +153,12 @@ test("isolated sales, money and returns", { timeout: 120_000 }, async (t) => {
       const input = { requestId: randomUUID(), saleId, cancel: false, accepted: true, lines: [{ saleLineId: aidLineId, quantity: "1", serialIds: ["1"] }] };
       await expectProblem(() => returnCommerceSale(client, 3n, input), /صلاحية/);
       await expectProblem(() => returnCommerceSale(client, 2n, input), /صلاحية/);
+      const revisionBefore = (await client.commerceSale.findUniqueOrThrow({ where: { id: BigInt(saleId) }, select: { revision: true } })).revision;
       assert.equal((await returnCommerceSale(client, 1n, input)).replayed, false);
+      const afterWrite = (await client.commerceSale.findUniqueOrThrow({ where: { id: BigInt(saleId) }, select: { revision: true } })).revision;
+      assert.equal(afterWrite, revisionBefore + 1);
       assert.equal((await returnCommerceSale(client, 1n, input)).replayed, true);
+      assert.equal((await client.commerceSale.findUniqueOrThrow({ where: { id: BigInt(saleId) }, select: { revision: true } })).revision, afterWrite);
       level = await client.stockLevel.findUniqueOrThrow({ where: { id: level.id } });
       assert.equal(level.qtyOnHand.toFixed(2), "3.00"); assert.equal(level.avgCost.toFixed(4), "16.6667");
       const returned = await client.commerceReturnLine.findFirstOrThrow({ where: { saleLineId: BigInt(aidLineId) } });
@@ -163,9 +173,14 @@ test("isolated sales, money and returns", { timeout: 120_000 }, async (t) => {
       await expectProblem(() => recordCommerceRefund(client, 3n, movement(saleId, "5", { actuallyPaid: true })), /صلاحية/);
       await expectProblem(() => recordCommerceRefund(client, 2n, movement(saleId, "10.45", { actuallyPaid: true })), /يزيد/);
       const refund = movement(saleId, "5", { actuallyPaid: true });
+      const revisionBefore = (await client.commerceSale.findUniqueOrThrow({ where: { id: BigInt(saleId) }, select: { revision: true } })).revision;
       assert.equal((await recordCommerceRefund(client, 2n, refund)).replayed, false);
+      const afterWrite = (await client.commerceSale.findUniqueOrThrow({ where: { id: BigInt(saleId) }, select: { revision: true } })).revision;
+      assert.equal(afterWrite, revisionBefore + 1);
       assert.equal((await recordCommerceRefund(client, 2n, refund)).replayed, true);
-      await recordCommerceRefund(client, 1n, movement(saleId, "5.44", { actuallyPaid: true, method: "CASH" }));
+      assert.equal((await client.commerceSale.findUniqueOrThrow({ where: { id: BigInt(saleId) }, select: { revision: true } })).revision, afterWrite);
+      await expectProblem(() => recordCommerceRefund(client, 1n, movement(saleId, "5.44", { actuallyPaid: true, method: "CASH" })), /متوقف للمراجعة عند تعطيل المالية/);
+      await recordCommerceRefund(client, 1n, movement(saleId, "5.44", { actuallyPaid: true, method: "CARD" }));
       assert.equal(await client.commerceRefund.count({ where: { saleId: BigInt(saleId) } }), 2);
       await expectProblem(() => recordCommerceRefund(client, 1n, movement(saleId, "0.01", { actuallyPaid: true })), /يزيد/);
     });
@@ -191,7 +206,7 @@ test("isolated sales, money and returns", { timeout: 120_000 }, async (t) => {
     });
 
     await t.test("manager controls the staff discount setting, with an audit and safe retry", async () => {
-      const setting = { requestId: randomUUID(), percent: "7.5" };
+      const setting = { requestId: randomUUID(), percent: "7.5", managerPercent: "25" };
       await expectProblem(() => changeStaffDiscountLimit(client, 2n, setting), /صلاحية/);
       await changeStaffDiscountLimit(client, 1n, setting);
       assert.equal((await changeStaffDiscountLimit(client, 1n, setting)).replayed, true);
@@ -267,6 +282,8 @@ test("isolated sales, money and returns", { timeout: 120_000 }, async (t) => {
       const financeUpgrade = readFileSync(path.join(root, "prisma/manual-finance-release-upgrade.sql"), "utf8");
       const settlementUpgrade = readFileSync(path.join(root, "prisma/manual-settlement-upgrade.sql"), "utf8");
       await pg!.exec(legacyCategories); await pg!.exec(financeUpgrade); await pg!.exec(settlementUpgrade);
+      await pg!.exec(readFileSync(path.join(root, "prisma/manual-custody-closure-upgrade.sql"), "utf8"));
+      await pg!.exec(readFileSync(path.join(root, "prisma/manual-custody-and-count-requests.sql"), "utf8"));
       await pg!.query(`INSERT INTO finance.accounts(branch_id,kind,holder_id,opening_amount,opening_date,opened_by)
         VALUES (1,'CUSTODY',3,1000,'2026-10-20',1)`);
       const accountId = String((await pg!.query<{ id: number }>(`SELECT id FROM finance.accounts WHERE kind='CUSTODY'`)).rows[0].id);
@@ -290,7 +307,7 @@ test("isolated sales, money and returns", { timeout: 120_000 }, async (t) => {
           (error: unknown) => error instanceof InventoryProblem && JSON.stringify(error).includes("الحساب"),
         );
 
-        await recordCommerceRefund(client, 1n, { requestId: randomUUID(), saleId: made.id, amount: "20", method: "CASH", actuallyPaid: true, accountId, negativeAcknowledged: false });
+        await recordCommerceRefund(client, 1n, { requestId: randomUUID(), saleId: made.id, amount: "20", method: "CASH", actuallyPaid: true, accountId, negativeAcknowledged: false, checkpointRef: "OPENING", timing: "AFTER_REVIEWED_CHECKPOINT" });
         const movements = await pg!.query<{ kind: string; amount: string; source: string | null; external: string | null }>(
           `SELECT kind::text AS kind, amount::text AS amount, source_id::text AS source, external_ref AS external FROM finance.movements ORDER BY id`);
         assert.equal(movements.rows.length, 1);

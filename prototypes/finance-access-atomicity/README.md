@@ -1,0 +1,9 @@
+# Experimental finance access-rule atomicity — disposable PostgreSQL only
+
+`table-lock.test-only.ts` is not imported by the application and is not an authorization boundary. It takes a PostgreSQL SHARE lock on the entire `access_control` table before any snapshot-producing query, then checks an authenticated non-admin's session and the existing role/user permission policy inside the same transaction. The test injects SQL permission changes, not the real HTTP administration action. It does not implement the system-admin exception.
+
+Selected PostgreSQL interleavings demonstrate denial committed first prevents the new write, and a write holding the lock first commits before a permission denial; replay is denied after revocation. A user exception overrides role denial, while the finance-wide lock still wins. A missing permission table fails this experiment closed. The table lock also blocks an unrelated permission change when a revoked session has not yet been checked. A disposable database role with SELECT only could not acquire it (SQLSTATE `42501`). No conclusion follows about any real role's privileges.
+
+A separate synthetic counterexample starts a SERIALIZABLE snapshot by locking the user *before* taking the table lock; after a denial commits, that old snapshot still misses it and commits an unrelated synthetic write. Thus simply adding the table lock after the current actor check does not establish the required ordering. This is a demonstrative transaction, not a claim about real data.
+
+The coarse candidate is **not approved**: it takes a lock before verifying the session, blocks unrelated permission administration, requires stronger privileges than SELECT, duplicates policy and omits the admin bypass and full error handling. No global lock-order, throughput, PGlite compatibility, replay privacy, access to sales, actual HTTP permission mutation, or production cutover has been established. Do not install or deploy it.

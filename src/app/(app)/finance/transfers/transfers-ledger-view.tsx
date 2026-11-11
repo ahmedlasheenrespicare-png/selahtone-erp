@@ -11,6 +11,7 @@ import HandoverVoucher, {
 
 export type TransferLedgerRow = {
   id: string;
+  branchId: string;
   branchName: string;
   fromLabel: string;
   toLabel: string;
@@ -25,6 +26,7 @@ export type TransferLedgerRow = {
 
 export type ArchivedSettlementRow = {
   id: string;
+  branchId: string;
   branchName: string;
   holderName: string;
   createdAtDate: string;
@@ -56,7 +58,7 @@ export default function TransfersLedgerView({
 }: {
   transfers: TransferLedgerRow[];
   archivedSettlements: ArchivedSettlementRow[];
-  branches: string[];
+  branches: Array<{ id: string; label: string }>;
   canManage: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<"transfers" | "settlements">(
@@ -86,7 +88,7 @@ export default function TransfersLedgerView({
   const filteredTransfers = useMemo(() => {
     const q = query.trim().toLowerCase();
     return transfers.filter((r) => {
-      if (branchFilter !== "all" && r.branchName !== branchFilter) return false;
+      if (branchFilter !== "all" && r.branchId !== branchFilter) return false;
       if (ledgerFilter === "TO_VAULT" && r.direction !== "TO_VAULT") return false;
       if (ledgerFilter === "TO_CUSTODY" && r.direction !== "TO_CUSTODY")
         return false;
@@ -121,7 +123,7 @@ export default function TransfersLedgerView({
   const filteredArchive = useMemo(() => {
     const q = query.trim().toLowerCase();
     return archivedSettlements.filter((s) => {
-      if (branchFilter !== "all" && s.branchName !== branchFilter) return false;
+      if (branchFilter !== "all" && s.branchId !== branchFilter) return false;
       if (archiveFilter !== "all" && s.status !== archiveFilter) return false;
       if (q) {
         const hay =
@@ -180,7 +182,7 @@ export default function TransfersLedgerView({
         "الموظف",
         "المتوقع (ج.م)",
         "المعدود (ج.م)",
-        "الفرق (ج.م)",
+        "الفرق عن المؤشر (ج.م)",
         "التحويل المنفذ",
         "القرار",
         "متخذ القرار",
@@ -233,7 +235,7 @@ export default function TransfersLedgerView({
           </h2>
           <p>
             {activeTab === "transfers"
-              ? "سجل رقابي موثّق بالمنفِّذ وأصل الحركة مع إمكانية طباعة سند رسمي لكل عملية أو تصدير CSV."
+              ? "آخر 100 حركة متاحة حسب رقم التسجيل، مع المنفِّذ وأصل الحركة وإمكانية طباعة السند أو تصدير الصفوف المعروضة. قد لا يشمل السجل كل الحركات."
               : "سجل التسويات المعتمدة والمرفوضة والملغاة مع بيان القرار ومنفّذه."}
           </p>
         </div>
@@ -319,8 +321,8 @@ export default function TransfersLedgerView({
               >
                 <option value="all">كل الفروع ({branches.length})</option>
                 {branches.map((branch) => (
-                  <option key={branch} value={branch}>
-                    {branch}
+                  <option key={branch.id} value={branch.id}>
+                    {branch.label}
                   </option>
                 ))}
               </select>
@@ -523,15 +525,15 @@ export default function TransfersLedgerView({
         ) : (
           <div className="fin-table-wrap">
             <table className="fin-table">
-              <caption>طلبات التسوية — المتوقَّع والمعدود والفرق والقرار النهائي</caption>
+              <caption>طلبات التسوية — مؤشر الفترة والمعدود والفرق عنه والقرار النهائي</caption>
               <thead>
                 <tr>
                   <th scope="col">رقم الطلب</th>
                   <th scope="col">تاريخ البتّ</th>
                   <th scope="col">الفرع والموظف</th>
-                  <th scope="col">المتوقَّع</th>
+                  <th scope="col">مؤشر الفترة</th>
                   <th scope="col">المعدود</th>
-                  <th scope="col">الفرق</th>
+                  <th scope="col">الفرق عن المؤشر</th>
                   <th scope="col">التحويل المنفَّذ</th>
                   <th scope="col">الحالة</th>
                   <th scope="col">متّخذ القرار والسبب</th>

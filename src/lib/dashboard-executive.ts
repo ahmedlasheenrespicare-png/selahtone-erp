@@ -809,8 +809,8 @@ export async function loadDashboardExecutiveSuite(
       alerts.push({
         key: "stale-settlements",
         tone: "danger",
-        title: `${arNum.format(staleCount)} طلب تسوية عهدة معلّق بطل بحركة نقدية لاحقة`,
-        detail: "وقعت مقبوضات أو منصرفات نقدية بعد الجرد؛ يلزم إعادة الجرد قبل الاعتماد",
+        title: `${arNum.format(staleCount)} طلب تسوية عهدة معلّق يحتاج إعادة جرد لتغير أو غياب المراجعة أو حركة لاحقة`,
+        detail: "تغيّرت مراجعة العهدة أو لا تتوفر مراجعة موثوقة أو ظهرت حركة لاحقة؛ يلزم إعادة الجرد قبل الاعتماد",
         href: "/finance/transfers",
       });
     }
@@ -821,8 +821,8 @@ export async function loadDashboardExecutiveSuite(
       alerts.push({
         key: "settlement-variance",
         tone: "warning",
-        title: `${arNum.format(varianceCount)} تسوية عهدة بفرق جرد فعلي هذا الشهر`,
-        detail: `إجمالي الفروقات المطلقة: ${displayMoney(varianceCents)} ج.م`,
+        title: `${arNum.format(varianceCount)} طلب تسوية مفتوح أو تسوية مؤكدة هذا الشهر بفارق مسجّل`,
+        detail: `مجموع الفروقات المطلقة المسجّلة: ${displayMoney(varianceCents)} ج.م؛ لا يثبت النقد الفعلي.`,
         href: "/finance/transfers",
       });
     }

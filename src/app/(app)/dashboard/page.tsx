@@ -1,4 +1,7 @@
+import { PeriodEstimateNotice } from "@/app/(app)/finance/period-estimate-notice";
+import { PeriodSourceWarning } from "@/app/(app)/finance/period-source-warning";
 import Link from "next/link";
+import { writeAllowedForKeys } from "@/lib/access-control";
 import type { ReactNode } from "react";
 import { AppIcon, type AppIconName } from "@/components/app-icon";
 import PantherSpotlightCard, { type PantherChartPoint } from "@/components/panther-spotlight-card";
@@ -27,6 +30,7 @@ import {
 } from "@/lib/dashboard-pulse";
 import { inventoryEnabled } from "@/lib/feature-flags";
 import { financeEnabled } from "@/lib/finance/db";
+import { loadRecordedFlow } from "@/lib/finance/recorded-flow";
 import {
   loadCashSummary,
   loadDashboardFinanceSpotlights,
@@ -37,7 +41,8 @@ import {
   type TodayExpensesSummary,
 } from "@/lib/finance/today-expenses";
 import { formatInventoryDecimal, stockValueScaled } from "@/lib/inventory-math";
-import { isPathAllowedForScope } from "@/lib/menu-scope";
+import { getAccessContext } from "@/lib/access-control-server";
+import { hiddenAccessCss } from "@/lib/access-control";
 import {
   loadCollectionsSpotlight,
   loadSalesChartSeries,
@@ -52,6 +57,11 @@ const ROLE_LABEL: Record<string, string> = {
   ACCOUNTANT: "المحاسب",
   CS_AGENT: "موظف الكاونتر",
 };
+
+/** Display a metric without an active link when its destination is unavailable. */
+function PageLink({ allowed, href, className, children }: { allowed: boolean; href: string; className: string; children: ReactNode }) {
+  return allowed ? <Link href={href} className={className}>{children}</Link> : <div className={className.replace(/\bis-link\b/g, "").trim()}>{children}</div>;
+}
 
 const nf = new Intl.NumberFormat("ar-EG-u-nu-latn", { maximumFractionDigits: 2 });
 const monthFormatter = new Intl.DateTimeFormat("ar-EG-u-nu-latn", {
@@ -91,6 +101,13 @@ export default async function DashboardPage({
   searchParams?: Promise<{ branch?: string; q?: string; section?: string }>;
 }) {
   const session = await requireSession();
+  const access = await getAccessContext();
+  // Dashboard is the safe redirect target, but many aggregate cards are not
+  // individually permission-controlled. Do not query or serialize any of them
+  // when the permission store cannot be read for a non-admin.
+  if (!access.storeHealthy && !access.isSystemAdmin) {
+    return <div className="dashboard"><h1>لوحة القيادة غير متاحة مؤقتًا</h1><p>تعذّرت قراءة إعدادات الصلاحيات. تواصل مع أدمن النظام لإصلاحها.</p></div>;
+  }
   const scope = branchScope(session);
   const canViewAllBranches = canSeeAllBranches(session);
   const params = searchParams ? await searchParams : {};
@@ -141,16 +158,19 @@ export default async function DashboardPage({
       ? "كل الفروع النشطة"
       : session.branchName ?? "فرعك الحالي";
 
+  const showStockValue = session.role !== "CS_AGENT" && access.isAllowed("/dashboard#stock-value");
+  // The employee's fifth spotlight is inventory activity, not profitability.
+  const fifthSpotlightAllowed = session.role === "CS_AGENT" || access.isAllowed("/dashboard#profitability");
   const [productCount, taxCount, expenseCategories, stockLevels] = await Promise.all([
     prisma.product.count({ where: { isActive: true } }),
     prisma.taxRate.count({ where: { isActive: true } }),
     prisma.expenseCategory.count(),
-    prisma.stockLevel.findMany({
+    showStockValue ? prisma.stockLevel.findMany({
       where: effectiveBranchId
         ? { warehouse: { branchId: BigInt(effectiveBranchId) } }
         : {},
       select: { qtyOnHand: true, avgCost: true },
-    }),
+    }) : Promise.resolve([]),
   ]);
 
   const stockValue = stockLevels.reduce(
@@ -164,8 +184,22 @@ export default async function DashboardPage({
   const isAccountant = session.role === "ACCOUNTANT";
   const canManageExpenses = session.role === "MANAGER" || session.role === "ACCOUNTANT";
   const finOn = financeEnabled();
-  const canOpen = (href: string) => isPathAllowedForScope(session.menuScope, href);
+  const accessHiddenCss = hiddenAccessCss(access.hidden);
+  // This guards row-level expense details across all dashboard placements, not finance pages or aggregate figures.
+  const showExpenseDetails = access.isAllowed("/dashboard#expense-details");
+  // Protect invoice-derived personal details across all slots sent to the client.
+  const showInvoiceDetails = access.isAllowed("/dashboard#invoice-details");
+  const canOpen = (href: string) => access.isAllowed(href.split("?")[0]);
   const invOn = inventoryEnabled() && canOpen("/inventory");
+  const canViewCustody = finOn && canOpen(isEmployee ? "/finance/mine" : "/finance");
+  // Restrict the combined card by its own key and both source permissions.
+  const canViewRecordedFlow = finOn && access.isAllowed("/dashboard#recorded-flow") && showExpenseDetails && showInvoiceDetails && canOpen("/sales") && canOpen("/finance/expenses") && canOpen(isEmployee ? "/finance/mine" : "/finance");
+  let recordedFlow: Awaited<ReturnType<typeof loadRecordedFlow>> | null = null;
+  let recordedFlowError = false;
+  if (canViewRecordedFlow) {
+    try { recordedFlow = await loadRecordedFlow(session, effectiveBranchId); }
+    catch (error) { console.error("dashboard: recorded flow unavailable", error); recordedFlowError = true; }
+  }
 
   let cash: Awaited<ReturnType<typeof loadEmployeeCash>> = null;
   try {
@@ -184,7 +218,7 @@ export default async function DashboardPage({
   let financeSpotlights: Awaited<ReturnType<typeof loadDashboardFinanceSpotlights>> = null;
   try {
     financeSpotlights = await loadDashboardFinanceSpotlights(session, {
-      branches: branches.map((b) => ({ id: b.id.toString(), nameAr: b.nameAr })),
+      branches: branches.map((b) => ({ id: b.id.toString(), nameAr: b.nameAr, code: b.code })),
       monthLabel: currentMonthLabel,
       cash,
       summary,
@@ -194,9 +228,25 @@ export default async function DashboardPage({
     console.error("dashboard: finance spotlights failed", error);
   }
 
+  // These cards combine multiple sources. Missing or restricted finance inputs
+  // must not be treated as zero expenses or perfect custody discipline.
+  // Finance spotlights are scoped to an assigned account branch, while the
+  // executive suite follows the dashboard branch selector (or all branches).
+  // Mixing them would subtract one branch's expenses from different sales and
+  // assign custody scores to branches outside the finance input scope.
+  const financeScopeMatchesDashboard = !session.branchId || session.branchId === effectiveBranchId;
+  const managementFinanceMetricsAvailable = financeScopeMatchesDashboard && finOn && canOpen("/finance/expenses") && canOpen("/finance/transfers") && financeSpotlights?.financeOpsSummary != null;
+  const employeeFinanceMetricsAvailable = finOn && canViewCustody && canOpen("/finance/expenses") && cash != null;
+  const efficiencyInputsAvailable = isEmployee ? employeeFinanceMetricsAvailable : managementFinanceMetricsAvailable;
+  const governanceInputsAvailable = !isEmployee && finOn && canOpen("/finance/transfers") && financeSpotlights?.financeOpsSummary != null;
+  const governanceScopeNote = session.branchId && session.branchId !== effectiveBranchId
+    ? "تنبيهات التسويات ضمن فرع حسابك، بينما فحوص المبيعات ضمن نطاق اللوحة المختار."
+    : "فحوص المبيعات والتسويات ضمن نطاق اللوحة المعروض.";
+  const showFifthSpotlight = fifthSpotlightAllowed && (isEmployee || (financeScopeMatchesDashboard && finOn && canOpen("/finance/expenses") && financeSpotlights?.financeOpsSummary != null));
+
   let todayExpenses: TodayExpensesSummary | null = null;
   let todayExpensesError = false;
-  if (finOn) {
+  if (finOn && showExpenseDetails) {
     try {
       todayExpenses = await loadTodayExpenses(session, effectiveBranchId);
     } catch (error) {
@@ -249,7 +299,7 @@ export default async function DashboardPage({
                   cash.approvedUnpaid,
               }
             : null,
-          searchQuery: rawSearchQ || null,
+          searchQuery: showInvoiceDetails ? rawSearchQ || null : null,
           canAccessInventorySerials: invOn && canOpen("/inventory/serials"),
           canAccessSalesStats: canOpen("/sales/stats"),
           canAccessFinance: finOn && canOpen(isEmployee ? "/finance/mine" : "/finance"),
@@ -268,7 +318,7 @@ export default async function DashboardPage({
   const monthCollectedPct =
     monthTotalNum > 0 ? Math.max(0, Math.round((100 - monthOutstandingPct) * 10) / 10) : 0;
 
-  const expectedBalanceValue = cash
+  const expectedBalanceValue = !canViewCustody ? "—" : cash
     ? `${nf.format(Number(cash.expected))} ج.م`
     : summary
       ? `${nf.format(Number(summary.totalExpected))} ج.م`
@@ -294,12 +344,30 @@ export default async function DashboardPage({
     : summary?.approvedUnpaid ?? 0;
 
   const pocketItems: WalletPocketItem[] = [
-    { key: "expected", label: "المستحق للخزنة", value: expectedBalanceValue, kind: "money" },
+    { key: "expected", label: "مؤشر الفترة", value: expectedBalanceValue, kind: "money" },
     { key: "today-sales", label: "مبيعات اليوم", value: todayNetSalesValue, kind: "money" },
-    ...(unapprovedSettlements > 0
+    ...(pulseData && !isEmployee
+      ? [
+          { key: "outstanding", label: "باقٍ على العملاء", value: pulseData.outstandingTotalFormatted, kind: "money" as const },
+        ]
+      : []),
+    ...(pulseData && isAccountant
+      ? [
+          {
+            key: "outstanding-delta",
+            label: "التغيّر عن أمس",
+            value:
+              pulseData.outstandingChangePct === null
+                ? "—"
+                : `${pulseData.outstandingChangeDirection === "down" ? "↓" : pulseData.outstandingChangeDirection === "up" ? "↑" : "="} ${nf.format(Math.abs(pulseData.outstandingChangePct))}%`,
+            kind: "count" as const,
+          },
+        ]
+      : []),
+    ...(canOpen(isEmployee ? "/finance/mine" : "/finance/transfers") && unapprovedSettlements > 0
       ? [{ key: "settlements", label: "تسويات", value: nf.format(unapprovedSettlements), kind: "count" as const }]
       : []),
-    ...(unapprovedExpenses > 0
+    ...(canOpen("/finance/expenses") && unapprovedExpenses > 0
       ? [{ key: "expenses", label: "مصروفات", value: nf.format(unapprovedExpenses), kind: "count" as const }]
       : []),
   ];
@@ -308,10 +376,11 @@ export default async function DashboardPage({
   const unifiedActions = isEmployee
     ? (cash
         ? [
-            cash.settlementStale
-              ? { key: "stale", tone: "warning", icon: "cash" as AppIconName, text: "طلب تسوية معلق وقد بطل بحركة نقدية بعده — ألغِه بسبب وأعد الجرد بطلب جديد.", href: "/finance/mine" }
-              : null,
-            cash.openSettlementId
+            cash.openSettlementId && (cash.boundaryAmbiguous || cash.holderCorrectionInPeriod)
+              ? { key: "blocked", tone: "warning", icon: "cash" as AppIconName, text: "طلب التسوية المعلق متوقف للمراجعة؛ قد لا يكفي إلغاؤه وإعادة الجرد لإزالة سبب المنع.", href: "/finance/mine" }
+              : cash.openSettlementId && cash.settlementStale
+              ? { key: "stale", tone: "warning", icon: "cash" as AppIconName, text: "طلب تسوية معلق يحتاج إعادة جرد بسبب تغير أو غياب مراجعة موثوقة أو حركة لاحقة — ألغِه بسبب وقدّم طلبًا جديدًا.", href: "/finance/mine" }
+              : cash.openSettlementId
               ? { key: "open", tone: "info", icon: "cash" as AppIconName, text: "لديك طلب تسوية معلق بانتظار اعتماد المدير. أي حركة نقدية جديدة تُبطل المعدود.", href: "/finance/mine" }
               : null,
             cash.pendingExpenses > 0
@@ -345,23 +414,23 @@ export default async function DashboardPage({
 
   const metrics: Metric[] = isEmployee
     ? [
-        { label: "مبيعات اليوم", value: nf.format(pulseData?.todayInvoicesCount ?? cash?.todaySalesCount ?? 0), detail: "فاتورة أتممتها في فرعك اليوم", icon: "receipt", tone: "blue" },
-        { label: "باقٍ على العملاء", value: nf.format(cash?.outstandingCount ?? 0), detail: "فاتورة لم تُسدَّد بالكامل", icon: "cash", tone: "amber" },
+        { label: "مبيعات اليوم", value: pulseData ? nf.format(pulseData.todayInvoicesCount) : cash ? nf.format(cash.todaySalesCount) : "—", detail: "فاتورة أتممتها في فرعك اليوم", icon: "receipt", tone: "blue" },
+        { label: "باقٍ على العملاء", value: cash ? nf.format(cash.outstandingCount) : "—", detail: "فاتورة لم تُسدَّد بالكامل", icon: "cash", tone: "amber" },
         { label: "الأصناف المتاحة", value: nf.format(productCount), detail: "في نطاق فرعك", icon: "products", tone: "violet" },
         { label: "مستودعات فرعك", value: nf.format(warehouseCount), detail: "تخدم مبيعاتك", icon: "warehouse", tone: "cyan" },
       ]
     : isAccountant
       ? [
-          { label: "تسويات للتأكيد", value: nf.format(summary?.pendingSettlements ?? 0), detail: "طلبات سلّمها الموظفون", icon: "cash", tone: "amber" },
-          { label: "بانتظار الصرف", value: nf.format(summary?.approvedUnpaid ?? 0), detail: "مصروفات اعتمدت ولم تُصرف", icon: "expenses", tone: "violet" },
-          { label: "المتوقَّع في العهد", value: summary ? nf.format(Number(summary.totalExpected)) : "0", unit: "ج.م", detail: "ما سيُسلَّم للخزنة", icon: "stockValue", tone: "cyan" },
-          { label: "العهد القائمة", value: nf.format(summary?.custodyCount ?? 0), detail: "عهدة نشطة", icon: "branch", tone: "blue" },
+          { label: "تسويات للتأكيد", value: summary && canOpen("/finance/transfers") ? nf.format(summary.pendingSettlements) : "—", detail: "طلبات سلّمها الموظفون", icon: "cash", tone: "amber" },
+          { label: "بانتظار الصرف", value: summary && canOpen("/finance/expenses") ? nf.format(summary.approvedUnpaid) : "—", detail: "مصروفات اعتمدت ولم تُصرف", icon: "expenses", tone: "violet" },
+          { label: "المتوقَّع في العهد", value: summary && canViewCustody ? nf.format(Number(summary.totalExpected)) : "—", unit: "ج.م", detail: "مؤشر الفترة المسجّل، لا يثبت التسليم", icon: "stockValue", tone: "cyan" },
+          { label: "العهد القائمة", value: summary && canViewCustody ? nf.format(summary.custodyCount) : "—", detail: "عهدة نشطة", icon: "branch", tone: "blue" },
         ]
       : [
           { label: "الفروع النشطة", value: nf.format(branches.length), detail: selectedBranchObj ? "الفرع المصفّى" : "في نطاق حسابك", icon: "branch", tone: "blue" },
           { label: "المستودعات", value: nf.format(warehouseCount), detail: "في الفروع المعروضة", icon: "warehouse", tone: "cyan" },
           { label: "المنتجات النشطة", value: nf.format(productCount), detail: "في دليل المنتجات", icon: "products", tone: "violet" },
-          { label: "قيمة المخزون", value: formatInventoryDecimal(stockValue, 6), unit: "ج.م", detail: "محسوبة بمتوسط التكلفة", icon: "stockValue", tone: "amber" },
+          ...(showStockValue ? [{ label: "قيمة المخزون", value: formatInventoryDecimal(stockValue, 6), unit: "ج.م", detail: "محسوبة بمتوسط التكلفة", icon: "stockValue" as AppIconName, tone: "amber" }] : []),
         ];
 
   // أزرار الإجراءات السريعة في الترويسة حسب الدور والصلاحيات
@@ -373,50 +442,60 @@ export default async function DashboardPage({
       ]
     : isAccountant
       ? [
-          ...(finOn ? [{ key: "settlements", label: "تسويات العهد", href: "/finance/transfers", icon: "cash" as AppIconName, primary: true, badge: summary?.pendingSettlements ?? 0 }] : []),
-          ...(finOn ? [{ key: "expenses", label: "صرف المصروفات", href: "/finance/expenses", icon: "expenses" as AppIconName, badge: summary?.approvedUnpaid ?? 0 }] : []),
+          ...(finOn ? [{ key: "settlements", label: "تسويات العهد", href: "/finance/transfers", icon: "cash" as AppIconName, primary: true, badge: summary?.pendingSettlements }] : []),
+          ...(finOn ? [{ key: "expenses", label: "صرف المصروفات", href: "/finance/expenses", icon: "expenses" as AppIconName, badge: summary?.approvedUnpaid }] : []),
           ...(finOn ? [{ key: "finance", label: "لوحة المالية", href: "/finance", icon: "stockValue" as AppIconName }] : []),
           { key: "sales", label: "سجل الفواتير", href: "/sales", icon: "receipt" },
         ]
       : [
           { key: "new-sale", label: "فاتورة بيع", href: "/sales/new", icon: "sales", primary: true },
           ...(finOn ? [{ key: "new-exp", label: "تسجيل مصروف", href: "/finance/expenses/new", icon: "expenses" as AppIconName }] : []),
-          ...(finOn ? [{ key: "settlements", label: "تسويات العهد", href: "/finance/transfers", icon: "cash" as AppIconName, badge: summary?.pendingSettlements ?? 0 }] : []),
+          ...(finOn ? [{ key: "settlements", label: "تسويات العهد", href: "/finance/transfers", icon: "cash" as AppIconName, badge: summary?.pendingSettlements }] : []),
           { key: "stats", label: "إحصائيات المبيعات", href: effectiveBranchId ? `/sales/stats?period=month&branch=${effectiveBranchId}` : "/sales/stats?period=month", icon: "reports" },
         ];
-  const quickActions = candidateQuickActions.filter((a) => canOpen(a.href.split("?")[0]));
+  const quickActions = candidateQuickActions.filter((a) => {
+    const route = a.href.split("?")[0];
+    return canOpen(route) && (!(route === "/sales/new" || route === "/finance/expenses/new") || writeAllowedForKeys(access.hidden, route));
+  });
   const primaryQuickAction = quickActions.find((action) => action.primary) ?? quickActions[0];
   const secondaryQuickActions = quickActions.filter((action) => action.key !== primaryQuickAction?.key);
 
   // بطاقة المهام العاجلة في شريط نبض اليوم
-  const urgentTaskCount = isEmployee
-    ? (cash?.openSettlementId ? 1 : 0) + (cash?.pendingExpenses ?? 0) + (cash?.approvedUnpaid ?? 0)
+  // A missing summary is not a zero task count. Cash can be absent because
+  // there is no open account, an ambiguous account, or a failed read.
+  // Task totals combine custody/settlement and expense data. Do not present a
+  // partial total as complete if either source page is restricted.
+  const taskSourcesAllowed = canOpen(isEmployee ? "/finance/mine" : "/finance/transfers") && canOpen("/finance/expenses");
+  const taskSummaryAvailable = taskSourcesAllowed && (isEmployee ? cash !== null : summary !== null);
+  const urgentTaskCount: number | null = !taskSummaryAvailable ? null : isEmployee
+    ? (cash!.openSettlementId ? 1 : 0) + cash!.pendingExpenses + cash!.approvedUnpaid
     : isAccountant
-      ? (summary?.pendingSettlements ?? 0) + approvedUnpaidExpenses
+      ? summary!.pendingSettlements + approvedUnpaidExpenses
       : unapprovedExpenses + unapprovedSettlements;
-
-  const urgentTaskHref = unifiedActions[0]?.href ?? (finOn && canOpen("/finance/expenses") ? "/finance/expenses" : "/sales");
-  const urgentTaskSub = isEmployee
-    ? urgentTaskCount > 0
-      ? `${cash?.pendingExpenses ?? 0} مصروف · ${cash?.openSettlementId ? "طلب تسوية مفتوح" : "متابعة العهدة"}`
-      : "لا مهام معلّقة على عهدتك الآن"
-    : isAccountant
-      ? `${nf.format(summary?.pendingSettlements ?? 0)} تسوية للتأكيد · ${nf.format(approvedUnpaidExpenses)} مصروف للصرف`
-      : `${nf.format(unapprovedExpenses)} مصروف للاعتماد · ${nf.format(unapprovedSettlements)} تسوية عهدة`;
+  const urgentTaskHref = unifiedActions[0]?.href ?? (finOn && canOpen("/finance/expenses") ? "/finance/expenses" : canOpen("/sales") ? "/sales" : "/dashboard");
+  const urgentTaskSub = urgentTaskCount === null
+    ? (!finOn ? "المالية غير مفعّلة؛ لا تتوفر مهامها هنا." : !taskSourcesAllowed ? "بعض مصادر المهام غير متاحة بصلاحيات حسابك؛ راجع السجلات المصرّح بها." : "ملخص المهام المالية غير متاح؛ راجع السجلات المصرّح بها.")
+    : isEmployee
+      ? (urgentTaskCount ?? 0) > 0
+        ? `${cash!.pendingExpenses} مصروف · ${cash!.openSettlementId ? "طلب تسوية مفتوح" : "متابعة العهدة"}`
+        : "لا مهام في ملخص العهدة الحالي؛ راجع السجلات للمزيد."
+      : isAccountant
+        ? `${nf.format(summary!.pendingSettlements)} تسوية للتأكيد · ${nf.format(approvedUnpaidExpenses)} مصروف للصرف`
+        : `${nf.format(unapprovedExpenses)} مصروف للاعتماد · ${nf.format(unapprovedSettlements)} تسوية عهدة`;
 
   // دمج السجل الحيّ لآخر الحركات (مبيعات + تحصيلات + مصروفات + تسويات)
   const mergedActivities: DashboardActivityItem[] = [
-    ...(pulseData?.recentCommerceEvents ?? []),
-    ...(financeSpotlights?.recentActivities ?? []),
+    ...(showInvoiceDetails ? pulseData?.recentCommerceEvents ?? [] : []),
+    ...(financeSpotlights?.recentActivities ?? []).filter((item) => showExpenseDetails || item.kind !== "expense").filter((item) => canOpen(item.href)),
   ]
     .sort((a, b) => b.timestampMs - a.timestampMs)
     .slice(0, 8);
 
   // خريطة عهدة كل فرع (للإدارة والمحاسب فقط — لا تُكشف للكاونتر)
-  const custodyExpectedByBranchName = new Map<string, string>();
-  if (!isEmployee && summary) {
+  const custodyExpectedByBranchId = new Map<string, string>();
+  if (!isEmployee && canViewCustody && summary) {
     for (const c of summary.custodies) {
-      custodyExpectedByBranchName.set(c.branchName, c.expected);
+      custodyExpectedByBranchId.set(c.branchId, c.expected);
     }
   }
 
@@ -446,7 +525,7 @@ export default async function DashboardPage({
     </details>
   ) : null;
 
-  const dashboardOmniSearchForm: ReactNode = (
+  const dashboardOmniSearchForm: ReactNode = showInvoiceDetails ? (
     <form method="get" action="/dashboard" className="dashboard-omni-form" role="search">
       {requestedBranch ? <input type="hidden" name="branch" value={requestedBranch} /> : null}
       {requestedSection ? <input type="hidden" name="section" value={requestedSection} /> : null}
@@ -464,7 +543,7 @@ export default async function DashboardPage({
         <button type="submit" className="dashboard-omni-form__submit" aria-label="تنفيذ البحث"><AppIcon name="search" /></button>
       </div>
     </form>
-  );
+  ) : null;
 
   const dashboardHeaderContent: ReactNode = (
     <div className="dashboard-heading__intro">
@@ -565,7 +644,7 @@ export default async function DashboardPage({
       </section>
 
       {/* نتائج البحث تظهر أسفل الترويسة؛ حقل البحث نفسه مدمج داخلها */}
-      {execSuite?.omniSearch ? (
+      {showInvoiceDetails && execSuite?.omniSearch ? (
         <section className="dashboard-omni-section" aria-label="نتائج البحث الفوري">
           <div className="dashboard-omni-results" role="region" aria-label="نتائج البحث الفوري">
             <div className="dashboard-omni-results__head">
@@ -637,7 +716,7 @@ export default async function DashboardPage({
                     <ul>
                       {execSuite.omniSearch.sales.map((sale) => (
                         <li key={sale.saleId}>
-                          <Link href={`/sales/${sale.saleId}`} className="dashboard-omni-hit">
+                          <PageLink allowed={canOpen(`/sales/${sale.saleId}`)} href={`/sales/${sale.saleId}`} className="dashboard-omni-hit">
                             <div>
                               <strong>
                                 فاتورة #{sale.saleId} — {sale.customerName}
@@ -650,7 +729,7 @@ export default async function DashboardPage({
                             <span className={`dashboard-feed__badge is-${sale.tone}`}>
                               {sale.statusLabel}
                             </span>
-                          </Link>
+                          </PageLink>
                         </li>
                       ))}
                     </ul>
@@ -703,11 +782,30 @@ export default async function DashboardPage({
 
   return (
     <div className="dashboard">
+      {finOn && !isEmployee && !financeScopeMatchesDashboard && <div className="fin-alert fin-alert--warning" role="note">ملخصات العهد والمصروفات الشهرية المالية تخص فرع حسابك، وقد يختلف نطاقها عن نطاق المبيعات المختار في اللوحة.</div>}
+      {canViewRecordedFlow && <section className="fin-panel" aria-label="الحركات المسجّلة هذا الشهر">
+        <div className="fin-panel__heading"><h2>الحركات المسجّلة هذا الشهر</h2><p>حسب وقت التسجيل بتوقيت القاهرة؛ نقد ووسائل أخرى منفصلة. ليست رصيدًا نقديًا ولا تثبت وقت الدفع الفعلي. {isEmployee ? "المسجّل بواسطة حسابك في فرعك." : session.branchId ? "ضمن فرع حسابك." : selectedBranchObj ? "ضمن الفرع المختار." : "ضمن جميع الفروع."}</p></div>
+        <div className="fin-panel__body">{recordedFlowError ? <p className="fin-alert fin-alert--warning">تعذّرت قراءة الحركات المسجّلة؛ لا تتوفر أرقام موثوقة الآن.</p> : recordedFlow?.length ? <>
+          <p>تشمل الأرقام الأحداث المسجّلة على فواتير ملغاة والصرف التاريخي أو المصحّح دون افتراض رد أو تعديل المبلغ الأصلي؛ الأعداد المعلّمة تحتاج مراجعة.</p>
+          <ul>{recordedFlow.map(row => <li key={`${row.kind}-${row.method}`}><strong>{({COLLECTION: "تحصيل", REFUND: "رد", PAYMENT: "صرف"} as Record<string,string>)[row.kind]} · {({CASH: "نقد", CARD: "بطاقة", BANK_TRANSFER: "تحويل بنكي", WALLET: "محفظة إلكترونية"} as Record<string,string>)[row.method]}</strong>: <bdi dir="ltr">{row.amount}</bdi> ج.م — {row.count} حركة{row.flagged ? `، منها ${row.flagged} معلّمة للمراجعة` : ""}</li>)}</ul>
+        </> : <p>لا توجد حركات مسجّلة في النطاق خلال الشهر حتى الآن.</p>}</div>
+      </section>}
+      {access.isAllowed(isEmployee ? "/finance/mine" : "/finance") && summary?.sourceRecorderMismatch && <PeriodSourceWarning />}
+      {access.isAllowed(isEmployee ? "/finance/mine" : "/finance") && summary?.multipleCustodies ? <div className="fin-alert fin-alert--warning" role="alert">يوجد صاحب له أكثر من عهدة مفتوحة في النطاق المعروض؛ قد تتكرر مؤشرات الفترة ولا يعتمد الإجمالي للتسليم. يتوقف الجرد والتسوية والإقفال للعهد المتأثرة للمراجعة.</div> : null}
+      {access.isAllowed(isEmployee ? "/finance/mine" : "/finance") && (cash?.holderCorrectionInPeriod || summary?.holderCorrectionInPeriod) ? <div className="fin-alert fin-alert--warning" role="alert">بعض مؤشرات العهد غير مؤكدة لوجود تصحيح مرتبط بدفع نقد موظف عند حد الفترة أو بعده في الفرع؛ توقفت الإجراءات المتأثرة للمراجعة.</div> : null}
+      {access.isAllowed(isEmployee ? "/finance/mine" : "/finance") ? (
+        (cash?.boundaryAmbiguous || summary?.boundaryAmbiguous) && <div className="fin-alert fin-alert--warning" role="alert">بعض مؤشرات العهد غير مؤكدة بسبب عملية نقدية تساوي وقت بداية الفترة؛ الجرد والتسوية والإقفال متوقفة للمراجعة، ولا تعتمد الأرقام المعروضة للتسليم.</div>
+      ) : finOn ? (
+        <div className="fin-alert fin-alert--warning" role="note">مؤشرات العهد المعروضة تقديرية وقد لا تصلح للتسليم؛ راجع المسؤول المخوّل قبل الاعتماد عليها.</div>
+      ) : null}
+      {!efficiencyInputsAvailable && <div className="fin-alert fin-alert--warning" role="note">بعض مؤشرات الكفاءة والربحية المركبة غير متاحة لعدم توفر مصادرها المالية أو صلاحيات عرضها أو لاختلاف نطاق الفروع؛ لا يُفترض أن القيم المفقودة صفر.</div>}
+      {/* الصلاحيات: عناصر أخفاها الأدمن لكل دور/حساب — تختفي بعالقاتها الحقيقية بغض النظر عن تفضيل المستخدم */}
+      {accessHiddenCss ? <style data-ac-hide="">{accessHiddenCss}</style> : null}
       {/* ٣–٥. قائمة أقسام لوحة القيادة المنسدلة (كل قسم ومؤشر على حدة + العرض الشامل) */}
       {(() => {
         const pulseNode: ReactNode = (
           <section className="dashboard-pulse-strip" aria-label="نبض عمليات اليوم">
-        <Link href="/sales" className="dashboard-pulse-card is-accent">
+        <PageLink allowed={canOpen("/sales")} href="/sales" className="dashboard-pulse-card is-accent">
           <span className="dashboard-pulse-card__icon" aria-hidden="true">
             <AppIcon name="sales" />
           </span>
@@ -727,9 +825,9 @@ export default async function DashboardPage({
               )}
             </small>
           </div>
-        </Link>
+        </PageLink>
 
-        <Link href="/sales" className="dashboard-pulse-card">
+        <PageLink allowed={canOpen("/sales")} href="/sales" className="dashboard-pulse-card">
           <span className="dashboard-pulse-card__icon" aria-hidden="true">
             <AppIcon name="cash" />
           </span>
@@ -743,11 +841,11 @@ export default async function DashboardPage({
               <bdi dir="ltr">{pulseData?.todayElectronicCollectedFormatted ?? "0.00"}</bdi>
             </small>
           </div>
-        </Link>
+        </PageLink>
 
         <Link
           href={urgentTaskHref}
-          className={`dashboard-pulse-card${urgentTaskCount > 0 ? " is-alert" : ""}`}
+          className={`dashboard-pulse-card${(urgentTaskCount ?? 0) > 0 ? " is-alert" : ""}`}
         >
           <span className="dashboard-pulse-card__icon" aria-hidden="true">
             <AppIcon name="expenses" />
@@ -757,7 +855,7 @@ export default async function DashboardPage({
               {isAccountant ? "مهام تنتظر التنفيذ" : isEmployee ? "مهام عهدتك اليوم" : "بانتظار قرارك الآن"}
             </span>
             <strong className="dashboard-pulse-card__value">
-              {nf.format(urgentTaskCount)} <small>{urgentTaskCount === 1 ? "مهمة" : "مهام"}</small>
+              {urgentTaskCount === null ? "—" : <>{nf.format(urgentTaskCount)} <small>{urgentTaskCount === 1 ? "مهمة" : "مهام"}</small></>}
             </strong>
             <small className="dashboard-pulse-card__sub">{urgentTaskSub}</small>
           </div>
@@ -773,10 +871,10 @@ export default async function DashboardPage({
             </span>
             <div className="dashboard-pulse-card__body">
               <span className="dashboard-pulse-card__label">
-                {isEmployee ? "مخزون فرعك والنواقص" : "قيمة المخزون والنواقص"}
+                {isEmployee ? "مخزون فرعك والنواقص" : showStockValue ? "قيمة المخزون والنواقص" : "تنبيهات المخزون"}
               </span>
               <strong className="dashboard-pulse-card__value">
-                {isEmployee ? (
+                {isEmployee || !showStockValue ? (
                   <>
                     {nf.format(lowStockTotalCount)} <small>تنبيه نقص</small>
                   </>
@@ -800,10 +898,10 @@ export default async function DashboardPage({
             </span>
             <div className="dashboard-pulse-card__body">
               <span className="dashboard-pulse-card__label">
-                {isEmployee ? "الأصناف ومستودع فرعك" : "قيمة المخزون والأصناف"}
+                {isEmployee ? "الأصناف ومستودع فرعك" : showStockValue ? "قيمة المخزون والأصناف" : "الأصناف والمستودعات"}
               </span>
               <strong className="dashboard-pulse-card__value">
-                {isEmployee ? (
+                {isEmployee || !showStockValue ? (
                   <>
                     {nf.format(productCount)} <small>صنف نشط</small>
                   </>
@@ -889,7 +987,7 @@ export default async function DashboardPage({
         </section>
         ) : null;
 
-        const governanceNode: ReactNode = !isEmployee && execSuite?.governance ? (
+        const governanceNode: ReactNode = governanceInputsAvailable && execSuite?.governance ? (
         <section
           className={`dashboard-governance${execSuite.governance.isClean ? " is-clean" : " has-alerts"}`}
           aria-label="الرقابة المالية والخصومات"
@@ -902,12 +1000,12 @@ export default async function DashboardPage({
               <strong>تنبيهات الرقابة المالية والخصومات</strong>
               {execSuite.governance.isClean ? (
                 <p>
-                  ضوابط التشغيل سليمة اليوم — لا إلغاءات أو مرتجعات مسجّلة اليوم، ولا تجاوزات لسقف خصم الكاونتر (
-                  {execSuite.governance.staffDiscountPctLabel})، ولا فروقات جرد معلّقة.
+                  لا تنبيهات في الفحوص المعروضة للإلغاءات والمرتجعات اليوم، وخصومات الشهر (سقف الكاونتر {execSuite.governance.staffDiscountPctLabel})، والتسويات المفتوحة أو المؤكدة هذا الشهر. لا يثبت ذلك سلامة جميع العمليات أو النقد.
                 </p>
               ) : (
                 <p>حالات رقابية تستوجب المراجعة ضمن {activeScopeLabel}:</p>
               )}
+              <p>{governanceScopeNote}</p>
             </div>
           </div>
 
@@ -955,7 +1053,7 @@ export default async function DashboardPage({
             </div>
             <div className="stat-card__body">
               <div className="stat-grid pulse-slide__grid">
-                <Link href="/sales" className="stat-grid__item is-link pulse-cell pulse-cell--sales">
+                <PageLink allowed={canOpen("/sales")} href="/sales" className="stat-grid__item is-link pulse-cell pulse-cell--sales">
                   <span className="stat-grid__label">
                     <span className="stat-grid__icon is-blue" aria-hidden="true">
                       <AppIcon name="sales" />
@@ -975,9 +1073,9 @@ export default async function DashboardPage({
                       `${nf.format(pulseData?.todayInvoicesCount ?? 0)} فاتورة نشطة اليوم · أمس ${pulseData?.yesterdayNetSalesFormatted ?? "0.00"} ج.م`
                     )}
                   </span>
-                </Link>
+                </PageLink>
 
-                <Link href="/sales" className="stat-grid__item is-link pulse-cell pulse-cell--collections">
+                <PageLink allowed={canOpen("/sales")} href="/sales" className="stat-grid__item is-link pulse-cell pulse-cell--collections">
                   <span className="stat-grid__label">
                     <span className="stat-grid__icon is-cyan" aria-hidden="true">
                       <AppIcon name="cash" />
@@ -991,11 +1089,11 @@ export default async function DashboardPage({
                     نقدي <bdi dir="ltr">{pulseData?.todayCashCollectedFormatted ?? "0.00"}</bdi> · بطاقة/تحويل{" "}
                     <bdi dir="ltr">{pulseData?.todayElectronicCollectedFormatted ?? "0.00"}</bdi>
                   </span>
-                </Link>
+                </PageLink>
 
                 <Link
                   href={urgentTaskHref}
-                  className={`stat-grid__item is-link pulse-cell pulse-cell--tasks${urgentTaskCount > 0 ? " pulse-cell--alert" : ""}`}
+                  className={`stat-grid__item is-link pulse-cell pulse-cell--tasks${(urgentTaskCount ?? 0) > 0 ? " pulse-cell--alert" : ""}`}
                 >
                   <span className="stat-grid__label">
                     <span className="stat-grid__icon is-blue" aria-hidden="true">
@@ -1004,7 +1102,7 @@ export default async function DashboardPage({
                     {isAccountant ? "مهام تنتظر التنفيذ" : isEmployee ? "مهام عهدتك اليوم" : "بانتظار قرارك الآن"}
                   </span>
                   <span className="stat-grid__value">
-                    {nf.format(urgentTaskCount)} <small>{urgentTaskCount === 1 ? "مهمة" : "مهام"}</small>
+                    {urgentTaskCount === null ? "—" : <>{nf.format(urgentTaskCount)} <small>{urgentTaskCount === 1 ? "مهمة" : "مهام"}</small></>}
                   </span>
                   <span className="stat-grid__detail pulse-cell__sub">{urgentTaskSub}</span>
                 </Link>
@@ -1018,10 +1116,10 @@ export default async function DashboardPage({
                       <span className="stat-grid__icon is-cyan" aria-hidden="true">
                         <AppIcon name={isEmployee ? "products" : "stockValue"} />
                       </span>
-                      {isEmployee ? "مخزون فرعك والنواقص" : "قيمة المخزون والنواقص"}
+                      {isEmployee ? "مخزون فرعك والنواقص" : showStockValue ? "قيمة المخزون والنواقص" : "تنبيهات المخزون"}
                     </span>
                     <span className="stat-grid__value">
-                      {isEmployee ? (
+                      {isEmployee || !showStockValue ? (
                         <>
                           {nf.format(lowStockTotalCount)} <small>تنبيه نقص</small>
                         </>
@@ -1043,10 +1141,10 @@ export default async function DashboardPage({
                       <span className="stat-grid__icon is-cyan" aria-hidden="true">
                         <AppIcon name={isEmployee ? "products" : "stockValue"} />
                       </span>
-                      {isEmployee ? "الأصناف ومستودع فرعك" : "قيمة المخزون والأصناف"}
+                      {isEmployee ? "الأصناف ومستودع فرعك" : showStockValue ? "قيمة المخزون والأصناف" : "الأصناف والمستودعات"}
                     </span>
                     <span className="stat-grid__value">
-                      {isEmployee ? (
+                      {isEmployee || !showStockValue ? (
                         <>
                           {nf.format(productCount)} <small>صنف نشط</small>
                         </>
@@ -1138,17 +1236,17 @@ export default async function DashboardPage({
 
         /* شريحة «درع الرقابة» داخل الحافظة — بحد أقصى ٣ تنبيهات مع «عرض الكل» */
         const governanceSlideNode: ReactNode =
-          !isEmployee && execSuite?.governance ? (
+          governanceInputsAvailable && execSuite?.governance ? (
             <article className="stat-card is-governance-slide" data-dash-part="governance" aria-labelledby="governance-slide-title">
               <div className="stat-card__head">
                 <h3 id="governance-slide-title">درع الرقابة</h3>
                 <p>
                   {execSuite.governance.isClean
-                    ? `الضوابط سليمة ضمن ${activeScopeLabel}`
+                    ? `لا تنبيهات في الفحوص المعروضة ضمن ${activeScopeLabel}`
                     : `حالات رقابية تستوجب المراجعة ضمن ${activeScopeLabel}`}
                 </p>
                 <span className={`stat-card__badge${execSuite.governance.isClean ? "" : " is-alert"}`}>
-                  {execSuite.governance.isClean ? "سليمة" : `${nf.format(execSuite.governance.alerts.length)} تنبيه`}
+                  {execSuite.governance.isClean ? "لا تنبيهات" : `${nf.format(execSuite.governance.alerts.length)} تنبيه`}
                 </span>
               </div>
               <div className="stat-card__body">
@@ -1163,12 +1261,12 @@ export default async function DashboardPage({
                       <strong>تنبيهات الرقابة المالية والخصومات</strong>
                       {execSuite.governance.isClean ? (
                         <p>
-                          ضوابط التشغيل سليمة اليوم — لا إلغاءات أو مرتجعات مسجّلة اليوم، ولا تجاوزات لسقف خصم الكاونتر (
-                          {execSuite.governance.staffDiscountPctLabel})، ولا فروقات جرد معلّقة.
+                          لا تنبيهات في الفحوص المعروضة للإلغاءات والمرتجعات اليوم، وخصومات الشهر (سقف الكاونتر {execSuite.governance.staffDiscountPctLabel})، والتسويات المفتوحة أو المؤكدة هذا الشهر. لا يثبت ذلك سلامة جميع العمليات أو النقد.
                         </p>
                       ) : (
                         <p>الأحدث يحتاج مراجعتك الآن:</p>
                       )}
+                      <p>{governanceScopeNote}</p>
                     </div>
                   </div>
 
@@ -1216,15 +1314,17 @@ export default async function DashboardPage({
         const walletNode: ReactNode = (
           <DashboardWallet
             balanceValue={expectedBalanceValue}
-            balanceLabel="المستحق للخزنة"
+            balanceLabel="مؤشر الفترة"
             pocketItems={pocketItems}
           >
-            {/* الشريحة ١: عهدة الموظف (للكاونتر) أو المستحق للخزنة وعهد الفروع الموحّدة (للإدارة والمحاسب) */}
-            {cash ? (
+            {/* الشريحة ١: عهدة الموظف (للكاونتر) أو مؤشر الفترة وعهد الفروع الموحّدة (للإدارة والمحاسب) */}
+            {canViewCustody && cash ? (
               <article className="stat-card is-custody" aria-labelledby="cash-title">
                 <div className="stat-card__head">
                   <h3 id="cash-title">عهدة الموظف</h3>
-                  <p>الرصيد، زائدًا مبيعات الفترة، ناقصًا مصروفاتها من نقدك.</p>
+                  <p>الرصيد الدفتري، زائدًا التحصيلات المحسوبة، ناقصًا المصروفات المحسوبة.</p>
+                  <PeriodEstimateNotice />
+                  {cash.sourceRecorderMismatch && <PeriodSourceWarning />}
                 </div>
                 <div className="stat-card__body">
                   <div className="stat-grid">
@@ -1237,11 +1337,11 @@ export default async function DashboardPage({
                       <span className="stat-grid__value">{nf.format(Number(cash.sales))} ج.م</span>
                     </div>
                     <div className="stat-grid__item">
-                      <span className="stat-grid__label">مصروفاتها من نقدك</span>
+                      <span className="stat-grid__label">مصروفات الفترة المحسوبة</span>
                       <span className="stat-grid__value">{nf.format(Number(cash.expenses))} ج.م</span>
                     </div>
                     <div className="stat-grid__item is-primary">
-                      <span className="stat-grid__label">المتوقَّع بيدك</span>
+                      <span className="stat-grid__label">مؤشر الفترة التقديري</span>
                       <span className="stat-grid__value">{nf.format(Number(cash.expected))} ج.م</span>
                     </div>
                     <div className="stat-grid__item">
@@ -1249,7 +1349,7 @@ export default async function DashboardPage({
                       <span className="stat-grid__value">{nf.format(Number(cash.todaySales))} ج.م</span>
                     </div>
                     <div className="stat-grid__item">
-                      <span className="stat-grid__label">مصروفات اليوم من نقدك</span>
+                      <span className="stat-grid__label">مصروفات اليوم المحسوبة</span>
                       <span className="stat-grid__value">{nf.format(Number(cash.todayExpenses))} ج.م</span>
                     </div>
                     <div className="stat-grid__item is-wide">
@@ -1258,25 +1358,32 @@ export default async function DashboardPage({
                         {nf.format(Number(cash.outstanding))} ج.م{" "}
                         <small>{nf.format(cash.outstandingCount)} فاتورة آجلة</small>
                       </span>
+                      {pulseData && pulseData.outstandingChangePct !== null ? (
+                        <span className={`dashboard-pulse-delta is-${pulseData.outstandingChangeDirection}`}>
+                          {pulseData.outstandingChangeDirection === "down" ? "↓" : pulseData.outstandingChangeDirection === "up" ? "↑" : "="}{" "}
+                          {nf.format(Math.abs(pulseData.outstandingChangePct))}% عن أمس
+                        </span>
+                      ) : null}
                     </div>
                   </div>
                 </div>
                 <div className="dashboard-panel__footer">
-                  <span>المتوقَّع بيدك يتغيّر مع كل بيع نقدي ومع كل مصروف تصرفه من نقدك</span>
+                  <span>المؤشر يتأثر بالسجلات المحسوبة؛ لا يثبت النقد الموجود أو مبلغ التسليم</span>
                 </div>
               </article>
-            ) : summary ? (
+            ) : canViewCustody && summary ? (
               <article className="stat-card is-custody" aria-labelledby="summary-title">
                 <div className="stat-card__head">
-                  <h3 id="summary-title">المستحق للخزنة وعُهَد الفروع</h3>
-                  <p>المتوقَّع تسليمه فعليًا من كل عهدة نشطة عند التسوية.</p>
+                  <h3 id="summary-title">مؤشر عُهَد الفروع</h3>
+                  <p>مؤشر محسوب من السجلات لكل عهدة نشطة؛ لا يثبت النقد المتاح أو التسليم.</p>
+                  <PeriodEstimateNotice />
                   <span className="stat-card__badge">{nf.format(summary.custodyCount)} عهدة</span>
                 </div>
                 <div className="stat-card__body">
                   <div className="stat-grid">
                     {summary.custodies.map((custody) => (
-                      <div className="stat-grid__item" key={custody.branchName}>
-                        <span className="stat-grid__label">{custody.branchName}</span>
+                      <div className="stat-grid__item" key={custody.branchId}>
+                        <span className="stat-grid__label">{custody.branchName} · {custody.branchCode}</span>
                         <span className="stat-grid__value">{nf.format(Number(custody.expected))} ج.م</span>
                       </div>
                     ))}
@@ -1289,13 +1396,13 @@ export default async function DashboardPage({
                       </span>
                     </div>
                     <div className="stat-grid__item is-primary">
-                      <span className="stat-grid__label">إجمالي المستحق للخزنة</span>
+                      <span className="stat-grid__label">مجموع مؤشرات العُهَد</span>
                       <span className="stat-grid__value">{nf.format(Number(summary.totalExpected))} ج.م</span>
                     </div>
                   </div>
                 </div>
                 <div className="dashboard-panel__footer">
-                  <span>مجمَّع «المتوقَّع بيده» (الرصيد + مبيعات النقد − مصروفات العهدة)</span>
+                  <span>مجموع مؤشرات الفترة (الرصيد + مبيعات النقد − مصروفات العهدة)</span>
                 </div>
               </article>
             ) : null}
@@ -1311,10 +1418,13 @@ export default async function DashboardPage({
                   {isEmployee ? "ما ينتظرك اليوم" : isAccountant ? "مهام الصرف والتأكيد" : "ما ينتظر قرارك"}
                 </h3>
                 <p>إجراءات معلّقة بروابط مباشرة للتنفيذ الفوري.</p>
-                <span className="stat-card__badge">{nf.format(unifiedActions.length)} عنصر</span>
+                <span className="stat-card__badge">{taskSummaryAvailable ? `${nf.format(unifiedActions.length)} عنصر` : "—"}</span>
               </div>
               <div className="stat-card__body">
                 <div className="stat-grid">
+                  {!taskSummaryAvailable && unifiedActions.length > 0 ? (
+                    <div className="stat-grid__item is-note"><span className="stat-grid__label">{urgentTaskSub} الإجراءات أدناه ليست قائمة كاملة.</span></div>
+                  ) : null}
                   {unifiedActions.length > 0 ? (
                     unifiedActions.map((item) => (
                       <Link className="stat-grid__item is-link" key={item.key} href={item.href}>
@@ -1333,7 +1443,7 @@ export default async function DashboardPage({
                   ) : (
                     <div className="stat-grid__item is-note">
                       <span className="stat-grid__label">
-                        كل شيء محدّث ومعتمد — لا توجد طلبات تسوية أو مصروفات معلّقة بانتظارك الآن.
+                        {taskSummaryAvailable ? "لا توجد إجراءات متاحة للعرض هنا حاليًا؛ راجع السجلات المصرّح بها." : urgentTaskSub}
                       </span>
                     </div>
                   )}
@@ -1374,7 +1484,7 @@ export default async function DashboardPage({
                       </span>
                     </div>
                   ) : null}
-                  {!isEmployee && !isAccountant && canViewAllBranches && canOpen("/setup") ? (
+                  {!isEmployee && !isAccountant && access.isSystemAdmin ? (
                     <Link className="stat-grid__link" href="/setup">
                       عرض تفاصيل الإعداد <AppIcon name="arrow" />
                     </Link>
@@ -1385,10 +1495,10 @@ export default async function DashboardPage({
           </DashboardWallet>
         );
 
-        const efficiencySeries = execSuite?.compositeEfficiencySpotlight
+        const efficiencySeries = efficiencyInputsAvailable && execSuite?.compositeEfficiencySpotlight
           ? withPinKeys(execSuite.compositeEfficiencySpotlight.series)
           : [];
-        const efficiencyNode: ReactNode = execSuite?.compositeEfficiencySpotlight ? (
+        const efficiencyNode: ReactNode = efficiencyInputsAvailable && execSuite?.compositeEfficiencySpotlight ? (
           <PantherSpotlightCard
             layout="wallet"
             icon="efficiencyGauge"
@@ -1416,7 +1526,7 @@ export default async function DashboardPage({
         ) : null;
 
         const monthSalesPinnedSeries = withPinKeys(monthSalesSeries);
-        const monthlySalesNode: ReactNode = monthSales ? (
+        const monthlySalesNode: ReactNode = showInvoiceDetails && monthSales ? (
           <MonthlySalesPanther
             monthLabel={currentMonthLabel}
             totalFormatted={nf.format(Number(monthSales.total))}
@@ -1453,7 +1563,7 @@ export default async function DashboardPage({
             canOpenInvoice={canOpen("/sales/1")}
           />
         ) : null;
-        const collectionsNode: ReactNode = collectionsSpotlight ? (
+        const collectionsNode: ReactNode = showInvoiceDetails && collectionsSpotlight ? (
           <PantherSpotlightCard
             layout="wallet"
             icon="customerCollection"
@@ -1464,7 +1574,7 @@ export default async function DashboardPage({
             primary={collectionsSpotlight.primary}
             secondary={collectionsSpotlight.secondary}
             series={collectionsSpotlight.series}
-            actionHref={collectionsSpotlight.actionHref}
+            actionHref={canOpen(collectionsSpotlight.actionHref) ? collectionsSpotlight.actionHref : undefined}
             actionLabel={collectionsSpotlight.actionLabel}
             detailsHudToggle
           >
@@ -1472,40 +1582,17 @@ export default async function DashboardPage({
           </PantherSpotlightCard>
         ) : null;
 
-        const cashConvSeries = execSuite?.cashConversionSpotlight
-          ? withPinKeys(execSuite.cashConversionSpotlight.series)
-          : [];
-        const cashConversionNode: ReactNode = execSuite?.cashConversionSpotlight ? (
-          <PantherSpotlightCard
-            layout="wallet"
-            icon="cashConversion"
-            chartVariant="waterfall"
-            title={execSuite.cashConversionSpotlight.title}
-            subtitle={execSuite.cashConversionSpotlight.subtitle}
-            pill={execSuite.cashConversionSpotlight.pill}
-            primary={execSuite.cashConversionSpotlight.primary}
-            secondary={execSuite.cashConversionSpotlight.secondary}
-            series={cashConvSeries}
-            actionHref={
-              canOpen(execSuite.cashConversionSpotlight.actionHref.split("?")[0])
-                ? execSuite.cashConversionSpotlight.actionHref
-                : "/sales"
-            }
-            actionLabel={
-              canOpen(execSuite.cashConversionSpotlight.actionHref.split("?")[0])
-                ? execSuite.cashConversionSpotlight.actionLabel
-                : "مراجعة الفواتير والتحصيلات"
-            }
-            detailsHudToggle
-          >
-            <PinGroups series={cashConvSeries} />
-          </PantherSpotlightCard>
-        ) : null;
+        // This comparison mixes collection registration dates with expense dates
+        // and, for employees, different actor scopes. It is not cash on hand.
+        // Do not serialize the computed spotlight until its sources and period
+        // can be reconciled; the other dashboard cards remain available.
+        const cashConversionNode: ReactNode = null;
 
-        const cashBalanceSeries = financeSpotlights?.cashBalance
+        const canViewCashBalance = canViewCustody && (isEmployee || canOpen("/finance/accounts"));
+        const cashBalanceSeries = canViewCashBalance && financeSpotlights?.cashBalance
           ? withPinKeys(financeSpotlights.cashBalance.series)
           : [];
-        const cashBalanceNode: ReactNode = financeSpotlights?.cashBalance ? (
+        const cashBalanceNode: ReactNode = canViewCashBalance && financeSpotlights?.cashBalance ? (
           <PantherSpotlightCard
             layout="wallet"
             icon="balanceScale"
@@ -1535,7 +1622,7 @@ export default async function DashboardPage({
         const monthlyExpensesSeries = financeSpotlights?.monthlyExpenses
           ? withPinKeys(financeSpotlights.monthlyExpenses.series)
           : [];
-        const monthlyExpensesNode: ReactNode = financeSpotlights?.monthlyExpenses ? (
+        const monthlyExpensesNode: ReactNode = showExpenseDetails && financeSpotlights?.monthlyExpenses ? (
           <PantherSpotlightCard
             layout="wallet"
             icon="expenseReceipt"
@@ -1558,10 +1645,10 @@ export default async function DashboardPage({
           </PantherSpotlightCard>
         ) : null;
 
-        const fifthSeries = execSuite?.fifthSpotlight
+        const fifthSeries = showFifthSpotlight && execSuite?.fifthSpotlight
           ? withPinKeys(execSuite.fifthSpotlight.series)
           : [];
-        const profitabilityNode: ReactNode = execSuite?.fifthSpotlight ? (
+        const profitabilityNode: ReactNode = showFifthSpotlight && execSuite?.fifthSpotlight ? (
           <PantherSpotlightCard
             layout="wallet"
             icon={isEmployee ? "serialScan" : "netProfit"}
@@ -1588,10 +1675,10 @@ export default async function DashboardPage({
           </PantherSpotlightCard>
         ) : null;
 
-        const branchEffSeries = execSuite?.branchEfficiencySpotlight
+        const branchEffSeries = efficiencyInputsAvailable && execSuite?.branchEfficiencySpotlight
           ? withPinKeys(execSuite.branchEfficiencySpotlight.series)
           : [];
-        const branchEfficiencyNode: ReactNode = execSuite?.branchEfficiencySpotlight ? (
+        const branchEfficiencyNode: ReactNode = efficiencyInputsAvailable && execSuite?.branchEfficiencySpotlight ? (
           <PantherSpotlightCard
             layout="wallet"
             icon="branchScorecard"
@@ -1618,7 +1705,7 @@ export default async function DashboardPage({
           </PantherSpotlightCard>
         ) : null;
 
-        const agingRadarNode: ReactNode = execSuite?.agingRadar ? (
+        const agingRadarNode: ReactNode = showInvoiceDetails && execSuite?.agingRadar ? (
         <section className="dashboard-aging-card" aria-labelledby="aging-radar-title">
           <div className="dashboard-surface-card__head">
             <div>
@@ -1637,9 +1724,9 @@ export default async function DashboardPage({
                   ? `${nf.format(execSuite.agingRadar.totalOpenCount)} فاتورة آجلة · ${execSuite.agingRadar.totalDueFormatted} ج.م`
                   : "لا ذمم متأخرة"}
               </span>
-              <Link href="/sales" className="dashboard-surface-card__link">
+              {canOpen("/sales") && <Link href="/sales" className="dashboard-surface-card__link">
                 كل الفواتير <AppIcon name="arrow" />
-              </Link>
+              </Link>}
             </div>
           </div>
 
@@ -1704,9 +1791,9 @@ export default async function DashboardPage({
                             <bdi dir="ltr">{inv.dueFormatted}</bdi> ج.م
                           </strong>
                         </div>
-                        <Link href={inv.href} className="dashboard-aging-row__cta">
+                        {canOpen(inv.href) && <Link href={inv.href} className="dashboard-aging-row__cta">
                           تحصيل / متابعة
-                        </Link>
+                        </Link>}
                       </div>
                     </li>
                   ))}
@@ -1728,9 +1815,9 @@ export default async function DashboardPage({
               <h2 id="live-feed-title">آخر العمليات الحيّة</h2>
               <p>أحدث الفواتير والتحصيلات والمصروفات والتسويات المسجّلة ضمن صلاحية حسابك.</p>
             </div>
-            <Link href="/sales" className="dashboard-surface-card__link">
+            {canOpen("/sales") && <Link href="/sales" className="dashboard-surface-card__link">
               سجل المبيعات <AppIcon name="arrow" />
-            </Link>
+            </Link>}
           </div>
 
           {mergedActivities.length === 0 ? (
@@ -1864,8 +1951,8 @@ export default async function DashboardPage({
               {pulseData && pulseData.branchHealth.length > 0 ? (
                 <div className="dashboard-branch-cards">
                   {pulseData.branchHealth.map((bh) => {
-                    const expectedCustody = custodyExpectedByBranchName.get(bh.branchName);
-                    const effBadge = execSuite?.branchScoresById?.[bh.branchId];
+                    const expectedCustody = custodyExpectedByBranchId.get(bh.branchId);
+                    const effBadge = efficiencyInputsAvailable ? execSuite?.branchScoresById?.[bh.branchId] : undefined;
                     return (
                       <div key={bh.branchId} className="dashboard-branch-card">
                         <div className="dashboard-branch-card__top">
@@ -1949,12 +2036,12 @@ export default async function DashboardPage({
           {
             id: "pulse-wallet",
             group: "modes",
-            label: "نبض اليوم والحافظة الذكية (الوضع المركّز)",
+            label: "معاملات اليوم",
             description: "الأرقام الأربعة الفورية ووتيرة الشهر والحافظة الذكية ومهام القرار",
             icon: "dashboard",
             stageKind: "pulse-wallet",
-            badgeCount: urgentTaskCount,
-            badgeTone: urgentTaskCount > 0 ? "alert" : "neutral",
+            badgeCount: urgentTaskCount ?? undefined,
+            badgeTone: (urgentTaskCount ?? 0) > 0 ? "alert" : "neutral",
           },
           {
             id: "all",
@@ -2002,10 +2089,10 @@ export default async function DashboardPage({
             id: "wallet",
             group: "daily",
             label: "الحافظة الذكية ومهام القرار",
-            description: "المستحق للخزنة وعُهَد الفروع، القرارات المعلّقة، وصورة النطاق السريعة",
+            description: "مؤشر عُهَد الفروع، القرارات المعلّقة، وصورة النطاق السريعة",
             icon: "cash",
             stageKind: "card",
-            badgeCount: unifiedActions.length,
+            badgeCount: taskSummaryAvailable ? unifiedActions.length : undefined,
             badgeTone: unifiedActions.length > 0 ? "alert" : "neutral",
           },
           ...(efficiencyNode
@@ -2206,7 +2293,7 @@ export default async function DashboardPage({
         })();
 
         /* بطاقة «مصروفات اليوم» — مؤشر داكن بأسلوب لوحة القيادة (Spotlight) مع الإبقاء على بنود اليوم تفصيليًا */
-        const todayExpensesNode: ReactNode = todayExpensesError ? (
+        const todayExpensesNode: ReactNode = !showExpenseDetails ? null : todayExpensesError ? (
           <article
             className="dashboard-surface-card dash-today-card dash-today-expenses"
             data-dash-part="today-expenses"
@@ -2309,7 +2396,7 @@ export default async function DashboardPage({
                           <span className="dash-today-invoice__meta">
                             {row.description}
                             {row.beneficiary ? ` · ${row.beneficiary}` : ""}
-                            {` · ${row.branchName} · سجّلها ${row.requestedByName}`}
+                            {` · ${row.branchName} · ${row.branchCode} · سجّلها ${row.requestedByName}`}
                             {row.status === "PAID" && row.paymentMethodLabel ? ` · صُرفت ${row.paymentMethodLabel}` : ""}
                           </span>
                         </span>
@@ -2341,6 +2428,7 @@ export default async function DashboardPage({
         /* فواتير اليوم ← تحصيلات اليوم ← مصروفات اليوم: خلايا مباشرة داخل شبكة «التصميم الواسع» الموحدة بجوار الحافظة */
         const todayPanelsNode: ReactNode = pulseData ? (
           <>
+            {showInvoiceDetails && <>
             <div className="dashboard-cards-grid__item">
             <article className="dashboard-surface-card dash-today-card" data-dash-part="today-invoices" aria-labelledby="today-invoices-title">
               <div className="dashboard-surface-card__head">
@@ -2350,9 +2438,9 @@ export default async function DashboardPage({
                   </h2>
                   <p>كل فواتير اليوم بترتيب الأحدث — إيصال لكل فاتورة؛ مرّر يمينًا ويسارًا أو استخدم الأسهم.</p>
                 </div>
-                <Link href="/sales/today" className="dashboard-surface-card__link">
+                {canOpen("/sales/today") && <Link href="/sales/today" className="dashboard-surface-card__link">
                   سجل مبيعات اليوم <AppIcon name="arrow" />
-                </Link>
+                </Link>}
               </div>
 
               {pulseData.todayInvoicesList.length === 0 ? (
@@ -2450,10 +2538,20 @@ export default async function DashboardPage({
                                 <span className="dash-today-invoice__id" dir="ltr">
                                   <bdi>ST-{row.saleId}</bdi>
                                 </span>
+                                {row.isOldInvoice ? (
+                                  <span
+                                    className="dash-old-badge"
+                                    title={`فاتورة قديمة صادرة في ${row.issuedAtIso?.slice(0, 10) ?? ""} — منذ ${row.invoiceAgeDays ?? ""} يوم`}
+                                  >
+                                    قديمة
+                                  </span>
+                                ) : null}
                                 <span className="dash-today-invoice__main">
                                   <span className="dash-today-invoice__customer">{row.customerName}</span>
                                   <span className="dash-today-invoice__meta">
-                                    من إجمالي {row.invoiceTotalFormatted} ج.م
+                                    {row.isOldInvoice
+                                      ? `فاتورة قديمة — صدرت ${row.issuedAtIso?.slice(0, 10)}`
+                                      : `من إجمالي ${row.invoiceTotalFormatted} ج.م`}
                                     {row.hasRemaining
                                       ? ` · متبقٍّ ${row.remainingFormatted} ج.م`
                                       : " · مسددة"}
@@ -2483,7 +2581,67 @@ export default async function DashboardPage({
                 })}
               </div>
 
-                            {pulseData.todayRefundsList.length > 0 ? (
+                            {pulseData.todayOldInvoiceCollections.length > 0 ? (
+              <section className="dash-today-section dash-today-section--old" aria-label="تحصيلات فواتير قديمة اليوم">
+                <header className="dash-today-section__head">
+                  <span className="dash-today-section__icon dash-today-section__icon--old" aria-hidden="true">
+                    <AppIcon name="receipt" />
+                  </span>
+                  <h3>تحصيلات فواتير قديمة اليوم</h3>
+                  <span className="dash-today-section__count">{nf.format(pulseData.todayOldInvoiceCollections.length)} فاتورة</span>
+                  <strong className="dash-today-section__sum is-old">
+                    <bdi dir="ltr">+{pulseData.todayOldCollectedTotalFormatted}</bdi> ج.م
+                  </strong>
+                </header>
+                <ul className="dash-today-invoice-list">
+                  {pulseData.todayOldInvoiceCollections.map((row) => {
+                    const href = `/sales/${row.saleId}`;
+                    const allowed = canOpen(href);
+                    const inner = (
+                      <>
+                        <span className="dash-today-invoice__id" dir="ltr">
+                          <bdi>ST-{row.saleId}</bdi>
+                          <span className="dash-old-badge" title={`صادرة منذ ${nf.format(row.ageDays)} يوم`}>قديمة</span>
+                        </span>
+                        <span className="dash-today-invoice__main">
+                          <span className="dash-today-invoice__customer">{row.customerName}</span>
+                          <span className="dash-today-invoice__meta">
+                            صدرت في <bdi dir="ltr">{row.issuedAtIso.slice(0, 10)}</bdi> — منذ {nf.format(row.ageDays)} يوم · إجمالي <bdi dir="ltr">{row.totalFormatted}</bdi> ج.م
+                          </span>
+                          <span className="dash-today-invoice__meta dash-today-invoice__meta--sub">
+                            تحصّل اليوم <bdi dir="ltr">{row.collectedTodayFormatted}</bdi> ج.م
+                            {row.methodBreakdown ? ` (${row.methodBreakdown})` : ""}
+                            {" · "}
+                            <>متبقّي قبل اليوم <bdi dir="ltr">{row.remainingBeforeFormatted}</bdi> ← بعد اليوم <bdi dir="ltr">{row.remainingAfterFormatted}</bdi> ج.م</>
+                            {" · "}
+                            {row.cleared ? "ذمتها مسددة بالكامل" : <>متبقٍّ <bdi dir="ltr">{row.remainingAfterFormatted}</bdi> ج.م</>}
+                            {" · "}
+                            حصّلها {row.collectorName} · {row.branchName}
+                          </span>
+                        </span>
+                        <span className="dash-today-invoice__amount">
+                          <bdi dir="ltr">{row.collectedTodayFormatted}</bdi> ج.م
+                        </span>
+                      </>
+                    );
+                    return (
+                      <li key={row.key} className="dash-today-invoice">
+                        {allowed ? (
+                          <Link href={href} className="dash-today-invoice__link">{inner}</Link>
+                        ) : (
+                          <div className="dash-today-invoice__link is-static">{inner}</div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+                <p className="dash-today-note dash-today-note--tight">
+                  ذمم آجلة صادرة قبل اليوم وكانت غير مسددة عند بدء اليوم — لا تُحتسب ضمن فواتير اليوم، وتظهر بشارة «قديمة» داخل أقسام الوسائل أيضًا.
+                </p>
+              </section>
+            ) : null}
+
+              {pulseData.todayRefundsList.length > 0 ? (
                 <section className="dash-today-section dash-today-section--refund" aria-label="مرتجعات اليوم">
                   <header className="dash-today-section__head">
                     <span className="dash-today-section__icon dash-today-section__icon--refund" aria-hidden="true">
@@ -2546,10 +2704,11 @@ export default async function DashboardPage({
               </p>
             </PantherSpotlightCard>
             </div>
+            </>}
 
-            <div className="dashboard-cards-grid__item">
+            {todayExpensesNode && <div className="dashboard-cards-grid__item">
               {todayExpensesNode}
-            </div>
+            </div>}
           </>
         ) : null;
 
@@ -2638,6 +2797,15 @@ export default async function DashboardPage({
         return (
           <DashboardSectionSwitcher
             userScopeKey={`${session.id}-${session.role}`}
+            forcedHiddenElements={[
+              ["/dashboard#part-pulse", "part-pulse"],
+              ["/dashboard#part-pace", "part-pace"],
+              ["/dashboard#part-governance", "part-governance"],
+              ["/dashboard#part-wallet", "part-wallet"],
+              ["/dashboard#part-today-invoices", "today-invoices"],
+              ["/dashboard#part-today-collections", "today-collections"],
+              ["/dashboard#focus-hint", "part-focus-hint"],
+            ].filter(([key]) => access.hidden.has(key)).map(([, toggle]) => toggle)}
             initialSectionParam={requestedSection}
             items={sectionItems}
             slots={sectionSlots}

@@ -17,6 +17,16 @@ type WriteResult = { id: string; replayed: boolean };
 type DecimalLike = { toFixed: (places: number) => string };
 
 function digest(value: unknown): string { return createHash("sha256").update(JSON.stringify(value)).digest("hex"); }
+/** TEST ONLY: the modern validation layer reads `accountId`, while the lab
+ * payloads (and parseCashChoice) still carry `cashAccountId`. Supply both to
+ * the parser without touching the hashed input or the cash choice. */
+function moneyPayload(raw: unknown): unknown {
+  const value = inputObject(raw);
+  if (typeof value.accountId === "string") return raw;
+  const legacy = value.cashAccountId;
+  return typeof legacy === "string" ? { ...value, accountId: legacy } : raw;
+}
+
 function isCode(error: unknown, code: string): boolean { return typeof error === "object" && error !== null && "code" in error && error.code === code; }
 function isSerializationConflict(error: unknown): boolean {
   if (["P2034", "40001", "40P01"].some((code) => isCode(error, code))) return true;
@@ -40,8 +50,8 @@ async function withSerializableRetry<T>(db: Db, work: (tx: Transaction) => Promi
   }
 }
 async function authorize(tx: Transaction, actorId: bigint, action: CommerceAction, branchId: bigint | null, branchActive: boolean): Promise<void> {
-  const actor = await tx.user.findUnique({ where: { id: actorId }, select: { status: true, roleCode: true, branchId: true, mustChangePassword: true } });
-  if (!actor || !canPerformCommerce({ role: actor.roleCode, status: actor.status, mustChangePassword: actor.mustChangePassword, branchId: actor.branchId }, action, branchId, branchActive)) {
+  const actor = await tx.user.findUnique({ where: { id: actorId }, select: { status: true, roleCode: true, branchId: true, mustChangePassword: true, canCancelSales: true } });
+  if (!actor || !canPerformCommerce({ role: actor.roleCode, status: actor.status, mustChangePassword: actor.mustChangePassword, branchId: actor.branchId, canCancelSales: actor.canCancelSales }, action, branchId, branchActive)) {
     throw new InventoryProblem("ليس لديك صلاحية لتنفيذ العملية في هذا الفرع.");
   }
   if (!branchActive && (action === "RECORD_COLLECTION" || action === "RECORD_REFUND") && actor.roleCode !== "MANAGER" && actor.roleCode !== "ACCOUNTANT") {
@@ -188,7 +198,7 @@ async function position(tx: Transaction, saleId: bigint, total: DecimalLike) {
 
 /** A later collection records receipt of funds; it never initiates a payment. */
 export async function recordCommerceCollection(db: Db, actorId: bigint, raw: unknown): Promise<WriteResult> {
-  const parsed = parseMoneyMovement(raw, false);
+  const parsed = parseMoneyMovement(moneyPayload(raw), false);
   if (!parsed.ok) throw new InventoryProblem("راجع التحصيل ثم حاول مجددًا.", parsed.errors);
   const input = parsed.value;
   const cashChoice = parseCashChoice(raw, input.method, false);
@@ -223,7 +233,7 @@ export async function recordCommerceCollection(db: Db, actorId: bigint, raw: unk
 
 /** This records a refund already paid outside the system. It does not transfer money. */
 export async function recordCommerceRefund(db: Db, actorId: bigint, raw: unknown): Promise<WriteResult> {
-  const parsed = parseMoneyMovement(raw, true);
+  const parsed = parseMoneyMovement(moneyPayload(raw), true);
   if (!parsed.ok) throw new InventoryProblem("راجع رد المبلغ ثم حاول مجددًا.", parsed.errors);
   const input = parsed.value;
   const cashChoice = parseCashChoice(raw, input.method, true);
@@ -260,7 +270,7 @@ export async function recordCommerceRefund(db: Db, actorId: bigint, raw: unknown
  * checkpoint and was already counted. The public invoice row and the lab
  * evidence are committed together; there is no second cash movement. */
 async function recordHistoricalCommerce(db: Db, actorId: bigint, raw: unknown, refund: boolean): Promise<WriteResult> {
-  const parsed = parseMoneyMovement(raw, refund);
+  const parsed = parseMoneyMovement(moneyPayload(raw), refund);
   if (!parsed.ok) throw new InventoryProblem("راجع بيانات العملية التاريخية.",parsed.errors);
   const input = parsed.value;
   if (input.method !== "CASH") throw new FinanceProblem("invalid_input","هذه المراجعة للنقد المحتسب في الجرد فقط.");

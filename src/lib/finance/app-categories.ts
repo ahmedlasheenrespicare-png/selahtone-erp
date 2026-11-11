@@ -4,7 +4,8 @@
  * Categories are never copied, renamed underneath the ledger or rewritten: this
  * port adds only metadata (revision/creator), an audit trail and an idempotency
  * key, exactly like the reviewed prototype but WITHOUT the disposable-database
- * guard, because the reviewed finance schema is now installed in production.
+ * guard. It requires a separately reviewed installation of the finance schema;
+ * this comment is not evidence of any deployment.
  *
  * It is reachable only while the staged finance module is switched on, and the
  * engine re-checks the actor (MANAGER/ACCOUNTANT) inside the same transaction.
@@ -14,8 +15,10 @@ import { createHash } from "node:crypto";
 import { canManageFinance } from "./policy";
 import { identifier, inputObject, requestId, text } from "./validation";
 import { FinanceProblem, type Actor, type FinanceCategoryPort, type FinanceCategoryRow, type FinanceDatabase, type FinanceTransaction, type WriteResult } from "./types";
+import { requireSavedResultLink, saveResultLink, type ResultTable } from "./request-result-link";
 
 type Row = Record<string, unknown>;
+type IdRow = Row & { id: string };
 type ActorRow = Row & Actor;
 type CategoryRow = Row & { id: string; code: string; name: string; active: boolean; revision: number; createdBy: string | null; updatedBy: string | null };
 type Prior = Row & { hash: string; actorId: string; action: string; categoryId: string };
@@ -65,6 +68,11 @@ export function appCategoryPort(tx: FinanceTransaction): FinanceCategoryPort {
       return rows.map((row) => ({ ...row, snapshot: categorySnapshot(row) }));
     },
     lock: (id) => locked(tx, id),
+    exists: async (id) => {
+      if (BigInt(id) > 2147483647n) return false;
+      const rows = await tx.query<IdRow>(`SELECT id::text AS id FROM public.expense_categories WHERE id=$1::int`, [id]);
+      return rows.rows[0]?.id === id;
+    },
     create: async (name, actorId, id) => {
       await requireNameAvailable(tx, name, null);
       // A legacy-compatible code that cannot collide with hand-written ones.
@@ -95,6 +103,7 @@ async function run(
   work: (tx: FinanceTransaction, actor: string) => Promise<string>,
 ): Promise<WriteResult> {
   const actor = identifier(actorIdRaw, "المستخدم"), hash = sha(JSON.stringify({ actor, action, payload }));
+  const resultTable: ResultTable = "public.expense_categories";
   for (let attempt = 0; attempt < 4; attempt++) {
     try {
       return await db.serializable(async (tx) => {
@@ -105,11 +114,13 @@ async function run(
           if (old.actorId !== actor || old.action !== action || old.hash.trim() !== hash) {
             throw new FinanceProblem("request_conflict", "استُخدم معرّف الطلب ببيانات مختلفة.");
           }
+          await requireSavedResultLink(tx, id, { action: old.action, actorId: old.actorId, resultId: old.categoryId }, appCategoryPort(tx));
           return { id: old.categoryId, replayed: true };
         }
         const categoryId = await work(tx, actor);
         await tx.query(`INSERT INTO finance.category_requests(request_id,request_hash,actor_id,action,category_id)
          VALUES($1::uuid,$2,$3::bigint,$4,$5::int)`, [id, hash, actor, action, categoryId]);
+        await saveResultLink(tx, id, action, actor, resultTable, categoryId, appCategoryPort(tx));
         return { id: categoryId, replayed: false };
       });
     } catch (error) {
@@ -123,8 +134,10 @@ async function run(
         try {
           old = await db.serializable(async (tx) => {
             await management(tx, actor);
-            return (await tx.query<Prior>(`SELECT request_hash AS hash,actor_id::text AS "actorId",action,category_id::text AS "categoryId"
+            const prior = (await tx.query<Prior>(`SELECT request_hash AS hash,actor_id::text AS "actorId",action,category_id::text AS "categoryId"
               FROM finance.category_requests WHERE request_id=$1::uuid`, [id])).rows[0] ?? null;
+            if (prior) await requireSavedResultLink(tx, id, { action: prior.action, actorId: prior.actorId, resultId: prior.categoryId }, appCategoryPort(tx));
+            return prior;
           });
         } catch (readError) {
           if ((dbCode(readError) === "40001" || dbCode(readError) === "40P01") && attempt < 3) continue;

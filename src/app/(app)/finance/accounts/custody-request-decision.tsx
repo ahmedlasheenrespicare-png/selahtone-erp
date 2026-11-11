@@ -14,6 +14,10 @@ export type PendingCustodyRequest = {
   requesterName: string;
   branchName?: string;
   createdAt: string;
+  hasRegisteredCustody: boolean;
+  holderUnavailable: boolean;
+  branchUnavailable: boolean;
+  expectedSnapshot: string;
 };
 
 const APPROVE_REASON_PRESETS = [
@@ -96,6 +100,7 @@ export function CustodyRequestDecision({
     <form action={formAction} className="fin-form-stack">
       <input type="hidden" name="requestId" value={requestId} />
       <input type="hidden" name="requestDbId" value={request.id} />
+      <input type="hidden" name="expectedSnapshot" value={request.expectedSnapshot} />
       <input type="hidden" name="decision" value={decision} />
       <input type="hidden" name="openingDate" value={openingDate} />
       <input type="hidden" name="reason" value={reason.trim()} />
@@ -113,6 +118,9 @@ export function CustodyRequestDecision({
           </p>
         </div>
         <div className="fin-panel__body">
+          {request.branchUnavailable ? <div className="fin-alert fin-alert--warning" role="status">فرع الطلب غير نشط أو تعذّر التحقق منه عند عرض الصفحة. الموافقة تتطلب فرعًا نشطًا وقت القرار، ويظل الرفض بسبب متاحًا. قد تتغير الحالة بعد العرض.</div> : null}
+          {request.holderUnavailable ? <div className="fin-alert fin-alert--warning" role="status">عند قراءة الصفحة، مقدم الطلب غير نشط أو ليس في فرع الطلب أو تعذّر التحقق منه. لا يمكن الموافقة حتى يُتحقق من حالته وفرعه؛ يظل الرفض بسبب متاحًا. قد تتغير الحالة بعد العرض.</div> : null}
+          {request.hasRegisteredCustody ? <div className="fin-alert fin-alert--warning" role="status">توجد عهدة مسجّلة لهذا الموظف في فرع الطلب، مفتوحة أو مقفلة. راجع الحساب قبل القرار؛ قد يمنع القيد الحالي فتح عهدة بديلة. يظل رفض الطلب بسبب متاحًا. هذه قراءة عند عرض الصفحة وقد تتغير.</div> : null}
           <div className="acc-decision-toggles" role="group" aria-label="قرار طلب العهدة">
             <button
               type="button"

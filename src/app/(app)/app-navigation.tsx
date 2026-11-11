@@ -5,11 +5,11 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { AppIcon } from "@/components/app-icon";
+import { accessKeyAllowed } from "@/lib/access-control";
 import { BrandMark } from "@/components/brand-mark";
 import ColorModeToggle from "@/components/color-mode-toggle";
 import { LuckyPantherSwitch } from "@/components/lucky-panther-switch";
 import { SelatoneFacebookLogo, SelatoneFacebookMark } from "@/components/selatone-facebook-logo";
-import type { MenuScope } from "@/lib/menu-scope";
 import { WORKSPACE_THEME_GROUPS } from "@/lib/workspace-theme";
 import LogoutButton from "./logout-button";
 import {
@@ -18,6 +18,7 @@ import {
   resolveActiveSidebarHref,
   sidebarNavigationGroups,
   type BottomDockRole,
+  type NavigationAccess,
   type SidebarNavBadges,
 } from "./navigation-items";
 import { useWorkspaceTheme } from "./workspace-theme-provider";
@@ -26,7 +27,7 @@ type AppNavigationProps = {
   canViewAllBranches: boolean;
   role?: BottomDockRole;
   financeEnabled?: boolean;
-  menuScope?: MenuScope;
+  access?: { hiddenPages: string[]; showAdministration: boolean };
   inventoryEnabled?: boolean;
   badges?: SidebarNavBadges;
   userName?: string;
@@ -38,7 +39,7 @@ export function AppNavigation({
   canViewAllBranches,
   role,
   financeEnabled = false,
-  menuScope = "FULL",
+  access,
   inventoryEnabled = false,
   badges,
   userName = "مستخدم النظام",
@@ -60,9 +61,13 @@ export function AppNavigation({
   const [accountPopoverPosition, setAccountPopoverPosition] = useState<CSSProperties | null>(null);
 
   const effectiveRole: BottomDockRole = role ?? (canViewAllBranches ? "MANAGER" : "CS_AGENT");
+  const navigationAccess: NavigationAccess | undefined = access && {
+    showAdministration: access.showAdministration,
+    isPageAllowed: (href) => accessKeyAllowed(new Set(access.hiddenPages), href),
+  };
   const navGroups = sidebarNavigationGroups(effectiveRole, {
     financeEnabled,
-    menuScope,
+    access: navigationAccess,
     inventoryEnabled,
     badges,
   });
@@ -166,7 +171,7 @@ export function AppNavigation({
   const dockItems = mobileBottomDockItems(
     effectiveRole,
     financeEnabled,
-    menuScope,
+    navigationAccess,
     inventoryEnabled,
   );
   const activeDockHref = resolveActiveBottomDockHref(pathname, dockItems);

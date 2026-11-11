@@ -8,6 +8,7 @@ import { downloadCsvFile } from "@/lib/csv-export";
 export type FinanceExpenseRow = {
   id: string;
   expenseDate: string;
+  branchId: string;
   branchName: string;
   categorySnapshot: string;
   description: string;
@@ -25,7 +26,7 @@ export default function FinanceExpensesView({
   initialCategory = "all",
 }: {
   rows: FinanceExpenseRow[];
-  branches: string[];
+  branches: Array<{ id: string; label: string }>;
   canManage: boolean;
   initialCategory?: string;
 }) {
@@ -58,7 +59,7 @@ export default function FinanceExpensesView({
     const q = query.trim().toLowerCase();
     return rows.filter((r) => {
       if (filter !== "all" && r.status !== filter) return false;
-      if (branchFilter !== "all" && r.branchName !== branchFilter) return false;
+      if (branchFilter !== "all" && r.branchId !== branchFilter) return false;
       if (categoryFilter !== "all" && r.categorySnapshot !== categoryFilter) return false;
       if (q) {
         const hay = `${r.description} ${r.categorySnapshot} ${r.branchName} ${r.expenseDate} ${r.id}`.toLowerCase();
@@ -158,8 +159,8 @@ export default function FinanceExpensesView({
             >
               <option value="all">كل الفروع ({branches.length})</option>
               {branches.map((branch) => (
-                <option key={branch} value={branch}>
-                  {branch}
+                <option key={branch.id} value={branch.id}>
+                  {branch.label}
                 </option>
               ))}
             </select>

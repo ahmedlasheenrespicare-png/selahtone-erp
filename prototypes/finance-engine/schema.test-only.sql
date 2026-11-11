@@ -327,6 +327,17 @@ CREATE TABLE finance_lab.requests (
   result_id BIGINT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+-- Disposable result-identity link. NOT an approved production migration.
+-- Every new command records the table and id it created; a saved request
+-- without a link is refused under the strict lab policy.
+CREATE TABLE finance_lab.request_results (
+  request_id UUID PRIMARY KEY,
+  action VARCHAR(40) NOT NULL,
+  actor_id BIGINT NOT NULL REFERENCES finance_lab.users(id),
+  result_table VARCHAR(64) NOT NULL,
+  result_id BIGINT NOT NULL CHECK (result_id > 0),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE finance_lab.audit_events (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   entity_type VARCHAR(20) NOT NULL,

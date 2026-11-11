@@ -1,3 +1,4 @@
+import { isRetryableTransactionConflict } from "./transaction-retry";
 import { createHash } from "node:crypto";
 import type { PrismaClient } from "@prisma/client";
 
@@ -9,6 +10,7 @@ import { canPerformCommerce, type CommerceAction } from "./commerce-policy";
 import { duplicatesCatalogLine } from "./commerce-validation";
 import { scaledInteger } from "./inventory-math";
 import { InventoryProblem } from "./inventory-operations";
+import { finishCashCustodyCollection, lockCashCollectorCustody } from "./finance/collection-custody-guard";
 import {
   parseCatalogActive, parseCatalogField, parseCatalogFieldUpdate, parseCatalogId, parseCatalogName,
   parseCatalogSaleInput, parseCatalogTypeCreate, MAX_CATALOG_NAME,
@@ -48,7 +50,11 @@ function ensureMatchingRequest(record: { requestHash: string; createdById: bigin
 async function withSerializableRetry<T>(db: Db, work: (tx: Transaction) => Promise<T>): Promise<T> {
   for (let attempt = 0; ; attempt++) {
     try { return await db.$transaction(work, { isolationLevel: "Serializable", maxWait: 5000, timeout: 20000 }); }
-    catch (error) { if (isCode(error, "P2034") && attempt < 2) continue; throw error; }
+    catch (error) {
+      // Retry only known aborted transaction conflicts, including raw Prisma SQL.
+      if (isRetryableTransactionConflict(error) && attempt < 2) continue;
+      throw error;
+    }
   }
 }
 async function authorize(tx: Transaction, actorId: bigint, action: CommerceAction, branchId: bigint | null, branchActive: boolean): Promise<void> {
@@ -155,6 +161,7 @@ export async function createCatalogSale(db: Db, actorId: bigint, raw: unknown): 
       }
       const firstPayment = scaledInteger(input.initialPayment, 2);
       validateCollectionAmount(totalCents, firstPayment);
+      const cashCustody = await lockCashCollectorCustody(tx, branchId, actorId, input.method);
 
       const sale = await tx.commerceSale.create({
         data: {
@@ -188,11 +195,20 @@ export async function createCatalogSale(db: Db, actorId: bigint, raw: unknown): 
       await tx.commerceCollection.create({
         data: { requestId: input.requestId, requestHash, saleId: sale.id, amount: fixed(firstPayment, 2), method: input.method, isInitial: true, createdById: actorId },
       });
+      await finishCashCustodyCollection(tx, cashCustody);
       return { id: sale.id.toString(), replayed: false };
     });
   } catch (error) {
     if (isDuplicate(error)) {
-      const prior = await db.commerceSale.findUnique({ where: { requestId: input.requestId } });
+      // Duplicate-key recovery must not reuse stale authorization from the
+      // aborted transaction; apply the same branch and actor checks as replay.
+      const prior = await withSerializableRetry(db, async tx => {
+        const branchId = BigInt(input.branchId);
+        const branch = await tx.branch.findUnique({ where: { id: branchId }, select: { isActive: true } });
+        if (!branch) throw new InventoryProblem("الفرع غير موجود.");
+        await authorize(tx, actorId, "CREATE_SALE", branchId, branch.isActive);
+        return tx.commerceSale.findUnique({ where: { requestId: input.requestId } });
+      });
       if (prior) { ensureMatchingRequest(prior, actorId, requestHash); return { id: prior.id.toString(), replayed: true }; }
       throw new InventoryProblem("تعارض البيع مع عملية أخرى. لم يُحفظ أي جزء؛ راجع الفاتورة ثم أعد المحاولة.");
     }
@@ -233,35 +249,55 @@ async function recordAudit(
   });
 }
 
-async function replayAudit(db: Db, requestId: string, actorId: bigint): Promise<WriteResult | null> {
-  const prior = await db.salesCatalogAudit.findUnique({ where: { requestId }, select: { actorId: true, entityId: true } });
-  if (!prior) return null;
-  if (prior.actorId !== actorId) throw new InventoryProblem("استُخدم هذا الطلب مسبقًا. أعد فتح الشاشة.");
-  return { id: prior.entityId.toString(), replayed: true };
-}
-
 /** كل كتابة إدارة: تحقق ← صلاحية مدير ← تغيير ← سجل، في معاملة واحدة. */
 async function adminWrite<T>(
   db: Db, actorId: bigint, requestId: string,
+  expected: { entity: AuditEntity; action: AuditAction; entityId?: bigint; after: Record<string, string | number | boolean>; reason?: string },
   work: (tx: Transaction) => Promise<{ id: bigint; audit: { entity: AuditEntity; entityId: bigint; action: AuditAction; before: unknown; after: unknown; reason: string } }>,
 ): Promise<WriteResult> {
+  const checkPrior = (prior: {actorId:bigint;entityId:bigint;entity:string;action:string;afterData:unknown;reason:string}) => {
+    if (prior.actorId !== actorId || prior.entity !== expected.entity || prior.action !== expected.action ||
+      (expected.entityId !== undefined && prior.entityId !== expected.entityId))
+      throw new InventoryProblem("استُخدم هذا الطلب مسبقًا لعملية مختلفة. أعد فتح الشاشة.");
+    // Historical audits do not contain a request hash. Compare only fields
+    // that the command actually persisted, never the current mutable entity.
+    // An incomplete old audit cannot establish replay identity: fail closed
+    // rather than inventing a fingerprint or applying the operation again.
+    const data = prior.afterData;
+    if (typeof data !== "object" || data === null || Array.isArray(data) ||
+      Object.keys(expected.after).some(key => !Object.hasOwn(data, key)))
+      throw new InventoryProblem("لا تتوفر بيانات كافية للتحقق من الطلب السابق؛ راجع سجل الكتالوج قبل فتح نموذج جديد.");
+    const saved = data as Record<string, unknown>;
+    if (Object.entries(expected.after).some(([key, value]) => saved[key] !== value) ||
+      (expected.reason !== undefined && prior.reason !== expected.reason))
+      throw new InventoryProblem("استُخدم هذا الطلب مسبقًا ببيانات مختلفة. أعد فتح الشاشة.");
+  };
   try {
     const result = await withSerializableRetry(db, async (tx) => {
       await authorizeManager(tx, actorId);
-      const existing = await tx.salesCatalogAudit.findUnique({ where: { requestId }, select: { actorId: true, entityId: true } });
+      const existing = await tx.salesCatalogAudit.findUnique({ where: { requestId }, select: { actorId: true, entityId: true, entity: true, action: true, afterData: true, reason: true } });
       if (existing) {
-        if (existing.actorId !== actorId) throw new InventoryProblem("استُخدم هذا الطلب مسبقًا. أعد فتح الشاشة.");
+        checkPrior(existing);
         return { id: existing.entityId, replayed: true as const };
       }
       const done = await work(tx);
+      if (done.audit.entity !== expected.entity || done.audit.action !== expected.action ||
+        (expected.entityId !== undefined && done.audit.entityId !== expected.entityId))
+        throw new InventoryProblem("تعذّر التحقق من نوع عملية الكتالوج؛ لم يُحفظ أي تغيير.");
       await recordAudit(tx, requestId, done.audit.entity, done.audit.entityId, done.audit.action, done.audit.before, done.audit.after, done.audit.reason, actorId);
       return { id: done.id, replayed: false as const };
     });
     return { id: result.id.toString(), replayed: result.replayed };
   } catch (error) {
     if (isDuplicate(error)) {
-      const replayed = await replayAudit(db, requestId, actorId);
-      if (replayed) return replayed;
+      const prior = await withSerializableRetry(db, async tx => {
+        await authorizeManager(tx, actorId);
+        return tx.salesCatalogAudit.findUnique({ where: { requestId }, select: { actorId: true, entityId: true, entity: true, action: true, afterData: true, reason: true } });
+      });
+      if (prior) {
+        checkPrior(prior);
+        return { id: prior.entityId.toString(), replayed: true };
+      }
       throw new InventoryProblem("الاسم أو الرمز مستخدم بالفعل، أو تعارض الطلب مع تغيير آخر. لم يُحفظ أي شيء.");
     }
     throw error;
@@ -277,7 +313,7 @@ export async function createSalesCategory(db: Db, actorId: bigint, raw: unknown)
   if (!parsed.ok) throw new InventoryProblem("راجع بيانات التصنيف ثم حاول مجددًا.", parsed.errors);
   const input: CatalogNameInput = parsed.value;
   try {
-    return await adminWrite(db, actorId, input.requestId, async (tx) => {
+    return await adminWrite(db, actorId, input.requestId, { entity: "CATEGORY", action: "CREATE", after: { code: input.code!, nameAr: input.nameAr, sortOrder: input.sortOrder } }, async (tx) => {
       const created = await tx.salesItemCategory.create({
         data: { code: input.code!, nameAr: input.nameAr, sortOrder: input.sortOrder, createdById: actorId, updatedById: actorId },
         select: { id: true, nameAr: true, sortOrder: true, isActive: true },
@@ -292,7 +328,7 @@ export async function updateSalesCategory(db: Db, actorId: bigint, raw: unknown)
   if (!parsed.ok) throw new InventoryProblem("راجع بيانات التصنيف ثم حاول مجددًا.", parsed.errors);
   const input: CatalogIdInput = parsed.value;
   try {
-    return await adminWrite(db, actorId, input.requestId, async (tx) => {
+    return await adminWrite(db, actorId, input.requestId, { entity: "CATEGORY", action: "UPDATE", entityId: BigInt(input.id), after: { nameAr: input.nameAr!, sortOrder: input.sortOrder! } }, async (tx) => {
       const before = await tx.salesItemCategory.findUnique({ where: { id: BigInt(input.id) }, select: { nameAr: true, sortOrder: true, isActive: true } });
       if (!before) throw new InventoryProblem("التصنيف غير موجود.");
       const updated = await tx.salesItemCategory.update({
@@ -310,7 +346,7 @@ export async function setSalesCategoryActive(db: Db, actorId: bigint, raw: unkno
   if (!parsed.ok) throw new InventoryProblem("راجع بيانات التصنيف ثم حاول مجددًا.", parsed.errors);
   const input: CatalogActiveInput = parsed.value;
   try {
-    return await adminWrite(db, actorId, input.requestId, async (tx) => {
+    return await adminWrite(db, actorId, input.requestId, { entity: "CATEGORY", action: input.active ? "ACTIVATE" : "DEACTIVATE", entityId: BigInt(input.id), after: { isActive: input.active }, reason: input.reason }, async (tx) => {
       const before = await tx.salesItemCategory.findUnique({ where: { id: BigInt(input.id) }, select: { nameAr: true, sortOrder: true, isActive: true } });
       if (!before) throw new InventoryProblem("التصنيف غير موجود.");
       const updated = await tx.salesItemCategory.update({
@@ -327,7 +363,7 @@ export async function createSalesType(db: Db, actorId: bigint, raw: unknown): Pr
   if (!parsed.ok) throw new InventoryProblem("راجع بيانات الصنف ثم حاول مجددًا.", parsed.errors);
   const input: CatalogTypeCreateInput = parsed.value;
   try {
-    return await adminWrite(db, actorId, input.requestId, async (tx) => {
+    return await adminWrite(db, actorId, input.requestId, { entity: "TYPE", action: "CREATE", after: { categoryId: input.categoryId, nameAr: input.nameAr, sortOrder: input.sortOrder } }, async (tx) => {
       const category = await tx.salesItemCategory.findUnique({ where: { id: BigInt(input.categoryId) }, select: { id: true } });
       if (!category) throw new InventoryProblem("التصنيف غير موجود.");
       const created = await tx.salesItemType.create({
@@ -344,7 +380,7 @@ export async function updateSalesType(db: Db, actorId: bigint, raw: unknown): Pr
   if (!parsed.ok) throw new InventoryProblem("راجع بيانات الصنف ثم حاول مجددًا.", parsed.errors);
   const input: CatalogIdInput = parsed.value;
   try {
-    return await adminWrite(db, actorId, input.requestId, async (tx) => {
+    return await adminWrite(db, actorId, input.requestId, { entity: "TYPE", action: "UPDATE", entityId: BigInt(input.id), after: { nameAr: input.nameAr!, sortOrder: input.sortOrder! } }, async (tx) => {
       const before = await tx.salesItemType.findUnique({ where: { id: BigInt(input.id) }, select: { nameAr: true, sortOrder: true, isActive: true } });
       if (!before) throw new InventoryProblem("الصنف غير موجود.");
       const updated = await tx.salesItemType.update({
@@ -361,7 +397,7 @@ export async function setSalesTypeActive(db: Db, actorId: bigint, raw: unknown):
   if (!parsed.ok) throw new InventoryProblem("راجع بيانات الصنف ثم حاول مجددًا.", parsed.errors);
   const input: CatalogActiveInput = parsed.value;
   try {
-    return await adminWrite(db, actorId, input.requestId, async (tx) => {
+    return await adminWrite(db, actorId, input.requestId, { entity: "TYPE", action: input.active ? "ACTIVATE" : "DEACTIVATE", entityId: BigInt(input.id), after: { isActive: input.active }, reason: input.reason }, async (tx) => {
       const before = await tx.salesItemType.findUnique({ where: { id: BigInt(input.id) }, select: { nameAr: true, sortOrder: true, isActive: true } });
       if (!before) throw new InventoryProblem("الصنف غير موجود.");
       const updated = await tx.salesItemType.update({
@@ -378,7 +414,7 @@ export async function createSalesField(db: Db, actorId: bigint, raw: unknown): P
   if (!parsed.ok) throw new InventoryProblem("راجع بيانات الحقل ثم حاول مجددًا.", parsed.errors);
   const input: CatalogFieldInput = parsed.value;
   try {
-    return await adminWrite(db, actorId, input.requestId, async (tx) => {
+    return await adminWrite(db, actorId, input.requestId, { entity: "FIELD", action: "CREATE", after: { typeId: input.typeId, fieldKey: input.fieldKey, labelAr: input.labelAr, isRequired: input.isRequired, sortOrder: input.sortOrder } }, async (tx) => {
       const type = await tx.salesItemType.findUnique({ where: { id: BigInt(input.typeId) }, select: { id: true } });
       if (!type) throw new InventoryProblem("الصنف غير موجود.");
       const created = await tx.salesItemField.create({
@@ -398,7 +434,7 @@ export async function updateSalesField(db: Db, actorId: bigint, raw: unknown): P
   if (!parsed.ok) throw new InventoryProblem("راجع بيانات الحقل ثم حاول مجددًا.", parsed.errors);
   const input: CatalogFieldUpdateInput = parsed.value;
   try {
-    return await adminWrite(db, actorId, input.requestId, async (tx) => {
+    return await adminWrite(db, actorId, input.requestId, { entity: "FIELD", action: "UPDATE", entityId: BigInt(input.id), after: { labelAr: input.labelAr, isRequired: input.isRequired, sortOrder: input.sortOrder } }, async (tx) => {
       const before = await tx.salesItemField.findUnique({ where: { id: BigInt(input.id) }, select: { fieldKey: true, labelAr: true, isRequired: true, sortOrder: true, isActive: true } });
       if (!before) throw new InventoryProblem("الحقل غير موجود.");
       const updated = await tx.salesItemField.update({
@@ -416,7 +452,7 @@ export async function setSalesFieldActive(db: Db, actorId: bigint, raw: unknown)
   if (!parsed.ok) throw new InventoryProblem("راجع بيانات الحقل ثم حاول مجددًا.", parsed.errors);
   const input: CatalogActiveInput = parsed.value;
   try {
-    return await adminWrite(db, actorId, input.requestId, async (tx) => {
+    return await adminWrite(db, actorId, input.requestId, { entity: "FIELD", action: input.active ? "ACTIVATE" : "DEACTIVATE", entityId: BigInt(input.id), after: { isActive: input.active }, reason: input.reason }, async (tx) => {
       const before = await tx.salesItemField.findUnique({ where: { id: BigInt(input.id) }, select: { fieldKey: true, labelAr: true, isRequired: true, sortOrder: true, isActive: true } });
       if (!before) throw new InventoryProblem("الحقل غير موجود.");
       const updated = await tx.salesItemField.update({

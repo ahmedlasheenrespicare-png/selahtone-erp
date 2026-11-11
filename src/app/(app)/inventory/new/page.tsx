@@ -1,14 +1,19 @@
+import { WriteLockedNotice } from "@/app/(app)/components/write-locked-notice";
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { AppIcon } from "@/components/app-icon";
 import { canSeeAllBranches, requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import ProductForm from "./product-form";
+import { requirePageAccess, writeAccessAllowed } from "@/lib/access-control-server";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewProductPage() {
+  await requirePageAccess("/inventory/new");
+
   const session = await requireSession();
+  if (!(await writeAccessAllowed("/inventory/new"))) return <WriteLockedNotice backHref="/inventory" backLabel="العودة إلى المخزون" />;
   if (!canSeeAllBranches(session)) {
     return <div className="inv-page"><div className="inv-alert inv-alert--error">إضافة الأصناف متاحة للمدير والمحاسب فقط.</div><Link href="/inventory" className="inv-back">العودة إلى المخزون</Link></div>;
   }

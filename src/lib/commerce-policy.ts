@@ -9,7 +9,7 @@ export type CommerceActor = {
   status: "ACTIVE" | "SUSPENDED";
   mustChangePassword: boolean;
   branchId: bigint | null;
-  /// صلاحية إلغاء البيع: يسحبها المدير من أي محاسب بلا حذف الحساب.
+  /// حقل قديم للتوافق؛ لا يمنح المحاسب المرتجع أو الإلغاء.
   canCancelSales: boolean;
 };
 export type CommerceAction =
@@ -21,7 +21,7 @@ export type CommerceAction =
   | "RECEIVE_STOCK"
   | "CONFIGURE_DISCOUNT";
 
-const accountantActions = new Set<CommerceAction>(["VIEW_SALE", "RECORD_COLLECTION", "RECORD_REFUND", "RETURN_OR_CANCEL"]);
+const accountantActions = new Set<CommerceAction>(["VIEW_SALE", "RECORD_COLLECTION", "RECORD_REFUND"]);
 const staffActions = new Set<CommerceAction>(["VIEW_SALE", "CREATE_SALE", "RECORD_COLLECTION", "RECEIVE_STOCK"]);
 const allActions = new Set<CommerceAction>([...accountantActions, ...staffActions, "RETURN_OR_CANCEL", "CONFIGURE_DISCOUNT"]);
 
@@ -41,8 +41,7 @@ export function canPerformCommerce(
   if (actor.role === "MANAGER") return true;
   if (actor.role === "ACCOUNTANT") {
     if (!accountantActions.has(action)) return false;
-    // إلغاء البيع صلاحية يملكها المحاسب افتراضيًا، ويسحبها المدير متى شاء.
-    return action !== "RETURN_OR_CANCEL" || actor.canCancelSales;
+    return true;
   }
   if (actor.role === "CS_AGENT") return actor.branchId !== null && actor.branchId === resourceBranchId && staffActions.has(action);
   return false;

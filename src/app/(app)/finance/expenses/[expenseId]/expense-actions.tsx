@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { approveExpenseAction, payExpenseAction, requestExpenseReviewAction } from "../../actions";
+import { approveExpenseAction, payExpenseAction, requestExpenseReviewAction, closeExpenseReviewAction } from "../../actions";
 import { initialFinanceActionState } from "../../finance-state";
 import { accountLabel, formatMoney } from "../../format";
 
@@ -19,7 +19,7 @@ const PAY_SOURCES: Array<{ value: "HOLDER_CASH" | "ACCOUNT"; label: string; hint
   {
     value: "HOLDER_CASH",
     label: "نقد الموظف (يُسوّى في التسوية)",
-    hint: "المبلغ خرج من نقد الموظف. لا يتحرك رصيد العهدة الآن، ويُجمع ضمن مصروفات الفترة ليُسوّى عند اعتماد التسوية القادمة.",
+    hint: "مؤقتًا يجب أن يكون مسجّل الصرف هو طالب المصروف، وأن تكون له عهدة مفتوحة في فرع المصروف. لا يتحرك رصيد العهدة الآن، ويُسوّى المصروف ضمن الفترة.",
   },
   {
     value: "ACCOUNT",
@@ -108,7 +108,7 @@ export function PayForm({
         </label>
         {holderCash ? (
           <div className="fin-alert fin-alert--warning fin-field--wide" role="status">
-            الرصيد لن يتحرك الآن. سيظهر المبلغ ضمن «مصروفات الفترة» ويُسوّى عند اعتماد التسوية القادمة.
+            الرصيد لن يتحرك الآن. يُمنع تسجيل صرف جديد من نقد الموظف عند وجود جرد مفتوح أو جرد مؤكد لعهدته. إذا دُفع المبلغ بالفعل، أوقف التسجيل وأحله للمراجعة اليدوية؛ لا تغيّر المصدر لتجاوز المنع. يُرفض تاريخ الدفع الأقدم من يوم افتتاح العهدة أو آخر تسوية مؤكدة. القبول في يوم المرجع أو بعده لا يثبت التوقيت الفعلي، وقد يبقى ملتبسًا.
           </div>
         ) : (
         <label className="field fin-field">
@@ -194,7 +194,7 @@ export function PayForm({
 
 export function ReviewForm({ requestId, expenseId, revision }: { requestId: string; expenseId: string; revision: string }) {
   const [state, formAction, pending] = useActionState(requestExpenseReviewAction, initialFinanceActionState);
-  if (state.status === "success") return <div className="fin-alert fin-alert--success" role="status">{state.message}</div>;
+  if (state.status === "success") return <div className="fin-alert fin-alert--success" role="status">{state.message} <a href={`/finance/expenses/${expenseId}`}>تحديث الصفحة لعرض الطلب المفتوح</a></div>;
   return (
     <form action={formAction} className="fin-form-stack">
       <input type="hidden" name="requestId" value={requestId} />
@@ -217,4 +217,20 @@ export function ReviewForm({ requestId, expenseId, revision }: { requestId: stri
       </div>
     </form>
   );
+}
+
+export function CloseReviewForm({ requestId, reviewId, expenseId, revision, reviewSnapshot }: { requestId: string; reviewId: string; expenseId: string; revision: string; reviewSnapshot: string }) {
+  const [state, formAction, pending] = useActionState(closeExpenseReviewAction, initialFinanceActionState);
+  if (state.status === "success") return <div className="fin-alert fin-alert--success" role="status">{state.message} <a href={`/finance/expenses/${expenseId}`}>تحديث الصفحة</a></div>;
+  return <form action={formAction} className="fin-form-stack">
+    <input type="hidden" name="requestId" value={requestId} />
+    <input type="hidden" name="reviewId" value={reviewId} />
+    <input type="hidden" name="expectedReviewSnapshot" value={reviewSnapshot} />
+    <input type="hidden" name="expectedRevision" value={revision} />
+    <label className="field fin-field"><span className="fin-field__label">سبب إغلاق الطلب #{reviewId} دون تصحيح</span><input name="reason" maxLength={300} required /></label>
+    <label className="fin-check"><input type="checkbox" name="reviewedNoChange" value="yes" required /><span>فحصت الطلب وقررت إغلاقه دون تصحيح.</span></label>
+    <p>الإغلاق لا يثبت الدفع أو شمول الفرق في التسوية ولا يرفع حراسة نقد الموظف. لا تغلق الطلب إذا كانت الحالة ما زالت تحتاج معالجة.</p>
+    {state.status === "error" ? <div className="fin-alert fin-alert--error" role="alert">{state.message}</div> : null}
+    <button className="fin-button" disabled={pending} type="submit">{pending ? "جارٍ الإغلاق…" : "إغلاق الطلب دون تصحيح"}</button>
+  </form>;
 }

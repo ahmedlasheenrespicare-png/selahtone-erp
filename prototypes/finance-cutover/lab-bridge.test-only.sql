@@ -19,7 +19,10 @@ BEGIN
   'finance_lab.attachment_quota','finance_lab.expense_attachments','finance_lab.payments','finance_lab.expense_reviews',
   'finance_lab.cash_counts','finance_lab.opening_corrections','finance_lab.historical_commerce',
   'finance_lab.reconciliation_cases','finance_lab.reconciliation_notes','finance_lab.expense_corrections',
-  'finance_lab.movements','finance_lab.requests','finance_lab.audit_events'
+  'finance_lab.movements','finance_lab.requests','finance_lab.audit_events',
+  -- Strict command/callback result links are evidence too: a legacy or new
+  -- application login must not be able to forge, move or delete them.
+  'finance_lab.request_results'
  ] LOOP
   SELECT c.relowner INTO owner_oid FROM pg_catalog.pg_class c WHERE c.oid=pg_catalog.to_regclass(obj) AND c.relkind='r';
   IF NOT FOUND OR owner_oid IN (legacy_oid,new_oid) THEN RAISE EXCEPTION 'lab fixture missing or owned by application role: %',obj; END IF;

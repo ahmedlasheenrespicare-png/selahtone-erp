@@ -8,7 +8,7 @@ import { canSeeAllBranches, requireSession } from "@/lib/auth";
 import { isValidAuthSecret } from "@/lib/auth-secret";
 import { inventoryEnabled } from "@/lib/feature-flags";
 import { financeDb, financeEnabled } from "@/lib/finance/db";
-import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
+import { requireSystemAdminOrRedirect } from "@/lib/access-control-server";
 import { prisma } from "@/lib/prisma";
 import { lineTax, money } from "@/lib/tax";
 import SetupReadinessView, {
@@ -32,7 +32,7 @@ const nf = new Intl.NumberFormat("ar-EG-u-nu-latn", {
  */
 export default async function SetupPage() {
   const session = await requireSession();
-  await requireMenuScopeAccess("/setup");
+  await requireSystemAdminOrRedirect();
 
   if (!canSeeAllBranches(session)) {
     return (

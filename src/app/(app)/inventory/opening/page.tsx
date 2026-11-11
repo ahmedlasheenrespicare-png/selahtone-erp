@@ -1,3 +1,4 @@
+import { WriteLockedNotice } from "@/app/(app)/components/write-locked-notice";
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { AppIcon } from "@/components/app-icon";
@@ -5,16 +6,21 @@ import { canSeeAllBranches, requireSession } from "@/lib/auth";
 import { positiveDatabaseId } from "@/lib/inventory-validation";
 import { prisma } from "@/lib/prisma";
 import OpeningForm from "./opening-form";
+import { getAccessContext, requirePageAccess, writeAccessAllowed } from "@/lib/access-control-server";
 
 export const dynamic = "force-dynamic";
 
 type Props = { searchParams: Promise<{ productId?: string | string[] }> };
 
 export default async function OpeningPage({ searchParams }: Props) {
+  await requirePageAccess("/inventory/opening");
+
   const session = await requireSession();
+  if (!(await writeAccessAllowed("/inventory/opening"))) return <WriteLockedNotice backHref="/inventory" backLabel="العودة إلى المخزون" />;
   if (!canSeeAllBranches(session)) {
     return <div className="inv-page"><div className="inv-alert inv-alert--error">تسجيل الأرصدة متاح للمدير والمحاسب فقط.</div><Link href="/inventory" className="inv-back">العودة إلى المخزون</Link></div>;
   }
+  const showPurchaseCostHint = (await getAccessContext()).isAllowed("/inventory/opening#purchase-cost-hint");
   const [products, warehouses] = await Promise.all([
     prisma.product.findMany({ where: { isActive: true, category: { not: "SERVICE" } }, orderBy: { nameAr: "asc" }, select: { id: true, nameAr: true, sku: true, category: true, isSerialized: true, purchaseCost: true } }),
     prisma.warehouse.findMany({ where: { isActive: true, holdsStock: true, branch: { isActive: true } }, orderBy: [{ branch: { code: "asc" } }, { code: "asc" }], select: { id: true, nameAr: true, code: true, branch: { select: { nameAr: true } } } }),
@@ -33,7 +39,7 @@ export default async function OpeningPage({ searchParams }: Props) {
       </div> : <OpeningForm
         requestId={randomUUID()}
         initialProductId={initialProductId}
-        products={products.map((product) => ({ id: product.id.toString(), name: product.nameAr, sku: product.sku, needsSerials: product.isSerialized || product.category === "HEARING_AID", purchaseCost: product.purchaseCost.toString() }))}
+        products={products.map((product) => ({ id: product.id.toString(), name: product.nameAr, sku: product.sku, needsSerials: product.isSerialized || product.category === "HEARING_AID", purchaseCost: showPurchaseCostHint ? product.purchaseCost.toString() : null }))}
         warehouses={warehouses.map((warehouse) => ({ id: warehouse.id.toString(), name: warehouse.nameAr, code: warehouse.code, branch: warehouse.branch.nameAr }))}
       />}
     </div>

@@ -7,7 +7,7 @@ import { parseReceiptInput, type ReceiptInput, type ReceiptInputRaw } from "@/li
 import { createReceiptAction } from "../../actions";
 import { initialInventoryActionState, type InventoryActionState } from "../../inventory-state";
 
-type ProductOption = { id: string; name: string; sku: string; needsSerials: boolean; purchaseCost: string };
+type ProductOption = { id: string; name: string; sku: string; needsSerials: boolean; purchaseCost: string | null };
 type WarehouseOption = { id: string; name: string; code: string; branch: string };
 type Props = { requestId: string; products: ProductOption[]; warehouses: WarehouseOption[] };
 const FIELD_NAMES: Record<string, string> = { productId: "الصنف", warehouseId: "المستودع", quantity: "الكمية", unitCost: "تكلفة الوحدة", serialNumbers: "الأرقام التسلسلية", sourceReference: "مرجع المورد", form: "النموذج" };
@@ -84,7 +84,7 @@ export default function ReceiptForm({ requestId, products, warehouses }: Props) 
           <div className="inv-field">
             <label htmlFor="receipt-unitCost">تكلفة الوحدة لهذا التوريد (ج.م) *</label>
             <input id="receipt-unitCost" disabled={pending} name="unitCost" inputMode="decimal" dir="ltr" value={values.unitCost} onChange={(e) => update("unitCost", e.target.value)} placeholder="0.00" aria-invalid={!!fieldError("unitCost")} aria-describedby={errorId("unitCost") ?? "receipt-unitCost-hint"} />
-            {fieldError("unitCost") ? <p id="receipt-unitCost-error" className="inv-field__error">{fieldError("unitCost")}</p> : <p id="receipt-unitCost-hint" className="inv-field__hint">حتى أربع منازل عشرية.{selectedProduct && ` تكلفة الشراء في دليل الصنف: ${selectedProduct.purchaseCost} ج.م.`}</p>}
+            {fieldError("unitCost") ? <p id="receipt-unitCost-error" className="inv-field__error">{fieldError("unitCost")}</p> : <p id="receipt-unitCost-hint" className="inv-field__hint">حتى أربع منازل عشرية.{selectedProduct?.purchaseCost != null && ` تكلفة الشراء في دليل الصنف: ${selectedProduct.purchaseCost} ج.م.`}</p>}
           </div>
           <div className="inv-field inv-field--wide">
             <label htmlFor="receipt-sourceReference">مرجع المورد أو المستند <span className="inv-field__hint">(اختياري)</span></label>

@@ -1,3 +1,6 @@
+import { PeriodSourceWarning } from "../period-source-warning";
+import { PeriodEstimateNotice } from "../period-estimate-notice";
+import { writeAllowedForKeys } from "@/lib/access-control";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppIcon } from "@/components/app-icon";
@@ -6,7 +9,7 @@ import PrintPageButton from "@/components/print-page-button";
 
 import { prisma } from "@/lib/prisma";
 import { listSettlements, settlementOverview } from "@/lib/finance/engine";
-import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
+import { getAccessContext, requirePageAccess } from "@/lib/access-control-server";
 
 import { formatMoney } from "../format";
 import { financePage, financeRead } from "../page-context";
@@ -15,12 +18,15 @@ import { SETTLEMENT_STATUS_LABEL, SettlementCancelForm } from "./settlement-form
 export const dynamic = "force-dynamic";
 
 /**
- * شاشة الموظف: الإجمالي المتوقع (عهدة + مبيعات − مصروفات) وطلبات التسوية الخاصة به.
+ * شاشة الموظف: مؤشر الفترة التقديري (عهدة + تحصيلات محسوبة − مصروفات محسوبة) وطلبات التسوية الخاصة به.
  * الإدارة ترى الطلبات في شاشة التسليم والتحويل لإقرارها.
  */
 export default async function SettlementsPage() {
   const { session, canManage } = await financePage();
-  await requireMenuScopeAccess("/finance/settlements");
+  await requirePageAccess("/finance/settlements");
+  const access = await getAccessContext();
+  const canCancel = writeAllowedForKeys(access.hidden, "/finance/settlements#cancel");
+  const canRequest = writeAllowedForKeys(access.hidden, "/finance/settlements/new#request");
   if (canManage) redirect("/finance/transfers");
 
   const [overview, settlements] = await Promise.all([
@@ -43,7 +49,7 @@ export default async function SettlementsPage() {
             عهدة الموظف
           </p>
           <h1>طلبات التسوية</h1>
-          <p>الإجمالي المتوقع بيدك = العهدة + المبيعات − المصروفات. طلب التسوية لا يغيّر شيئًا حتى يعتمده المدير.</p>
+          <p>مؤشر الفترة = رصيد العهدة الدفتري + التحصيلات المحسوبة − المصروفات المحسوبة. طلب التسوية لا يغيّر الرصيد حتى الاعتماد.</p>
         </div>
         <div className="fin-actions">
           <PrintPageButton
@@ -54,18 +60,23 @@ export default async function SettlementsPage() {
         </div>
       </div>
 
-      {!overview.account ? (
+      {overview.multipleCustodies ? (
+        <div className="fin-alert fin-alert--warning" role="alert">توجد أكثر من عهدة مفتوحة باسمك؛ يتوقف الجرد والتسوية والإقفال للمراجعة. يمكن إلغاء الطلبات المفتوحة بسبب.</div>
+      ) : !overview.account ? (
         <FinEmptyState icon="cash" title="لا توجد عهدة مفتوحة باسمك بعد">
           <p>تُفتح العهدة بجرد فعلي يسجّله المدير أو المحاسب.</p>
         </FinEmptyState>
       ) : (
-        <>
           <div className="fin-panel">
             <div className="fin-panel__heading">
-              <h2>الإجمالي المتوقع</h2>
-              <p>محسوب منذ آخر تسوية مؤكدة{overview.since ? ` في ${overview.since.slice(0, 10)}` : " (منذ فتح العهدة)"}.</p>
+              <h2>مؤشر الفترة التقديري</h2>
+              <p>تقدير محسوب منذ آخر تسوية مؤكدة{overview.since ? ` في ${overview.since.slice(0, 10)}` : " (منذ فتح العهدة)"}.</p>
             </div>
             <div className="fin-panel__body">
+              <PeriodEstimateNotice />
+              {overview.sourceRecorderMismatch && <PeriodSourceWarning />}
+              {overview.holderCorrectionInPeriod && <p className="fin-alert fin-alert--warning">يوجد تصحيح مرتبط بدفع نقد موظف مسجّل عند حد الفترة أو بعده في الفرع؛ الأرقام غير مؤكدة، وتوقف الجرد والتسوية والإقفال للمراجعة.</p>}
+              {overview.boundaryAmbiguous && <p className="fin-alert fin-alert--warning">يوجد تحصيل أو صرف نقدي في الفرع يساوي وقت بداية الفترة. الأرقام التالية غير مؤكدة؛ توقفت التسوية والجرد والإقفال للمراجعة.</p>}
               <div className="fin-fields">
                 <div className="field fin-field fin-metric-tile">
                   <span className="fin-field__label">رصيد العهدة (النظامي)</span>
@@ -84,7 +95,7 @@ export default async function SettlementsPage() {
                   <span className="fin-field__hint">{formatMoney(overview.expenses)} ج.م</span>
                 </div>
                 <div className="field fin-field fin-field--wide fin-metric-tile is-highlight">
-                  <span className="fin-field__label">الإجمالي المتوقع بيدك</span>
+                  <span className="fin-field__label">مؤشر الفترة التقديري</span>
                   <span className="fin-field__hint">{formatMoney(overview.expected)} ج.م</span>
                 </div>
               </div>
@@ -92,21 +103,22 @@ export default async function SettlementsPage() {
                 <p className="fin-alert fin-alert--warning" style={{ marginTop: 14 }}>
                   لديك طلب تسوية مفتوح بانتظار اعتماد المدير. ألغِهِ بسبب إن أردت تقديم طلب جديد.
                 </p>
-              ) : (
+              ) : canRequest && !overview.boundaryAmbiguous && !overview.holderCorrectionInPeriod ? (
                 <div className="fin-actions" style={{ marginTop: 16 }}>
                   <Link className="fin-button" href="/finance/settlements/new">
                     <span className="fin-button__plus" aria-hidden="true">+</span>
                     <span>طلب تسوية جديدة</span>
                   </Link>
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
+      )}
 
           <div className="fin-panel">
             <div className="fin-panel__heading">
               <h2>سجل الطلبات</h2>
-              <p>الطلب لا يغيّر النقد ولا العهدة؛ الاعتماد وحده يحرّكهما.</p>
+              <p>الطلب لا يغيّر الرصيد؛ عند الاعتماد قد يُسجّل تعديل دفتري أو تحويل غير صفري. السجل لا يثبت انتقال النقد فعليًا.</p>
             </div>
             <div className="fin-panel__body">
               {settlements.length === 0 ? (
@@ -114,16 +126,16 @@ export default async function SettlementsPage() {
               ) : (
                 <div className="fin-table-wrap">
                   <table className="fin-table">
-                    <caption>تسويات العهد — المتوقَّع مقابل المعدود والفرق بينهما</caption>
+                    <caption>تسويات العهد — مؤشر الفترة مقابل المعدود والفرق عنه</caption>
                     <thead>
                       <tr>
                         <th scope="col">التاريخ</th>
                         <th scope="col">الرصيد النظامي</th>
                         <th scope="col">المبيعات</th>
                         <th scope="col">المصروفات</th>
-                        <th scope="col">المتوقَّع بيده</th>
+                        <th scope="col">مؤشر الفترة</th>
                         <th scope="col">المعدود</th>
-                        <th scope="col">العجز أو الزيادة</th>
+                        <th scope="col">الفرق عن المؤشر</th>
                         <th scope="col">الحالة</th>
                         <th scope="col">إجراء</th>
                       </tr>
@@ -152,7 +164,7 @@ export default async function SettlementsPage() {
                             </span>
                           </td>
                           <td>
-                            {settlement.status === "OPEN" ? (
+                            {settlement.status === "OPEN" && canCancel ? (
                               <SettlementCancelForm settlementId={String(settlement.id)} />
                             ) : (
                               <span className="fin-field__hint">—</span>
@@ -166,8 +178,6 @@ export default async function SettlementsPage() {
               )}
             </div>
           </div>
-        </>
-      )}
     </div>
   );
 }

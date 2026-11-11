@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { requireSession, canSeeAllBranches } from "@/lib/auth";
 import { formatInventoryDecimal, scaledInteger, stockValueScaled } from "@/lib/inventory-math";
 import InventoryProductsView, { type InventoryProductRow } from "./inventory-products-view";
+import { getAccessContext, requirePageAccess } from "@/lib/access-control-server";
+import { writeAllowedForKeys } from "@/lib/access-control";
 
 export const dynamic = "force-dynamic";
 
@@ -17,8 +19,15 @@ const CATEGORY_LABEL: Record<string, string> = {
 };
 
 export default async function InventoryPage() {
+  await requirePageAccess("/inventory");
+
   const session = await requireSession();
-  const canSeeCost = canSeeAllBranches(session);
+  const canSeeAll = canSeeAllBranches(session);
+  const access = await getAccessContext();
+  const canSeeCost = canSeeAll && access.isAllowed("/inventory#cost-details");
+  const canCreateProduct = canSeeAll && writeAllowedForKeys(access.hidden, "/inventory/new");
+  const canCreateOpening = canSeeAll && writeAllowedForKeys(access.hidden, "/inventory/opening");
+  const canCreateReceipt = (session.role === "MANAGER" || session.role === "CS_AGENT") && writeAllowedForKeys(access.hidden, "/inventory/receipts/new");
 
   const products = await prisma.product.findMany({
     where: { isActive: true },
@@ -28,7 +37,7 @@ export default async function InventoryPage() {
 
   // أرصدة المخزون لكل مستودع (مفلترة بفرع المستخدم إذا كان كاونتر)
   const levels = await prisma.stockLevel.findMany({
-    where: canSeeCost ? {} : { warehouse: { branchId: BigInt(session.branchId!) } },
+    where: canSeeAll ? {} : { warehouse: { branchId: BigInt(session.branchId!) } },
     include: { warehouse: { include: { branch: true } } },
   });
 
@@ -50,7 +59,7 @@ export default async function InventoryPage() {
   const stockableProducts = products.filter((p) => p.category !== "SERVICE");
   const inStockCount = stockableProducts.filter((p) => (stockByProduct.get(p.id.toString())?.qty ?? 0n) > 0n).length;
   const zeroStockCount = Math.max(0, stockableProducts.length - inStockCount);
-  const canReceive = session.role === "MANAGER" || session.role === "CS_AGENT";
+  const receiptActionHref = canCreateReceipt ? "/inventory/receipts/new" : access.isAllowed("/inventory/receipts") ? "/inventory/receipts" : undefined;
 
   const topStockItems = stockableProducts
     .slice()
@@ -145,13 +154,11 @@ export default async function InventoryPage() {
           <p>عرض الأصناف وأرصدة الفروع المتاحة لحسابك.</p>
         </div>
         <div className="inv-actions">
-          <Link className="inv-button inv-button--secondary" href="/inventory/serials">سجل السيريالات</Link>
-          <Link className="inv-button inv-button--secondary" href="/inventory/receipts">سجل التوريدات</Link>
-          {canReceive && <Link className="inv-button inv-button--secondary" href="/inventory/receipts/new">تسجيل توريد</Link>}
-          {canSeeCost && <>
-            <Link className="inv-button inv-button--secondary" href="/inventory/opening">تسجيل رصيد افتتاحي</Link>
-            <Link className="inv-button" href="/inventory/new"><span className="inv-button__plus" aria-hidden="true">+</span> إضافة صنف</Link>
-          </>}
+          {access.isAllowed("/inventory/serials") && <Link className="inv-button inv-button--secondary" href="/inventory/serials">سجل السيريالات</Link>}
+          {access.isAllowed("/inventory/receipts") && <Link className="inv-button inv-button--secondary" href="/inventory/receipts">سجل التوريدات</Link>}
+          {canCreateReceipt && <Link className="inv-button inv-button--secondary" href="/inventory/receipts/new">تسجيل توريد</Link>}
+          {canCreateOpening && <Link className="inv-button inv-button--secondary" href="/inventory/opening">تسجيل رصيد افتتاحي</Link>}
+          {canCreateProduct && <Link className="inv-button" href="/inventory/new"><span className="inv-button__plus" aria-hidden="true">+</span> إضافة صنف</Link>}
         </div>
       </div>
 
@@ -171,10 +178,10 @@ export default async function InventoryPage() {
                 tone: "positive",
               }
             : {
-                label: "إجمالي الوحدات المتاحة بفرعك",
+                label: canSeeAll ? "إجمالي الوحدات المتاحة" : "إجمالي الوحدات المتاحة بفرعك",
                 value: formatInventoryDecimal(totalStockUnits, 2),
                 unit: "وحدة",
-                delta: `${nf.format(inStockCount)} صنف مخزني متوفّر في مستودع الفرع`,
+                delta: `${nf.format(inStockCount)} صنف مخزني متوفّر في المستودعات المتاحة`,
                 tone: "positive",
               }
         }
@@ -189,8 +196,8 @@ export default async function InventoryPage() {
           tone: zeroStockCount > 0 ? "negative" : "positive",
         }}
         series={inventorySeries}
-        actionHref={canReceive ? "/inventory/receipts/new" : "/inventory/receipts"}
-        actionLabel={canReceive ? "تسجيل توريد بضاعة جديد" : "عرض سجل التوريدات"}
+        actionHref={receiptActionHref}
+        actionLabel={canCreateReceipt ? "تسجيل توريد بضاعة جديد" : "عرض سجل التوريدات"}
       />
 
       <div className="kpis">
@@ -214,13 +221,13 @@ export default async function InventoryPage() {
           <div className="kpi">
             <small>الوحدات بالمستودع</small>
             <b>{formatInventoryDecimal(totalStockUnits, 2)}</b>
-            <span>إجمالي الوحدات المتاحة بفرعك</span>
+            <span>{canSeeAll ? "إجمالي الوحدات في المستودعات المتاحة" : "إجمالي الوحدات المتاحة بفرعك"}</span>
           </div>
         )}
         <div className="kpi">
           <small>نطاق العرض</small>
           <b style={{ fontSize: 17 }}>{session.branchName ?? "كل الفروع"}</b>
-          <span>{canSeeCost ? "محاسب/مدير" : "موظف كاونتر"}</span>
+          <span>{canSeeAll ? "محاسب/مدير" : "موظف كاونتر"}</span>
         </div>
       </div>
 

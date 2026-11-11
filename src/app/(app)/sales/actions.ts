@@ -1,9 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { getAccessContext, writeAccessAllowed, WRITE_DENIED_MESSAGE } from "@/lib/access-control-server";
+import { accessKeyAllowed } from "@/lib/access-control";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { InventoryProblem } from "@/lib/inventory-operations";
+import { parseReturnInput } from "@/lib/commerce-validation";
 import { createCatalogSale } from "@/lib/catalog-sales";
 import { changeStaffDiscountLimit, createCommerceSale, recordCommerceCollection, recordCommerceRefund, returnCommerceSale } from "@/lib/commerce-operations";
 import type { SalesActionState } from "./sales-state";
@@ -30,6 +33,7 @@ function refresh(saleId?: string) {
 
 export async function createSaleAction(_previous: SalesActionState, formData: FormData): Promise<SalesActionState> {
   const session = await requireSession();
+  if (!(await writeAccessAllowed("/sales/new"))) return { status: "error", message: WRITE_DENIED_MESSAGE };
   if (text(formData, "reviewed") !== "yes") return { status: "error", message: "راجع الفاتورة قبل تأكيد البيع." };
   try {
     const result = await createCommerceSale(prisma, BigInt(session.id), payload(formData));
@@ -40,6 +44,7 @@ export async function createSaleAction(_previous: SalesActionState, formData: Fo
 
 export async function createCatalogSaleAction(_previous: SalesActionState, formData: FormData): Promise<SalesActionState> {
   const session = await requireSession();
+  if (!(await writeAccessAllowed("/sales/new"))) return { status: "error", message: WRITE_DENIED_MESSAGE };
   if (text(formData, "reviewed") !== "yes") return { status: "error", message: "راجع الفاتورة قبل تأكيد البيع." };
   try {
     const result = await createCatalogSale(prisma, BigInt(session.id), payload(formData));
@@ -50,6 +55,7 @@ export async function createCatalogSaleAction(_previous: SalesActionState, formD
 
 export async function collectAction(_previous: SalesActionState, formData: FormData): Promise<SalesActionState> {
   const session = await requireSession();
+  if (!(await writeAccessAllowed("/sales#collect"))) return { status: "error", message: WRITE_DENIED_MESSAGE };
   if (text(formData, "reviewed") !== "yes") return { status: "error", message: "راجع التحصيل قبل التأكيد." };
   const raw = { requestId: text(formData, "requestId"), saleId: text(formData, "saleId"), amount: text(formData, "amount"), method: text(formData, "method"), actuallyPaid: false };
   try {
@@ -60,28 +66,45 @@ export async function collectAction(_previous: SalesActionState, formData: FormD
 
 export async function refundAction(_previous: SalesActionState, formData: FormData): Promise<SalesActionState> {
   const session = await requireSession();
+  if (!(await writeAccessAllowed("/sales#refund"))) return { status: "error", message: WRITE_DENIED_MESSAGE };
   if (text(formData, "reviewed") !== "yes") return { status: "error", message: "راجع الرد قبل التأكيد." };
   const method = text(formData, "method");
+  const access = await getAccessContext();
+  const canViewBalances = accessKeyAllowed(access.hidden, "/sales#refund-balances");
   const raw = {
     requestId: text(formData, "requestId"), saleId: text(formData, "saleId"), amount: text(formData, "amount"), method,
     actuallyPaid: text(formData, "actuallyPaid") === "yes",
     // الرد النقدي يخرج من حساب الفرع في المعاملة نفسها؛ غير النقدي لا يحرك نقدًا.
     accountId: method === "CASH" ? text(formData, "accountId") : null,
     negativeAcknowledged: text(formData, "negativeAcknowledged") === "yes",
+    // An old form may retry a legacy request without either field. Do not
+    // invent empty review fields, which would change its replay identity.
+    ...(method === "CASH" && (formData.has("checkpointRef") || formData.has("timing"))
+      ? { checkpointRef: text(formData, "checkpointRef"), timing: text(formData, "timing") } : {}),
   };
+  // Do not silently rewrite the request payload: retries must keep the same hash.
+  if (method === "CASH" && !canViewBalances && raw.negativeAcknowledged)
+    return { status: "error", message: "لا يمكن تأكيد رصيد سالب دون صلاحية عرض الرصيد؛ راجع مسؤولًا مخولًا." };
   try {
     const result = await recordCommerceRefund(prisma, BigInt(session.id), raw); refresh(raw.saleId);
-    return { status: "success", id: result.id, message: result.replayed ? "سبق تسجيل هذا الرد؛ لم يُكرر." : "تم تسجيل المبلغ الذي دُفع للعميل بالفعل، وخُصم من الحساب المختار." };
-  } catch (error) { return failure(error); }
+    return { status: "success", id: result.id, message: result.replayed ? "سبق تسجيل هذا الرد؛ لم يُكرر." : method === "CASH" ? "تم تسجيل المبلغ الذي دُفع للعميل بالفعل، وخُصم من الحساب المختار." : "تم تسجيل المبلغ الذي دُفع للعميل بالفعل؛ لم تُنشأ حركة نقدية." };
+  } catch (error) {
+    if (!canViewBalances && method === "CASH" && error instanceof InventoryProblem && error.message.includes("سيصبح الرصيد سالبًا"))
+      return { status: "error", message: "تعذر الرد من الحساب المختار؛ راجع مسؤولًا مخولًا قبل المحاولة." };
+    return failure(error);
+  }
 }
 
 export async function returnAction(_previous: SalesActionState, formData: FormData): Promise<SalesActionState> {
   const session = await requireSession();
   if (text(formData, "reviewed") !== "yes") return { status: "error", message: "راجع المرتجع قبل التأكيد." };
-  const raw = payload(formData);
+  // Parse once before choosing the permission; never trust a separate client-supplied key.
+  const parsed = parseReturnInput(payload(formData));
+  if (!parsed.ok) return { status: "error", message: "راجع المرتجع ثم حاول مجددًا.", fieldErrors: parsed.errors };
+  if (!(await writeAccessAllowed(parsed.value.cancel ? "/sales#cancel" : "/sales#return"))) return { status: "error", message: WRITE_DENIED_MESSAGE };
   try {
-    const result = await returnCommerceSale(prisma, BigInt(session.id), raw);
-    const saleId = raw && typeof raw === "object" && "saleId" in raw && typeof raw.saleId === "string" ? raw.saleId : undefined;
+    const result = await returnCommerceSale(prisma, BigInt(session.id), parsed.value);
+    const saleId = parsed.value.saleId;
     refresh(saleId);
     return { status: "success", id: result.id, message: result.replayed ? "سبق حفظ هذا المرتجع؛ لم يُكرر." : "تم تسجيل المرتجع وإعادة المقبول للمخزون. لم يُسجّل رد مالي تلقائيًا." };
   } catch (error) { return failure(error); }
@@ -89,9 +112,10 @@ export async function returnAction(_previous: SalesActionState, formData: FormDa
 
 export async function discountSettingAction(_previous: SalesActionState, formData: FormData): Promise<SalesActionState> {
   const session = await requireSession();
+  if (!(await writeAccessAllowed("/sales/settings"))) return { status: "error", message: WRITE_DENIED_MESSAGE };
   if (text(formData, "reviewed") !== "yes") return { status: "error", message: "راجع نسبة الخصم قبل الحفظ." };
   try {
-    const result = await changeStaffDiscountLimit(prisma, BigInt(session.id), { requestId: text(formData, "requestId"), percent: text(formData, "percent") });
+    const result = await changeStaffDiscountLimit(prisma, BigInt(session.id), { requestId: text(formData, "requestId"), percent: text(formData, "percent"), managerPercent: text(formData, "managerPercent") });
     refresh();
     return { status: "success", id: result.id, message: result.replayed ? "سبق حفظ هذا التغيير." : "تم تحديث حد خصم الموظف." };
   } catch (error) { return failure(error); }

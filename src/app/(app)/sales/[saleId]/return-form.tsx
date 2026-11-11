@@ -10,12 +10,12 @@ import { returnAction } from "../actions";
 import { initialSalesActionState, type SalesActionState } from "../sales-state";
 
 type Line = { id: string; name: string; quantity: string; previouslyReturned: string; remaining: string; total: string; tax: string; isStock: boolean; isSerialized: boolean; serials: { id: string; number: string }[] };
-type Props = { requestId: string; saleId: string; lines: Line[]; originalCents: string; returnedCents: string; collectedCents: string; refundedCents: string; unavailable: boolean };
+type Props = { canReturn: boolean; canCancel: boolean; requestId: string; saleId: string; lines: Line[]; originalCents: string; returnedCents: string; collectedCents: string; refundedCents: string; unavailable: boolean };
 type Entry = { quantity: string; serialIds: string[] };
 type Review = { input: ReturnInput; returnCents: bigint; dueFrom: bigint; dueTo: bigint };
 
-export default function ReturnForm({ requestId, saleId, lines, originalCents, returnedCents, collectedCents, refundedCents, unavailable }: Props) {
-  const [cancel, setCancel] = useState(false);
+export default function ReturnForm({ canReturn, canCancel, requestId, saleId, lines, originalCents, returnedCents, collectedCents, refundedCents, unavailable }: Props) {
+  const [cancel, setCancel] = useState(!canReturn && canCancel);
   const [accepted, setAccepted] = useState(false);
   const [entries, setEntries] = useState<Record<string, Entry>>({});
   const [review, setReview] = useState<Review | null>(null);
@@ -27,6 +27,7 @@ export default function ReturnForm({ requestId, saleId, lines, originalCents, re
   function toggle(id: string, serialId: string) { update(id, (entry) => ({ ...entry, serialIds: entry.serialIds.includes(serialId) ? entry.serialIds.filter((x) => x !== serialId) : [...entry.serialIds, serialId] })); }
   function reviewValues() {
     try {
+      if ((cancel && !canCancel) || (!cancel && !canReturn)) throw new Error("هذه العملية معطّلة بالصلاحيات.");
       let selected: ReturnLineInput[] = [];
       if (cancel) {
         selected = lines.filter((line) => scaledInteger(line.remaining, 2) > 0n).map((line) => ({ saleLineId: line.id, quantity: line.remaining, serialIds: line.isSerialized ? line.serials.map((serial) => serial.id) : [] }));
@@ -62,9 +63,9 @@ export default function ReturnForm({ requestId, saleId, lines, originalCents, re
       {state.status === "error" && state !== dismissed && <div className="inv-alert inv-alert--error" role="alert">{state.message}{state.fieldErrors && <ul>{Object.values(state.fieldErrors).map((value, index) => <li key={index}>{value}</li>)}</ul>}</div>}
       {error && <div className="inv-alert inv-alert--error" role="alert">{error}</div>}
       <fieldset className="sale-serials"><legend>نوع العملية</legend><div className="sale-serials__list">
-        <label><input type="radio" name="return-mode" checked={!cancel} disabled={pending} onChange={() => { edited(); setCancel(false); }} />مرتجع جزئي</label>
-        <label><input type="radio" name="return-mode" checked={cancel} disabled={pending} onChange={() => { edited(); setCancel(true); }} />إلغاء كامل للباقي</label>
-      </div><p className="sale-note">الإلغاء يعيد كل البنود غير المرتجعة سابقًا، ولا يدفع أي مبلغ تلقائيًا.</p></fieldset>
+        {canReturn && <label><input type="radio" name="return-mode" checked={!cancel} disabled={pending} onChange={() => { edited(); setCancel(false); }} />مرتجع جزئي</label>}
+        {canCancel && <label><input type="radio" name="return-mode" checked={cancel} disabled={pending} onChange={() => { edited(); setCancel(true); }} />إلغاء كامل للباقي</label>}
+      </div>{canCancel && <p className="sale-note">الإلغاء يعيد كل البنود غير المرتجعة سابقًا، ولا يدفع أي مبلغ تلقائيًا.</p>}</fieldset>
       {!cancel && lines.filter((line) => scaledInteger(line.remaining, 2) > 0n).map((line) => {
         const entry = entries[line.id] ?? { quantity: "", serialIds: [] };
         return <div className="sale-product" key={line.id}><div className="sale-product__heading"><div><h3>{line.name}</h3><p>المتبقي الممكن إرجاعه: {line.remaining}{!line.isStock ? " · خدمة لا تُضاف للمخزون" : ""}</p></div></div>
@@ -73,7 +74,7 @@ export default function ReturnForm({ requestId, saleId, lines, originalCents, re
       })}
       <label className="inv-check"><input type="checkbox" checked={accepted} disabled={pending} onChange={(event) => { edited(); setAccepted(event.target.checked); }} /><span><strong>أؤكد قبول البنود المحددة للمرتجع</strong><small>تُعاد السلع المقبولة للمخزون في المستودع الأصلي.</small></span></label>
       {review && <div className="inv-review" aria-live="polite"><h2>مراجعة {cancel ? "الإلغاء" : "المرتجع"}</h2><dl><div><dt>قيمة المرتجع</dt><dd>{displayMoney(review.returnCents)} ج.م</dd></div><div><dt>المتبقي على العميل بعده</dt><dd>{displayMoney(review.dueFrom)} ج.م</dd></div><div><dt>المستحق للعميل بعده</dt><dd>{displayMoney(review.dueTo)} ج.م</dd></div></dl><p>المستحق للعميل لا يعني ردّه. يُسجّل الرد بعد دفعه فعليًا بصورة منفصلة.</p></div>}
-      <div className="inv-form-actions">{review ? <><button type="submit" className="inv-button" disabled={pending}>{pending ? "جارٍ الحفظ…" : `تأكيد ${cancel ? "الإلغاء" : "المرتجع"}`}</button><button type="button" className="inv-button inv-button--secondary" disabled={pending} onClick={() => setReview(null)}>تعديل</button></> : <button type="button" className="inv-button" disabled={pending} onClick={(event) => { event.preventDefault(); reviewValues(); }}>مراجعة المرتجع</button>}</div>
+      <div className="inv-form-actions">{review ? <><button type="submit" className="inv-button" disabled={pending}>{pending ? "جارٍ الحفظ…" : `تأكيد ${cancel ? "الإلغاء" : "المرتجع"}`}</button><button type="button" className="inv-button inv-button--secondary" disabled={pending} onClick={() => setReview(null)}>تعديل</button></> : <button type="button" className="inv-button" disabled={pending} onClick={(event) => { event.preventDefault(); reviewValues(); }}>مراجعة {cancel ? "الإلغاء" : "المرتجع"}</button>}</div>
     </div>
   </form>;
 }

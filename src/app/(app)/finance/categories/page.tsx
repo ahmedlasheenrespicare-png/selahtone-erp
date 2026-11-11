@@ -1,3 +1,4 @@
+import { writeAllowedForKeys } from "@/lib/access-control";
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { AppIcon } from "@/components/app-icon";
@@ -11,7 +12,7 @@ import { displayMoney } from "@/lib/commerce-display";
 import { listAppCategories } from "@/lib/finance/app-categories";
 import { listExpenses } from "@/lib/finance/engine";
 import { cairoDate } from "@/lib/finance/validation";
-import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
+import { getAccessContext, requirePageAccess } from "@/lib/access-control-server";
 import { prisma } from "@/lib/prisma";
 import { financePage, financeRead } from "../page-context";
 import CategoriesDirectoryView, {
@@ -98,7 +99,12 @@ function emptyAccumulator(): CatAccumulator {
 /** Management of the EXISTING expense categories: add, edit, deactivate, spend analytics & immutable audit trail. */
 export default async function CategoriesPage() {
   const { session, canManage } = await financePage();
-  await requireMenuScopeAccess("/finance/categories");
+  await requirePageAccess("/finance/categories");
+  const access = await getAccessContext();
+  const canCreateCategory = writeAllowedForKeys(access.hidden, "/finance/categories#create");
+  const canEditCategory = writeAllowedForKeys(access.hidden, "/finance/categories#edit");
+  const canCreateExpense = writeAllowedForKeys(access.hidden, "/finance/expenses/new");
+  const canOpenExpenses = access.isAllowed("/finance/expenses");
   if (!canManage) {
     return (
       <div className="fin-page">
@@ -489,10 +495,10 @@ export default async function CategoriesPage() {
           </p>
         </div>
         <div className="fin-actions">
-          <Link className="fin-button" href="/finance/expenses/new">
+          {canCreateExpense ? <Link className="fin-button" href="/finance/expenses/new">
             <AppIcon name="plusCircle" />
             <span>تسجيل مصروف</span>
-          </Link>
+          </Link> : null}
           <PrintPageButton
             label="طباعة دليل البنود"
             className="fin-button fin-button--secondary"
@@ -593,7 +599,7 @@ export default async function CategoriesPage() {
         ]}
       />
 
-      <div className="fin-panel no-print" style={{ marginBottom: 18 }}>
+      {canCreateCategory ? <div className="fin-panel no-print" style={{ marginBottom: 18 }}>
         <div className="fin-panel__heading">
           <h2>إضافة بند مصروف جديد</h2>
           <p>
@@ -606,9 +612,12 @@ export default async function CategoriesPage() {
             existingNames={directoryItems.map((c) => c.name)}
           />
         </div>
-      </div>
+      </div> : null}
 
       <CategoriesDirectoryView
+        canEdit={canEditCategory}
+        canCreateExpense={canCreateExpense}
+        canOpenExpenses={canOpenExpenses}
         categories={directoryItems}
         auditRows={auditRows}
         currentMonthLabel={currentMonthPrefix}

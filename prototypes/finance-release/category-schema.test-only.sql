@@ -47,3 +47,15 @@ CREATE TABLE finance_candidate.category_requests (
   category_id INTEGER NOT NULL REFERENCES public.expense_categories(id) ON DELETE RESTRICT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Disposable request-result link for the experimental category bridge.
+-- NOT a production object: the reviewed finance candidate already carries
+-- finance.request_results, so tools/refresh-candidate.mjs strips this block.
+CREATE TABLE IF NOT EXISTS finance_candidate.request_results (
+  request_id UUID PRIMARY KEY,
+  action VARCHAR(40) NOT NULL,
+  actor_id BIGINT NOT NULL REFERENCES public.users(id),
+  result_table VARCHAR(64) NOT NULL,
+  result_id BIGINT NOT NULL CHECK (result_id > 0),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

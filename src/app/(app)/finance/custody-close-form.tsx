@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { closeAccountAction } from "./actions";
+import { OlderCorrectionNotice } from "./older-correction-notice";
 import { initialFinanceActionState } from "./finance-state";
 
 /**
@@ -13,21 +14,15 @@ import { initialFinanceActionState } from "./finance-state";
  */
 export function CustodyCloseForm({ requestId, accountId, holderName }: { requestId: string; accountId: string; holderName: string }) {
   const [state, formAction, pending] = useActionState(closeAccountAction, initialFinanceActionState);
-  const [open, setOpen] = useState(false);
+  const details = useRef<HTMLDetailsElement>(null);
   const [reason, setReason] = useState("");
 
   if (state.status === "success") return <span className="fin-field__hint">مقفلة</span>;
 
-  if (!open) {
-    return (
-      <button className="fin-button fin-button--text" type="button" onClick={() => setOpen(true)}>
-        إقفال العهدة
-      </button>
-    );
-  }
-
   return (
-    <form action={formAction} className="fin-form-stack">
+    <details ref={details}>
+      <summary className="fin-button fin-button--text">إقفال العهدة</summary>
+      <form action={formAction} className="fin-form-stack">
       <input type="hidden" name="requestId" value={requestId} />
       <input type="hidden" name="accountId" value={accountId} />
       <div className="field fin-field">
@@ -42,8 +37,9 @@ export function CustodyCloseForm({ requestId, accountId, holderName }: { request
         <input type="hidden" name="reason" value={reason} />
       </div>
       <p className="fin-field__hint">
-        سيُقفل حساب «{holderName}» ولا يُحذف: سجله وحركاته وتسوياته تبقى للمراجعة.
+        سيُقفل حساب «{holderName}» ولا يُحذف: سجله وحركاته وتسوياته تبقى للمراجعة. يجب تصفية الفترة وعدم وجود طلبات تسوية أو جرد مفتوحة قبل الإقفال.
       </p>
+      <OlderCorrectionNotice />
       {state.status === "error" ? (
         <div className="fin-alert fin-alert--error" role="alert">{state.message}</div>
       ) : null}
@@ -51,10 +47,11 @@ export function CustodyCloseForm({ requestId, accountId, holderName }: { request
         <button className="fin-button" type="submit" disabled={pending}>
           {pending ? "جارٍ الإقفال…" : "تأكيد الإقفال"}
         </button>
-        <button className="fin-button fin-button--text" type="button" onClick={() => setOpen(false)} disabled={pending}>
+        <button className="fin-button fin-button--text" type="button" onClick={() => { if (details.current) details.current.open = false; }} disabled={pending}>
           إلغاء
         </button>
       </div>
-    </form>
+      </form>
+    </details>
   );
 }

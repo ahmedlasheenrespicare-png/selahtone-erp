@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { writeAccessAllowed, WRITE_DENIED_MESSAGE } from "@/lib/access-control-server";
 import { requireSession } from "@/lib/auth";
 import {
   createSalesCategory, createSalesField, createSalesType,
@@ -32,8 +33,9 @@ function refresh() {
 }
 
 type Result = { id: string; replayed: boolean };
-async function run(work: (actorId: bigint) => Promise<Result>, done: string): Promise<CatalogActionState> {
+async function run(key: string, work: (actorId: bigint) => Promise<Result>, done: string): Promise<CatalogActionState> {
   const session = await requireSession();
+  if (!(await writeAccessAllowed(key))) return { status: "error", message: WRITE_DENIED_MESSAGE };
   try {
     const result = await work(BigInt(session.id));
     refresh();
@@ -44,35 +46,35 @@ async function run(work: (actorId: bigint) => Promise<Result>, done: string): Pr
 export async function createCategoryAction(_previous: CatalogActionState, formData: FormData): Promise<CatalogActionState> {
   if (text(formData, "reviewed") !== "yes") return { status: "error", message: "راجع بيانات التصنيف قبل الحفظ." };
   const raw = { requestId: text(formData, "requestId"), code: text(formData, "code"), nameAr: text(formData, "nameAr"), sortOrder: number(text(formData, "sortOrder")) };
-  return run((actorId) => createSalesCategory(prisma, actorId, raw), "تمت إضافة التصنيف.");
+  return run("/sales/catalog#create-category", (actorId) => createSalesCategory(prisma, actorId, raw), "تمت إضافة التصنيف.");
 }
 
 export async function updateCategoryAction(_previous: CatalogActionState, formData: FormData): Promise<CatalogActionState> {
   if (text(formData, "reviewed") !== "yes") return { status: "error", message: "راجع بيانات التصنيف قبل الحفظ." };
   const raw = { requestId: text(formData, "requestId"), id: text(formData, "id"), nameAr: text(formData, "nameAr"), sortOrder: number(text(formData, "sortOrder")) };
-  return run((actorId) => updateSalesCategory(prisma, actorId, raw), "تم تعديل التصنيف.");
+  return run("/sales/catalog#edit-category", (actorId) => updateSalesCategory(prisma, actorId, raw), "تم تعديل التصنيف.");
 }
 
 export async function setCategoryActiveAction(_previous: CatalogActionState, formData: FormData): Promise<CatalogActionState> {
   const raw = { requestId: text(formData, "requestId"), id: text(formData, "id"), active: text(formData, "active") === "yes", reason: text(formData, "reason") };
-  return run((actorId) => setSalesCategoryActive(prisma, actorId, raw), "تم تحديث حالة التصنيف.");
+  return run("/sales/catalog#change-category-status", (actorId) => setSalesCategoryActive(prisma, actorId, raw), "تم تحديث حالة التصنيف.");
 }
 
 export async function createTypeAction(_previous: CatalogActionState, formData: FormData): Promise<CatalogActionState> {
   if (text(formData, "reviewed") !== "yes") return { status: "error", message: "راجع بيانات الصنف قبل الحفظ." };
   const raw = { requestId: text(formData, "requestId"), categoryId: text(formData, "categoryId"), nameAr: text(formData, "nameAr"), sortOrder: number(text(formData, "sortOrder")) };
-  return run((actorId) => createSalesType(prisma, actorId, raw), "تمت إضافة الصنف.");
+  return run("/sales/catalog#create-type", (actorId) => createSalesType(prisma, actorId, raw), "تمت إضافة الصنف.");
 }
 
 export async function updateTypeAction(_previous: CatalogActionState, formData: FormData): Promise<CatalogActionState> {
   if (text(formData, "reviewed") !== "yes") return { status: "error", message: "راجع بيانات الصنف قبل الحفظ." };
   const raw = { requestId: text(formData, "requestId"), id: text(formData, "id"), nameAr: text(formData, "nameAr"), sortOrder: number(text(formData, "sortOrder")) };
-  return run((actorId) => updateSalesType(prisma, actorId, raw), "تم تعديل الصنف.");
+  return run("/sales/catalog#edit-type", (actorId) => updateSalesType(prisma, actorId, raw), "تم تعديل الصنف.");
 }
 
 export async function setTypeActiveAction(_previous: CatalogActionState, formData: FormData): Promise<CatalogActionState> {
   const raw = { requestId: text(formData, "requestId"), id: text(formData, "id"), active: text(formData, "active") === "yes", reason: text(formData, "reason") };
-  return run((actorId) => setSalesTypeActive(prisma, actorId, raw), "تم تحديث حالة الصنف.");
+  return run("/sales/catalog#change-type-status", (actorId) => setSalesTypeActive(prisma, actorId, raw), "تم تحديث حالة الصنف.");
 }
 
 export async function createFieldAction(_previous: CatalogActionState, formData: FormData): Promise<CatalogActionState> {
@@ -81,7 +83,7 @@ export async function createFieldAction(_previous: CatalogActionState, formData:
     requestId: text(formData, "requestId"), typeId: text(formData, "typeId"), fieldKey: text(formData, "fieldKey"),
     labelAr: text(formData, "labelAr"), isRequired: text(formData, "isRequired") === "yes", sortOrder: number(text(formData, "sortOrder")),
   };
-  return run((actorId) => createSalesField(prisma, actorId, raw), "تمت إضافة الحقل.");
+  return run("/sales/catalog#create-field", (actorId) => createSalesField(prisma, actorId, raw), "تمت إضافة الحقل.");
 }
 
 export async function updateFieldAction(_previous: CatalogActionState, formData: FormData): Promise<CatalogActionState> {
@@ -90,10 +92,10 @@ export async function updateFieldAction(_previous: CatalogActionState, formData:
     requestId: text(formData, "requestId"), id: text(formData, "id"), labelAr: text(formData, "labelAr"),
     isRequired: text(formData, "isRequired") === "yes", sortOrder: number(text(formData, "sortOrder")),
   };
-  return run((actorId) => updateSalesField(prisma, actorId, raw), "تم تعديل الحقل.");
+  return run("/sales/catalog#edit-field", (actorId) => updateSalesField(prisma, actorId, raw), "تم تعديل الحقل.");
 }
 
 export async function setFieldActiveAction(_previous: CatalogActionState, formData: FormData): Promise<CatalogActionState> {
   const raw = { requestId: text(formData, "requestId"), id: text(formData, "id"), active: text(formData, "active") === "yes", reason: text(formData, "reason") };
-  return run((actorId) => setSalesFieldActive(prisma, actorId, raw), "تم تحديث حالة الحقل.");
+  return run("/sales/catalog#change-field-status", (actorId) => setSalesFieldActive(prisma, actorId, raw), "تم تحديث حالة الحقل.");
 }

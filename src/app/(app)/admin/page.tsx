@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { isSystemAdmin, parseAdminEmails } from "@/lib/access-control";
 import { AppIcon } from "@/components/app-icon";
 import PantherSpotlightCard, {
   type PantherChartPoint,
@@ -8,11 +9,12 @@ import PantherSpotlightCard, {
 import PrintPageButton from "@/components/print-page-button";
 import { ROLE_LABELS, type AdminRole } from "@/lib/admin-directory";
 import { canSeeAllBranches, getSession } from "@/lib/auth";
-import { financeDb, financeEnabled } from "@/lib/finance/db";
-import { isMenuScope, type MenuScope } from "@/lib/menu-scope";
-import { requireMenuScopeAccess } from "@/lib/menu-scope-guard";
+import { financeEnabled } from "@/lib/finance/db";
+import { readDirectoryFinanceAccounts } from "@/lib/admin-directory-operations";
+import { getAccessContext, requireSystemAdminOrRedirect } from "@/lib/access-control-server";
 import { prisma } from "@/lib/prisma";
 import type { BranchRow, UserRow } from "./admin-forms";
+import PermissionsPanel from "./permissions-panel";
 import AdminHubView, { type SecurityAttemptRow } from "./admin-hub-view";
 import "./admin.css";
 
@@ -35,7 +37,7 @@ const ATTEMPT_LABELS: Record<
  */
 export default async function AdminPage() {
   const session = await getSession();
-  await requireMenuScopeAccess("/admin");
+  await requireSystemAdminOrRedirect();
   if (!session) redirect("/login");
   if (session.mustChangePassword) redirect("/change-password");
   if (!canSeeAllBranches(session)) {
@@ -46,6 +48,17 @@ export default async function AdminPage() {
         </div>
       </div>
     );
+  }
+
+  const access = await getAccessContext();
+  let permissionRows: { subject_kind: string; subject: string; key: string; allowed: boolean }[] = [];
+  let permissionsHealthy = access.storeHealthy;
+  if (permissionsHealthy) {
+    try {
+      permissionRows = await prisma.$queryRaw`SELECT subject_kind, subject, key, allowed FROM public.access_control`;
+    } catch {
+      permissionsHealthy = false;
+    }
   }
 
   const now = new Date();
@@ -75,8 +88,6 @@ export default async function AdminPage() {
         branchId: true,
         status: true,
         mustChangePassword: true,
-        menuScope: true,
-        canCancelSales: true,
         branch: { select: { nameAr: true } },
       },
     }),
@@ -114,26 +125,10 @@ export default async function AdminPage() {
         where: { lockedUntil: { gt: now } },
       })
       .catch(() => 0),
-    financeOn
-      ? financeDb
-          .serializable((tx) =>
-            tx.query<{
-              id: string;
-              branchId: string;
-              kind: string;
-              holderId: string | null;
-            }>(
-              `SELECT id::text AS id,
-                      branch_id::text AS "branchId",
-                      kind::text AS kind,
-                      holder_id::text AS "holderId"
-                 FROM finance.accounts
-                WHERE closed_at IS NULL`,
-            ),
-          )
-          .catch(() => ({ rows: [] }))
-      : Promise.resolve({ rows: [] }),
+    readDirectoryFinanceAccounts(prisma, financeOn),
   ]);
+
+  const financeSummaryVisible = financeOn && openFinanceAccounts.state === "ready";
 
   // خرائط الجلسات وآخر دخول
   let totalActiveSessions = 0;
@@ -238,8 +233,6 @@ export default async function AdminPage() {
       isActive: u.status === "ACTIVE",
       mustChangePassword: u.mustChangePassword,
       isSelf: uId === session.id,
-      menuScope: isMenuScope(u.menuScope) ? (u.menuScope as MenuScope) : "FULL",
-      canCancelSales: u.canCancelSales,
       activeSessionCount: activeSessionByUser.get(uId) ?? 0,
       lastLoginLabel: lastLoginByUser.get(uId) ?? null,
       openCustodyId: openCustodyByUser.get(uId) ?? null,
@@ -303,13 +296,13 @@ export default async function AdminPage() {
           shortLabel: b.code,
           value: b.activeUserCount,
           formattedValue: `${b.activeUserCount} موظف نشط`,
-          secondaryValue: financeOn ? b.openCustodyCount : b.warehouseCount,
-          secondaryLabel: financeOn ? "العُهَد المفتوحة" : "المستودعات",
-          secondaryFormatted: financeOn
+          secondaryValue: financeSummaryVisible ? b.openCustodyCount : b.warehouseCount,
+          secondaryLabel: financeSummaryVisible ? "العُهَد المفتوحة" : "المستودعات",
+          secondaryFormatted: financeSummaryVisible
             ? `${b.openCustodyCount} عهدة`
             : `${b.warehouseCount} مستودع`,
           detail: `${b.isActive ? "نشط" : "موقوف"} · ${
-            financeOn
+            financeSummaryVisible
               ? b.hasOpenVault
                 ? "خزنة مفتوحة"
                 : "بانتظار فتح خزنة"
@@ -431,8 +424,8 @@ export default async function AdminPage() {
             tone: "positive",
           }}
           secondary={{
-            label: financeOn ? "جاهزية خزائن الفروع النشطة" : "الفروع النشطة بالتشغيل",
-            value: financeOn
+            label: financeSummaryVisible ? "جاهزية خزائن الفروع النشطة" : "الفروع النشطة بالتشغيل",
+            value: financeSummaryVisible
               ? `${vaultsReadyCount}/${activeBranches.length}`
               : String(activeBranches.length),
             unit: "فرع",
@@ -464,7 +457,7 @@ export default async function AdminPage() {
               {activeBranches.length} <small>نشط من {branchRows.length}</small>
             </strong>
             <small className="dashboard-pulse-card__sub">
-              {financeOn
+              {financeSummaryVisible
                 ? `${vaultsReadyCount} فرع بخزنة مفتوحة`
                 : "مستودع افتراضي مستقل لكل فرع"}
             </small>
@@ -526,9 +519,15 @@ export default async function AdminPage() {
         </div>
       </section>
 
+      {openFinanceAccounts.state === "unavailable" && <div className="alert alert-err" role="alert">تعذّر التحقق من العهد النقدية؛ الأرقام المعروضة ليست دليلًا على عدم وجود عهد. تُمنع التغييرات المقيّدة حتى إصلاح القراءة.</div>}
+      {!financeOn && openFinanceAccounts.state === "ready" && <div className="alert alert-err" role="alert">المالية معطّلة في الواجهة، لكن جداولها موجودة ويستمر فحص العهد قبل نقل أو إيقاف المستخدم وإيقاف الفرع. تواصل مع مسؤول النظام لترتيب أي معالجة معتمدة.</div>}
+
+      <PermissionsPanel users={userRows.map((user) => ({ ...user, isSystemAdmin: isSystemAdmin(user.role, user.email, parseAdminEmails(process.env.ADMIN_EMAILS)) }))} rows={permissionRows} healthy={permissionsHealthy} />
+
       <AdminHubView
         actorRole={session.role as AdminRole}
         financeOn={financeOn}
+        financeAccountsKnown={openFinanceAccounts.state !== "unavailable"}
         users={userRows}
         branches={branchRows}
         activeBranches={activeBranches}

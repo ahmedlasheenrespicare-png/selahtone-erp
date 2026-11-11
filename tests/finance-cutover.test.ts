@@ -15,12 +15,24 @@ import { createCommerceSale,recordCommerceCollection,recordCommerceRefund,return
 
 const root=process.cwd(),read=(f:string)=>readFileSync(path.join(root,f),"utf8");
 const cutover=read("prototypes/finance-cutover/schema.test-only.sql");
-const files=["tests/fixtures/inventory-baseline.sql","prisma/manual-inventory-upgrade.sql","prisma/manual-receiving-upgrade.sql","prisma/manual-commerce-upgrade.sql","tests/fixtures/finance-legacy-categories.sql","tests/fixtures/finance-cutover.sql"];
+// Same upgrade order as tests/catalog-sales.test.ts (plus the two finance
+// fixtures below): the generated client and src/lib/commerce-operations.ts read
+// columns that the older four-file fixture never created.
+const files=["tests/fixtures/inventory-baseline.sql","prisma/manual-inventory-upgrade.sql","prisma/manual-receiving-upgrade.sql","prisma/manual-commerce-upgrade.sql","prisma/manual-catalog-sales-upgrade.sql","prisma/manual-menu-scope-upgrade.sql","prisma/manual-cancel-permission-upgrade.sql","prisma/manual-discount-ceiling-upgrade.sql","tests/fixtures/finance-legacy-categories.sql","tests/fixtures/finance-cutover.sql"];
 const request=()=>randomUUID();
 const saleInput=(initialPayment="10",method="CASH")=>({requestId:request(),warehouseId:"1",customerName:"عميل اختبار وهمي",customerPhone:"01000000000",discount:"0",initialPayment,method,
  lines:[{productId:"2",quantity:"2",serialIds:[],expectedUnitPrice:"20",expectedTaxRateId:3,expectedTaxKind:"EXEMPT",expectedTaxRate:"0"}]});
 const collect=(saleId:string)=>({requestId:request(),saleId,amount:"1",method:"CASH",actuallyPaid:false});
 const refund=(saleId:string)=>({requestId:request(),saleId,amount:"1",method:"CASH",actuallyPaid:true});
+// Current production code refuses a NEW cash refund before any write while
+// FINANCE_ENABLED is off. Supply the reviewed payload it now requires so the
+// request still reaches the database guard this laboratory is meant to test.
+const reviewedRefund=(saleId:string)=>({...refund(saleId),accountId:"1",checkpointRef:"OPENING",timing:"AFTER_REVIEWED_CHECKPOINT"});
+async function legacyRefund(db:PrismaClient,actorId:bigint,raw:unknown):Promise<unknown>{
+ const previous=process.env.FINANCE_ENABLED;process.env.FINANCE_ENABLED="true";
+ try{return await recordCommerceRefund(db,actorId,raw);}
+ finally{if(previous===undefined)delete process.env.FINANCE_ENABLED;else process.env.FINANCE_ENABLED=previous;}
+}
 const returned=(saleId:string)=>({requestId:request(),saleId,cancel:true,accepted:true,lines:[]});
 /** A deliberately incomplete test wrapper: authorizes the OLD code but does not
  * add ledger postings. The deferred database invariant must still reject cash. */
@@ -252,7 +264,7 @@ test("database cutover lab closes and reopens safely under concurrent real comme
    await rejectsText(()=>createCommerceSale(oldApp!,3n,saleInput()),/FINANCE_CUTOVER_BLOCKED/);
    await rejectsText(()=>recordCommerceCollection(oldApp!,3n,collect(dueSale)),/FINANCE_CUTOVER_BLOCKED/);
    await rejectsText(()=>returnCommerceSale(oldApp!,1n,returned(dueSale)),/FINANCE_CUTOVER_BLOCKED/);
-   await rejectsText(()=>recordCommerceRefund(oldApp!,2n,refund(refundSale)),/FINANCE_CUTOVER_BLOCKED/);
+   await rejectsText(()=>legacyRefund(oldApp!,2n,reviewedRefund(refundSale)),/FINANCE_CUTOVER_BLOCKED/);
    assert.deepEqual(await counts(admin!),before);
   });
   await t.test("audited early rollback works only before NEW; replay exposes the CURRENT phase",async()=>{
@@ -296,7 +308,11 @@ test("database cutover lab closes and reopens safely under concurrent real comme
    await rejectsText(()=>createCommerceSale(authorized,3n,cashRequest),/FINANCE_CASH_LINK_REQUIRED/);
    await rejectsText(()=>createCommerceSale(authorized,3n,cashRequest),/FINANCE_CASH_LINK_REQUIRED/);
    await rejectsText(()=>recordCommerceCollection(authorized,3n,collect(dueSale)),/FINANCE_CASH_LINK_REQUIRED/);
-   await rejectsText(()=>recordCommerceRefund(authorized,2n,refund(refundSale)),/FINANCE_CASH_LINK_REQUIRED/);
+   // Production now refuses a NEW cash refund before any write while finance is
+   // disabled; with finance enabled it requires the real `finance` schema, which
+   // this cutover fixture deliberately does not install. Assert the deferred
+   // database invariant directly, exactly as the later subtests already do.
+   await rejectsText(()=>inNewTransaction(next!,async c=>{await refundEvent(c,refundSale);}),/FINANCE_CASH_LINK_REQUIRED/);
    assert.deepEqual(await counts(admin!),before);
    const cardRequest=saleInput("10","CARD"),cashless=await createCommerceSale(authorized,3n,cardRequest);assert(cashless.id);
    assert.equal((await createCommerceSale(authorized,3n,cardRequest)).id,cashless.id);

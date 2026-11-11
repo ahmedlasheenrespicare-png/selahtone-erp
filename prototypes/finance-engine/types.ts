@@ -10,6 +10,8 @@ export type FinanceCategoryRow = Record<string, unknown> & {id:string;name:strin
 export interface FinanceCategoryPort {
   list(): Promise<FinanceCategoryRow[]>;
   lock(id:string): Promise<FinanceCategoryRow>;
+  /** Plain existence read for replay identity; never a lock or a write. */
+  exists(id:string): Promise<boolean>;
   create(name:string,actorId:string,requestId:string): Promise<string>;
   edit(before:FinanceCategoryRow,input:{name:string;active:boolean;expectedSnapshot:string|null},actorId:string): Promise<void>;
 }
