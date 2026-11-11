@@ -45,8 +45,8 @@
       "offline_design": "مصفوفة سياسات مقترحة لكل جدول + سيناريوهات سماح/منع مخبرية على PostgreSQL مؤقت مع دور selahtone_app، وفصل «وجود المحفّز» عن «تنفيذه».",
       "acceptance_criteria": "منع افتراضي موثّق، ومسار كتابة مسموح واحد على الأقل مُختبَر، ورفض أي مسار يتجاوز السياسة، بلا إجراء مالي حقيقي.",
       "requires": "SEPARATE_REVIEWED_TEXT_THEN_SEPARATE_VERBATIM_APPROVAL_BEFORE_EXECUTION",
-      "candidate_upgrade_sha256": "8723b35dd7ea3b17358987d0a17ae068154cbcde76b405e123e9402d1e68ca51",
-      "candidate_rollback_sha256": "c781fc50a935151c6215a48366f7db278d2c9201f86138b33510605ffced3972"
+      "candidate_upgrade_sha256": "e95c0674f4855d0d0e6a67bd73a592b494e962cdea2556605d0f3d83c1a14c5c",
+      "candidate_rollback_sha256": "60cf62443398f8b51f173b235d709902f8f3d733ee8b1639862e8d8d20c82a21"
     },
     {
       "id": "ATOMIC_ACCESS_CONTROL_GAP_RESOLVED",
