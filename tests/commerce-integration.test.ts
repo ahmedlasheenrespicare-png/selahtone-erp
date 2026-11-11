@@ -146,6 +146,20 @@ test("isolated sales, money and returns", { timeout: 120_000 }, async (t) => {
       assert.equal(await client.commerceCollection.count({ where: { saleId: BigInt(saleId) } }), 2);
     });
 
+    await t.test("a permission revoked after the HTTP decision blocks the commerce transaction", async () => {
+      const isolated = await createCommerceSale(client, 3n, sale({ discount: "0", initialPayment: "1", method: "CARD", lines: [line("2", "1", [])] }));
+      await pg!.query(`INSERT INTO access_control(subject_kind,subject,key,allowed)
+        VALUES('role','ACCOUNTANT','/sales#collect',false)`);
+      const payment = movement(isolated.id, "1", { method: "WALLET" });
+      await expectProblem(() => recordCommerceCollection(client, 2n, payment), /تغيّرت صلاحية هذه العملية/);
+      assert.equal(await client.commerceCollection.count({ where: { requestId: payment.requestId } }), 0);
+      // User-level allow retains the same precedence as the outer HTTP guard.
+      await pg!.query(`INSERT INTO access_control(subject_kind,subject,key,allowed)
+        VALUES('user','2','/sales#collect',true)`);
+      assert.equal((await recordCommerceCollection(client, 2n, payment)).replayed, false);
+      await pg!.exec("DELETE FROM access_control WHERE key='/sales#collect'");
+    });
+
     await t.test("return after a new-cost receipt restores saved sale cost and only creates a liability", async () => {
       await receiveInventoryStock(client, 3n, { requestId: randomUUID(), productId: "1", warehouseId: "1", quantity: "1", unitCost: "30", serialNumbers: "RESTOCK-1", sourceReference: "" });
       let level = await client.stockLevel.findUniqueOrThrow({ where: { warehouseId_productId: { warehouseId: 1n, productId: 1n } } });

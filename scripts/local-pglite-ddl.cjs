@@ -102,6 +102,19 @@ for (const m of models) {
     ddl += 'ALTER TABLE ' + qi(m.dbName) + ' ADD CONSTRAINT ' + qi('fk_' + m.dbName + '_' + f.name) + ' FOREIGN KEY (' + cols.join(', ') + ') REFERENCES ' + qi(refM.dbName) + ' (' + refCols.join(', ') + ') ON DELETE ' + onDel + ';\n';
   }
 }
+// The access-control store is a manual production upgrade, but a fresh local
+// preview must include it so current write guards can run without extra steps.
+ddl += `CREATE TABLE "access_control" (
+  "subject_kind" varchar(8) NOT NULL CHECK (subject_kind IN ('role','user')),
+  "subject" varchar(64) NOT NULL,
+  "key" varchar(130) NOT NULL,
+  "allowed" boolean NOT NULL,
+  "updated_by" varchar(64),
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY ("subject_kind","subject","key")
+);
+CREATE INDEX "access_control_key" ON "access_control" ("key");
+`;
 function buildDdl(){ return ddl; }
 module.exports = { buildDdl };
 if (require.main === module) {

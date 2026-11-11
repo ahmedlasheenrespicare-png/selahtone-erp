@@ -10,7 +10,7 @@ import { FinanceProblem, type FinanceDatabase, type FinanceTransaction } from ".
 test("financial writes and replays recheck the session role and branch in each transaction", {timeout:120_000}, async () => {
   const pg=new PGlite();
   try {
-    for(const file of ["tests/fixtures/inventory-baseline.sql","tests/fixtures/finance-legacy-categories.sql","tests/fixtures/commerce-collections.sql"]) await pg.exec(readFileSync(file,"utf8"));
+    for(const file of ["tests/fixtures/inventory-baseline.sql","tests/fixtures/finance-legacy-categories.sql","tests/fixtures/commerce-collections.sql","prisma/manual-access-control-upgrade.sql"]) await pg.exec(readFileSync(file,"utf8"));
     await pg.exec("ALTER TABLE public.commerce_sales ADD COLUMN created_by_id bigint; SET selahtone.finance_release_candidate_test_only='yes'; CREATE TABLE public.auth_sessions (id varchar(64) PRIMARY KEY, user_id bigint NOT NULL REFERENCES public.users(id), expires_at timestamptz NOT NULL)");
     for(const file of ["prototypes/finance-release/release-candidate.test-only.sql","prisma/manual-settlement-upgrade.sql","prisma/manual-custody-closure-upgrade.sql"]) await pg.exec(readFileSync(file,"utf8"));
     const db:FinanceDatabase={serializable:work=>pg.transaction(async tx=>{
@@ -42,9 +42,31 @@ test("financial writes and replays recheck the session role and branch in each t
     await assert.rejects(()=>openAccount(financeDbForActor(db,{...session,id:"9999"}),"9999",{...input,requestId:randomUUID()},"2026-11-07"),denied);
     const token="synthetic-finance-session",other="synthetic-other-session";
     await pg.query("INSERT INTO public.auth_sessions(id,user_id,expires_at) VALUES($1,1,clock_timestamp()+interval '1 hour'),($2,2,clock_timestamp()+interval '1 hour')",[token,other]);
-    const authorized=financeDbForSession(db,{...session,sessionId:token});
+    const authenticatedSession={...session,sessionId:token};
+    const authorized=financeDbForSession(db,authenticatedSession,"/finance/accounts#open");
     assert.deepEqual(await openAccount(authorized,"1",input,"2026-11-07"),{id:saved.id,replayed:true});
-    await assert.rejects(()=>openAccount(financeDbForSession(db,{...session,sessionId:other}),"1",input,"2026-11-07"),denied);
+    await assert.rejects(()=>openAccount(financeDbForSession(db,{...session,sessionId:other},"/finance/accounts#open"),"1",input,"2026-11-07"),denied);
+
+    // Regression: the HTTP guard may have allowed the request before an admin
+    // revoked the rule. The transaction must read the current rule for itself,
+    // rather than treating the outer decision as authorization to commit.
+    const revokedInput={...input,requestId:randomUUID(),branchId:"2"};
+    const revokedBeforeTransaction:FinanceDatabase={serializable:async work=>{
+      await pg.query(`INSERT INTO public.access_control(subject_kind,subject,key,allowed)
+        VALUES('role','MANAGER','/finance/accounts#open',true)
+        ON CONFLICT(subject_kind,subject,key) DO UPDATE SET allowed=true`);
+      await pg.exec("UPDATE public.access_control SET allowed=false WHERE subject_kind='role' AND subject='MANAGER' AND key='/finance/accounts#open'");
+      return db.serializable(work);
+    }};
+    await assert.rejects(()=>openAccount(
+      financeDbForSession(revokedBeforeTransaction,authenticatedSession,"/finance/accounts#open"),
+      "1",revokedInput,"2026-11-07"),/تغيّرت صلاحية هذه العملية/);
+    assert.equal((await pg.query<{n:number}>("SELECT count(*)::int AS n FROM finance.accounts WHERE branch_id=2")).rows[0].n,0);
+    assert.equal((await pg.query<{n:number}>("SELECT count(*)::int AS n FROM finance.requests WHERE request_id=$1::uuid",[revokedInput.requestId])).rows[0].n,0);
+    // A per-user allow still overrides the role deny, matching the outer guard.
+    await pg.query(`INSERT INTO public.access_control(subject_kind,subject,key,allowed)
+      VALUES('user','1','/finance/accounts#open',true)`);
+    assert.equal((await openAccount(authorized,"1",revokedInput,"2026-11-07")).replayed,false);
     await pg.query("UPDATE public.auth_sessions SET expires_at=clock_timestamp()-interval '1 second' WHERE id=$1",[token]);
     await assert.rejects(()=>openAccount(authorized,"1",input,"2026-11-07"),denied);
     await assert.rejects(()=>openAccount(authorized,"1",{...input,requestId:randomUUID(),branchId:"2"},"2026-11-07"),denied);
@@ -52,7 +74,7 @@ test("financial writes and replays recheck the session role and branch in each t
     await assert.rejects(()=>openAccount(authorized,"1",input,"2026-11-07"),denied);
     await pg.query("INSERT INTO public.auth_sessions(id,user_id,expires_at) VALUES($1,1,clock_timestamp()+interval '1 hour')",[token]);
     assert.deepEqual(await openAccount(authorized,"1",input,"2026-11-07"),{id:saved.id,replayed:true});
-    assert.equal((await pg.query<{n:number}>("SELECT count(*)::int AS n FROM finance.accounts")).rows[0].n,1);
-    assert.equal((await pg.query<{n:number}>("SELECT count(*)::int AS n FROM finance.requests")).rows[0].n,1);
+    assert.equal((await pg.query<{n:number}>("SELECT count(*)::int AS n FROM finance.accounts")).rows[0].n,2);
+    assert.equal((await pg.query<{n:number}>("SELECT count(*)::int AS n FROM finance.requests")).rows[0].n,2);
   } finally {await pg.close();}
 });

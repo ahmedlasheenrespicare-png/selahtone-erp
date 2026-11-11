@@ -17,7 +17,7 @@ export function accessTableLockTestOnly(db: FinanceDatabase, session: Authentica
     // Must be the first statement: taking a SERIALIZABLE snapshot before the
     // lock can retain stale permissions even after the waiting writer commits.
     await tx.query("LOCK TABLE public.access_control IN SHARE MODE");
-    return financeDbForSession({serializable: fn => fn(tx)}, session).serializable(async current => {
+    return financeDbForSession({serializable: fn => fn(tx)}, session, key).serializable(async current => {
       const rows = await current.query<AccessRow>(`SELECT subject_kind,key,allowed FROM public.access_control
         WHERE (subject_kind='role' AND subject=$1::text) OR (subject_kind='user' AND subject=$2::text)`, [session.role, session.id]);
       const role = new Map<string,boolean>(), user = new Map<string,boolean>();

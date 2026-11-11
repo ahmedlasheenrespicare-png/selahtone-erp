@@ -56,12 +56,12 @@ test("finance session, directory and experimental access races on disposable Pos
     // Deleting first: writer must wait, retry if needed, then fail without writing.
     const first=input("1");
     await revoker.query("BEGIN");await revoker.query("DELETE FROM auth_sessions WHERE id=$1",[sid1]);
-    const denied=openAccount(financeDbForSession(db,{...actor,sessionId:sid1}),"1",first,today).then(value=>({value}),error=>({error}));
+    const denied=openAccount(financeDbForSession(db,{...actor,sessionId:sid1},"/finance/accounts#open"),"1",first,today).then(value=>({value}),error=>({error}));
     try {await waitForSessionLock(admin);} finally {await revoker.query("COMMIT");}
     const outcome=await denied;assert.ok("error" in outcome);assert.match(String(outcome.error),/انتهت الجلسة أو أُلغيت/);
     assert.equal((await admin.query<{n:number}>("SELECT count(*)::int AS n FROM finance.accounts WHERE branch_id=1")).rows[0].n,0);
     assert.equal((await admin.query<{n:number}>("SELECT count(*)::int AS n FROM finance.requests WHERE request_id=$1::uuid",[first.requestId])).rows[0].n,0);
-    assert.equal((await openAccount(financeDbForSession(db,{...actor,sessionId:sid2}),"1",first,today)).replayed,false);
+    assert.equal((await openAccount(financeDbForSession(db,{...actor,sessionId:sid2},"/finance/accounts#open"),"1",first,today)).replayed,false);
     // Writer first: its row lock blocks revocation until the write commits.
     const g=gate();let once=false;
     const gated:FinanceDatabase={serializable:work=>prisma!.$transaction(async tx=>{
@@ -74,21 +74,21 @@ test("finance session, directory and experimental access races on disposable Pos
       return work(wrapped);
     },{isolationLevel:"Serializable",timeout:20000})};
     const second=input("2"),session2={...actor,sessionId:sid2};
-    const writing=openAccount(financeDbForSession(gated,session2),"1",second,today);
+    const writing=openAccount(financeDbForSession(gated,session2,"/finance/accounts#open"),"1",second,today);
     await g.entered;
     const removing=revoker.query("DELETE FROM auth_sessions WHERE id=$1",[sid2]);
     try {await waitForSessionLock(admin);} finally {g.release();}
     const saved=await writing;await removing;
     assert.equal(saved.replayed,false);
-    await assert.rejects(()=>openAccount(financeDbForSession(db,session2),"1",second,today),/انتهت الجلسة أو أُلغيت/);
-    assert.deepEqual(await openAccount(financeDbForSession(db,{...actor,sessionId:sid3}),"1",second,today),{id:saved.id,replayed:true});
+    await assert.rejects(()=>openAccount(financeDbForSession(db,session2,"/finance/accounts#open"),"1",second,today),/انتهت الجلسة أو أُلغيت/);
+    assert.deepEqual(await openAccount(financeDbForSession(db,{...actor,sessionId:sid3},"/finance/accounts#open"),"1",second,today),{id:saved.id,replayed:true});
     assert.equal((await admin.query<{n:number}>("SELECT count(*)::int AS n FROM finance.accounts WHERE branch_id=2")).rows[0].n,1);
     assert.equal((await admin.query<{n:number}>("SELECT count(*)::int AS n FROM finance.requests WHERE request_id=$1::uuid",[second.requestId])).rows[0].n,1);
     // An active session can expire while the write waits for its row lock.
     await admin.query("UPDATE auth_sessions SET expires_at=clock_timestamp()+interval '1 second' WHERE id=$1",[sid4]);
     await revoker.query("BEGIN");await revoker.query("SELECT id FROM auth_sessions WHERE id=$1 FOR UPDATE",[sid4]);
     const third=input("3");
-    const expired=openAccount(financeDbForSession(db,{...actor,sessionId:sid4}),"1",third,today).then(value=>({value}),error=>({error}));
+    const expired=openAccount(financeDbForSession(db,{...actor,sessionId:sid4},"/finance/accounts#open"),"1",third,today).then(value=>({value}),error=>({error}));
     try {await waitForSessionLock(admin);await revoker.query("SELECT pg_sleep(1.2)");} finally {await revoker.query("COMMIT");}
     const expiredResult=await expired;assert.ok("error" in expiredResult);assert.match(String(expiredResult.error),/انتهت الجلسة أو أُلغيت/);
     assert.equal((await admin.query<{n:number}>("SELECT count(*)::int AS n FROM finance.accounts WHERE branch_id=3")).rows[0].n,0);
@@ -117,16 +117,16 @@ test("finance session, directory and experimental access races on disposable Pos
     const change=updateDirectoryUser(directory,directoryInput);
     await before.entered;
     const emailOld={...actor,sessionId:sid3};
-    const stale=openAccount(financeDbForSession(db,emailOld),"1",third,today).then(value=>({value}),error=>({error}));
+    const stale=openAccount(financeDbForSession(db,emailOld,"/finance/accounts#open"),"1",third,today).then(value=>({value}),error=>({error}));
     try {await waitForSessionLock(admin,"users");} finally {before.release();}
     await change;
     const staleResult=await stale;assert.ok("error" in staleResult);assert.match(String(staleResult.error),/تعذّر التحقق من صلاحية الحساب/);
     assert.equal((await admin.query<{n:number}>("SELECT count(*)::int AS n FROM finance.requests WHERE request_id=$1::uuid",[third.requestId])).rows[0].n,0);
     const emailNew={...emailOld,email:changedEmail};
-    const emailSaved=await openAccount(financeDbForSession(db,emailNew),"1",third,today);
+    const emailSaved=await openAccount(financeDbForSession(db,emailNew,"/finance/accounts#open"),"1",third,today);
     assert.equal(emailSaved.replayed,false);
-    await assert.rejects(()=>openAccount(financeDbForSession(db,emailOld),"1",third,today),/تعذّر التحقق من صلاحية الحساب/);
-    assert.deepEqual(await openAccount(financeDbForSession(db,emailNew),"1",third,today),{id:emailSaved.id,replayed:true});
+    await assert.rejects(()=>openAccount(financeDbForSession(db,emailOld,"/finance/accounts#open"),"1",third,today),/تعذّر التحقق من صلاحية الحساب/);
+    assert.deepEqual(await openAccount(financeDbForSession(db,emailNew,"/finance/accounts#open"),"1",third,today),{id:emailSaved.id,replayed:true});
 
     await admin.query(`INSERT INTO branches(id,code,name_ar,invoice_prefix,opening_date,is_active,created_at) VALUES(4,'PG4','فرع اصطناعي','PG4',CURRENT_DATE,true,now())`);
     const after=gate();let actorPaused=false;
@@ -140,14 +140,14 @@ test("finance session, directory and experimental access races on disposable Pos
       return work(wrapped);
     },{isolationLevel:"Serializable",timeout:20000})};
     const fourth=input("4");
-    const writingFirst=openAccount(financeDbForSession(gatedUser,emailNew),"1",fourth,today);
+    const writingFirst=openAccount(financeDbForSession(gatedUser,emailNew,"/finance/accounts#open"),"1",fourth,today);
     await after.entered;
     const changeBack=updateDirectoryUser(prisma,{...directoryInput,expected:{...original,email:changedEmail},data:original});
     try {await waitForSessionLock(admin,"users");} finally {after.release();}
     const fourthSaved=await writingFirst;await changeBack;
     assert.equal(fourthSaved.replayed,false);
-    await assert.rejects(()=>openAccount(financeDbForSession(db,emailNew),"1",fourth,today),/تعذّر التحقق من صلاحية الحساب/);
-    assert.deepEqual(await openAccount(financeDbForSession(db,emailOld),"1",fourth,today),{id:fourthSaved.id,replayed:true});
+    await assert.rejects(()=>openAccount(financeDbForSession(db,emailNew,"/finance/accounts#open"),"1",fourth,today),/تعذّر التحقق من صلاحية الحساب/);
+    assert.deepEqual(await openAccount(financeDbForSession(db,emailOld,"/finance/accounts#open"),"1",fourth,today),{id:fourthSaved.id,replayed:true});
     assert.equal((await admin.query<{n:number}>("SELECT count(*)::int AS n FROM finance.accounts WHERE branch_id=4")).rows[0].n,1);
 
     // Test-only access barrier, never wired into the HTTP actions. Locking the

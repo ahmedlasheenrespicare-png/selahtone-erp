@@ -66,6 +66,20 @@ test("only the system admin can change valid permissions and role/account preced
       assert.equal(response.status, 303); return response.headers.getSetCookie().map((cookie) => cookie.split(";")[0]).join("; ");
     }
     const admin = await login("manager@selahtone.local"), accountant = await login("accountant@selahtone.local"), agent = await login("arh@selahtone.local"), manager = await login("manager-not-admin@selahtone.local");
+    // The in-service identity probe is admin-only, read-only and contains no
+    // connection values. PGlite intentionally fails the selahtone_app identity
+    // assertion; the diagnostic itself must still complete with a rollback.
+    for (const cookie of [accountant, agent, manager]) {
+      assert.equal((await get("/api/admin/finance-identity", cookie)).status, 403);
+    }
+    const identityResponse = await get("/api/admin/finance-identity", admin);
+    const identityText = await identityResponse.text();
+    assert.equal(identityResponse.status, 200, identityText);
+    const identity = JSON.parse(identityText) as { status: string; rollbackObserved: boolean; financeEnabled: boolean };
+    assert.equal(identity.status, "FAIL");
+    assert.equal(identity.rollbackObserved, true);
+    assert.equal(identity.financeEnabled, false);
+    assert.doesNotMatch(identityText, /postgres(?:ql)?:\/\/|password|DATABASE_URL/i);
     const adminPage = await (await get("/admin", admin)).text();
     const form = forms(adminPage).find((entry) => entry.includes('name="kind"')); assert.ok(form);
     assert.match(adminPage, /نتيجة قواعد الصلاحيات/); assert.match(adminPage, /قيود الدور أو حالة السجل أو تفعيل الوحدة/);

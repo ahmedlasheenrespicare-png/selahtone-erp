@@ -49,3 +49,15 @@ INSERT INTO products(sku,name_ar,category,is_serialized,is_active) VALUES
  ('DISABLED','موقوف','ACCESSORY',FALSE,FALSE),
  ('PRE-EXIST','لديه رصيد','ACCESSORY',FALSE,TRUE);
 INSERT INTO stock_levels(warehouse_id,product_id,qty_on_hand,avg_cost) VALUES (1,5,0,0);
+
+-- Current permission-store prerequisite; empty rules preserve default-allow behavior.
+CREATE TABLE "access_control" (
+ "subject_kind" VARCHAR(8) NOT NULL CHECK (subject_kind IN ('role','user')),
+ "subject" VARCHAR(64) NOT NULL,
+ "key" VARCHAR(130) NOT NULL,
+ "allowed" BOOLEAN NOT NULL,
+ "updated_by" VARCHAR(64),
+ "updated_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
+ PRIMARY KEY ("subject_kind","subject","key")
+);
+CREATE INDEX "access_control_key" ON "access_control" ("key");

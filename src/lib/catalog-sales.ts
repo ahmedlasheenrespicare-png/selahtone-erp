@@ -10,6 +10,7 @@ import { canPerformCommerce, type CommerceAction } from "./commerce-policy";
 import { duplicatesCatalogLine } from "./commerce-validation";
 import { scaledInteger } from "./inventory-math";
 import { InventoryProblem } from "./inventory-operations";
+import { assertTransactionWriteAccess } from "./transaction-access";
 import { finishCashCustodyCollection, lockCashCollectorCustody } from "./finance/collection-custody-guard";
 import {
   parseCatalogActive, parseCatalogField, parseCatalogFieldUpdate, parseCatalogId, parseCatalogName,
@@ -62,6 +63,7 @@ async function authorize(tx: Transaction, actorId: bigint, action: CommerceActio
   if (!actor || !canPerformCommerce({ role: actor.roleCode, status: actor.status, mustChangePassword: actor.mustChangePassword, branchId: actor.branchId, canCancelSales: actor.canCancelSales }, action, branchId, branchActive)) {
     throw new InventoryProblem("ليس لديك صلاحية لتنفيذ العملية في هذا الفرع.");
   }
+  await assertTransactionWriteAccess(tx, actorId, "/sales/new");
 }
 function knownMath(error: unknown): never {
   if (error instanceof CommerceMathError) throw new InventoryProblem(error.message);

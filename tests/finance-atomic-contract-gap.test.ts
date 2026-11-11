@@ -1,5 +1,8 @@
 /**
- * TEST ONLY. Demonstrates the central gap of the "atomic cash contract":
+ * TEST ONLY. Historical reproduction of the pre-fix "atomic cash contract" gap.
+ * Current application regressions live in finance-session-transaction.test.ts
+ * and commerce-integration.test.ts; this fixture intentionally preserves the
+ * old interleaving as an explanation, not as a description of the new guards.
  *
  *   The HTTP layer decides access BEFORE the SERIALIZABLE finance transaction
  *   starts (requireSession → writeAccessAllowed → engine). A concurrent

@@ -20,16 +20,11 @@ import path from "node:path";
 const root = process.cwd();
 const read = (rel: string) => readFileSync(path.join(root, rel), "utf8");
 
-test("render.yaml still declares true — this is now a blueprint/live divergence, not the live value", () => {
+test("render.yaml cannot silently re-enable finance during a Blueprint Sync", () => {
   const yaml = read("render.yaml");
-  const block = yaml.match(/- key: FINANCE_ENABLED\s*\n\s*value:\s*"([^"]+)"/);
+  const block = yaml.match(/- key: FINANCE_ENABLED\s*(?:\n\s*#.*)*\n\s*value:\s*"([^"]+)"/);
   assert(block, "FINANCE_ENABLED declaration exists in render.yaml");
-  assert.equal(block[1], "true", "blueprint still says true; do not lose this divergence");
-  assert.doesNotMatch(
-    yaml.slice(yaml.indexOf("- key: FINANCE_ENABLED"), yaml.indexOf("- key: FINANCE_ENABLED") + 160),
-    /sync:\s*false/,
-    "FINANCE_ENABLED is blueprint-managed, so a Sync can overwrite the dashboard value",
-  );
+  assert.equal(block[1], "false", "the safe disabled value is explicit in the blueprint");
 });
 
 test("the code gate and the finance page redirect are still driven by that flag", () => {
@@ -79,8 +74,8 @@ test("the deploy-log evidence is recorded with its limits", () => {
   assert.match(result, /\/setup/);
   assert.match(result, /مبنية داخل الحزمة/);
   assert.match(read("docs/finance-release-log.md"), /## ٢٦\./);
-  // The deployed commit itself still declares true in render.yaml.
-  assert.match(read("render.yaml"), /- key: FINANCE_ENABLED\s*\n\s*value:\s*"true"/);
+  // The historical deployed commit declared true; the current candidate must not.
+  assert.match(read("render.yaml"), /- key: FINANCE_ENABLED[\s\S]{0,180}value:\s*"false"/);
 });
 
 test("the /setup runtime evidence is recorded with its limits", () => {
