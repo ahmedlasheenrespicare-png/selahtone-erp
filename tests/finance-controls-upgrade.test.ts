@@ -45,9 +45,9 @@ async function fixture(): Promise<PGlite> {
   await pg.exec(`GRANT selahtone_finance_admin TO ${current},finance_release_operator`);
   await pg.exec("GRANT selahtone_app TO finance_release_operator WITH ADMIN OPTION, INHERIT FALSE, SET FALSE");
   await pg.exec("CREATE SCHEMA finance; CREATE SCHEMA finance_release;");
-  for (const table of baselineTables) await pg.exec(`CREATE TABLE finance.${table}(id bigint PRIMARY KEY)`);
+  for (const table of baselineTables) await pg.exec(`CREATE TABLE finance.${table}(id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY, marker text)`);
   await pg.exec("CREATE TABLE finance_release.migrations(name text PRIMARY KEY,checksum char(64) NOT NULL,applied_at timestamptz NOT NULL DEFAULT now(),applied_by name NOT NULL DEFAULT session_user)");
-  await pg.exec("CREATE TABLE public.users(id bigint PRIMARY KEY); INSERT INTO public.users VALUES(1); INSERT INTO finance.requests VALUES(1)");
+  await pg.exec("CREATE TABLE public.users(id bigint PRIMARY KEY); INSERT INTO public.users VALUES(1); INSERT INTO finance.requests OVERRIDING SYSTEM VALUE VALUES(1,'original')");
   for (const table of baselineTables) await pg.exec(`ALTER TABLE finance.${table} OWNER TO selahtone_finance_admin`);
   await pg.exec("ALTER SCHEMA finance OWNER TO finance_release_operator; ALTER SCHEMA finance_release OWNER TO finance_release_operator; ALTER TABLE finance_release.migrations OWNER TO finance_release_operator");
   await pg.exec("GRANT USAGE ON SCHEMA finance TO selahtone_app,finance_intruder; GRANT SELECT ON public.users TO selahtone_app");
@@ -107,7 +107,7 @@ test("default deny, one allowed app path, and every append-only trigger are exer
     for (const table of [...baselineTables, "request_results"]) await pg.query(`SELECT count(*) FROM finance.${table}`);
     await pg.exec("INSERT INTO finance.request_results(request_id,action,actor_id,result_table,result_id) VALUES('11111111-1111-4111-8111-111111111111','TEST',1,'requests',1)");
     for (const table of appendOnly) {
-      const column = table === "request_results" ? "request_id" : "id";
+      const column = table === "request_results" ? "request_id" : "marker";
       await assert.rejects(() => pg.exec(`UPDATE finance.${table} SET ${column}=${column} WHERE false`), new RegExp(`FINANCE_APPEND_ONLY_IMMUTABLE`), table);
     }
     await assert.rejects(() => pg.exec("UPDATE finance.request_results SET action='EDITED'"), /FINANCE_APPEND_ONLY_IMMUTABLE/);

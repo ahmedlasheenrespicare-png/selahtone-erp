@@ -3,7 +3,7 @@
 -- UPDATE على المحفزات العشرة ومنع DELETE/TRUNCATE. ينتهي بـROLLBACK ولا يترك صفًا.
 -- يغيّر SET على عضوية neondb_owner في دور التطبيق مؤقتًا داخل المعاملة فقط؛
 -- ROLLBACK يعيد SET=false وINHERIT إلى حالتهما الأصلية. لا تفعيل ولا دليل اتصال Render.
--- sha256: c2b9b4a09920e21e8fce8126fccb42def61de2e1c7d2f2c2ef6b332111e5917f
+-- sha256: 678ff5ba77a1a0d6e522f15c47cd3dfd27c9fbe56f7561fe6b91766e656269f6
 BEGIN;
 SET LOCAL statement_timeout = '10s';
 SET LOCAL lock_timeout = '3s';
@@ -32,7 +32,7 @@ END $$;
 
 SET LOCAL ROLE selahtone_app;
 DO $$
-DECLARE actor BIGINT; denied BOOLEAN; tbl TEXT;
+DECLARE actor BIGINT; denied BOOLEAN; tbl TEXT; mutable_column TEXT;
 BEGIN
  IF current_user <> 'selahtone_app' OR session_user <> 'neondb_owner' THEN
   RAISE EXCEPTION 'finance enforcement: application role was not selected';
@@ -62,7 +62,14 @@ BEGIN
     UPDATE finance.request_results SET action='MUST_NOT_PERSIST'
     WHERE request_id='33333333-3333-4333-8333-333333333333';
    ELSE
-    EXECUTE format('UPDATE finance.%I SET id=id WHERE false',tbl);
+    SELECT a.attname INTO mutable_column FROM pg_attribute a
+    WHERE a.attrelid=format('finance.%I',tbl)::regclass
+      AND a.attnum>0 AND NOT a.attisdropped AND a.attgenerated='' AND a.attname<>'id'
+    ORDER BY a.attnum LIMIT 1;
+    IF mutable_column IS NULL THEN
+     RAISE EXCEPTION 'finance enforcement: no ordinary mutable column on %',tbl;
+    END IF;
+    EXECUTE format('UPDATE finance.%I SET %I=%I WHERE false',tbl,mutable_column,mutable_column);
    END IF;
   EXCEPTION WHEN OTHERS THEN
    IF SQLERRM = 'FINANCE_APPEND_ONLY_IMMUTABLE' THEN denied := true;
