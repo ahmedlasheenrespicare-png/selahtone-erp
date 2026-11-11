@@ -43,7 +43,7 @@ async function fixture(): Promise<PGlite> {
   await pg.exec("CREATE ROLE selahtone_app LOGIN; CREATE ROLE selahtone_finance_admin NOLOGIN; CREATE ROLE finance_intruder LOGIN; CREATE ROLE finance_release_operator INHERIT LOGIN;");
   const current = (await pg.query<{ user: string }>("SELECT current_user AS user")).rows[0].user;
   await pg.exec(`GRANT selahtone_finance_admin TO ${current},finance_release_operator`);
-  await pg.exec("GRANT selahtone_app TO finance_release_operator");
+  await pg.exec("GRANT selahtone_app TO finance_release_operator WITH ADMIN OPTION, INHERIT FALSE, SET FALSE");
   await pg.exec("CREATE SCHEMA finance; CREATE SCHEMA finance_release;");
   for (const table of baselineTables) await pg.exec(`CREATE TABLE finance.${table}(id bigint PRIMARY KEY)`);
   await pg.exec("CREATE TABLE finance_release.migrations(name text PRIMARY KEY,checksum char(64) NOT NULL,applied_at timestamptz NOT NULL DEFAULT now(),applied_by name NOT NULL DEFAULT session_user)");
@@ -131,6 +131,8 @@ test("application-role enforcement probe allows only its intended write and roll
     await apply(pg);
     await apply(pg, enforcement);
     assert.equal((await pg.query<{ n: number }>("SELECT count(*)::int AS n FROM finance.request_results WHERE request_id='33333333-3333-4333-8333-333333333333'")).rows[0].n, 0, "probe INSERT must not survive ROLLBACK");
+    assert.equal((await pg.query<{ allowed: boolean }>("SELECT has_schema_privilege('selahtone_finance_admin','finance','USAGE') AS allowed")).rows[0].allowed, false);
+    assert.equal((await pg.query<{ allowed: boolean }>("SELECT pg_has_role('finance_release_operator','selahtone_app','SET') AS allowed")).rows[0].allowed, false, "temporary role SET must not survive ROLLBACK");
     assert.deepEqual(await controls(pg), { tables: 19, rls: 19, forced: 0, policies: 19, triggers: appendOnly.length });
     assert.match(enforcement, /ROLLBACK;/);
     assert.match(enforcement, /NOT_DEPLOYED_CONNECTION_NOT_DEFAULT_DENY_OTHER_ROLE/);
