@@ -1,0 +1,78 @@
+{
+  "record_id": "finance-activation-preflight-2026-11-11",
+  "status": "HOLD_PENDING_SEPARATE_DEPLOYMENT_PER_CUSTOMER_AND_FINAL_GO_REVIEW",
+  "decision": "WAIT_NO_ACTIVATION",
+  "review_document": "../../docs/finance-activation-preflight-review.md",
+  "first_live_use_plan": "../../docs/finance-first-live-use-plan.md",
+  "finance_enabled_changed": false,
+  "production_database_used": false,
+  "production_environment_used": false,
+  "activation_authorized": false,
+  "deployment_authorized": false,
+  "listed_blockers_resolved": 9,
+  "why_hold": [
+    "FIRST_CUSTOMER_SERVICE_AND_DATABASE_NOT_IDENTIFIED_IN_THIS_REVIEW",
+    "CURRENT_LIVE_COMMIT_AND_CONFIG_NOT_CHECKED_IN_THIS_REVIEW",
+    "PER_CUSTOMER_USERS_AND_ZERO_OPENING_COUNTS_NOT_VERIFIED",
+    "BACKUP_DECISION_AND_MONITORING_WINDOW_NOT_CURRENT",
+    "NO_SEPARATE_FINAL_ACTIVATION_DECISION"
+  ],
+  "paths": {
+    "A": "FLAG_ONLY_NO_SQL_NO_ROLE_CHANGE_NO_CODE_DEPLOY_REQUIRES_CURRENT_COMPATIBILITY_EVIDENCE",
+    "B": "ANY_SQL_ROLE_OR_CODE_CHANGE_STOPS_FOR_SEPARATE_PRODUCTION_CONVERSION_DESIGN"
+  },
+  "prohibited_assumptions": [
+    "MERGE_IS_ACTIVATION_APPROVAL",
+    "SYNTHETIC_TESTS_PROVE_PRODUCTION_DATA",
+    "LOG_ENTRY_PROVES_PHYSICAL_CASH",
+    "TEST_ONLY_CUTOVER_SQL_CAN_RUN_ON_PRODUCTION",
+    "SUCCESSFUL_BUILD_PROVES_DATABASE_IDENTITY"
+  ],
+  "operator_choices_2026_11_11": {
+    "path": "A_FLAG_ONLY_NO_SQL_NO_ROLE_CHANGE_NO_CODE_DEPLOY",
+    "current_finance_enabled_false_operator_reported": true,
+    "finance_route_redirects_operator_reported": true,
+    "open_actual_opening_balances_now": true,
+    "initial_scope": "ALL_USERS",
+    "cash_refund": "ALLOWED_OPERATIONALLY",
+    "rollback_to_false_on_problem": true,
+    "interpretation_limit": "These are operator preferences for preflight planning, not a final activation command."
+  },
+  "commercial_context_2026_11_11": {
+    "objective": "PREPARE_PRODUCT_FOR_SALE_AND_MARKETING_TO_CUSTOMERS",
+    "actual_cash": "ZERO_OPERATOR_REPORTED_BECAUSE_SYSTEM_UNUSED",
+    "cash_counter": "EMPLOYEE",
+    "cash_reviewers": ["MANAGER", "ACCOUNTANT"],
+    "users_created": ["MANAGER", "ACCOUNTANT", "EMPLOYEE"],
+    "operations_monitor": "ADMIN_OPERATOR",
+    "repository_observation": "NO_TENANT_OR_ORGANIZATION_MODEL_FOUND; BRANCH_AND_ROLE_SCOPES_ARE_NOT_PROOF_OF_CUSTOMER_ISOLATION",
+    "selected_isolation_model": "SEPARATE_DEPLOYMENT_AND_DATABASE_PER_CUSTOMER",
+    "selected_on": "2026-11-11",
+    "shared_multi_tenant_authorized": false,
+    "per_customer_requirements": [
+      "DEDICATED_SERVICE_AND_DATABASE",
+      "DEDICATED_CONNECTION_SECRETS_AND_SESSION_USERS",
+      "NO_SHARED_PRODUCTION_DATABASE_OR_CUSTOMER_CREDENTIALS",
+      "PER_CUSTOMER_BACKUP_MONITORING_AND_GO_NO_GO",
+      "FINANCE_ENABLED_FALSE_UNTIL_EACH_SEPARATE_GO"
+    ],
+    "activation_effect": "ARCHITECTURE_CHOICE_RESOLVED; FIRST_SEPARATE_CUSTOMER_DEPLOYMENT_AND_GO_REVIEW_STILL_REQUIRED"
+  },
+  "operator_context_2026_11_11": {
+    "current_deploy_commit": "UNKNOWN_OPERATOR_DOES_NOT_KNOW",
+    "system_status": "NEW_SYSTEM_NO_REAL_USERS_YET",
+    "objective": "PREPARE_FOR_FIRST_REAL_OPERATIONAL_USE",
+    "data_migration_assumption": "NOT_REQUIRED_FOR_FIRST_USE_BUT_EXISTING_CONFIGURATION_AND_ANY_PRIOR_ROWS_ARE_NOT_ASSUMED_ABSENT",
+    "opening_cash_amounts": "NOT_SUPPLIED_AND_NOT_ASSUMED_ZERO",
+    "opening_counts_completed": null
+  },
+  "remaining_before_go_review": [
+    "CURRENT_DEPLOY_COMMIT_AND_COMPATIBILITY",
+    "ACTUAL_OPENING_COUNT_ACTORS_TIME_AND_BRANCH_CUSTODY_COVERAGE",
+    "ALL_STAFF_ACTIVE_STATUS_AND_PERMISSION_REVIEW",
+    "REFUND_ACCOUNT_CHECKPOINT_REVIEW_BALANCE_AND_HUMAN_DECISION_READINESS",
+    "BACKUP_AND_MONITORING_OWNER_AND_WINDOW",
+    "SEPARATE_FINAL_ACTIVATION_DECISION"
+  ],
+  "next_allowed_step": "IDENTIFY_FIRST_CUSTOMER_SEPARATE_SERVICE_AND_DATABASE_THEN_COMPLETE_ITS_GO_NO_GO_REVIEW"
+}
