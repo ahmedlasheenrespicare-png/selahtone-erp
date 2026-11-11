@@ -14,7 +14,7 @@ const headers = { "Cache-Control": "private, no-store" };
 
 type ControlsMetadata = {
   schemas: Array<{ schema: string; tables: number; rlsEnabled: number; rlsForced: number; policies: number; tableNames: string[] }>;
-  migrationLedgerStatus: "READ" | "NOT_PRESENT" | "NOT_READABLE_BY_APP_ROLE";
+  migrationLedgerStatus: "NOT_QUERIED";
   migrationLedger: Array<{ name: string; checksum: string; appliedAt: string; appliedBy: string }>;
   ownership: { objects: number; ownedByAdmin: number; ownedByApp: number; mismatches: string[] };
   privileges: {
@@ -32,10 +32,12 @@ class RollbackProbe extends Error {
   constructor(readonly metadata: ControlsMetadata) { super("read-only controls probe complete"); }
 }
 
-async function observe(tx: Prisma.TransactionClient): Promise<ControlsMetadata> {
+async function observe(tx: Prisma.TransactionClient, onStage: (stage: string) => void): Promise<ControlsMetadata> {
+  onStage("READ_ONLY_SETUP");
   await tx.$executeRawUnsafe("SET TRANSACTION READ ONLY");
   await tx.$executeRawUnsafe("SET LOCAL statement_timeout = '5s'");
 
+  onStage("SCHEMA_SUMMARY");
   const schemas = await tx.$queryRawUnsafe<ControlsMetadata["schemas"]>(`
     WITH relations AS (
       SELECT n.nspname, c.oid, c.relrowsecurity, c.relforcerowsecurity
@@ -51,33 +53,17 @@ async function observe(tx: Prisma.TransactionClient): Promise<ControlsMetadata> 
     FROM relations r LEFT JOIN policy_counts pc ON pc.polrelid=r.oid
     GROUP BY nspname ORDER BY nspname`);
   for (const schema of schemas) {
+    onStage(`TABLE_NAMES_${schema.schema.toUpperCase()}`);
     schema.tableNames = (await tx.$queryRawUnsafe<Array<{ name: string }>>(
       `SELECT c.relname::text AS name FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
        WHERE n.nspname=$1 AND c.relkind='r' ORDER BY c.relname`, schema.schema,
     )).map((row) => row.name);
   }
-  // The application role deliberately need not read the release ledger. Test
-  // both USAGE and SELECT before referencing it: a permission error would abort
-  // the whole read-only transaction and hide the otherwise readable controls.
-  const ledgerExists = await tx.$queryRawUnsafe<Array<{ present: boolean }>>(
-    `SELECT to_regclass('finance_release.migrations') IS NOT NULL AS present`,
-  );
-  const present = ledgerExists[0]?.present === true;
-  // Privilege functions taking object names reject a missing schema, so only
-  // call them after the catalog lookup proves the relation exists.
-  const ledgerAccess = present
-    ? await tx.$queryRawUnsafe<Array<{ readable: boolean }>>(`
-        SELECT COALESCE(has_schema_privilege(current_user,'finance_release','USAGE'),false)
-          AND COALESCE(has_table_privilege(current_user,'finance_release.migrations','SELECT'),false)
-          AS readable`)
-    : [];
-  const readable = present && ledgerAccess[0]?.readable === true;
-  const migrationLedgerStatus = readable ? "READ" : present ? "NOT_READABLE_BY_APP_ROLE" : "NOT_PRESENT";
-  const migrationLedger = readable
-    ? await tx.$queryRawUnsafe<ControlsMetadata["migrationLedger"]>(`
-        SELECT name::text, checksum::text, applied_at::text AS "appliedAt", applied_by::text AS "appliedBy"
-        FROM finance_release.migrations ORDER BY name`)
-    : [];
+  // The ledger is operational history, not a database control. Do not read it
+  // through the application role; table names are sufficient for this probe.
+  const migrationLedgerStatus = "NOT_QUERIED";
+  const migrationLedger: ControlsMetadata["migrationLedger"] = [];
+  onStage("OWNERSHIP");
   const ownership = await tx.$queryRawUnsafe<Array<{ objects: number; ownedByAdmin: number; ownedByApp: number }>>(`
     SELECT count(*)::int AS objects,
       count(*) FILTER (WHERE pg_get_userbyid(c.relowner)='selahtone_finance_admin')::int AS "ownedByAdmin",
@@ -88,6 +74,7 @@ async function observe(tx: Prisma.TransactionClient): Promise<ControlsMetadata> 
     FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
     WHERE n.nspname='finance' AND pg_get_userbyid(c.relowner)<>'selahtone_finance_admin'
     ORDER BY c.relname`);
+  onStage("PRIVILEGES");
   const privileges = await tx.$queryRawUnsafe<Array<ControlsMetadata["privileges"]>>(`
     SELECT count(*)::int AS tables,
       count(*) FILTER (WHERE NOT has_table_privilege(current_user,c.oid,'SELECT'))::int AS "selectDenied",
@@ -97,6 +84,7 @@ async function observe(tx: Prisma.TransactionClient): Promise<ControlsMetadata> 
       count(*) FILTER (WHERE has_table_privilege(current_user,c.oid,'TRUNCATE'))::int AS "truncateAllowed"
     FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
     WHERE n.nspname='finance' AND c.relkind='r'`);
+  onStage("TRIGGERS");
   const triggers = await tx.$queryRawUnsafe<ControlsMetadata["triggers"]>(`
     SELECT c.relname::text AS table, t.tgname::text AS name, t.tgenabled::text AS enabled,
       pg_get_triggerdef(t.oid)::text AS definition
@@ -130,10 +118,13 @@ export async function GET() {
   if (!isSystemAdmin(session.role, session.email, parseAdminEmails(process.env.ADMIN_EMAILS))) {
     return NextResponse.json({ message: "هذا الفحص متاح للأدمن وحده." }, { status: 403, headers });
   }
+  let failedStage = "TRANSACTION_START";
   try {
     let metadata: ControlsMetadata | null = null;
     try {
-      await prisma.$transaction(async (tx) => { throw new RollbackProbe(await observe(tx)); }, { maxWait: 5000, timeout: 10000 });
+      await prisma.$transaction(async (tx) => {
+        throw new RollbackProbe(await observe(tx, (stage) => { failedStage = stage; }));
+      }, { maxWait: 5000, timeout: 10000 });
     } catch (error) {
       if (!(error instanceof RollbackProbe)) throw error;
       metadata = error.metadata;
@@ -141,6 +132,7 @@ export async function GET() {
     if (!metadata) throw new Error("controls observation was not returned");
     return NextResponse.json({
       status: "OBSERVED_NOT_AN_ENFORCEMENT_TEST",
+      probeVersion: "schema-inventory-v3-no-ledger",
       scope: "DEPLOYED_SERVICE_OWN_DATABASE_CONNECTION",
       rollbackObserved: true,
       checkedAt: new Date().toISOString(),
@@ -149,6 +141,14 @@ export async function GET() {
       controls: metadata,
     }, { headers });
   } catch {
-    return NextResponse.json({ status: "ERROR", message: "تعذّر فحص ضوابط قاعدة البيانات؛ أبقِ المالية معطلة." }, { status: 503, headers });
+    // Return only a predefined stage, never a database/driver error string.
+    return NextResponse.json({
+      status: "ERROR",
+      probeVersion: "schema-inventory-v3-no-ledger",
+      failedStage,
+      deploymentCommit: process.env.RENDER_GIT_COMMIT ?? process.env.SOURCE_VERSION ?? null,
+      financeEnabled: financeEnabled(),
+      message: "تعذّر فحص ضوابط قاعدة البيانات؛ أبقِ المالية معطلة.",
+    }, { status: 503, headers });
   }
 }
