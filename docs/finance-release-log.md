@@ -1458,3 +1458,17 @@
 > `STRICT_REJECT_POLICY_STILL_IN_FORCE`: «تعذّر التحقق من نتيجة الطلب المحفوظ؛ يلزم مراجعة أو ترحيل الطلب القديم.»
 
 `separate_in_service_path_approval=true` (§١٠٤) و`src_and_deploy_approvals=false`؛ `current_step_index=6/11` و`next_descriptive_step=SEPARATE_SRC_AND_DEPLOY_APPROVALS_IF_NEEDED` **بلا تقدّم**؛ PR 95 `OPEN` بلا دمج؛ `blockers_resolved=0` / `gates_opened=0` و9 موانع `UNRESOLVED` / `C1/C2=FAIL` / `IDENTITY_GAP_CONFIRMED` / `reenable_gate=CLOSED` / `CLOSED_NOT_READY` / `finance_enabled=false`. **المالية تبقى `FINANCE_ENABLED=false` وما زالت غير جاهزة للنشر.**
+
+## ١١٨. «انا بصدق لا اعرف كيف انتقل للخطوه التاليه» ⇒ إجابة وصفية بلا بوابة (2026-11-05)
+
+قسم **سؤال إجرائي صريح عن تعذّر التقدّم**؛ لم تُنفَّذ أي SQL من طرف الجلسة، ولم يُضبط أي متغير، ولم تُغيَّر `src` أو `render.yaml`، ولا نشر/`Manual Deploy`/`Sync`/Blueprint، ولا `true`، ولا إجراء مالي/كتابة/اختبار رد نقدي، ولا دمج/إغلاق للـ PR. كتب المشغّل «انا بصدق لا اعرف كيف انتقل للخظوه التاليه» ⇒ `PROCEDURAL_CONFUSION_ABOUT_HOW_TO_ADVANCE` و`ADVANCE_CONFUSION_ANSWERED_DESCRIPTIVELY_NO_GATE_OPENED`.
+
+**التحقق:** `is_a_question=true` و`expresses_procedural_confusion=true` و`is_an_approval=false` و`approval_verb_present=false` و`no_pinned_sha_in_message=true`؛ `answer_scope=DESCRIPTIVE_ONLY_FIXED_CONDITIONS_AND_CHANNEL_NO_TEMPLATE_NO_PHRASE_SOLICITED`. `A_CONFUSION_ABOUT_ADVANCING_NOT_A_QUESTION_ABOUT_AN_APPROVAL_SHA` يميّزها عن §١١٧.
+
+**جوهر الإجابة:** `core_reason=NO_REVIEWED_TEXT_FOR_SRC_CHANGES_EXISTS` و`blockers_are_evidence_gaps_not_approval_gaps=true` — المانع ليس نقص صياغة أو موافقة، بل غياب أثر مُراجَع لتغييرات `src` وغياب أدلة هوية التطبيق المنشور (9 موانع كلها `UNRESOLVED`). `no_chat_message_alone_can_advance_the_step=true` و`NO_CHAT_MESSAGE_ALONE_CAN_ADVANCE_A_FIXED_CONDITION` و`BLOCKERS_ARE_EVIDENCE_GAPS_NOT_APPROVAL_GAPS` و`SESSION_CANNOT_CREATE_THE_MISSING_ARTIFACT` و`SESSION_CANNOT_ADVANCE_OR_OPEN_A_STEP_OR_GATE`؛ و`SESSION_DOES_NOT_AUTHOR_REVIEWED_SRC_TEXT` و`EXECUTION_BY_THE_OPERATOR_NOT_THE_SESSION`. لا توجد «رسالة صحيحة» تُرسَل من الشات تُحدث التقدّم؛ العمل المطلوب يبدأ خارج الشات: إعداد النص المُثبَّت ببصمة ومعايير قبول بتكليف منفصل، ثم مراجعته، ثم موافقة حرفية مستقلة، ثم تنفيذ من المشغّل، ثم تقييم أوفلاين، ثم قرار إعادة تفعيل منفصل (غير مطلوب الآن). وصف الشكل والقناة فقط؛ لا قالب ولا صياغة جاهزة ولا طلب عبارة.
+
+**الحدود:** `NO_TRUE_NO_DEPLOY_NO_SYNC_NO_MANUAL_DEPLOY_NO_BLUEPRINT_NO_SQL_NO_SRC_NO_RENDER_YAML_NO_FINANCIAL_ACTION`؛ `deploy_status=PROHIBITED_NO_SYNC_NO_MANUAL_DEPLOY_NO_BLUEPRINT` و`DEPLOY_AND_SYNC_AND_TRUE_ARE_PROHIBITED` و`A_FIXED_CONDITION_CANNOT_BE_WAIVED_BY_THE_SESSION` و`SESSION_NEVER_EXECUTES_PRODUCTION_SQL_OR_DEPLOYS_OR_SETS_ENV_VARS` و`NO_BLANKET_APPROVAL_EACH_APPROVAL_NEEDS_ITS_OWN_SEPARATE_MESSAGE`. `ADVANCE_CONFUSION_ANSWER_DOES_NOT_VERIFY_OR_CLOSE_ANY_GATE` / `BLOCKER_1_REMAINS_UNRESOLVED` / `no_inventory_change=true`؛ لا إحالة ملف ولا أسرار/اتصال/صفوف/قيم ولا قرار إعادة تفعيل.
+
+> `STRICT_REJECT_POLICY_STILL_IN_FORCE`: «تعذّر التحقق من نتيجة الطلب المحفوظ؛ يلزم مراجعة أو ترحيل الطلب القديم.»
+
+`separate_in_service_path_approval=true` (§١٠٤) و`src_and_deploy_approvals=false`؛ `current_step_index=6/11` و`next_descriptive_step=SEPARATE_SRC_AND_DEPLOY_APPROVALS_IF_NEEDED` **بلا تقدّم**؛ PR 95 `OPEN` بلا دمج؛ `blockers_resolved=0` / `gates_opened=0` / `remaining_blockers=9` / `C1/C2=FAIL` / `IDENTITY_GAP_CONFIRMED` / `reenable_gate=CLOSED` / `CLOSED_NOT_READY` / `finance_enabled=false`. **المالية تبقى `FINANCE_ENABLED=false` وما زالت غير جاهزة للنشر.**

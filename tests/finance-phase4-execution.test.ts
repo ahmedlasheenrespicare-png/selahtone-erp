@@ -5762,3 +5762,137 @@ test("the approval SHA question opens no gate and delivers no phrase", () => {
   assert.ok(out.limitations.includes("APPROVAL_SHA_DELIVERY_QUESTION_DOES_NOT_VERIFY_OR_CLOSE_ANY_GATE"));
   assert.equal(evaluate(SRC_FILES_CHANGE_APPROVAL_WITHOUT_PINNED_TEXT).approval_sha_delivery_question, null);
 });
+
+
+const ADVANCE_CONFUSION_QUESTION = {
+  ...structuredClone(APPROVAL_SHA_DELIVERY_QUESTION),
+  advance_confusion_question: {
+    operator_text: "انا بصدق لا اعرف كيف انتقل للخظوه التاليه",
+    kind: "PROCEDURAL_CONFUSION_ABOUT_HOW_TO_ADVANCE",
+    received_in_chat: true,
+    verdict: "ADVANCE_CONFUSION_ANSWERED_DESCRIPTIVELY_NO_GATE_OPENED",
+    acknowledged_descriptively: true,
+    differs_from_section_117: "A_CONFUSION_ABOUT_ADVANCING_NOT_A_QUESTION_ABOUT_AN_APPROVAL_SHA",
+    is_a_question: true,
+    expresses_procedural_confusion: true,
+    is_an_approval: false,
+    is_a_decision: false,
+    approval_verb_present: false,
+    is_a_separate_verbatim_approval: false,
+    references_pinned_sha: false,
+    no_pinned_sha_in_message: true,
+    answer_scope: "DESCRIPTIVE_ONLY_FIXED_CONDITIONS_AND_CHANNEL_NO_TEMPLATE_NO_PHRASE_SOLICITED",
+    core_reason: "NO_REVIEWED_TEXT_FOR_SRC_CHANGES_EXISTS",
+    blockers_are_evidence_gaps_not_approval_gaps: true,
+    no_chat_message_alone_can_advance_the_step: true,
+    session_cannot_create_the_missing_artifact: true,
+    session_cannot_advance_or_open_a_step: true,
+    no_reviewed_text_for_src_changes: true,
+    no_acceptance_criteria_for_src_changes: true,
+    no_src_artifact_sha: true,
+    src_modification_is_prohibited: true,
+    deploy_is_prohibited: true,
+    deploy_status: "PROHIBITED_NO_SYNC_NO_MANUAL_DEPLOY_NO_BLUEPRINT",
+    no_blanket_approval: true,
+    current_step_index: "6/11",
+    next_descriptive_step: "SEPARATE_SRC_AND_DEPLOY_APPROVALS_IF_NEEDED",
+    pr_number: 95,
+    pr_state: "OPEN",
+    no_merge_performed: true,
+    strict_reject_phrase: "تعذّر التحقق من نتيجة الطلب المحفوظ؛ يلزم مراجعة أو ترحيل الطلب القديم.",
+    no_approval_phrase_solicited: true,
+    no_template_delivered: true,
+    no_phrase_delivered: true,
+    no_sha_delivered: true,
+    no_reenable_decision_solicited: true,
+    no_command_sent: true,
+    no_sql_delivered: true,
+    no_gate_opened: true,
+    no_inventory_change: true,
+    no_action_taken_on_production: true,
+    no_src_modified: true,
+    no_render_yaml_modified: true,
+    no_deploy: true,
+    no_sync: true,
+    no_true: true,
+    no_secrets_in_chat: true,
+    no_file_reference: true,
+    blockers_resolved: 0,
+    gates_opened: 0,
+    remaining_blockers: 9,
+    next_gate: "SEPARATE_REENABLE_DECISION",
+    reenable_gate: "CLOSED",
+    overall: "NOT_READY",
+  },
+};
+
+test("procedural confusion about advancing is answered descriptively", () => {
+  const out = evaluate(ADVANCE_CONFUSION_QUESTION);
+  assert.equal(out.advance_confusion_question.kind,
+    "PROCEDURAL_CONFUSION_ABOUT_HOW_TO_ADVANCE");
+  assert.equal(out.advance_confusion_question.verdict,
+    "ADVANCE_CONFUSION_ANSWERED_DESCRIPTIVELY_NO_GATE_OPENED");
+  assert.equal(out.advance_confusion_question.is_a_question, true);
+  assert.equal(out.advance_confusion_question.expresses_procedural_confusion, true);
+  assert.equal(out.advance_confusion_question.is_an_approval, false);
+  assert.equal(out.advance_confusion_question.approval_verb_present, false);
+  assert.equal(out.advance_confusion_question.no_pinned_sha_in_message, true);
+  assert.equal(out.advance_confusion_question.answer_scope,
+    "DESCRIPTIVE_ONLY_FIXED_CONDITIONS_AND_CHANNEL_NO_TEMPLATE_NO_PHRASE_SOLICITED");
+  assert.equal(out.advance_confusion_question.differs_from_section_117,
+    "A_CONFUSION_ABOUT_ADVANCING_NOT_A_QUESTION_ABOUT_AN_APPROVAL_SHA");
+  assert.equal(out.overall_release_status, "NOT_READY");
+});
+
+test("the blockage is a missing artifact and evidence gaps, not phrasing", () => {
+  const out = evaluate(ADVANCE_CONFUSION_QUESTION);
+  assert.equal(out.advance_confusion_question.core_reason,
+    "NO_REVIEWED_TEXT_FOR_SRC_CHANGES_EXISTS");
+  assert.equal(out.advance_confusion_question.blockers_are_evidence_gaps_not_approval_gaps, true);
+  assert.equal(out.advance_confusion_question.no_chat_message_alone_can_advance_the_step, true);
+  assert.equal(out.advance_confusion_question.session_cannot_create_the_missing_artifact, true);
+  assert.equal(out.advance_confusion_question.session_cannot_advance_or_open_a_step, true);
+  assert.equal(out.advance_confusion_question.no_reviewed_text_for_src_changes, true);
+  assert.equal(out.advance_confusion_question.no_src_artifact_sha, true);
+  assert.equal(out.advance_confusion_question.src_modification_is_prohibited, true);
+  assert.equal(out.advance_confusion_question.deploy_is_prohibited, true);
+  assert.equal(out.advance_confusion_question.deploy_status,
+    "PROHIBITED_NO_SYNC_NO_MANUAL_DEPLOY_NO_BLUEPRINT");
+  assert.equal(out.advance_confusion_question.current_step_index, "6/11");
+  assert.equal(out.advance_confusion_question.next_descriptive_step,
+    "SEPARATE_SRC_AND_DEPLOY_APPROVALS_IF_NEEDED");
+  assert.equal(out.advance_confusion_question.remaining_blockers, 9);
+  for (const w of ["PROCEDURAL_QUESTION_NOT_A_DECISION_OR_APPROVAL",
+    "ADVANCE_CONFUSION_ANSWERED_IN_CHAT_NO_GATE_OPENED",
+    "NO_CHAT_MESSAGE_ALONE_CAN_ADVANCE_A_FIXED_CONDITION",
+    "SESSION_CANNOT_ADVANCE_OR_OPEN_A_STEP_OR_GATE",
+    "SESSION_CANNOT_CREATE_THE_MISSING_ARTIFACT",
+    "BLOCKERS_ARE_EVIDENCE_GAPS_NOT_APPROVAL_GAPS",
+    "NO_REVIEWED_TEXT_FOR_SRC_CHANGES_EXISTS",
+    "APPROVAL_CANNOT_PRECEDE_THE_PINNED_TEXT_IT_NAMES",
+    "A_FIXED_CONDITION_CANNOT_BE_WAIVED_BY_THE_SESSION",
+    "DEPLOY_AND_SYNC_AND_TRUE_ARE_PROHIBITED",
+    "SESSION_NEVER_EXECUTES_PRODUCTION_SQL_OR_DEPLOYS_OR_SETS_ENV_VARS",
+    "STRICT_REJECT_POLICY_STILL_IN_FORCE"])
+    assert.ok(out.warnings.includes(w), w);
+});
+
+test("the advance-confusion answer opens no gate and delivers no phrase", () => {
+  const out = evaluate(ADVANCE_CONFUSION_QUESTION);
+  for (const k of ["no_approval_phrase_solicited", "no_template_delivered",
+    "no_phrase_delivered", "no_sha_delivered", "no_reenable_decision_solicited",
+    "no_command_sent", "no_sql_delivered", "no_gate_opened", "no_inventory_change",
+    "no_action_taken_on_production", "no_src_modified", "no_render_yaml_modified",
+    "no_deploy", "no_sync", "no_true", "no_secrets_in_chat", "no_file_reference"])
+    assert.equal((out.advance_confusion_question as unknown as Record<string, boolean>)[k], true, k);
+  assert.equal(out.advance_confusion_question.pr_number, 95);
+  assert.equal(out.advance_confusion_question.pr_state, "OPEN");
+  assert.equal(out.advance_confusion_question.no_merge_performed, true);
+  assert.equal(out.advance_confusion_question.blockers_resolved, 0);
+  assert.equal(out.advance_confusion_question.gates_opened, 0);
+  assert.equal(out.advance_confusion_question.reenable_gate, "CLOSED");
+  assert.equal(out.advance_confusion_question.finance_enabled, false);
+  assert.equal(out.next_gate, "SEPARATE_REENABLE_DECISION");
+  assert.ok(out.limitations.includes("ADVANCE_CONFUSION_ANSWER_DOES_NOT_VERIFY_OR_CLOSE_ANY_GATE"));
+  assert.equal(evaluate(APPROVAL_SHA_DELIVERY_QUESTION).advance_confusion_question, null);
+});

@@ -1637,3 +1637,24 @@ test("approval sha delivery question is answered in section 117", () => {
   assert.equal(inv.blockers_resolved, 0);
   assert.equal(inv.gates_opened, 0);
 });
+
+test("advance confusion is answered in section 118", () => {
+  const log = read("docs/finance-release-log.md");
+  assert.match(log, /## ١١٨\./);
+  assert.match(log, /PROCEDURAL_CONFUSION_ABOUT_HOW_TO_ADVANCE/);
+  assert.match(log, /ADVANCE_CONFUSION_ANSWERED_DESCRIPTIVELY_NO_GATE_OPENED/);
+  assert.match(log, /NO_CHAT_MESSAGE_ALONE_CAN_ADVANCE_A_FIXED_CONDITION/);
+  assert.match(log, /BLOCKERS_ARE_EVIDENCE_GAPS_NOT_APPROVAL_GAPS/);
+  assert.match(log, /no_phrase_delivered|لا قالب ولا صياغة جاهزة ولا طلب عبارة/);
+  assert.match(log, /NO_TRUE_NO_DEPLOY_NO_SYNC_NO_MANUAL_DEPLOY_NO_BLUEPRINT_NO_SQL_NO_SRC_NO_RENDER_YAML_NO_FINANCIAL_ACTION/);
+  const probe = read("docs/finance-app-connection-probe-result-ar.md");
+  assert.match(probe, /## ٩١\./);
+  const ev = read("prototypes/finance-app-identity/evaluate-phase4-execution.mjs");
+  assert.match(ev, /ADVANCE_CONFUSION_ANSWER_DOES_NOT_VERIFY_OR_CLOSE_ANY_GATE/);
+  assert.match(ev, /SESSION_CANNOT_CREATE_THE_MISSING_ARTIFACT/);
+  const inv: { blockers: Array<{ status: string }>; blockers_resolved: number; gates_opened: number } = JSON.parse(read("prototypes/finance-app-identity/readiness-blockers-inventory.test-only.json"));
+  assert.equal(inv.blockers[0].status, "UNRESOLVED");
+  assert.equal(inv.blockers.length, 9);
+  assert.equal(inv.blockers_resolved, 0);
+  assert.equal(inv.gates_opened, 0);
+});
