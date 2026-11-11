@@ -47,7 +47,7 @@ async function fixture(): Promise<PGlite> {
   await pg.exec("CREATE TABLE finance_release.migrations(name text PRIMARY KEY,checksum char(64) NOT NULL,applied_at timestamptz NOT NULL DEFAULT now(),applied_by name NOT NULL DEFAULT session_user)");
   await pg.exec("CREATE TABLE public.users(id bigint PRIMARY KEY); INSERT INTO public.users VALUES(1); INSERT INTO finance.requests VALUES(1)");
   for (const table of baselineTables) await pg.exec(`ALTER TABLE finance.${table} OWNER TO selahtone_finance_admin`);
-  await pg.exec("ALTER SCHEMA finance OWNER TO selahtone_finance_admin; ALTER SCHEMA finance_release OWNER TO selahtone_finance_admin; ALTER TABLE finance_release.migrations OWNER TO selahtone_finance_admin");
+  await pg.exec("ALTER SCHEMA finance OWNER TO finance_release_operator; ALTER SCHEMA finance_release OWNER TO selahtone_finance_admin; ALTER TABLE finance_release.migrations OWNER TO selahtone_finance_admin; GRANT USAGE ON SCHEMA finance TO selahtone_finance_admin");
   await pg.exec("GRANT USAGE ON SCHEMA finance TO selahtone_app,finance_intruder");
   await pg.exec("GRANT SELECT,INSERT,UPDATE ON ALL TABLES IN SCHEMA finance TO selahtone_app");
   await pg.exec("GRANT ALL ON ALL TABLES IN SCHEMA finance TO finance_intruder");
@@ -73,7 +73,7 @@ async function controls(pg: PGlite) {
 test("checksums pin both reviewed files", () => {
   assert.equal(checksum(upgrade).length, 64); assert.equal(checksum(rollback).length, 64);
   assert.ok(rollback.includes(`-- upgrade_sha256: ${checksum(upgrade)}`));
-  assert.doesNotMatch(upgrade, /GRANT [A-Z,]+ ON SCHEMA finance/m);
+  assert.doesNotMatch(upgrade, /GRANT (?:USAGE|USAGE,CREATE) ON SCHEMA finance/m);
   assert.equal(upgrade.match(/^SET LOCAL ROLE selahtone_finance_admin;/gm)?.length, 1);
   assert.equal(upgrade.match(/^RESET ROLE;/gm)?.length, 1);
   assert.doesNotMatch(upgrade, /ALTER TABLE finance\.request_results OWNER/);
@@ -92,6 +92,7 @@ test("default deny, one allowed app path, and every append-only trigger are exer
     assert.equal((await pg.query<{ owner: string }>("SELECT pg_get_userbyid(relowner)::text AS owner FROM pg_class WHERE oid='finance.request_results'::regclass")).rows[0].owner, "selahtone_finance_admin");
     assert.equal((await pg.query<{ n: number }>("SELECT count(*)::int AS n FROM pg_constraint WHERE conrelid='finance.request_results'::regclass AND contype='f' AND confrelid='public.users'::regclass")).rows[0].n, 1);
     assert.equal((await pg.query<{ allowed: boolean }>("SELECT has_table_privilege('selahtone_finance_admin','public.users','REFERENCES') AS allowed")).rows[0].allowed, false, "temporary REFERENCES must be revoked");
+    assert.equal((await pg.query<{ allowed: boolean }>("SELECT has_schema_privilege('selahtone_finance_admin','finance','CREATE') AS allowed")).rows[0].allowed, false, "temporary schema CREATE must be revoked");
     await pg.exec("SET SESSION AUTHORIZATION finance_release_operator");
     const operatorGrants = await pg.query<{ usage: boolean; create: boolean }>("SELECT has_schema_privilege(current_user,'finance','USAGE') AS usage,has_schema_privilege(current_user,'finance','CREATE') AS create");
     assert.deepEqual(operatorGrants.rows[0], { usage: true, create: true }, "existing schema privileges must remain untouched");
