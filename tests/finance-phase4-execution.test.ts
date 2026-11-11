@@ -5512,3 +5512,121 @@ test("the SHA question delivers no phrase and opens no gate", () => {
   assert.ok(out.limitations.includes("SHA_QUESTION_DOES_NOT_VERIFY_OR_CLOSE_ANY_GATE"));
   assert.equal(evaluate(MERGE_PULL_REQUEST_REQUEST).next_step_approval_sha_question, null);
 });
+
+
+const SRC_FILES_CHANGE_APPROVAL_WITHOUT_PINNED_TEXT = {
+  ...structuredClone(NEXT_STEP_APPROVAL_SHA_QUESTION),
+  src_files_change_approval_without_pinned_text: {
+    operator_text: "موافق علي التغيير في ملقات **src**",
+    kind: "SRC_FILES_CHANGE_APPROVAL_WITHOUT_A_PINNED_REVIEWED_TEXT",
+    received_in_chat: true,
+    verdict: "SRC_FILES_CHANGE_APPROVAL_REFUSED_STRICT_REJECT_NOT_ACTIONABLE",
+    acknowledged_descriptively: true,
+    differs_from_section_115: "AN_APPROVAL_VERB_ON_SRC_FILES_NOT_A_QUESTION_ABOUT_AN_APPROVAL_SHA",
+    differs_from_section_107: "NO_PINNED_SHAS_AT_ALL_UNLIKE_THE_TWO_CURRENT_ARTIFACT_SHAS_IN_SECTION_107",
+    is_one_single_standalone_message: true,
+    is_a_single_approval: true,
+    approval_verb_present: true,
+    is_a_bare_approval_without_an_artifact: true,
+    is_a_separate_verbatim_approval: false,
+    references_pinned_sha: false,
+    no_pinned_sha_in_message: true,
+    no_text_body_provided: true,
+    no_acceptance_criteria: true,
+    no_reviewed_text_for_src_changes: true,
+    no_src_artifact_sha: true,
+    session_does_not_author_reviewed_src_text: true,
+    src_modification_is_prohibited: true,
+    deploy_is_prohibited: true,
+    is_an_execution_approval: false,
+    separate_in_service_path_approval: true,
+    src_and_deploy_approvals: false,
+    no_blanket_approval: true,
+    current_step_index: "6/11",
+    next_descriptive_step: "SEPARATE_SRC_AND_DEPLOY_APPROVALS_IF_NEEDED",
+    strict_reject_phrase: "تعذّر التحقق من نتيجة الطلب المحفوظ؛ يلزم مراجعة أو ترحيل الطلب القديم.",
+    no_approval_phrase_solicited: true,
+    no_template_delivered: true,
+    no_phrase_delivered: true,
+    no_sha_delivered: true,
+    no_reenable_decision_solicited: true,
+    no_command_sent: true,
+    no_sql_delivered: true,
+    no_gate_opened: true,
+    no_inventory_change: true,
+    no_action_taken_on_production: true,
+    no_src_modified: true,
+    no_render_yaml_modified: true,
+    no_deploy: true,
+    no_sync: true,
+    no_true: true,
+    no_secrets_in_chat: true,
+    no_file_reference: true,
+    blockers_resolved: 0,
+    gates_opened: 0,
+    next_gate: "SEPARATE_REENABLE_DECISION",
+    reenable_gate: "CLOSED",
+    overall: "NOT_READY",
+  },
+};
+
+test("a bare src files change approval with no pinned text is refused", () => {
+  const out = evaluate(SRC_FILES_CHANGE_APPROVAL_WITHOUT_PINNED_TEXT);
+  assert.equal(out.src_files_change_approval_without_pinned_text.kind,
+    "SRC_FILES_CHANGE_APPROVAL_WITHOUT_A_PINNED_REVIEWED_TEXT");
+  assert.equal(out.src_files_change_approval_without_pinned_text.verdict,
+    "SRC_FILES_CHANGE_APPROVAL_REFUSED_STRICT_REJECT_NOT_ACTIONABLE");
+  assert.equal(out.src_files_change_approval_without_pinned_text.is_a_single_approval, true);
+  assert.equal(out.src_files_change_approval_without_pinned_text.approval_verb_present, true);
+  assert.equal(out.src_files_change_approval_without_pinned_text.is_a_bare_approval_without_an_artifact, true);
+  assert.equal(out.src_files_change_approval_without_pinned_text.is_a_separate_verbatim_approval, false);
+  assert.equal(out.src_files_change_approval_without_pinned_text.references_pinned_sha, false);
+  assert.equal(out.src_files_change_approval_without_pinned_text.differs_from_section_107,
+    "NO_PINNED_SHAS_AT_ALL_UNLIKE_THE_TWO_CURRENT_ARTIFACT_SHAS_IN_SECTION_107");
+  assert.equal(out.overall_release_status, "NOT_READY");
+});
+
+test("no reviewed src text or criteria exist and src stays prohibited", () => {
+  const out = evaluate(SRC_FILES_CHANGE_APPROVAL_WITHOUT_PINNED_TEXT);
+  assert.equal(out.src_files_change_approval_without_pinned_text.no_pinned_sha_in_message, true);
+  assert.equal(out.src_files_change_approval_without_pinned_text.no_text_body_provided, true);
+  assert.equal(out.src_files_change_approval_without_pinned_text.no_acceptance_criteria, true);
+  assert.equal(out.src_files_change_approval_without_pinned_text.no_reviewed_text_for_src_changes, true);
+  assert.equal(out.src_files_change_approval_without_pinned_text.no_src_artifact_sha, true);
+  assert.equal(out.src_files_change_approval_without_pinned_text.session_does_not_author_reviewed_src_text, true);
+  assert.equal(out.src_files_change_approval_without_pinned_text.src_modification_is_prohibited, true);
+  assert.equal(out.src_files_change_approval_without_pinned_text.deploy_is_prohibited, true);
+  assert.equal(out.src_files_change_approval_without_pinned_text.is_an_execution_approval, false);
+  assert.equal(out.src_files_change_approval_without_pinned_text.src_and_deploy_approvals, false);
+  assert.equal(out.src_files_change_approval_without_pinned_text.current_step_index, "6/11");
+  assert.equal(out.src_files_change_approval_without_pinned_text.next_descriptive_step,
+    "SEPARATE_SRC_AND_DEPLOY_APPROVALS_IF_NEEDED");
+  for (const w of ["APPROVAL_CANNOT_PRECEDE_THE_PINNED_TEXT_IT_NAMES",
+    "NO_REVIEWED_TEXT_FOR_SRC_CHANGES_EXISTS",
+    "NO_TEXT_BODY_NO_PINNED_SHA_NO_ACCEPTANCE_CRITERIA",
+    "SESSION_DOES_NOT_AUTHOR_REVIEWED_SRC_TEXT",
+    "SRC_MODIFICATION_IS_PROHIBITED",
+    "DEPLOY_AND_SYNC_AND_TRUE_ARE_PROHIBITED",
+    "A_FIXED_CONDITION_CANNOT_BE_WAIVED_BY_THE_SESSION",
+    "NO_BLANKET_APPROVAL_EACH_APPROVAL_NEEDS_ITS_OWN_SEPARATE_MESSAGE",
+    "SESSION_NEVER_EXECUTES_PRODUCTION_SQL_OR_DEPLOYS_OR_SETS_ENV_VARS",
+    "STRICT_REJECT_POLICY_STILL_IN_FORCE"])
+    assert.ok(out.warnings.includes(w), w);
+});
+
+test("the src files approval opens no gate, delivers no phrase and changes no state", () => {
+  const out = evaluate(SRC_FILES_CHANGE_APPROVAL_WITHOUT_PINNED_TEXT);
+  for (const k of ["no_approval_phrase_solicited", "no_template_delivered",
+    "no_phrase_delivered", "no_sha_delivered", "no_reenable_decision_solicited",
+    "no_command_sent", "no_sql_delivered", "no_gate_opened", "no_inventory_change",
+    "no_action_taken_on_production", "no_src_modified", "no_render_yaml_modified",
+    "no_deploy", "no_sync", "no_true", "no_secrets_in_chat", "no_file_reference"])
+    assert.equal((out.src_files_change_approval_without_pinned_text as unknown as Record<string, boolean>)[k], true, k);
+  assert.equal(out.src_files_change_approval_without_pinned_text.blockers_resolved, 0);
+  assert.equal(out.src_files_change_approval_without_pinned_text.gates_opened, 0);
+  assert.equal(out.src_files_change_approval_without_pinned_text.reenable_gate, "CLOSED");
+  assert.equal(out.src_files_change_approval_without_pinned_text.finance_enabled, false);
+  assert.equal(out.next_gate, "SEPARATE_REENABLE_DECISION");
+  assert.ok(out.limitations.includes("SRC_FILES_CHANGE_APPROVAL_DOES_NOT_VERIFY_OR_CLOSE_ANY_GATE"));
+  assert.equal(evaluate(NEXT_STEP_APPROVAL_SHA_QUESTION).src_files_change_approval_without_pinned_text, null);
+});

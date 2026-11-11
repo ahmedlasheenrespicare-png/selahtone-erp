@@ -1597,3 +1597,23 @@ test("next step approval sha question is answered in section 115", () => {
   assert.equal(inv.blockers_resolved, 0);
   assert.equal(inv.gates_opened, 0);
 });
+
+test("bare src files change approval is refused in section 116", () => {
+  const log = read("docs/finance-release-log.md");
+  assert.match(log, /## ١١٦\./);
+  assert.match(log, /SRC_FILES_CHANGE_APPROVAL_WITHOUT_A_PINNED_REVIEWED_TEXT/);
+  assert.match(log, /SRC_FILES_CHANGE_APPROVAL_REFUSED_STRICT_REJECT_NOT_ACTIONABLE/);
+  assert.match(log, /APPROVAL_CANNOT_PRECEDE_THE_PINNED_TEXT_IT_NAMES/);
+  assert.match(log, /NO_REVIEWED_TEXT_FOR_SRC_CHANGES_EXISTS/);
+  assert.match(log, /no_sha_delivered=true/);
+  assert.match(log, /NO_TRUE_NO_DEPLOY_NO_SYNC_NO_MANUAL_DEPLOY_NO_BLUEPRINT_NO_SQL_NO_SRC_NO_RENDER_YAML_NO_FINANCIAL_ACTION/);
+  const probe = read("docs/finance-app-connection-probe-result-ar.md");
+  assert.match(probe, /## ٨٩\./);
+  const ev = read("prototypes/finance-app-identity/evaluate-phase4-execution.mjs");
+  assert.match(ev, /SRC_FILES_CHANGE_APPROVAL_DOES_NOT_VERIFY_OR_CLOSE_ANY_GATE/);
+  assert.match(ev, /A_FIXED_CONDITION_CANNOT_BE_WAIVED_BY_THE_SESSION/);
+  const inv: { blockers: Array<{ status: string }>; blockers_resolved: number; gates_opened: number } = JSON.parse(read("prototypes/finance-app-identity/readiness-blockers-inventory.test-only.json"));
+  assert.equal(inv.blockers[0].status, "UNRESOLVED");
+  assert.equal(inv.blockers_resolved, 0);
+  assert.equal(inv.gates_opened, 0);
+});

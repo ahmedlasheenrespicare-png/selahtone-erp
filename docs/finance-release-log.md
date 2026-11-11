@@ -1430,3 +1430,17 @@
 > `STRICT_REJECT_POLICY_STILL_IN_FORCE`: «تعذّر التحقق من نتيجة الطلب المحفوظ؛ يلزم مراجعة أو ترحيل الطلب القديم.»
 
 `separate_in_service_path_approval=true` (§١٠٤) و`src_and_deploy_approvals=false`؛ `current_step_index=6/11` و`next_descriptive_step=SEPARATE_SRC_AND_DEPLOY_APPROVALS_IF_NEEDED` **بلا تقدّم**؛ PR 95 `OPEN` بلا دمج. `blockers_resolved=0` / `gates_opened=0` و9 موانع `UNRESOLVED` / `C1/C2=FAIL` / `IDENTITY_GAP_CONFIRMED` / `reenable_gate=CLOSED` / `CLOSED_NOT_READY` / `finance_enabled=false`. **المالية تبقى `FINANCE_ENABLED=false` وما زالت غير جاهزة للنشر.**
+
+## ١١٦. «موافق علي التغيير في ملفات `src`» ⇒ رفض صارم (2026-11-05)
+
+قسم **رفض موافقة مجرّدة على تغيير ملفات `src`**؛ لم تُنفَّذ أي SQL من طرف الجلسة، ولم يُضبط أي متغير، ولم تُغيَّر `src` أو `render.yaml`، ولا نشر/`Manual Deploy`/`Sync`/Blueprint، ولا `true`، ولا إجراء مالي/كتابة/اختبار رد نقدي، ولا دمج/إغلاق للـ PR. كتب المشغّل «موافق علي التغيير في ملقات **src**» ⇒ `SRC_FILES_CHANGE_APPROVAL_WITHOUT_A_PINNED_REVIEWED_TEXT` و`SRC_FILES_CHANGE_APPROVAL_REFUSED_STRICT_REJECT_NOT_ACTIONABLE`.
+
+**التحقق:** `is_one_single_standalone_message=true` و`is_a_single_approval=true` و`approval_verb_present=true`، لكن `is_a_bare_approval_without_an_artifact=true` و`is_a_separate_verbatim_approval=false` و`references_pinned_sha=false` و`no_pinned_sha_in_message=true` و`no_text_body_provided=true` و`no_acceptance_criteria=true`. `AN_APPROVAL_VERB_ON_SRC_FILES_NOT_A_QUESTION_ABOUT_AN_APPROVAL_SHA` يميّزها عن §١١٥، و`NO_PINNED_SHAS_AT_ALL_UNLIKE_THE_TWO_CURRENT_ARTIFACT_SHAS_IN_SECTION_107` عن §١٠٧.
+
+**لماذا الرفض:** (١) `NO_REVIEWED_TEXT_FOR_SRC_CHANGES_EXISTS` و`no_src_artifact_sha=true` ⇒ `APPROVAL_CANNOT_PRECEDE_THE_PINNED_TEXT_IT_NAMES`؛ (٢) `NO_TEXT_BODY_NO_PINNED_SHA_NO_ACCEPTANCE_CRITERIA` و`SESSION_DOES_NOT_AUTHOR_REVIEWED_SRC_TEXT`؛ (٣) `SRC_MODIFICATION_IS_PROHIBITED` و`DEPLOY_AND_SYNC_AND_TRUE_ARE_PROHIBITED` — حدّ ثابت `NO_SRC_NO_RENDER_YAML_NO_PRODUCTION_SQL_NO_DEPLOY_NO_SYNC_NO_TRUE` و`A_FIXED_CONDITION_CANNOT_BE_WAIVED_BY_THE_SESSION`؛ (٤) `NO_BLANKET_APPROVAL_EACH_APPROVAL_NEEDS_ITS_OWN_SEPARATE_MESSAGE`؛ (٥) `SESSION_NEVER_EXECUTES_PRODUCTION_SQL_OR_DEPLOYS_OR_SETS_ENV_VARS` و`EXECUTION_BY_THE_OPERATOR_NOT_THE_SESSION`. ⇒ `is_an_execution_approval=false` و`NO_COMMAND_NO_SQL_NO_GATE_NO_ACTION`.
+
+> `STRICT_REJECT_POLICY_STILL_IN_FORCE`: «تعذّر التحقق من نتيجة الطلب المحفوظ؛ يلزم مراجعة أو ترحيل الطلب القديم.»
+
+**الحدود:** `NO_TRUE_NO_DEPLOY_NO_SYNC_NO_MANUAL_DEPLOY_NO_BLUEPRINT_NO_SQL_NO_SRC_NO_RENDER_YAML_NO_FINANCIAL_ACTION`؛ لا بصمة ولا عبارة موافقة ولا قالب ولا صياغة جاهزة (`no_sha_delivered=true` و`no_phrase_delivered=true`)، ولا طلب عبارة، ولا بوابة، ولا إحالة ملف، ولا أسرار/اتصال/صفوف/قيم، ولا قرار إعادة تفعيل. `SRC_FILES_CHANGE_APPROVAL_DOES_NOT_VERIFY_OR_CLOSE_ANY_GATE` / `BLOCKER_1_REMAINS_UNRESOLVED` / `no_inventory_change=true`.
+
+`separate_in_service_path_approval=true` (§١٠٤) و`src_and_deploy_approvals=false`؛ `current_step_index=6/11` و`next_descriptive_step=SEPARATE_SRC_AND_DEPLOY_APPROVALS_IF_NEEDED` **بلا تقدّم**؛ PR 95 `OPEN` بلا دمج؛ `blockers_resolved=0` / `gates_opened=0` و9 موانع `UNRESOLVED` / `C1/C2=FAIL` / `IDENTITY_GAP_CONFIRMED` / `reenable_gate=CLOSED` / `CLOSED_NOT_READY` / `finance_enabled=false`. **المالية تبقى `FINANCE_ENABLED=false` وما زالت غير جاهزة للنشر.**
