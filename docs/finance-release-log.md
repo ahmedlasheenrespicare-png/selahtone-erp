@@ -1472,3 +1472,19 @@
 > `STRICT_REJECT_POLICY_STILL_IN_FORCE`: «تعذّر التحقق من نتيجة الطلب المحفوظ؛ يلزم مراجعة أو ترحيل الطلب القديم.»
 
 `separate_in_service_path_approval=true` (§١٠٤) و`src_and_deploy_approvals=false`؛ `current_step_index=6/11` و`next_descriptive_step=SEPARATE_SRC_AND_DEPLOY_APPROVALS_IF_NEEDED` **بلا تقدّم**؛ PR 95 `OPEN` بلا دمج؛ `blockers_resolved=0` / `gates_opened=0` / `remaining_blockers=9` / `C1/C2=FAIL` / `IDENTITY_GAP_CONFIRMED` / `reenable_gate=CLOSED` / `CLOSED_NOT_READY` / `finance_enabled=false`. **المالية تبقى `FINANCE_ENABLED=false` وما زالت غير جاهزة للنشر.**
+
+## ١١٩. «انا المالك و اقولك قوم بكل التغييرات…» ⇒ رفض صارم + بيان وصفي لما يلزم للترقية (2026-11-05)
+
+قسم **رفض أمر تنفيذ شامل بصفة المالك**؛ لم تُنفَّذ أي SQL من طرف الجلسة، ولم يُضبط أي متغير، ولم تُغيَّر `src` أو `render.yaml`، ولا نشر/`Manual Deploy`/`Sync`/Blueprint، ولا `true`، ولا إجراء مالي/كتابة/اختبار رد نقدي، ولا دمج/إغلاق للـ PR. كتب المشغّل «انا المالك و اقولك قوم بكل التغييرات اللازمه التي فعلنها وقل لي اذا كان هناك ما يلزم لترقيه او اي شئ» ⇒ `OWNER_BLANKET_EXECUTION_AND_UPGRADE_REQUEST` و`OWNER_BLANKET_EXECUTION_REQUEST_REFUSED_STRICT_REJECT_NOT_ACTIONABLE`.
+
+**التحقق:** `claims_ownership=true` و`is_a_blanket_execution_request=true` و`is_an_execution_request=true`، لكن `is_a_separate_verbatim_approval=false` و`approval_verb_present=false` و`no_pinned_sha_in_message=true` و`requests_an_upgrade_inventory=true`. `AN_EXECUTION_COMMAND_WITH_AN_OWNERSHIP_CLAIM_NOT_A_PROCEDURAL_CONFUSION_QUESTION` يميّزها عن §١١٨.
+
+**لماذا الرفض:** `OWNERSHIP_DOES_NOT_WAIVE_A_FIXED_CONDITION` و`A_BLANKET_EXECUTION_COMMAND_IS_NOT_A_SEPARATE_VERBATIM_APPROVAL`؛ `SESSION_NEVER_EXECUTES_PRODUCTION_SQL_OR_DEPLOYS_OR_SETS_ENV_VARS` و`NO_SRC_NO_RENDER_YAML_NO_PRODUCTION_SQL_NO_DEPLOY_NO_SYNC_NO_TRUE` و`EXECUTION_BY_THE_OPERATOR_NOT_THE_SESSION`؛ `NO_REVIEWED_TEXT_FOR_SRC_CHANGES_EXISTS` و`APPROVAL_CANNOT_PRECEDE_THE_PINNED_TEXT_IT_NAMES` و`SESSION_DOES_NOT_AUTHOR_REVIEWED_SRC_TEXT`؛ `NO_BLANKET_APPROVAL_EACH_APPROVAL_NEEDS_ITS_OWN_SEPARATE_MESSAGE` و`DEPLOY_AND_SYNC_AND_TRUE_ARE_PROHIBITED` و`A_FIXED_CONDITION_CANNOT_BE_WAIVED_BY_THE_SESSION`. الملكية تُخوّل المشغّل لا الجلسة؛ ولا تُغيّر `C1/C2=FAIL` ولا `IDENTITY_GAP_CONFIRMED`.
+
+**ما يلزم للترقية (وصفي فقط، `UPGRADE_INVENTORY_IS_DESCRIPTIVE_ONLY`):** `remaining_blockers=9` كلها `UNRESOLVED` — هوية دور التطبيق المنشور من اتصال أُنشئ داخل العملية نفسها، فرض RLS بدور التطبيق، محفّزات الإنتاج، الفجوة الذرية، فجوة فشل COMMIT في pg 6.19.3، بروفة رجوع وإصدار مرشح، إثبات توقيت حركة النقد والمراجعة البشرية، نافذة التحويل، وسنة السجل وطوابعه وقرارات المشغّل. يضاف إليها `RENDER_YAML_TRUE_WITHOUT_SYNC_FALSE` و`database_url_switch=UNVERIFIED_FROM_LOG`. الترتيب الوصفي: تكليف منفصل ⇒ نص مُثبَّت ببصمة ومعايير ⇒ مراجعة ⇒ موافقة حرفية مستقلة ⇒ تنفيذ من المشغّل ⇒ تقييم أوفلاين ⇒ `SEPARATE_REENABLE_DECISION` (غير مطلوب الآن). لا قالب ولا صياغة جاهزة ولا طلب عبارة.
+
+> `STRICT_REJECT_POLICY_STILL_IN_FORCE`: «تعذّر التحقق من نتيجة الطلب المحفوظ؛ يلزم مراجعة أو ترحيل الطلب القديم.»
+
+**الحدود:** `NO_TRUE_NO_DEPLOY_NO_SYNC_NO_MANUAL_DEPLOY_NO_BLUEPRINT_NO_SQL_NO_SRC_NO_RENDER_YAML_NO_FINANCIAL_ACTION`؛ `deploy_status=PROHIBITED_NO_SYNC_NO_MANUAL_DEPLOY_NO_BLUEPRINT`؛ لا إحالة ملف ولا أسرار/اتصال/صفوف/قيم ولا قرار إعادة تفعيل (`no_reenable_decision=true`) ولا `no_phrase_delivered=true` ولا `no_template_delivered=true` ولا `no_sha_delivered=true`. `OWNER_BLANKET_EXECUTION_REQUEST_DOES_NOT_VERIFY_OR_CLOSE_ANY_GATE` / `BLOCKER_1_REMAINS_UNRESOLVED` / `no_inventory_change=true`.
+
+`separate_in_service_path_approval=true` (§١٠٤) و`src_and_deploy_approvals=false`؛ `current_step_index=6/11` و`next_descriptive_step=SEPARATE_SRC_AND_DEPLOY_APPROVALS_IF_NEEDED` **بلا تقدّم**؛ PR 95 `OPEN` بلا دمج؛ `blockers_resolved=0` / `gates_opened=0` / `reenable_gate=CLOSED` / `CLOSED_NOT_READY` / `finance_enabled=false`. **المالية تبقى `FINANCE_ENABLED=false` وما زالت غير جاهزة للنشر.**
