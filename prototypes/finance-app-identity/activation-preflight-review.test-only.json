@@ -3,6 +3,7 @@
   "status": "HOLD_PENDING_SEPARATE_PRODUCTION_CHECKS_AND_ACTIVATION_DECISION",
   "decision": "WAIT_NO_ACTIVATION",
   "review_document": "../../docs/finance-activation-preflight-review.md",
+  "first_live_use_plan": "../../docs/finance-first-live-use-plan.md",
   "finance_enabled_changed": false,
   "production_database_used": false,
   "production_environment_used": false,
@@ -37,6 +38,14 @@
     "cash_refund": "ALLOWED_OPERATIONALLY",
     "rollback_to_false_on_problem": true,
     "interpretation_limit": "These are operator preferences for preflight planning, not a final activation command."
+  },
+  "operator_context_2026_11_11": {
+    "current_deploy_commit": "UNKNOWN_OPERATOR_DOES_NOT_KNOW",
+    "system_status": "NEW_SYSTEM_NO_REAL_USERS_YET",
+    "objective": "PREPARE_FOR_FIRST_REAL_OPERATIONAL_USE",
+    "data_migration_assumption": "NOT_REQUIRED_FOR_FIRST_USE_BUT_EXISTING_CONFIGURATION_AND_ANY_PRIOR_ROWS_ARE_NOT_ASSUMED_ABSENT",
+    "opening_cash_amounts": "NOT_SUPPLIED_AND_NOT_ASSUMED_ZERO",
+    "opening_counts_completed": null
   },
   "remaining_before_go_review": [
     "CURRENT_DEPLOY_COMMIT_AND_COMPATIBILITY",
