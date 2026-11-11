@@ -39,7 +39,7 @@ async function run(pg: PGlite, sql: string): Promise<void> {
 }
 async function fixture(): Promise<PGlite> {
   const pg = new PGlite();
-  await pg.exec("CREATE ROLE selahtone_app LOGIN; CREATE ROLE selahtone_finance_admin NOLOGIN; CREATE ROLE finance_intruder LOGIN; CREATE ROLE finance_release_operator NOINHERIT LOGIN;");
+  await pg.exec("CREATE ROLE selahtone_app LOGIN; CREATE ROLE selahtone_finance_admin NOLOGIN; CREATE ROLE finance_intruder LOGIN; CREATE ROLE finance_release_operator INHERIT LOGIN;");
   const current = (await pg.query<{ user: string }>("SELECT current_user AS user")).rows[0].user;
   await pg.exec(`GRANT selahtone_finance_admin TO ${current},finance_release_operator`);
   await pg.exec("CREATE SCHEMA finance; CREATE SCHEMA finance_release;");
@@ -51,12 +51,12 @@ async function fixture(): Promise<PGlite> {
   await pg.exec("GRANT USAGE ON SCHEMA finance TO selahtone_app,finance_intruder");
   await pg.exec("GRANT SELECT,INSERT,UPDATE ON ALL TABLES IN SCHEMA finance TO selahtone_app");
   await pg.exec("GRANT ALL ON ALL TABLES IN SCHEMA finance TO finance_intruder");
-  await pg.exec("ALTER TABLE public.users OWNER TO finance_release_operator; GRANT USAGE ON SCHEMA finance TO finance_release_operator");
+  await pg.exec("ALTER TABLE public.users OWNER TO finance_release_operator; GRANT USAGE,CREATE ON SCHEMA finance TO finance_release_operator");
   return pg;
 }
-/** Execute with a non-superuser SQL-editor identity: it owns public.users and
- * is a finance-admin member, but has no direct CREATE grant on finance. */
-async function apply(pg: PGlite, script = upgrade): Promise<void> {
+/** Execute with the observed non-superuser SQL-editor identity: it owns
+ * public.users, inherits finance admin, and has both USAGE and CREATE. */
+async function apply(pg: PGlite, script = upgrade.replaceAll("neondb_owner", "finance_release_operator")): Promise<void> {
   await pg.exec("SET SESSION AUTHORIZATION finance_release_operator");
   try { await run(pg, script); }
   finally { await pg.exec("RESET ROLE; SET SESSION AUTHORIZATION postgres"); }
@@ -73,6 +73,7 @@ async function controls(pg: PGlite) {
 test("checksums pin both reviewed files", () => {
   assert.equal(checksum(upgrade).length, 64); assert.equal(checksum(rollback).length, 64);
   assert.ok(rollback.includes(`-- upgrade_sha256: ${checksum(upgrade)}`));
+  assert.doesNotMatch(upgrade, /^SET LOCAL ROLE|^RESET ROLE|GRANT [A-Z,]+ ON SCHEMA finance/m);
 });
 
 test("default deny, one allowed app path, and every append-only trigger are exercised", { timeout: 120_000 }, async () => {
@@ -80,7 +81,7 @@ test("default deny, one allowed app path, and every append-only trigger are exer
   try {
     await pg.exec("SET SESSION AUTHORIZATION finance_release_operator");
     const beforeGrants = await pg.query<{ usage: boolean; create: boolean }>("SELECT has_schema_privilege(current_user,'finance','USAGE') AS usage,has_schema_privilege(current_user,'finance','CREATE') AS create");
-    assert.deepEqual(beforeGrants.rows[0], { usage: true, create: false });
+    assert.deepEqual(beforeGrants.rows[0], { usage: true, create: true });
     await pg.exec("SET SESSION AUTHORIZATION postgres");
     await apply(pg);
     assert.deepEqual(await controls(pg), { tables: 19, rls: 19, forced: 0, policies: 19, triggers: appendOnly.length });
@@ -89,7 +90,7 @@ test("default deny, one allowed app path, and every append-only trigger are exer
     assert.equal((await pg.query<{ n: number }>("SELECT count(*)::int AS n FROM pg_constraint WHERE conrelid='finance.request_results'::regclass AND contype='f' AND confrelid='public.users'::regclass")).rows[0].n, 1);
     await pg.exec("SET SESSION AUTHORIZATION finance_release_operator");
     const operatorGrants = await pg.query<{ usage: boolean; create: boolean }>("SELECT has_schema_privilege(current_user,'finance','USAGE') AS usage,has_schema_privilege(current_user,'finance','CREATE') AS create");
-    assert.deepEqual(operatorGrants.rows[0], { usage: true, create: false }, "CREATE must be revoked and pre-existing USAGE preserved");
+    assert.deepEqual(operatorGrants.rows[0], { usage: true, create: true }, "existing schema privileges must remain untouched");
     await pg.exec("SET SESSION AUTHORIZATION postgres");
 
     await pg.exec("SET ROLE selahtone_app");

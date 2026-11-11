@@ -1,8 +1,8 @@
 -- رجوع مستقل عن manual-finance-controls-upgrade.sql — للمراجعة فقط.
 -- يزيل السياسات والمحفزات وجدول request_results الفارغ فقط، ولا يحذف صفًا ماليًا.
 -- يرفض العمل إذا وُجد أي رابط نتيجة، أو اختلف سجل الترقية/البصمة. لا يغير FINANCE_ENABLED.
--- sha256: 1d0b715139495ff2a78985503572f48204e6c1fd3b050a59f1f9b4d352b692bd
--- upgrade_sha256: a32ae32da6a1b3409880c696043fafb9780aebe08229c2608a50e2030f5d2617
+-- sha256: 936f58b71a72cc3630db91aa2c397cc0be1b1c8f0d76ff465349e557446edcf4
+-- upgrade_sha256: e74add8c8ebcfc83fec1f2112e664e043b16bfea9ec36cdd6d62a16f17689c5a
 BEGIN;
 SET LOCAL statement_timeout = '10s';
 SET LOCAL lock_timeout = '3s';
@@ -18,7 +18,7 @@ BEGIN
   RAISE EXCEPTION 'finance controls rollback: request_results is absent';
  END IF;
  SELECT checksum INTO recorded FROM finance_release.migrations WHERE name='finance_controls_upgrade';
- IF recorded IS DISTINCT FROM 'a32ae32da6a1b3409880c696043fafb9780aebe08229c2608a50e2030f5d2617' THEN
+ IF recorded IS DISTINCT FROM 'e74add8c8ebcfc83fec1f2112e664e043b16bfea9ec36cdd6d62a16f17689c5a' THEN
   RAISE EXCEPTION 'finance controls rollback: migration checksum mismatch';
  END IF;
  IF EXISTS (SELECT 1 FROM finance.request_results) THEN
