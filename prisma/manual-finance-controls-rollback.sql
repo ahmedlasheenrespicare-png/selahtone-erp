@@ -1,38 +1,36 @@
 -- رجوع مستقل عن manual-finance-controls-upgrade.sql — للمراجعة فقط.
 -- يزيل السياسات والمحفزات وجدول request_results الفارغ فقط، ولا يحذف صفًا ماليًا.
 -- يرفض العمل إذا وُجد أي رابط نتيجة، أو اختلف سجل الترقية/البصمة. لا يغير FINANCE_ENABLED.
--- sha256: b29de337cb80053ae199dcdb25e88fbed6b4f2b2d1cb3bacb559c778fc3ca774
--- upgrade_sha256: 6886c2f1eaa81b58f566b2599cd0d2c4b8c5a9c040bb57b6a2ba9914fcc272c8
+-- sha256: bfd2a22620deb37369539b541778457fa877b748c80f0f6591d826a61f6c52be
+-- upgrade_sha256: 710bafab25399e44c80e28984028c6691f608362346bb37b8bab318bcde83a75
 BEGIN;
 SET LOCAL statement_timeout = '10s';
 SET LOCAL lock_timeout = '3s';
 
 DO $$
+DECLARE recorded CHAR(64);
 BEGIN
  IF current_user <> session_user OR session_user <> 'neondb_owner' THEN
   RAISE EXCEPTION 'finance controls rollback: expected neondb_owner with no SET ROLE';
  END IF;
- IF has_schema_privilege('selahtone_finance_admin','finance','USAGE')
-    OR has_schema_privilege('selahtone_finance_admin','finance_release','USAGE') THEN
-  RAISE EXCEPTION 'finance controls rollback: unexpected admin USAGE; review before temporary grants';
+ SELECT checksum INTO recorded FROM finance_release.migrations WHERE name='finance_controls_upgrade';
+ IF recorded IS DISTINCT FROM '710bafab25399e44c80e28984028c6691f608362346bb37b8bab318bcde83a75' THEN
+  RAISE EXCEPTION 'finance controls rollback: migration checksum mismatch';
+ END IF;
+ IF has_schema_privilege('selahtone_finance_admin','finance','USAGE') THEN
+  RAISE EXCEPTION 'finance controls rollback: unexpected admin USAGE; review before temporary grant';
  END IF;
  GRANT USAGE ON SCHEMA finance TO selahtone_finance_admin;
- GRANT USAGE ON SCHEMA finance_release TO selahtone_finance_admin;
 END $$;
 SET LOCAL ROLE selahtone_finance_admin;
 
 DO $$
-DECLARE recorded CHAR(64);
 BEGIN
  IF current_user <> 'selahtone_finance_admin' THEN
   RAISE EXCEPTION 'finance controls rollback: admin role required';
  END IF;
  IF to_regclass('finance.request_results') IS NULL THEN
   RAISE EXCEPTION 'finance controls rollback: request_results is absent';
- END IF;
- SELECT checksum INTO recorded FROM finance_release.migrations WHERE name='finance_controls_upgrade';
- IF recorded IS DISTINCT FROM '6886c2f1eaa81b58f566b2599cd0d2c4b8c5a9c040bb57b6a2ba9914fcc272c8' THEN
-  RAISE EXCEPTION 'finance controls rollback: migration checksum mismatch';
  END IF;
  IF EXISTS (SELECT 1 FROM finance.request_results) THEN
   RAISE EXCEPTION 'finance controls rollback: request results exist; refusing data loss';
@@ -57,10 +55,9 @@ BEGIN
 END $$;
 DROP FUNCTION finance.append_only_guard();
 DROP TABLE finance.request_results;
-DELETE FROM finance_release.migrations WHERE name='finance_controls_upgrade';
 RESET ROLE;
+DELETE FROM finance_release.migrations WHERE name='finance_controls_upgrade';
 REVOKE USAGE ON SCHEMA finance FROM selahtone_finance_admin;
-REVOKE USAGE ON SCHEMA finance_release FROM selahtone_finance_admin;
 
 SELECT jsonb_build_object(
  'status','CONTROLS_ROLLED_BACK_FINANCE_STILL_DISABLED',
