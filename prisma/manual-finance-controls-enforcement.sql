@@ -1,8 +1,9 @@
 -- اختبار enforcement للمراجعة فقط؛ لا يُشغَّل إلا بموافقة إنتاجية منفصلة.
 -- يستخدم selahtone_app الفعلي، ويدرج رابطًا اصطناعيًا واحدًا ثم يختبر منع
 -- UPDATE على المحفزات العشرة ومنع DELETE/TRUNCATE. ينتهي بـROLLBACK ولا يترك صفًا.
--- لا يغير FINANCE_ENABLED ولا يثبت اتصال Render أو بقية موانع الجاهزية.
--- sha256: 0bf771a4de39f61a633767eb51c7692947291d1bafaf47e62ea12cc3c37921b0
+-- يغيّر SET على عضوية neondb_owner في دور التطبيق مؤقتًا داخل المعاملة فقط؛
+-- ROLLBACK يعيد SET=false وINHERIT إلى حالتهما الأصلية. لا تفعيل ولا دليل اتصال Render.
+-- sha256: c2b9b4a09920e21e8fce8126fccb42def61de2e1c7d2f2c2ef6b332111e5917f
 BEGIN;
 SET LOCAL statement_timeout = '10s';
 SET LOCAL lock_timeout = '3s';
@@ -12,8 +13,12 @@ BEGIN
  IF current_user <> session_user OR session_user <> 'neondb_owner' THEN
   RAISE EXCEPTION 'finance enforcement: expected neondb_owner with no SET ROLE';
  END IF;
- IF NOT pg_has_role(session_user,'selahtone_app','SET') THEN
-  RAISE EXCEPTION 'finance enforcement: SQL operator lacks SET on the application role';
+ IF NOT EXISTS (SELECT 1 FROM pg_auth_members m
+   JOIN pg_roles granted ON granted.oid=m.roleid
+   JOIN pg_roles member ON member.oid=m.member
+   WHERE granted.rolname='selahtone_app' AND member.rolname=session_user
+     AND m.admin_option AND NOT m.set_option) THEN
+  RAISE EXCEPTION 'finance enforcement: expected ADMIN_OPTION=true and SET=false before temporary grant';
  END IF;
  IF to_regclass('finance.request_results') IS NULL THEN
   RAISE EXCEPTION 'finance enforcement: request_results is missing';
@@ -22,6 +27,7 @@ BEGIN
    WHERE request_id='33333333-3333-4333-8333-333333333333') THEN
   RAISE EXCEPTION 'finance enforcement: fixed probe UUID already exists';
  END IF;
+ GRANT selahtone_app TO neondb_owner WITH INHERIT FALSE, SET TRUE;
 END $$;
 
 SET LOCAL ROLE selahtone_app;
@@ -100,6 +106,7 @@ SELECT jsonb_build_object(
  'truncate_denied',true,
  'probe_rows_after_rollback',(SELECT count(*)::int FROM finance.request_results
    WHERE request_id='33333333-3333-4333-8333-333333333333'),
+ 'app_set_option_after_rollback',pg_has_role('neondb_owner','selahtone_app','SET'),
  'finance_enabled_unchanged',true,
  'proof_scope','SQL_EDITOR_APP_ROLE_NOT_DEPLOYED_CONNECTION_NOT_DEFAULT_DENY_OTHER_ROLE'
 )::text AS finance_controls_enforcement;

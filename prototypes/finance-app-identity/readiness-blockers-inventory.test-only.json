@@ -59,7 +59,7 @@
         "temporary_users_references_remaining": false
       },
       "enforcement_candidate": "prisma/manual-finance-controls-enforcement.sql",
-      "enforcement_candidate_sha256": "0bf771a4de39f61a633767eb51c7692947291d1bafaf47e62ea12cc3c37921b0",
+      "enforcement_candidate_sha256": "c2b9b4a09920e21e8fce8126fccb42def61de2e1c7d2f2c2ef6b332111e5917f",
       "enforcement_candidate_status": "REVIEW_ONLY_PGLITE_6_OF_6_NOT_EXECUTED_REQUIRES_SEPARATE_APPROVAL",
       "enforcement_scope": "APP_ROLE_SELECT_INSERT_10_UPDATE_DENIALS_DELETE_TRUNCATE_DENIALS_WITH_ROLLBACK; NOT_DEPLOYED_CONNECTION_NOT_DEFAULT_DENY_OTHER_ROLE"
     },

@@ -115,4 +115,8 @@
 
 ### مرشح اختبار enforcement بدور التطبيق
 
-أُعدّ `prisma/manual-finance-controls-enforcement.sql` للمراجعة فقط بالبصمة `0bf771a4de39f61a633767eb51c7692947291d1bafaf47e62ea12cc3c37921b0`. ينتقل مؤقتًا إلى selahtone_app، يقرأ ويدرج رابطًا اصطناعيًا بمستخدم موجود، يتحقق من رفض UPDATE على المحفزات العشرة ورفض DELETE/TRUNCATE، ثم ROLLBACK ويعد صف UUID الاختبار لإثبات غيابه. اختبارات controls أصبحت 6/6 على PGlite وتثبت اختفاء الصف وبقاء الضوابط. النطاق لا يثبت اتصال Render ولا default-deny لدور ثالث إنتاجي؛ الأول أثبت هويته فحص الخدمة سابقًا والثاني اختبار مخبري. يلزم اعتماد إنتاجي منفصل، وFINANCE_ENABLED=false.
+أُعدّ `prisma/manual-finance-controls-enforcement.sql` للمراجعة فقط بالبصمة `c2b9b4a09920e21e8fce8126fccb42def61de2e1c7d2f2c2ef6b332111e5917f`. ينتقل مؤقتًا إلى selahtone_app، يقرأ ويدرج رابطًا اصطناعيًا بمستخدم موجود، يتحقق من رفض UPDATE على المحفزات العشرة ورفض DELETE/TRUNCATE، ثم ROLLBACK ويعد صف UUID الاختبار لإثبات غيابه. اختبارات controls أصبحت 6/6 على PGlite وتثبت اختفاء الصف وبقاء الضوابط. النطاق لا يثبت اتصال Render ولا default-deny لدور ثالث إنتاجي؛ الأول أثبت هويته فحص الخدمة سابقًا والثاني اختبار مخبري. يلزم اعتماد إنتاجي منفصل، وFINANCE_ENABLED=false.
+
+### SET المؤقت لعضوية مشغل SQL في دور التطبيق
+
+رفض الاختبار قبل الكتابة لأن SET=false. أثبت pg_auth_members أن ADMIN_OPTION=true وSET=false وأن التطبيق يستطيع SELECT على public.users. المرشح الجديد يشترط هذه الحالة، ويغيّر العضوية مؤقتًا إلى INHERIT FALSE, SET TRUE داخل المعاملة، ثم يعيدها ROLLBACK ويتحقق من app_set_option_after_rollback=false. بصمته `c2b9b4a09920e21e8fce8126fccb42def61de2e1c7d2f2c2ef6b332111e5917f`. الاختبارات 6/6 تثبت اختفاء صف الاختبار وعدم بقاء SET. يلزم اعتماد منفصل ولا تفعيل.
