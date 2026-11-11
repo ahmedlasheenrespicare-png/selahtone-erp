@@ -3,11 +3,11 @@
 -- وrequest_results غير موجود. لا يرحّل طلبات قديمة ولا يملأ روابطها اصطناعيًا.
 -- يضيف request_results، وRLS بمنع افتراضي مع سياسة لدور التطبيق وحده، ومحفزات
 -- منع UPDATE/DELETE/TRUNCATE على السجلات المحددة أدناه. لا يفعل FINANCE_ENABLED.
--- sha256: fbad5e09bc5ba66658407e2c4876180c15c602f6fa91b8a9d887a8aeae22cb02
+-- sha256: 0a33103c54a3a8ddacb29f5f92d9d60ed1cc037eb197d00531ba9d8afea88d13
 --
 -- التنفيذ المستقبلي: الملف كاملًا في Neon SQL Editor داخل نافذة متفق عليها.
--- يعمل بدور SQL Editor neondb_owner الذي ثبت أنه يملك USAGE/CREATE ويرث الإدارة.
--- لا SET ROLE ولا منح مؤقت؛ ينقل ملكية الكائنات الجديدة للإدارة صراحةً.
+-- منح REFERENCES مؤقت على public.users يتيح للإدارة إنشاء الجدول والـFK مباشرةً
+-- بمالكيتها؛ لا نقل ملكية، وتُسحب الصلاحية المؤقتة قبل COMMIT.
 -- إعادة التشغيل مرفوضة؛ الرجوع له ملف مستقل ولا يعمل إذا احتوى request_results على صفوف.
 BEGIN;
 SET LOCAL statement_timeout = '10s';
@@ -28,6 +28,9 @@ BEGIN
     OR NOT has_schema_privilege(session_user,'finance','USAGE')
     OR NOT has_schema_privilege(session_user,'finance','CREATE') THEN
   RAISE EXCEPTION 'finance controls: expected neondb_owner with USAGE and CREATE and no SET ROLE';
+ END IF;
+ IF has_table_privilege('selahtone_finance_admin','public.users','REFERENCES') THEN
+  RAISE EXCEPTION 'finance controls: admin REFERENCES already exists; review before temporary grants';
  END IF;
  IF to_regclass('finance_release.migrations') IS NULL THEN
   RAISE EXCEPTION 'finance controls: migration ledger is missing';
@@ -79,7 +82,13 @@ BEGIN
 END $$;
 
 -- الروابط الجديدة فقط. الطلبات القديمة بلا رابط تبقى مرفوضة ولا تُخمن نتائجها.
--- ينشئ neondb_owner الجدول والـFK والمنح ثم ينقل الملكية للإدارة بلا تبديل دور.
+-- تنشئ الإدارة الجدول مباشرةً بمالكيتها بعد منح REFERENCES المؤقت.
+DO $$
+BEGIN
+ GRANT REFERENCES ON public.users TO selahtone_finance_admin;
+EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'FINANCE_STAGE_TEMP_REFERENCES_GRANT: %',SQLERRM;
+END $$;
+SET LOCAL ROLE selahtone_finance_admin;
 DO $$
 BEGIN
  CREATE TABLE finance.request_results (
@@ -96,8 +105,7 @@ DO $$
 BEGIN
  REVOKE ALL ON finance.request_results FROM PUBLIC;
  GRANT SELECT,INSERT,UPDATE ON finance.request_results TO selahtone_app;
- ALTER TABLE finance.request_results OWNER TO selahtone_finance_admin;
-EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'FINANCE_STAGE_REQUEST_RESULTS_ACL_OWNER: %',SQLERRM;
+EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'FINANCE_STAGE_REQUEST_RESULTS_ACL: %',SQLERRM;
 END $$;
 
 -- هذه ليست عزلة فروع؛ التطبيق يحتاج كل الصفوف ويقرر صلاحية المستخدم داخل معاملته.
@@ -123,7 +131,6 @@ BEGIN
  BEGIN
   RAISE EXCEPTION USING ERRCODE='P0001',MESSAGE='FINANCE_APPEND_ONLY_IMMUTABLE';
  END $body$ $function$;
- EXECUTE 'ALTER FUNCTION finance.append_only_guard() OWNER TO selahtone_finance_admin';
  EXECUTE 'REVOKE ALL ON FUNCTION finance.append_only_guard() FROM PUBLIC';
 EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'FINANCE_STAGE_APPEND_ONLY_FUNCTION: %',SQLERRM;
 END $$;
@@ -143,8 +150,14 @@ END $$;
 DO $$
 BEGIN
  INSERT INTO finance_release.migrations(name,checksum)
- VALUES('finance_controls_upgrade','fbad5e09bc5ba66658407e2c4876180c15c602f6fa91b8a9d887a8aeae22cb02');
+ VALUES('finance_controls_upgrade','0a33103c54a3a8ddacb29f5f92d9d60ed1cc037eb197d00531ba9d8afea88d13');
 EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'FINANCE_STAGE_MIGRATION_LEDGER: %',SQLERRM;
+END $$;
+RESET ROLE;
+DO $$
+BEGIN
+ REVOKE REFERENCES ON public.users FROM selahtone_finance_admin;
+EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'FINANCE_STAGE_REVOKE_REFERENCES: %',SQLERRM;
 END $$;
 
 SELECT jsonb_build_object(
