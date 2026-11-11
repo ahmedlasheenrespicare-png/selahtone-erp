@@ -3,7 +3,7 @@
 -- وrequest_results غير موجود. لا يرحّل طلبات قديمة ولا يملأ روابطها اصطناعيًا.
 -- يضيف request_results، وRLS بمنع افتراضي مع سياسة لدور التطبيق وحده، ومحفزات
 -- منع UPDATE/DELETE/TRUNCATE على السجلات المحددة أدناه. لا يفعل FINANCE_ENABLED.
--- sha256: e74add8c8ebcfc83fec1f2112e664e043b16bfea9ec36cdd6d62a16f17689c5a
+-- sha256: fbad5e09bc5ba66658407e2c4876180c15c602f6fa91b8a9d887a8aeae22cb02
 --
 -- التنفيذ المستقبلي: الملف كاملًا في Neon SQL Editor داخل نافذة متفق عليها.
 -- يعمل بدور SQL Editor neondb_owner الذي ثبت أنه يملك USAGE/CREATE ويرث الإدارة.
@@ -80,17 +80,25 @@ END $$;
 
 -- الروابط الجديدة فقط. الطلبات القديمة بلا رابط تبقى مرفوضة ولا تُخمن نتائجها.
 -- ينشئ neondb_owner الجدول والـFK والمنح ثم ينقل الملكية للإدارة بلا تبديل دور.
-CREATE TABLE finance.request_results (
- request_id UUID PRIMARY KEY,
- action VARCHAR(40) NOT NULL,
- actor_id BIGINT NOT NULL REFERENCES public.users(id),
- result_table VARCHAR(64) NOT NULL,
- result_id BIGINT NOT NULL CHECK (result_id > 0),
- created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-REVOKE ALL ON finance.request_results FROM PUBLIC;
-GRANT SELECT,INSERT,UPDATE ON finance.request_results TO selahtone_app;
-ALTER TABLE finance.request_results OWNER TO selahtone_finance_admin;
+DO $$
+BEGIN
+ CREATE TABLE finance.request_results (
+  request_id UUID PRIMARY KEY,
+  action VARCHAR(40) NOT NULL,
+  actor_id BIGINT NOT NULL REFERENCES public.users(id),
+  result_table VARCHAR(64) NOT NULL,
+  result_id BIGINT NOT NULL CHECK (result_id > 0),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+ );
+EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'FINANCE_STAGE_CREATE_REQUEST_RESULTS: %',SQLERRM;
+END $$;
+DO $$
+BEGIN
+ REVOKE ALL ON finance.request_results FROM PUBLIC;
+ GRANT SELECT,INSERT,UPDATE ON finance.request_results TO selahtone_app;
+ ALTER TABLE finance.request_results OWNER TO selahtone_finance_admin;
+EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'FINANCE_STAGE_REQUEST_RESULTS_ACL_OWNER: %',SQLERRM;
+END $$;
 
 -- هذه ليست عزلة فروع؛ التطبيق يحتاج كل الصفوف ويقرر صلاحية المستخدم داخل معاملته.
 -- RLS يضيف منعًا افتراضيًا لأي دور غير مالك حتى لو مُنح ACL بالخطأ مستقبلًا.
@@ -104,16 +112,21 @@ BEGIN
   EXECUTE format('ALTER TABLE finance.%I ENABLE ROW LEVEL SECURITY',tbl);
   EXECUTE format('CREATE POLICY selahtone_app_all ON finance.%I FOR ALL TO selahtone_app USING (true) WITH CHECK (true)',tbl);
  END LOOP;
+EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'FINANCE_STAGE_RLS_POLICIES: %',SQLERRM;
 END $$;
 
 -- الجداول ذات التاريخ الذي لا يجوز تعديله أو محوه؛ بقية الجداول لها تحديثات مشروعة.
-CREATE FUNCTION finance.append_only_guard() RETURNS trigger
-LANGUAGE plpgsql AS $$
+DO $$
 BEGIN
- RAISE EXCEPTION USING ERRCODE='P0001',MESSAGE='FINANCE_APPEND_ONLY_IMMUTABLE';
+ EXECUTE $function$CREATE FUNCTION finance.append_only_guard() RETURNS trigger
+ LANGUAGE plpgsql AS $body$
+ BEGIN
+  RAISE EXCEPTION USING ERRCODE='P0001',MESSAGE='FINANCE_APPEND_ONLY_IMMUTABLE';
+ END $body$ $function$;
+ EXECUTE 'ALTER FUNCTION finance.append_only_guard() OWNER TO selahtone_finance_admin';
+ EXECUTE 'REVOKE ALL ON FUNCTION finance.append_only_guard() FROM PUBLIC';
+EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'FINANCE_STAGE_APPEND_ONLY_FUNCTION: %',SQLERRM;
 END $$;
-ALTER FUNCTION finance.append_only_guard() OWNER TO selahtone_finance_admin;
-REVOKE ALL ON FUNCTION finance.append_only_guard() FROM PUBLIC;
 
 DO $$
 DECLARE tbl TEXT;
@@ -124,10 +137,15 @@ BEGIN
  LOOP
   EXECUTE format('CREATE TRIGGER finance_append_only_guard BEFORE UPDATE OR DELETE OR TRUNCATE ON finance.%I FOR EACH STATEMENT EXECUTE FUNCTION finance.append_only_guard()',tbl);
  END LOOP;
+EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'FINANCE_STAGE_APPEND_ONLY_TRIGGERS: %',SQLERRM;
 END $$;
 
-INSERT INTO finance_release.migrations(name,checksum)
-VALUES('finance_controls_upgrade','e74add8c8ebcfc83fec1f2112e664e043b16bfea9ec36cdd6d62a16f17689c5a');
+DO $$
+BEGIN
+ INSERT INTO finance_release.migrations(name,checksum)
+ VALUES('finance_controls_upgrade','fbad5e09bc5ba66658407e2c4876180c15c602f6fa91b8a9d887a8aeae22cb02');
+EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'FINANCE_STAGE_MIGRATION_LEDGER: %',SQLERRM;
+END $$;
 
 SELECT jsonb_build_object(
  'status','CONTROLS_INSTALLED_NOT_AN_APPLICATION_ACTIVATION',

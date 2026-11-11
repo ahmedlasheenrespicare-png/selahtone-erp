@@ -127,6 +127,16 @@ test("rollback restores the observed 18-table control state without touching exi
   } finally { await pg.close(); }
 });
 
+test("DDL failure names its stage and leaves no partial objects", async () => {
+  const pg = await fixture();
+  try {
+    await pg.exec("ALTER TABLE public.users OWNER TO postgres; REVOKE ALL ON public.users FROM finance_release_operator");
+    await assert.rejects(() => apply(pg), /FINANCE_STAGE_CREATE_REQUEST_RESULTS/);
+    assert.equal((await pg.query<{ value: string | null }>("SELECT to_regclass('finance.request_results')::text AS value")).rows[0].value, null);
+    assert.deepEqual(await controls(pg), { tables: 18, rls: 0, forced: 0, policies: 0, triggers: 0 });
+  } finally { await pg.close(); }
+});
+
 test("candidate refuses a different schema before creating anything", async () => {
   const pg = await fixture();
   try {
