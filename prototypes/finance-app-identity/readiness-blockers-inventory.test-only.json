@@ -6,16 +6,16 @@
   "authorization_received_verbatim": "تكليف منفصل صريح بتحليل أوفلاين للموانع",
   "no_action_boundary": "NO_SRC_NO_RENDER_YAML_NO_PRODUCTION_SQL_NO_DEPLOY_NO_SYNC_NO_TRUE",
   "overall_status": "NOT_READY",
-  "blockers_resolved": 0,
+  "blockers_resolved": 2,
   "gates_opened": 0,
   "no_blanket_approval": true,
   "strict_reject_phrase": "تعذّر التحقق من نتيجة الطلب المحفوظ؛ يلزم مراجعة أو ترحيل الطلب القديم.",
   "blockers": [
     {
       "id": "DEPLOYED_APP_ROLE_IDENTITY_READ_ONLY_PROOF",
-      "status": "UNRESOLVED",
-      "current_evidence": "C5_LOCAL_PROBE_COMPLETE_NOT_A_DEPLOY_PROOF",
-      "gap": "الاتصال المحلي من جهاز المشغّل لا يُثبت هوية اتصال التطبيق المنشور؛ المالية معطّلة فلم يحدث طلب DB حي؛ السجل لا يطبع قيم env.",
+      "status": "RESOLVED",
+      "current_evidence": "DEPLOYED_SERVICE_PASS_SELAHTONE_APP_NO_BYPASSRLS_NO_PRIVILEGED_MEMBERSHIPS_ROLLBACK_OBSERVED",
+      "gap": "مغلق لدليل الهوية المنشور فقط؛ لا يغلق RLS أو التفعيل.",
       "offline_design": "تصميم فحص قراءة-only يُنفَّذ لاحقًا من اتصال العملية الشغّالة نفسها، يثبّت بصمة نصه، ويُخرج current_user/session_user وصفات الدور فقط داخل معاملة تُرجَّع.",
       "acceptance_criteria": "current_user = session_user = selahtone_app من اتصال أنشأته إعدادات الخدمة المنشورة لا من جهاز المشغّل، بلا أسرار في المخرج، مع تأكيد ROLLBACK.",
       "requires": "SEPARATE_REVIEWED_TEXT_THEN_SEPARATE_VERBATIM_APPROVAL_BEFORE_EXECUTION",
@@ -40,8 +40,8 @@
     {
       "id": "RLS_AND_TRIGGER_ENFORCEMENT_TESTED_WITH_THE_APP_ROLE",
       "status": "UNRESOLVED",
-      "current_evidence": "RLS_DISABLED_EVERYWHERE_ZERO_POLICIES_ZERO_PRODUCTION_TRIGGERS",
-      "gap": "C4 سجّل حالة الكائنات لا التنفيذ؛ والـ19 محفّزًا مخبرية في finance_lab لا إنتاجية؛ ولا سياسات production مُراجَعة.",
+      "current_evidence": "DEPLOYED_CONTROLS_2026-11-11_FINANCE_18_TABLES_RLS_0_FORCED_0_POLICIES_0_TRIGGERS_0",
+      "gap": "الفحص المنشور وصفي فقط؛ لا منع افتراضي ولا اختبار سماح/منع ولا محفزات إنتاجية. يلزم جرد أسماء الجداول وسجل الترقية قبل مرشح السياسات.",
       "offline_design": "مصفوفة سياسات مقترحة لكل جدول + سيناريوهات سماح/منع مخبرية على PostgreSQL مؤقت مع دور selahtone_app، وفصل «وجود المحفّز» عن «تنفيذه».",
       "acceptance_criteria": "منع افتراضي موثّق، ومسار كتابة مسموح واحد على الأقل مُختبَر، ورفض أي مسار يتجاوز السياسة، بلا إجراء مالي حقيقي.",
       "requires": "SEPARATE_REVIEWED_TEXT_THEN_SEPARATE_VERBATIM_APPROVAL_BEFORE_EXECUTION"
@@ -102,12 +102,32 @@
     },
     {
       "id": "RENDER_YAML_TRUE_WITHOUT_SYNC_FALSE_RECONCILED",
-      "status": "UNRESOLVED",
-      "current_evidence": "render.yaml:31 = \"true\" بلا sync:false بينما القيمة الحية false",
-      "gap": "أي Sync/Blueprint قد يُعيد تفعيل المالية صامتًا قبل استيفاء الشروط.",
+      "status": "RESOLVED",
+      "current_evidence": "RENDER_YAML_FINANCE_ENABLED_FALSE_MERGED_AND_DEPLOYED_CONTROLS_CONFIRM_FALSE",
+      "gap": "مغلق لمنع إعادة التفعيل الصامتة؛ أي تغيير لاحق قرار مستقل.",
       "offline_design": "تحليل خيارات التسوية (منع Sync مقابل تعديل Blueprint) دون لمس الملف في هذه الجلسة.",
       "acceptance_criteria": "قرار منفصل صريح يزيل التعارض ويمنع إعادة التفعيل الصامتة، مع تحقق بعده.",
       "requires": "SEPARATE_REVIEWED_TEXT_THEN_SEPARATE_VERBATIM_APPROVAL_BEFORE_EXECUTION"
     }
-  ]
+  ],
+  "latest_deployed_evidence": {
+    "identity": {
+      "checkedAt": "2026-11-11T01:58:45.878Z",
+      "deploymentCommit": "b2280e8f7109e1f48273333ce5f4b2adecb9292b",
+      "status": "PASS",
+      "rollbackObserved": true
+    },
+    "controls": {
+      "checkedAt": "2026-11-11T02:08:22.301Z",
+      "deploymentCommit": "66433796186c85fd7c51aad33d4a342665026864",
+      "status": "OBSERVED_NOT_AN_ENFORCEMENT_TEST",
+      "rollbackObserved": true,
+      "financeTables": 18,
+      "rlsEnabled": 0,
+      "rlsForced": 0,
+      "policies": 0,
+      "productionTriggers": 0,
+      "financeEnabled": false
+    }
+  }
 }
