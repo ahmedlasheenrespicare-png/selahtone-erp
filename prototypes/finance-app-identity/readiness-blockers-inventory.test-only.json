@@ -6,7 +6,7 @@
   "authorization_received_verbatim": "تكليف منفصل صريح بتحليل أوفلاين للموانع",
   "no_action_boundary": "NO_SRC_NO_RENDER_YAML_NO_PRODUCTION_SQL_NO_DEPLOY_NO_SYNC_NO_TRUE",
   "overall_status": "NOT_READY",
-  "blockers_resolved": 2,
+  "blockers_resolved": 3,
   "gates_opened": 0,
   "no_blanket_approval": true,
   "strict_reject_phrase": "تعذّر التحقق من نتيجة الطلب المحفوظ؛ يلزم مراجعة أو ترحيل الطلب القديم.",
@@ -39,9 +39,9 @@
     },
     {
       "id": "RLS_AND_TRIGGER_ENFORCEMENT_TESTED_WITH_THE_APP_ROLE",
-      "status": "UNRESOLVED",
-      "current_evidence": "PRODUCTION_CONTROLS_COMMITTED_19_TABLES_19_RLS_19_POLICIES_10_TRIGGERS_OWNER_ADMIN_TEMP_GRANTS_REVOKED; APP_ROLE_ENFORCEMENT_NOT_YET_TESTED",
-      "gap": "الترقية ثابتة بعد COMMIT والسجل مطابق والصلاحيات المؤقتة مسحوبة؛ يلزم اختبار سماح/منع فعلي بدور التطبيق مع ROLLBACK بلا بيانات دائمة.",
+      "status": "RESOLVED",
+      "current_evidence": "PRODUCTION_APP_ROLE_PASS_SELECT_INSERT_10_APPEND_ONLY_UPDATE_DENIALS_DELETE_TRUNCATE_DENIED_ROLLBACK_PROBE_0_SET_FALSE; COMMITTED_19_RLS_19_POLICIES_10_TRIGGERS",
+      "gap": "مغلق لاختبار enforcement بدور التطبيق وضوابط المخطط الملتزمة؛ لا يغلق بقية موانع الجاهزية أو التفعيل.",
       "offline_design": "مصفوفة سياسات مقترحة لكل جدول + سيناريوهات سماح/منع مخبرية على PostgreSQL مؤقت مع دور selahtone_app، وفصل «وجود المحفّز» عن «تنفيذه».",
       "acceptance_criteria": "منع افتراضي موثّق، ومسار كتابة مسموح واحد على الأقل مُختبَر، ورفض أي مسار يتجاوز السياسة، بلا إجراء مالي حقيقي.",
       "requires": "SEPARATE_REVIEWED_TEXT_THEN_SEPARATE_VERBATIM_APPROVAL_BEFORE_EXECUTION",
@@ -60,8 +60,19 @@
       },
       "enforcement_candidate": "prisma/manual-finance-controls-enforcement.sql",
       "enforcement_candidate_sha256": "678ff5ba77a1a0d6e522f15c47cd3dfd27c9fbe56f7561fe6b91766e656269f6",
-      "enforcement_candidate_status": "REVIEW_ONLY_PGLITE_6_OF_6_NOT_EXECUTED_REQUIRES_SEPARATE_APPROVAL",
-      "enforcement_scope": "APP_ROLE_SELECT_INSERT_10_UPDATE_DENIALS_DELETE_TRUNCATE_DENIALS_WITH_ROLLBACK; NOT_DEPLOYED_CONNECTION_NOT_DEFAULT_DENY_OTHER_ROLE"
+      "enforcement_candidate_status": "EXECUTED_PASS_ROLLED_BACK_NO_RESIDUAL_PROBE_OR_SET_GRANT",
+      "enforcement_scope": "APP_ROLE_SELECT_INSERT_10_UPDATE_DENIALS_DELETE_TRUNCATE_DENIALS_WITH_ROLLBACK; NOT_DEPLOYED_CONNECTION_NOT_DEFAULT_DENY_OTHER_ROLE",
+      "production_enforcement_result": {
+        "status": "PASS_APP_ROLE_CONTROLS_ROLLED_BACK",
+        "select_allowed": true,
+        "insert_allowed": true,
+        "append_only_update_denials": 10,
+        "delete_denied": true,
+        "truncate_denied": true,
+        "probe_rows_after_rollback": 0,
+        "app_set_option_after_rollback": false,
+        "proof_scope": "SQL_EDITOR_APP_ROLE_NOT_DEPLOYED_CONNECTION_NOT_DEFAULT_DENY_OTHER_ROLE"
+      }
     },
     {
       "id": "ATOMIC_ACCESS_CONTROL_GAP_RESOLVED",
@@ -137,7 +148,7 @@
     "controls": {
       "checkedAt": "2026-11-11T02:39:41.168Z",
       "deploymentCommit": "780af461098eb3290a3b43b3f945a4a0727ba265",
-      "status": "COMMITTED_OBJECT_STATE_NOT_AN_ENFORCEMENT_TEST",
+      "status": "PRODUCTION_APP_ROLE_ENFORCEMENT_PASS_ROLLED_BACK",
       "rollbackObserved": true,
       "financeTables": 19,
       "rlsEnabled": 19,
