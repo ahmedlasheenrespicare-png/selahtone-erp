@@ -30,3 +30,19 @@
 - قرار مستقل أخير لإعادة `FINANCE_ENABLED=true` بعد الأدلة، وليس قبله.
 
 لا حاجة لتشغيل ملفات SQL المالية الإضافية لهذه التعديلات؛ جدول `public.access_control` الذي رقّيته هو المتطلب الحالي لهذا المرشح.
+
+## دليل الهوية المنشور — 2026-11-11T01:58:45.878Z
+
+أُغلق مانع `DEPLOYED_APP_ROLE_IDENTITY_READ_ONLY_PROOF` بنتيجة `PASS` من commit المنشور `b2280e8f7109e1f48273333ce5f4b2adecb9292b`:
+
+- `currentUser = sessionUser = selahtone_app` من اتصال الخدمة نفسها.
+- `transactionReadOnly = true` و`rollbackObserved = true`.
+- `canLogin = inherit = true`؛ و`superuser = bypassRls = createRole = createDb = replication = false`.
+- لا عضويات موروثة أو أدوار شاملة، ولا ملكية لكائنات `finance`، ولا صلاحية `CREATE` عليه.
+- `financeEnabled = false` وقت الفحص.
+
+هذا الدليل خاص بالهوية فقط، ولا يغلق RLS أو المحفّزات أو الاستعادة أو نافذة التحويل أو قرار إعادة التفعيل.
+
+## مرشح فحص الضوابط التالي
+
+أُضيف `GET /api/admin/finance-controls` للأدمن، لقراءة حالة RLS والسياسات والملكية وامتيازات الجداول والمحفّزات من اتصال الخدمة نفسها مع rollback. نتيجته `OBSERVED_NOT_AN_ENFORCEMENT_TEST` لأنها وصف للكائنات وليست اختبار كتابة أو إثبات تنفيذ القيود. يلزم نشره ثم إرسال JSON الناتج قبل إعداد أي ترقية RLS.
