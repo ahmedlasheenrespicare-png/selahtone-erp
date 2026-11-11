@@ -6027,3 +6027,139 @@ test("the owner blanket request opens no gate and delivers no phrase", () => {
   assert.ok(out.limitations.includes("UPGRADE_INVENTORY_IS_DESCRIPTIVE_ONLY"));
   assert.equal(evaluate(ADVANCE_CONFUSION_QUESTION).owner_blanket_execution_request, null);
 });
+
+
+const SQL_OR_COMMAND_DELIVERY_REQUEST = {
+  ...structuredClone(OWNER_BLANKET_EXECUTION_REQUEST),
+  sql_or_command_delivery_request: {
+    operator_text: "ارسلي اوامر SQL او اطلب مني اي طلب وانا انفذ المهم نكمل المهمه",
+    kind: "REQUEST_TO_DELIVER_SQL_OR_COMMANDS_AND_EXECUTE_THEM",
+    received_in_chat: true,
+    verdict: "SQL_OR_COMMAND_DELIVERY_REQUEST_REFUSED_STRICT_REJECT_NOT_ACTIONABLE",
+    acknowledged_descriptively: true,
+    differs_from_section_119: "A_REQUEST_FOR_SQL_OR_COMMANDS_NOT_A_BLANKET_EXECUTION_COMMAND",
+    is_a_request_for_sql_or_commands: true,
+    offers_to_execute: true,
+    offers_to_finish_the_task: true,
+    asks_session_to_request_something: true,
+    is_a_separate_verbatim_approval: false,
+    is_a_decision: false,
+    is_an_approval: false,
+    approval_verb_present: false,
+    references_pinned_sha: false,
+    no_pinned_sha_in_message: true,
+    no_sql_delivered: true,
+    no_command_sent: true,
+    no_phrase_delivered: true,
+    no_template_delivered: true,
+    no_approval_phrase_solicited: true,
+    no_request_solicited: true,
+    no_reviewed_text_for_src_changes: true,
+    no_acceptance_criteria_for_src_changes: true,
+    no_src_artifact_sha: true,
+    session_does_not_author_reviewed_src_text: true,
+    src_modification_is_prohibited: true,
+    deploy_is_prohibited: true,
+    deploy_status: "PROHIBITED_NO_SYNC_NO_MANUAL_DEPLOY_NO_BLUEPRINT",
+    no_reenable_decision: true,
+    no_blanket_approval: true,
+    answer_scope: "DESCRIPTIVE_ONLY_WHY_SQL_DELIVERY_CANNOT_ADVANCE_THE_TASK",
+    current_step_index: "6/11",
+    next_descriptive_step: "SEPARATE_SRC_AND_DEPLOY_APPROVALS_IF_NEEDED",
+    remaining_blockers: 9,
+    pr_number: 95,
+    pr_state: "OPEN",
+    no_merge_performed: true,
+    strict_reject_phrase: "تعذّر التحقق من نتيجة الطلب المحفوظ؛ يلزم مراجعة أو ترحيل الطلب القديم.",
+    no_reenable_decision_solicited: true,
+    no_gate_opened: true,
+    no_inventory_change: true,
+    no_action_taken_on_production: true,
+    no_src_modified: true,
+    no_render_yaml_modified: true,
+    no_deploy: true,
+    no_sync: true,
+    no_true: true,
+    no_secrets_in_chat: true,
+    no_database_url_in_chat: true,
+    no_rows_or_values_in_chat: true,
+    no_file_reference: true,
+    blockers_resolved: 0,
+    gates_opened: 0,
+    next_gate: "SEPARATE_REENABLE_DECISION",
+    reenable_gate: "CLOSED",
+    overall: "NOT_READY",
+  },
+};
+
+test("a request to deliver SQL or commands is refused", () => {
+  const out = evaluate(SQL_OR_COMMAND_DELIVERY_REQUEST);
+  assert.equal(out.sql_or_command_delivery_request.kind,
+    "REQUEST_TO_DELIVER_SQL_OR_COMMANDS_AND_EXECUTE_THEM");
+  assert.equal(out.sql_or_command_delivery_request.verdict,
+    "SQL_OR_COMMAND_DELIVERY_REQUEST_REFUSED_STRICT_REJECT_NOT_ACTIONABLE");
+  assert.equal(out.sql_or_command_delivery_request.is_a_request_for_sql_or_commands, true);
+  assert.equal(out.sql_or_command_delivery_request.offers_to_execute, true);
+  assert.equal(out.sql_or_command_delivery_request.offers_to_finish_the_task, true);
+  assert.equal(out.sql_or_command_delivery_request.asks_session_to_request_something, true);
+  assert.equal(out.sql_or_command_delivery_request.is_a_separate_verbatim_approval, false);
+  assert.equal(out.sql_or_command_delivery_request.approval_verb_present, false);
+  assert.equal(out.sql_or_command_delivery_request.no_pinned_sha_in_message, true);
+  assert.equal(out.sql_or_command_delivery_request.differs_from_section_119,
+    "A_REQUEST_FOR_SQL_OR_COMMANDS_NOT_A_BLANKET_EXECUTION_COMMAND");
+  assert.equal(out.overall_release_status, "NOT_READY");
+});
+
+test("no SQL commands templates phrases or requests are delivered", () => {
+  const out = evaluate(SQL_OR_COMMAND_DELIVERY_REQUEST);
+  for (const k of ["no_sql_delivered", "no_command_sent", "no_phrase_delivered",
+    "no_template_delivered", "no_approval_phrase_solicited", "no_request_solicited",
+    "no_reenable_decision_solicited", "no_gate_opened", "no_inventory_change",
+    "no_action_taken_on_production", "no_src_modified", "no_render_yaml_modified",
+    "no_deploy", "no_sync", "no_true", "no_secrets_in_chat",
+    "no_database_url_in_chat", "no_rows_or_values_in_chat", "no_file_reference"])
+    assert.equal((out.sql_or_command_delivery_request as unknown as Record<string, boolean>)[k], true, k);
+  assert.equal(out.sql_or_command_delivery_request.no_reviewed_text_for_src_changes, true);
+  assert.equal(out.sql_or_command_delivery_request.no_src_artifact_sha, true);
+  assert.equal(out.sql_or_command_delivery_request.session_does_not_author_reviewed_src_text, true);
+  assert.equal(out.sql_or_command_delivery_request.src_modification_is_prohibited, true);
+  assert.equal(out.sql_or_command_delivery_request.deploy_is_prohibited, true);
+  assert.equal(out.sql_or_command_delivery_request.deploy_status,
+    "PROHIBITED_NO_SYNC_NO_MANUAL_DEPLOY_NO_BLUEPRINT");
+  assert.equal(out.sql_or_command_delivery_request.answer_scope,
+    "DESCRIPTIVE_ONLY_WHY_SQL_DELIVERY_CANNOT_ADVANCE_THE_TASK");
+  for (const w of ["NO_SQL_NO_COMMANDS_NO_TEMPLATES_DELIVERED_IN_CHAT",
+    "NO_SQL_IN_CHAT_NO_SECRETS_NO_CONNECTION_STRING_NO_ROWS_NO_VALUES",
+    "SESSION_NEVER_EXECUTES_PRODUCTION_SQL_OR_DEPLOYS_OR_SETS_ENV_VARS",
+    "STATEMENT_EXECUTED_SUCCESSFULLY_IS_NOT_A_PROOF",
+    "ONLY_A_CONNECTION_CREATED_BY_THE_DEPLOYED_PROCESS_ITSELF_USING_ITS_OWN_RUNTIME_CONFIG",
+    "NO_REVIEWED_TEXT_FOR_SRC_CHANGES_EXISTS",
+    "APPROVAL_CANNOT_PRECEDE_THE_PINNED_TEXT_IT_NAMES",
+    "SESSION_DOES_NOT_AUTHOR_REVIEWED_SRC_TEXT",
+    "NO_BLANKET_APPROVAL_EACH_APPROVAL_NEEDS_ITS_OWN_SEPARATE_MESSAGE",
+    "DEPLOY_AND_SYNC_AND_TRUE_ARE_PROHIBITED",
+    "A_FIXED_CONDITION_CANNOT_BE_WAIVED_BY_THE_SESSION",
+    "STRICT_REJECT_POLICY_STILL_IN_FORCE"])
+    assert.ok(out.warnings.includes(w), w);
+});
+
+test("the SQL delivery request opens no gate and changes no state", () => {
+  const out = evaluate(SQL_OR_COMMAND_DELIVERY_REQUEST);
+  assert.equal(out.sql_or_command_delivery_request.no_reenable_decision, true);
+  assert.equal(out.sql_or_command_delivery_request.no_blanket_approval, true);
+  assert.equal(out.sql_or_command_delivery_request.current_step_index, "6/11");
+  assert.equal(out.sql_or_command_delivery_request.next_descriptive_step,
+    "SEPARATE_SRC_AND_DEPLOY_APPROVALS_IF_NEEDED");
+  assert.equal(out.sql_or_command_delivery_request.remaining_blockers, 9);
+  assert.equal(out.sql_or_command_delivery_request.pr_number, 95);
+  assert.equal(out.sql_or_command_delivery_request.pr_state, "OPEN");
+  assert.equal(out.sql_or_command_delivery_request.no_merge_performed, true);
+  assert.equal(out.sql_or_command_delivery_request.blockers_resolved, 0);
+  assert.equal(out.sql_or_command_delivery_request.gates_opened, 0);
+  assert.equal(out.sql_or_command_delivery_request.reenable_gate, "CLOSED");
+  assert.equal(out.sql_or_command_delivery_request.finance_enabled, false);
+  assert.equal(out.next_gate, "SEPARATE_REENABLE_DECISION");
+  assert.ok(out.limitations.includes("SQL_OR_COMMAND_DELIVERY_REQUEST_DOES_NOT_VERIFY_OR_CLOSE_ANY_GATE"));
+  assert.ok(out.limitations.includes("NO_REQUEST_SOLICITED_NO_PHRASE_SOLICITED"));
+  assert.equal(evaluate(OWNER_BLANKET_EXECUTION_REQUEST).sql_or_command_delivery_request, null);
+});

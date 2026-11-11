@@ -1679,3 +1679,25 @@ test("owner blanket execution request is refused in section 119", () => {
   assert.equal(inv.blockers_resolved, 0);
   assert.equal(inv.gates_opened, 0);
 });
+
+test("sql or command delivery request is refused in section 120", () => {
+  const log = read("docs/finance-release-log.md");
+  assert.match(log, /## ١٢٠\./);
+  assert.match(log, /REQUEST_TO_DELIVER_SQL_OR_COMMANDS_AND_EXECUTE_THEM/);
+  assert.match(log, /SQL_OR_COMMAND_DELIVERY_REQUEST_REFUSED_STRICT_REJECT_NOT_ACTIONABLE/);
+  assert.match(log, /NO_SQL_NO_COMMANDS_NO_TEMPLATES_DELIVERED_IN_CHAT/);
+  assert.match(log, /NO_SQL_IN_CHAT_NO_SECRETS_NO_CONNECTION_STRING_NO_ROWS_NO_VALUES/);
+  assert.match(log, /STATEMENT_EXECUTED_SUCCESSFULLY_IS_NOT_A_PROOF/);
+  assert.match(log, /ONLY_A_CONNECTION_CREATED_BY_THE_DEPLOYED_PROCESS_ITSELF_USING_ITS_OWN_RUNTIME_CONFIG/);
+  assert.match(log, /NO_TRUE_NO_DEPLOY_NO_SYNC_NO_MANUAL_DEPLOY_NO_BLUEPRINT_NO_SQL_NO_SRC_NO_RENDER_YAML_NO_FINANCIAL_ACTION/);
+  const probe = read("docs/finance-app-connection-probe-result-ar.md");
+  assert.match(probe, /## ٩٣\./);
+  const ev = read("prototypes/finance-app-identity/evaluate-phase4-execution.mjs");
+  assert.match(ev, /SQL_OR_COMMAND_DELIVERY_REQUEST_DOES_NOT_VERIFY_OR_CLOSE_ANY_GATE/);
+  assert.match(ev, /NO_SQL_NO_COMMANDS_NO_TEMPLATES_DELIVERED_IN_CHAT/);
+  const inv: { blockers: Array<{ status: string }>; blockers_resolved: number; gates_opened: number } = JSON.parse(read("prototypes/finance-app-identity/readiness-blockers-inventory.test-only.json"));
+  assert.equal(inv.blockers[0].status, "UNRESOLVED");
+  assert.equal(inv.blockers.length, 9);
+  assert.equal(inv.blockers_resolved, 0);
+  assert.equal(inv.gates_opened, 0);
+});
