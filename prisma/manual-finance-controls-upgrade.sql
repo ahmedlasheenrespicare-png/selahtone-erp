@@ -3,17 +3,15 @@
 -- وrequest_results غير موجود. لا يرحّل طلبات قديمة ولا يملأ روابطها اصطناعيًا.
 -- يضيف request_results، وRLS بمنع افتراضي مع سياسة لدور التطبيق وحده، ومحفزات
 -- منع UPDATE/DELETE/TRUNCATE على السجلات المحددة أدناه. لا يفعل FINANCE_ENABLED.
--- sha256: a32ae32da6a1b3409880c696043fafb9780aebe08229c2608a50e2030f5d2617
+-- sha256: e74add8c8ebcfc83fec1f2112e664e043b16bfea9ec36cdd6d62a16f17689c5a
 --
 -- التنفيذ المستقبلي: الملف كاملًا في Neon SQL Editor داخل نافذة متفق عليها.
--- يحافظ على USAGE الموجود مسبقًا، ويمنح CREATE مؤقتًا لدور SQL Editor المالك
--- لـpublic.users لإنشاء الجدول والـFK، ثم يسحب CREATE قبل COMMIT.
--- لا منح جديد أو دائم على public.users.
+-- يعمل بدور SQL Editor neondb_owner الذي ثبت أنه يملك USAGE/CREATE ويرث الإدارة.
+-- لا SET ROLE ولا منح مؤقت؛ ينقل ملكية الكائنات الجديدة للإدارة صراحةً.
 -- إعادة التشغيل مرفوضة؛ الرجوع له ملف مستقل ولا يعمل إذا احتوى request_results على صفوف.
 BEGIN;
 SET LOCAL statement_timeout = '10s';
 SET LOCAL lock_timeout = '3s';
-SET LOCAL ROLE selahtone_finance_admin;
 
 DO $$
 DECLARE actual TEXT[]; expected CONSTANT TEXT[] := ARRAY[
@@ -26,8 +24,10 @@ BEGIN
  IF NOT pg_has_role(session_user,'selahtone_finance_admin','MEMBER') THEN
   RAISE EXCEPTION 'finance controls: session_user lacks the finance admin role';
  END IF;
- IF NOT has_schema_privilege(session_user,'finance','USAGE') OR has_schema_privilege(session_user,'finance','CREATE') THEN
-  RAISE EXCEPTION 'finance controls: expected existing USAGE without CREATE; review before temporary grants';
+ IF current_user <> session_user OR session_user <> 'neondb_owner'
+    OR NOT has_schema_privilege(session_user,'finance','USAGE')
+    OR NOT has_schema_privilege(session_user,'finance','CREATE') THEN
+  RAISE EXCEPTION 'finance controls: expected neondb_owner with USAGE and CREATE and no SET ROLE';
  END IF;
  IF to_regclass('finance_release.migrations') IS NULL THEN
   RAISE EXCEPTION 'finance controls: migration ledger is missing';
@@ -79,10 +79,7 @@ BEGIN
 END $$;
 
 -- الروابط الجديدة فقط. الطلبات القديمة بلا رابط تبقى مرفوضة ولا تُخمن نتائجها.
--- CREATE مؤقت لدور SQL Editor المالك لـpublic.users؛ ينشئ الجدول والـFK والمنح
--- ثم ينقل ملكية الجدول للإدارة. يبقى USAGE القديم كما هو ويُسحب CREATE قبل COMMIT.
-DO $$ BEGIN EXECUTE format('GRANT CREATE ON SCHEMA finance TO %I',session_user); END $$;
-RESET ROLE;
+-- ينشئ neondb_owner الجدول والـFK والمنح ثم ينقل الملكية للإدارة بلا تبديل دور.
 CREATE TABLE finance.request_results (
  request_id UUID PRIMARY KEY,
  action VARCHAR(40) NOT NULL,
@@ -94,8 +91,6 @@ CREATE TABLE finance.request_results (
 REVOKE ALL ON finance.request_results FROM PUBLIC;
 GRANT SELECT,INSERT,UPDATE ON finance.request_results TO selahtone_app;
 ALTER TABLE finance.request_results OWNER TO selahtone_finance_admin;
-SET LOCAL ROLE selahtone_finance_admin;
-DO $$ BEGIN EXECUTE format('REVOKE CREATE ON SCHEMA finance FROM %I',session_user); END $$;
 
 -- هذه ليست عزلة فروع؛ التطبيق يحتاج كل الصفوف ويقرر صلاحية المستخدم داخل معاملته.
 -- RLS يضيف منعًا افتراضيًا لأي دور غير مالك حتى لو مُنح ACL بالخطأ مستقبلًا.
@@ -117,6 +112,7 @@ LANGUAGE plpgsql AS $$
 BEGIN
  RAISE EXCEPTION USING ERRCODE='P0001',MESSAGE='FINANCE_APPEND_ONLY_IMMUTABLE';
 END $$;
+ALTER FUNCTION finance.append_only_guard() OWNER TO selahtone_finance_admin;
 REVOKE ALL ON FUNCTION finance.append_only_guard() FROM PUBLIC;
 
 DO $$
@@ -131,7 +127,7 @@ BEGIN
 END $$;
 
 INSERT INTO finance_release.migrations(name,checksum)
-VALUES('finance_controls_upgrade','a32ae32da6a1b3409880c696043fafb9780aebe08229c2608a50e2030f5d2617');
+VALUES('finance_controls_upgrade','e74add8c8ebcfc83fec1f2112e664e043b16bfea9ec36cdd6d62a16f17689c5a');
 
 SELECT jsonb_build_object(
  'status','CONTROLS_INSTALLED_NOT_AN_APPLICATION_ACTIVATION',

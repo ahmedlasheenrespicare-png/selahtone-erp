@@ -66,17 +66,21 @@
 
 أُعدّ ملفان للمراجعة فقط، ولم يُشغَّلا:
 
-- `prisma/manual-finance-controls-upgrade.sql`، SHA-256: `a32ae32da6a1b3409880c696043fafb9780aebe08229c2608a50e2030f5d2617`.
+- `prisma/manual-finance-controls-upgrade.sql`، SHA-256: `e74add8c8ebcfc83fec1f2112e664e043b16bfea9ec36cdd6d62a16f17689c5a`.
   يشترط الجرد نفسه قبل أي تغيير، ويضيف `request_results` الفارغ بمالكية الإدارة، ثم RLS على 19 جدولًا بسياسة `selahtone_app_all` لدور التطبيق فقط. هذه ليست عزلة فروع؛ قرارات المستخدم والفرع تبقى داخل معاملات التطبيق. لا `FORCE` لأن الإدارة مالكة وتحتاج الصيانة، والتطبيق غير مالك وبلا BYPASSRLS. يضيف عشرة محفزات append-only على movements وrequests وrequest_results وaudit_events وcategory_audit وcategory_requests وexpense_corrections وopening_corrections وhistorical_commerce وreconciliation_notes. لا يمس صفًا قائمًا ولا يفعّل المالية.
-- `prisma/manual-finance-controls-rollback.sql`، SHA-256: `1d0b715139495ff2a78985503572f48204e6c1fd3b050a59f1f9b4d352b692bd`.
+- `prisma/manual-finance-controls-rollback.sql`، SHA-256: `936f58b71a72cc3630db91aa2c397cc0be1b1c8f0d76ff465349e557446edcf4`.
   يرفض أي روابط نتائج موجودة، ويزيل الضوابط والجدول الفارغ فقط ويعيد حالة 18 جدولًا بلا حذف صفوف العمل.
 
 اختبار `npm run check:finance:controls` نجح **4/4** على PGlite اصطناعي: منع دور آخر رغم ACL واسع، السماح بقراءة وكتابة مسار التطبيق، إطلاق كل محفزات UPDATE العشرة، منع الرجوع عند وجود روابط، والرجوع النظيف مع بقاء صف قائم. هذا دليل معملي فقط، ولا يغلق enforcement على الإنتاج ولا بقية موانع الجاهزية. يلزم مراجعة النصين ثم موافقة SQL إنتاجية منفصلة؛ لا نشر أو تفعيل مشمول.
 
 ### تصحيح صلاحية الإنشاء بعد المحاولة الإنتاجية
 
-أعاد التنفيذ `ERROR: permission denied for schema finance (SQLSTATE 42501)`؛ لم يظهر تقرير نجاح وبقي controls على 18 جدولًا وصفر RLS/محفزات. السبب هو أن دور SQL Editor لا يملك CREATE مباشرة على المخطط المملوك للإدارة. عُدّل المرشح ليمنح USAGE/CREATE مؤقتًا لدور SQL Editor المالك لـ`public.users`، فينشئ الجدول والـFK ثم ينقل ملكيته للإدارة وتُسحب الصلاحيتان قبل COMMIT، دون منح دائم على `public` أو `finance`. البصمتان الجديدتان هما `a32ae32da6a1b3409880c696043fafb9780aebe08229c2608a50e2030f5d2617` للترقية و`1d0b715139495ff2a78985503572f48204e6c1fd3b050a59f1f9b4d352b692bd` للرجوع. اختُبر الآن بدور `finance_release_operator` غير ممتاز، وبإثبات `CREATE=false` على finance قبل النجاح وعودة USAGE/CREATE=false بعده مع ثبات الـFK والملكية. هذا نص جديد يحتاج موافقة تشغيل مستقلة؛ الموافقة على النص السابق لا تغطيه.
+أعاد التنفيذ `ERROR: permission denied for schema finance (SQLSTATE 42501)`؛ لم يظهر تقرير نجاح وبقي controls على 18 جدولًا وصفر RLS/محفزات. السبب هو أن دور SQL Editor لا يملك CREATE مباشرة على المخطط المملوك للإدارة. عُدّل المرشح ليمنح USAGE/CREATE مؤقتًا لدور SQL Editor المالك لـ`public.users`، فينشئ الجدول والـFK ثم ينقل ملكيته للإدارة وتُسحب الصلاحيتان قبل COMMIT، دون منح دائم على `public` أو `finance`. البصمتان الجديدتان هما `e74add8c8ebcfc83fec1f2112e664e043b16bfea9ec36cdd6d62a16f17689c5a` للترقية و`936f58b71a72cc3630db91aa2c397cc0be1b1c8f0d76ff465349e557446edcf4` للرجوع. اختُبر الآن بدور `finance_release_operator` غير ممتاز، وبإثبات `CREATE=false` على finance قبل النجاح وعودة USAGE/CREATE=false بعده مع ثبات الـFK والملكية. هذا نص جديد يحتاج موافقة تشغيل مستقلة؛ الموافقة على النص السابق لا تغطيه.
 
 ### الحفاظ على USAGE الموجود مسبقًا
 
-أوقف فحص الشروط التنفيذ برسالة `operator already has schema privileges` قبل أي كتابة. بالجمع مع خطأ CREATE السابق، الحالة المطلوبة هي USAGE موجود وCREATE غائب. عُدّل المرشح ليشترط هذه الحالة، ويمنح CREATE وحده مؤقتًا ثم يسحبه، دون المساس بـUSAGE. البصمتان: `a32ae32da6a1b3409880c696043fafb9780aebe08229c2608a50e2030f5d2617` للترقية و`1d0b715139495ff2a78985503572f48204e6c1fd3b050a59f1f9b4d352b692bd` للرجوع. الاختبار يثبت بقاء USAGE=true قبل/بعد وCREATE=true فقط داخل التنفيذ. يلزم اعتماد النص الجديد منفصلًا.
+أوقف فحص الشروط التنفيذ برسالة `operator already has schema privileges` قبل أي كتابة. بالجمع مع خطأ CREATE السابق، الحالة المطلوبة هي USAGE موجود وCREATE غائب. عُدّل المرشح ليشترط هذه الحالة، ويمنح CREATE وحده مؤقتًا ثم يسحبه، دون المساس بـUSAGE. البصمتان: `e74add8c8ebcfc83fec1f2112e664e043b16bfea9ec36cdd6d62a16f17689c5a` للترقية و`936f58b71a72cc3630db91aa2c397cc0be1b1c8f0d76ff465349e557446edcf4` للرجوع. الاختبار يثبت بقاء USAGE=true قبل/بعد وCREATE=true فقط داخل التنفيذ. يلزم اعتماد النص الجديد منفصلًا.
+
+### دليل الصلاحيات المباشر وإلغاء تبديل الدور
+
+أثبت فحص SQL Editor: `current_user=session_user=neondb_owner` وUSAGE=true وCREATE=true وadmin MEMBER/SET=true وrolinherit=true. لذلك أُزيلت كل افتراضات نقص الصلاحيات والمنح المؤقتة وSET/RESET ROLE. النسخة الجديدة تعمل بالدور المرصود نفسه، وتنقل ملكية الجدول والدالة الجديدين للإدارة صراحةً. البصمتان: `e74add8c8ebcfc83fec1f2112e664e043b16bfea9ec36cdd6d62a16f17689c5a` للترقية و`936f58b71a72cc3630db91aa2c397cc0be1b1c8f0d76ff465349e557446edcf4` للرجوع. الاختبار يطابق INHERIT وUSAGE/CREATE=true ويثبت بقاء الصلاحيات دون تغيير، ويمنع مستقبلًا وجود SET/RESET ROLE أو GRANT على المخطط في النص. يلزم اعتماد منفصل جديد.
