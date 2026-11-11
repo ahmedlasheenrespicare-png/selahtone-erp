@@ -40,11 +40,13 @@
     {
       "id": "RLS_AND_TRIGGER_ENFORCEMENT_TESTED_WITH_THE_APP_ROLE",
       "status": "UNRESOLVED",
-      "current_evidence": "DEPLOYED_CONTROLS_2026-11-11_FINANCE_18_TABLES_RLS_0_FORCED_0_POLICIES_0_TRIGGERS_0",
-      "gap": "الفحص المنشور وصفي فقط؛ لا منع افتراضي ولا اختبار سماح/منع ولا محفزات إنتاجية. يلزم جرد أسماء الجداول وسجل الترقية قبل مرشح السياسات.",
+      "current_evidence": "DEPLOYED_SCHEMA_INVENTORY_CONFIRMED_RLS_0_TRIGGERS_0_REQUEST_RESULTS_ABSENT; SYNTHETIC_CANDIDATE_4_OF_4_NOT_EXECUTED",
+      "gap": "مرشح SQL ورجوع ببصمتين جاهزان للمراجعة؛ لم يُنفذا ولم تُختبر السياسات على الإنتاج. يلزم موافقة SQL منفصلة ثم فحص deployed controls ومسار سماح/منع.",
       "offline_design": "مصفوفة سياسات مقترحة لكل جدول + سيناريوهات سماح/منع مخبرية على PostgreSQL مؤقت مع دور selahtone_app، وفصل «وجود المحفّز» عن «تنفيذه».",
       "acceptance_criteria": "منع افتراضي موثّق، ومسار كتابة مسموح واحد على الأقل مُختبَر، ورفض أي مسار يتجاوز السياسة، بلا إجراء مالي حقيقي.",
-      "requires": "SEPARATE_REVIEWED_TEXT_THEN_SEPARATE_VERBATIM_APPROVAL_BEFORE_EXECUTION"
+      "requires": "SEPARATE_REVIEWED_TEXT_THEN_SEPARATE_VERBATIM_APPROVAL_BEFORE_EXECUTION",
+      "candidate_upgrade_sha256": "8723b35dd7ea3b17358987d0a17ae068154cbcde76b405e123e9402d1e68ca51",
+      "candidate_rollback_sha256": "c781fc50a935151c6215a48366f7db278d2c9201f86138b33510605ffced3972"
     },
     {
       "id": "ATOMIC_ACCESS_CONTROL_GAP_RESOLVED",
@@ -118,8 +120,8 @@
       "rollbackObserved": true
     },
     "controls": {
-      "checkedAt": "2026-11-11T02:08:22.301Z",
-      "deploymentCommit": "66433796186c85fd7c51aad33d4a342665026864",
+      "checkedAt": "2026-11-11T02:39:41.168Z",
+      "deploymentCommit": "780af461098eb3290a3b43b3f945a4a0727ba265",
       "status": "OBSERVED_NOT_AN_ENFORCEMENT_TEST",
       "rollbackObserved": true,
       "financeTables": 18,
@@ -127,7 +129,9 @@
       "rlsForced": 0,
       "policies": 0,
       "productionTriggers": 0,
-      "financeEnabled": false
+      "financeEnabled": false,
+      "requestResultsPresent": false,
+      "schemaVersion": "18_TABLES_WITH_CUSTODY_REQUESTS_AND_SETTLEMENTS_WITHOUT_REQUEST_RESULTS"
     }
   }
 }

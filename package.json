@@ -140,7 +140,8 @@
     "check:finance:phase4-execution": "tsx --test tests/finance-phase4-execution.test.ts",
     "check:finance:render-deploy-log": "tsx --test tests/finance-render-deploy-log.test.ts",
     "check:finance:app-identity-standalone": "tsx --test tests/finance-app-identity-standalone.test.ts",
-    "check:finance:atomic-contract-gap": "tsx --test tests/finance-atomic-contract-gap.test.ts"
+    "check:finance:atomic-contract-gap": "tsx --test tests/finance-atomic-contract-gap.test.ts",
+    "check:finance:controls": "tsx --test tests/finance-controls-upgrade.test.ts"
   },
   "dependencies": {
     "@fontsource/ibm-plex-sans-arabic": "^5.3.0",
