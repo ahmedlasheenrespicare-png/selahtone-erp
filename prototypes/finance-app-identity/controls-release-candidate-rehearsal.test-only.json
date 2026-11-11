@@ -1,0 +1,38 @@
+{
+  "artifact": "FINANCE_CONTROLS_RELEASE_CANDIDATE_NATIVE_ROLLBACK_REHEARSAL",
+  "date": "2026-11-11",
+  "scope": "DISPOSABLE_POSTGRESQL_ONLY_NOT_PRODUCTION_NOT_ACTIVATION",
+  "candidate_id": "finance-controls-2026-11-11-710bafab-bfd2a226",
+  "source_base_commit": "cd1de8ac9851e31bc17b7c66515950fdcb94b943",
+  "database": "PostgreSQL 18.6 isolated initdb cluster",
+  "upgrade": {
+    "path": "prisma/manual-finance-controls-upgrade.sql",
+    "recorded_checksum": "710bafab25399e44c80e28984028c6691f608362346bb37b8bab318bcde83a75",
+    "file_sha256": "6d87b521745101b3f4c0d8b4930e336095a6ffd28a5f04967dcbaae2bbbd4eb9"
+  },
+  "rollback": {
+    "path": "prisma/manual-finance-controls-rollback.sql",
+    "recorded_checksum": "bfd2a22620deb37369539b541778457fa877b748c80f0f6591d826a61f6c52be",
+    "file_sha256": "459677a93a2214433271770d71724f4395a9d480a30647dbbcdf530829be17aa"
+  },
+  "cycles_completed": 2,
+  "post_rollback_exact_logical_fingerprint_match": true,
+  "fingerprint_sections": [
+    "schemas",
+    "objects_and_owners",
+    "columns_and_defaults",
+    "constraints",
+    "indexes",
+    "functions",
+    "triggers",
+    "policies",
+    "table_grants",
+    "schema_grants",
+    "migration_ledger_without_timestamps",
+    "existing_finance_request_row",
+    "public_users_row"
+  ],
+  "finance_enabled_changed": false,
+  "production_touched": false,
+  "limits": "NO_RENDER_NEON_ROLLBACK_NO_UNKNOWN_PRODUCTION_STATE_NO_ACTIVATION"
+}
