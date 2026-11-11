@@ -108,3 +108,7 @@
 ### السجل بصلاحية مشغل SQL لا دور الإدارة
 
 بعد USAGE على finance_release ظهر `permission denied for table migrations`. لم تُضف منحة جدول جديدة؛ أُعيد RESET ROLE قبل قراءة/كتابة سجل الترقية ليتولاها neondb_owner الذي يجري الفحص الأصلي. كائنات finance تبقى للإدارة، وأُزيل USAGE المؤقت على finance_release من الترقية والرجوع. البصمتان: `710bafab25399e44c80e28984028c6691f608362346bb37b8bab318bcde83a75` للترقية و`bfd2a22620deb37369539b541778457fa877b748c80f0f6591d826a61f6c52be` للرجوع. الاختبارات 5/5. لا نجاح إنتاجي ولا تفعيل؛ يلزم اعتماد مستقل.
+
+### نجاح الترقية وثباتها بعد COMMIT — 2026-11-11
+
+نُفذت الترقية ذات البصمة `710bafab25399e44c80e28984028c6691f608362346bb37b8bab318bcde83a75` وأعادت `CONTROLS_INSTALLED_NOT_AN_APPLICATION_ACTIVATION`: 19 جدولًا، RLS على 19، 19 سياسة، 10 محفزات، وصفر روابط نتائج. ثم أثبت استعلام مستقل بعد COMMIT سجل البصمة نفسها، ومالك `request_results=selahtone_finance_admin`، والأعداد نفسها، وسحب USAGE/CREATE على finance وREFERENCES على public.users (`false` للثلاثة). هذه حالة كائنات ملتزمة وليست اختبار enforcement بدور التطبيق ولا تفعيلًا. يبقى مانع RLS/trigger مفتوحًا حتى اختبار سماح/منع فعلي بلا بيانات دائمة، وتبقى `FINANCE_ENABLED=false`.
