@@ -5,8 +5,8 @@
   "scope": "OFFLINE_ANALYSIS_ONLY_TEST_ONLY_NOT_EXECUTABLE",
   "authorization_received_verbatim": "تكليف منفصل صريح بتحليل أوفلاين للموانع",
   "no_action_boundary": "NO_SRC_NO_RENDER_YAML_NO_PRODUCTION_SQL_NO_DEPLOY_NO_SYNC_NO_TRUE",
-  "overall_status": "NOT_READY",
-  "blockers_resolved": 8,
+  "overall_status": "ALL_LISTED_BLOCKERS_RESOLVED_SEPARATE_ACTIVATION_DECISION_REQUIRED",
+  "blockers_resolved": 9,
   "gates_opened": 0,
   "no_blanket_approval": true,
   "strict_reject_phrase": "تعذّر التحقق من نتيجة الطلب المحفوظ؛ يلزم مراجعة أو ترحيل الطلب القديم.",
@@ -127,12 +127,14 @@
     },
     {
       "id": "LOG_YEAR_TIMESTAMPS_AND_OPERATOR_DECISIONS_SUPPLIED",
-      "status": "UNRESOLVED",
-      "current_evidence": "سجلان بلا سنة ولا طوابع ولا قيم env؛ أحداث false/true/الاستعادة بلا مَن/متى/قرار",
-      "gap": "لا يمكن ربط التغييرات بقراراتها زمنيًا؛ والسجل لا يُثبت ضبط DATABASE_URL.",
+      "status": "RESOLVED",
+      "current_evidence": "OPERATOR_SUPPLIED_SHARED_RENDER_WINDOW_2026-11-10T22:33:25+02:00_TO_22:37:24+02:00; ALL_THREE_EVENTS_OPERATOR_EXECUTED_INTENTIONAL_EXPERIMENT_DEPLOY_COMPLETED; CONFIGURATION_RESTORED",
+      "gap": "مغلق للمعلومات الوصفية المطلوبة فقط؛ نافذة واحدة مشتركة لا ثلاث طوابع مستقلة، ورواية المشغّل ليست تحقق Render مستقلًا ولا تثبت DATABASE_URL أو قيم التشغيل النهائية.",
       "offline_design": "قائمة معلومات وصفية مطلوبة من المشغّل فقط، بلا قيمة رابط ولا كلمة مرور ولا صفوف بيانات.",
       "acceptance_criteria": "سنة + طوابع + مَن/متى/قرار لكل من false الأصلي، وإعادة true، والاستعادة، موثّقة وصفيًا.",
-      "requires": "OPERATOR_SUPPLIED_DESCRIPTIVE_INFORMATION_ONLY"
+      "requires": "OPERATOR_SUPPLIED_DESCRIPTIVE_INFORMATION_ONLY",
+      "request_template": "operator-log-decisions-request.test-only.md",
+      "observation": "operator-log-decisions-observation.test-only.json"
     },
     {
       "id": "RENDER_YAML_TRUE_WITHOUT_SYNC_FALSE_RECONCILED",
