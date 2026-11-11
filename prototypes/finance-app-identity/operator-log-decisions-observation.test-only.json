@@ -38,6 +38,14 @@
     }
   },
   "sources_answer": "RENDER_SELECTED_WITHOUT_LOG_OR_REFERENCE_DETAILS",
+  "later_operator_statement": {
+    "answer_verbatim": "نعم اكتمل النشر \n\nانا من نفذت وقصدت ذلك للتجربه",
+    "meaning": "The operator reports completed deployment, personal execution and experimental intent; the events covered by this statement are not explicitly identified.",
+    "applies_to_original_false": null,
+    "applies_to_reenabled_true": null,
+    "applies_to_configuration_restoration": null,
+    "timestamps_supplied": false
+  },
   "not_established": [
     "EXACT_YEAR_TIMESTAMP_AND_TIMEZONE_FOR_EACH_EVENT",
     "ACTOR_AND_DECISION_FOR_REENABLE_AND_RESTORATION",
