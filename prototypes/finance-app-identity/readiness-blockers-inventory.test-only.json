@@ -6,7 +6,7 @@
   "authorization_received_verbatim": "تكليف منفصل صريح بتحليل أوفلاين للموانع",
   "no_action_boundary": "NO_SRC_NO_RENDER_YAML_NO_PRODUCTION_SQL_NO_DEPLOY_NO_SYNC_NO_TRUE",
   "overall_status": "NOT_READY",
-  "blockers_resolved": 4,
+  "blockers_resolved": 5,
   "gates_opened": 0,
   "no_blanket_approval": true,
   "strict_reject_phrase": "تعذّر التحقق من نتيجة الطلب المحفوظ؛ يلزم مراجعة أو ترحيل الطلب القديم.",
@@ -85,9 +85,9 @@
     },
     {
       "id": "PRISMAPG_6_19_3_COMMIT_FAILURE_LIFECYCLE_RESOLVED",
-      "status": "UNRESOLVED",
-      "current_evidence": "فشل قيد مؤجل عند COMMIT أبطل البيانات وترك اتصالًا محجوزًا من المجمّع",
-      "gap": "دورة حياة الاتصال/إعادة المحاولة غير محلولة؛ خطر فقد صامت أو كتابة مزدوجة أو استنزاف المجمّع.",
+      "status": "RESOLVED",
+      "current_evidence": "PG18_DEFERRED_COMMIT_P2003_ZERO_ROWS_MAX1_NEXT_QUERY_AND_VALID_TX_PASS; REAL_SOCKET_TERMINATION_DISCARD_FRESH_CONNECTION_ZERO_PARTIAL_NO_BLIND_RETRY; CUTOVER_25_OF_25_DEFERRED_FINANCE_CASH_LINK_RELEASED_AND_REUSED",
+      "gap": "مغلق لدورة PrismaPg 6.19.3 في المجمع المحمي واختبارات PostgreSQL 18 الاصطناعية؛ ليس دليلًا على pool إنتاج Render/Neon، والتطبيق المنشور الحالي يستخدم Prisma الأصلي ولم يتغير. لا تفعيل.",
       "offline_design": "إعادة إنتاج الفشل في معمل PG18 معزول، وتصميم سياسة تحرير الاتصال وإعادة المحاولة الآمنة وعدم إعادة الكتابة العمياء.",
       "acceptance_criteria": "لا اتصال محجوز بعد الفشل، ولا فقد صامت، ولا كتابة مزدوجة، مع اختبار معملي موثّق.",
       "requires": "SEPARATE_REVIEWED_TEXT_THEN_SEPARATE_VERBATIM_APPROVAL_BEFORE_EXECUTION"
