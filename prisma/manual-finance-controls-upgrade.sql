@@ -3,11 +3,12 @@
 -- وrequest_results غير موجود. لا يرحّل طلبات قديمة ولا يملأ روابطها اصطناعيًا.
 -- يضيف request_results، وRLS بمنع افتراضي مع سياسة لدور التطبيق وحده، ومحفزات
 -- منع UPDATE/DELETE/TRUNCATE على السجلات المحددة أدناه. لا يفعل FINANCE_ENABLED.
--- sha256: 917a424948b4e9860989c1c1ec9516b8108f3d1c8b9150092157f25faf5a325f
+-- sha256: 6886c2f1eaa81b58f566b2599cd0d2c4b8c5a9c040bb57b6a2ba9914fcc272c8
 --
 -- التنفيذ المستقبلي: الملف كاملًا في Neon SQL Editor داخل نافذة متفق عليها.
--- منح USAGE وCREATE على finance وREFERENCES على public.users مؤقتًا يتيح للإدارة
--- إنشاء الجدول والـFK مباشرةً بمالكيتها؛ لا نقل ملكية، وتُسحب الصلاحيات الثلاث قبل COMMIT.
+-- منح USAGE وCREATE على finance وUSAGE على finance_release وREFERENCES على
+-- public.users مؤقتًا يتيح للإدارة إنشاء الجدول والـFK وتسجيل الترقية بمالكيتها؛
+-- لا نقل ملكية، وتُسحب كل الصلاحيات المؤقتة قبل COMMIT.
 -- إعادة التشغيل مرفوضة؛ الرجوع له ملف مستقل ولا يعمل إذا احتوى request_results على صفوف.
 BEGIN;
 SET LOCAL statement_timeout = '10s';
@@ -31,8 +32,9 @@ BEGIN
  END IF;
  IF has_schema_privilege('selahtone_finance_admin','finance','USAGE')
     OR has_schema_privilege('selahtone_finance_admin','finance','CREATE')
+    OR has_schema_privilege('selahtone_finance_admin','finance_release','USAGE')
     OR has_table_privilege('selahtone_finance_admin','public.users','REFERENCES') THEN
-  RAISE EXCEPTION 'finance controls: expected admin without USAGE, CREATE or REFERENCES; review before temporary grants';
+  RAISE EXCEPTION 'finance controls: unexpected pre-existing temporary admin privileges; review before grants';
  END IF;
  IF to_regclass('finance_release.migrations') IS NULL THEN
   RAISE EXCEPTION 'finance controls: migration ledger is missing';
@@ -89,6 +91,7 @@ DO $$
 BEGIN
  GRANT USAGE ON SCHEMA finance TO selahtone_finance_admin;
  GRANT CREATE ON SCHEMA finance TO selahtone_finance_admin;
+ GRANT USAGE ON SCHEMA finance_release TO selahtone_finance_admin;
  GRANT REFERENCES ON public.users TO selahtone_finance_admin;
 EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'FINANCE_STAGE_TEMP_ADMIN_GRANTS: %',SQLERRM;
 END $$;
@@ -154,7 +157,7 @@ END $$;
 DO $$
 BEGIN
  INSERT INTO finance_release.migrations(name,checksum)
- VALUES('finance_controls_upgrade','917a424948b4e9860989c1c1ec9516b8108f3d1c8b9150092157f25faf5a325f');
+ VALUES('finance_controls_upgrade','6886c2f1eaa81b58f566b2599cd0d2c4b8c5a9c040bb57b6a2ba9914fcc272c8');
 EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'FINANCE_STAGE_MIGRATION_LEDGER: %',SQLERRM;
 END $$;
 RESET ROLE;
@@ -162,6 +165,7 @@ DO $$
 BEGIN
  REVOKE CREATE ON SCHEMA finance FROM selahtone_finance_admin;
  REVOKE USAGE ON SCHEMA finance FROM selahtone_finance_admin;
+ REVOKE USAGE ON SCHEMA finance_release FROM selahtone_finance_admin;
  REVOKE REFERENCES ON public.users FROM selahtone_finance_admin;
 EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'FINANCE_STAGE_REVOKE_TEMP_ADMIN_GRANTS: %',SQLERRM;
 END $$;

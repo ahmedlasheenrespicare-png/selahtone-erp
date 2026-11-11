@@ -1,8 +1,8 @@
 -- رجوع مستقل عن manual-finance-controls-upgrade.sql — للمراجعة فقط.
 -- يزيل السياسات والمحفزات وجدول request_results الفارغ فقط، ولا يحذف صفًا ماليًا.
 -- يرفض العمل إذا وُجد أي رابط نتيجة، أو اختلف سجل الترقية/البصمة. لا يغير FINANCE_ENABLED.
--- sha256: 5152d26828e34011a3c41f76ea9d60bd5db62ec26af955ef15f9a4dacbee2bd8
--- upgrade_sha256: 917a424948b4e9860989c1c1ec9516b8108f3d1c8b9150092157f25faf5a325f
+-- sha256: b29de337cb80053ae199dcdb25e88fbed6b4f2b2d1cb3bacb559c778fc3ca774
+-- upgrade_sha256: 6886c2f1eaa81b58f566b2599cd0d2c4b8c5a9c040bb57b6a2ba9914fcc272c8
 BEGIN;
 SET LOCAL statement_timeout = '10s';
 SET LOCAL lock_timeout = '3s';
@@ -12,10 +12,12 @@ BEGIN
  IF current_user <> session_user OR session_user <> 'neondb_owner' THEN
   RAISE EXCEPTION 'finance controls rollback: expected neondb_owner with no SET ROLE';
  END IF;
- IF has_schema_privilege('selahtone_finance_admin','finance','USAGE') THEN
-  RAISE EXCEPTION 'finance controls rollback: unexpected admin USAGE; review before temporary grant';
+ IF has_schema_privilege('selahtone_finance_admin','finance','USAGE')
+    OR has_schema_privilege('selahtone_finance_admin','finance_release','USAGE') THEN
+  RAISE EXCEPTION 'finance controls rollback: unexpected admin USAGE; review before temporary grants';
  END IF;
  GRANT USAGE ON SCHEMA finance TO selahtone_finance_admin;
+ GRANT USAGE ON SCHEMA finance_release TO selahtone_finance_admin;
 END $$;
 SET LOCAL ROLE selahtone_finance_admin;
 
@@ -29,7 +31,7 @@ BEGIN
   RAISE EXCEPTION 'finance controls rollback: request_results is absent';
  END IF;
  SELECT checksum INTO recorded FROM finance_release.migrations WHERE name='finance_controls_upgrade';
- IF recorded IS DISTINCT FROM '917a424948b4e9860989c1c1ec9516b8108f3d1c8b9150092157f25faf5a325f' THEN
+ IF recorded IS DISTINCT FROM '6886c2f1eaa81b58f566b2599cd0d2c4b8c5a9c040bb57b6a2ba9914fcc272c8' THEN
   RAISE EXCEPTION 'finance controls rollback: migration checksum mismatch';
  END IF;
  IF EXISTS (SELECT 1 FROM finance.request_results) THEN
@@ -58,6 +60,7 @@ DROP TABLE finance.request_results;
 DELETE FROM finance_release.migrations WHERE name='finance_controls_upgrade';
 RESET ROLE;
 REVOKE USAGE ON SCHEMA finance FROM selahtone_finance_admin;
+REVOKE USAGE ON SCHEMA finance_release FROM selahtone_finance_admin;
 
 SELECT jsonb_build_object(
  'status','CONTROLS_ROLLED_BACK_FINANCE_STILL_DISABLED',
