@@ -11,6 +11,8 @@ CREATE TABLE "users" (
  "id" BIGSERIAL PRIMARY KEY, "branch_id" BIGINT REFERENCES "branches"("id"), "role_code" "RoleCode" NOT NULL,
  "full_name" VARCHAR(120) NOT NULL, "email" VARCHAR(160) NOT NULL UNIQUE, "phone" VARCHAR(30), "password_hash" TEXT NOT NULL,
  "status" "UserStatus" NOT NULL DEFAULT 'ACTIVE', "must_change_password" BOOLEAN NOT NULL DEFAULT TRUE,
+ "menu_scope" VARCHAR(16) NOT NULL DEFAULT 'FULL' CHECK (menu_scope IN ('FULL','LIMITED')),
+ "can_cancel_sales" BOOLEAN NOT NULL DEFAULT TRUE,
  "last_login_at" TIMESTAMPTZ, "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE "tax_rates" (

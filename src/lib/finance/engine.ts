@@ -1426,14 +1426,22 @@ export async function confirmSettlement(db: FinanceDatabase, actorId: string, ra
     // المعدود لقطة زمنية: أي حركة نقدية بعد تقديم الطلب تعني أن النقد في اليد
     // تغيّر منذ عُدّ. الاعتماد حينها يجعل الرصيد يطابق واقعًا قديمًا، فتُرفض
     // العملية ليُعاد الجرد بطلب جديد بدل تسوية فرق لا أحد يعرف مصدره.
+    // Scope cash activity to the holder exactly as settlementPeriod does. Another
+    // employee's sale or personal expense in the same branch does not change the
+    // cash counted for this custody and must not invalidate its settlement.
+    const staleSalesByHolder = custody.holderId ? ` AND s.created_by_id=$4::bigint` : ``;
+    const staleExpensesByHolder = custody.holderId ? ` AND e.requested_by=$4::bigint` : ``;
+    const staleParams = custody.holderId
+      ? [custody.id, settlement.createdAt, custody.branchId, custody.holderId]
+      : [custody.id, settlement.createdAt, custody.branchId];
     const stale = await tx.query<Row & { n: number }>(`SELECT ((
         SELECT count(*) FROM finance.movements
          WHERE (source_id=$1::bigint OR destination_id=$1::bigint) AND created_at > $2::timestamptz)
       + (SELECT count(*) FROM public.commerce_collections c JOIN public.commerce_sales s ON s.id=c.sale_id
-          WHERE s.branch_id=$3::bigint AND c.method='CASH' AND c.created_at > $2::timestamptz)
+          WHERE s.branch_id=$3::bigint AND c.method='CASH' AND c.created_at > $2::timestamptz${staleSalesByHolder})
       + (SELECT count(*) FROM finance.payments p JOIN finance.expenses e ON e.id=p.expense_id
-          WHERE e.branch_id=$3::bigint AND p.source='HOLDER_CASH' AND p.recorded_at > $2::timestamptz)
-      )::int AS n`, [custody.id, settlement.createdAt, custody.branchId]);
+          WHERE e.branch_id=$3::bigint AND p.source='HOLDER_CASH' AND p.recorded_at > $2::timestamptz${staleExpensesByHolder})
+      )::int AS n`, staleParams);
     if (Number(stale.rows[0].n) > 0)
       throw new FinanceProblem("count_stale", "وقعت حركة نقدية بعد تقديم الطلب، فالمعدود لم يعد مطابقًا للنقد في اليد. ألغِ الطلب بسبب واضح وأعد الجرد، ثم قدّم طلبًا جديدًا.");
 

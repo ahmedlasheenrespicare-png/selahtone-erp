@@ -3,6 +3,7 @@
 CREATE TABLE IF NOT EXISTS public.commerce_sales (
   id BIGSERIAL PRIMARY KEY,
   branch_id BIGINT NOT NULL,
+  created_by_id BIGINT NOT NULL REFERENCES public.users(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS public.commerce_collections (

@@ -1330,5 +1330,5 @@ test("ترويسة لوحة القيادة تحتوي محدد نطاق الفر
   const menuPosition = sectionSwitcher.indexOf("{open ? (");
   assert.ok(sectionPickerPosition < dropdownButtonPosition && dropdownButtonPosition < controlsPosition && controlsPosition < menuPosition, "الأزرار بجوار نص محتوى لوحة القيادة داخل محدد القسم");
   assert.ok(!sectionSwitcher.includes("{renderSwitcherControls()}\n        </div>"), "نسخة الأزرار ليست أسفل محدد القسم");
-  assert.ok(switcherCss.includes(".dashboard-switcher-bar--header .dashboard-heading__selector-controls") && switcherCss.includes("width: 30px;") && switcherCss.includes("@media (max-width: 820px)"), "أزرار محدد القسم مضغوطة ومناسبة للشاشات الصغيرة");
+  assert.ok(switcherCss.includes(".dash-switcher-bar--header .dashboard-heading__selector-controls") && switcherCss.includes("width: 30px;") && switcherCss.includes("@media (max-width: 820px)"), "أزرار محدد القسم مضغوطة ومناسبة للشاشات الصغيرة");
 });

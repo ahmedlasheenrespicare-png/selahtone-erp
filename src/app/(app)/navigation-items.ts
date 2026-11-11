@@ -43,8 +43,8 @@ const SALES_MANAGER_CHILDREN: NavigationItem[] = [
 const SALES_EMPLOYEE_CHILDREN: NavigationItem[] = SALES_MANAGER_CHILDREN.filter(
   (item) => item.href === "/sales" || item.href === "/sales/new",
 );
-const SALES_PARENT: NavigationItem = { label: "المبيعات", icon: "sales", children: SALES_MANAGER_CHILDREN };
-const SALES_EMPLOYEE_PARENT: NavigationItem = { label: "المبيعات", icon: "sales", children: SALES_EMPLOYEE_CHILDREN };
+const SALES_PARENT: NavigationItem = { label: "المبيعات", icon: "sales", href: "/sales", children: SALES_MANAGER_CHILDREN };
+const SALES_EMPLOYEE_PARENT: NavigationItem = { label: "المبيعات", icon: "sales", href: "/sales", children: SALES_EMPLOYEE_CHILDREN };
 
 export function navigationGroups(
   canViewAllBranches: boolean,

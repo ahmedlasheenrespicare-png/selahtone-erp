@@ -88,6 +88,8 @@ test("experiment: real commerce functions and finance lab share one disposable t
     pg=new PGlite();
     await pg.exec(read("tests/fixtures/inventory-baseline.sql"));
     await pg.exec(read("prisma/manual-inventory-upgrade.sql"));await pg.exec(read("prisma/manual-receiving-upgrade.sql"));await pg.exec(read("prisma/manual-commerce-upgrade.sql"));
+    await pg.exec(read("prisma/manual-discount-ceiling-upgrade.sql"));
+    await pg.exec(read("prisma/manual-catalog-sales-upgrade.sql"));
     await pg.exec(`INSERT INTO tax_rates(code,name_ar,rate,kind,effective_from,is_active) VALUES('LAB-EX','معفى وهمي',0,'EXEMPT','2000-01-01',TRUE);
       UPDATE products SET sale_price=20,tax_rate_id=3 WHERE id=2;
       INSERT INTO stock_levels(warehouse_id,product_id,qty_on_hand,avg_cost) VALUES(1,2,30,4);

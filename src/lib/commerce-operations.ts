@@ -68,10 +68,13 @@ export async function createCommerceSale(db: Db, actorId: bigint, raw: unknown):
       const prior = await tx.commerceSale.findUnique({ where: { requestId: input.requestId } });
       if (prior) { ensureMatchingRequest(prior, actorId, requestHash); return { id: prior.id.toString(), replayed: true }; }
       const actor = await tx.user.findUniqueOrThrow({ where: { id: actorId }, select: { roleCode: true } });
-      // Serialize a staff sale's limit with manager changes to the global setting.
+      // Serialize each role's discount ceiling with manager changes to the global setting.
       await tx.$queryRaw`SELECT "id" FROM "commerce_settings" WHERE "id" = 1 FOR SHARE`;
       const settings = await tx.commerceSettings.findUnique({ where: { id: 1 } });
-      if (!settings || settings.staffDiscountBps < 0 || settings.staffDiscountBps > 10000) throw new InventoryProblem("إعداد حد الخصم غير صالح؛ راجع المدير.");
+      if (!settings || settings.staffDiscountBps < 0 || settings.staffDiscountBps > 10000
+        || settings.managerDiscountBps < 0 || settings.managerDiscountBps > 10000) {
+        throw new InventoryProblem("إعداد حد الخصم غير صالح؛ راجع المدير.");
+      }
 
       const products = await tx.product.findMany({ where: { id: { in: input.lines.map((line) => BigInt(line.productId)) } }, include: { taxRate: true } });
       const productMap = new Map(products.map((product) => [product.id.toString(), product]));
@@ -95,7 +98,12 @@ export async function createCommerceSale(db: Db, actorId: bigint, raw: unknown):
       });
       const discount = scaledInteger(input.discount, 2);
       const calculation = calculateInclusiveSale(prepared.map((item) => ({ quantityHundredths: item.quantity, unitPriceCents: scaled(item.product.salePrice, 2), tax: item.reviewedTax })), discount);
-      if (actor.roleCode === "CS_AGENT" && !staffDiscountAllowed(calculation.subtotalCents, discount, BigInt(settings.staffDiscountBps))) throw new InventoryProblem("الخصم يتجاوز الحد المسموح لموظف الفرع.");
+      if (actor.roleCode === "CS_AGENT" && !staffDiscountAllowed(calculation.subtotalCents, discount, BigInt(settings.staffDiscountBps))) {
+        throw new InventoryProblem("الخصم يتجاوز الحد المسموح لموظف الفرع.");
+      }
+      if (actor.roleCode === "MANAGER" && !staffDiscountAllowed(calculation.subtotalCents, discount, BigInt(settings.managerDiscountBps))) {
+        throw new InventoryProblem("الخصم يتجاوز الحد المسموح للمدير.");
+      }
       const firstPayment = scaledInteger(input.initialPayment, 2);
       validateCollectionAmount(calculation.finalCents, firstPayment);
 

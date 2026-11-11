@@ -46,8 +46,11 @@ async function fresh(): Promise<PGlite> {
   return pg;
 }
 
-async function addCashSale(pg: PGlite, branchId: string, amount: string): Promise<void> {
-  const sale = await pg.query<{ id: number }>("INSERT INTO public.commerce_sales(branch_id) VALUES ($1::bigint) RETURNING id", [branchId]);
+async function addCashSale(pg: PGlite, branchId: string, amount: string, actorId = "3"): Promise<void> {
+  const sale = await pg.query<{ id: number }>(
+    "INSERT INTO public.commerce_sales(branch_id,created_by_id) VALUES ($1::bigint,$2::bigint) RETURNING id",
+    [branchId, actorId],
+  );
   await pg.query("INSERT INTO public.commerce_collections(sale_id,amount,method) VALUES ($1::bigint,$2::numeric,'CASH')", [sale.rows[0].id, amount]);
 }
 
@@ -268,6 +271,44 @@ test("any cash movement after the request blocks confirmation, and re-requesting
       transferDirection: "TO_VAULT", reason: "اعتماد", actuallyTransferred: true,
     });
     assert.deepEqual(await balances(pg), { "1": "10700.00", "2": "1000.00" });
+  } finally {
+    await pg.close();
+  }
+});
+
+test("another employee's cash sale does not invalidate this holder's counted settlement", { timeout: 180_000 }, async () => {
+  const pg = await fresh();
+  try {
+    const db = adapter(pg);
+    await openAccount(db, "1", opening("VAULT", null, "10000"), today);
+    await openAccount(db, "1", opening("CUSTODY", "3", "1000"), today);
+    await addCashSale(pg, "1", "500", "3");
+
+    const request = await requestSettlement(db, "3", {
+      requestId: req(), accountId: "2", countedAmount: "1500", expectedBalance: "1000",
+      reason: "جرد نقد الموظف الأول", actuallyCounted: true,
+    });
+
+    // Synthetic same-branch activity by a different holder after the physical count.
+    const other = await pg.query<{ id: number }>(`INSERT INTO public.users(branch_id,role_code,full_name,email,password_hash,status,must_change_password)
+      VALUES (1,'CS_AGENT','موظف آخر','other-staff@test.local','x','ACTIVE',false) RETURNING id`);
+    const otherId = String(other.rows[0].id);
+    await addCashSale(pg, "1", "900", otherId);
+    const otherExpense = await createExpense(db, otherId, {
+      requestId: req(), ...expenseDraft, amount: "125", description: "مصروف الموظف الآخر",
+    });
+    await approveExpense(db, "1", { requestId: req(), expenseId: otherExpense.id, expectedRevision: "1" });
+    await payExpense(db, otherId, { requestId: req(), ...holderCashPayment(otherExpense.id, "2") });
+
+    // This sale and personal expense belong to another holder: neither may enter nor block this settlement.
+    await confirmSettlement(db, "1", {
+      requestId: req(), settlementId: request.id, expectedBalance: "1000", transferAmount: "500",
+      transferDirection: "TO_VAULT", reason: "اعتماد تسوية الموظف الأول", actuallyTransferred: true,
+    });
+    assert.deepEqual(await balances(pg), { "1": "10500.00", "2": "1000.00" });
+    const saved = await pg.query<{ sales: string }>(
+      "SELECT sales_total::text AS sales FROM finance.settlements WHERE id=$1::bigint", [request.id]);
+    assert.equal(saved.rows[0].sales, "500.00");
   } finally {
     await pg.close();
   }

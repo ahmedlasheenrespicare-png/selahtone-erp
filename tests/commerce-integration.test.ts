@@ -19,6 +19,7 @@ const baseline = readFileSync(path.join(root, "tests/fixtures/inventory-baseline
 const openingUpgrade = readFileSync(path.join(root, "prisma/manual-inventory-upgrade.sql"), "utf8");
 const receivingUpgrade = readFileSync(path.join(root, "prisma/manual-receiving-upgrade.sql"), "utf8");
 const commerceUpgrade = readFileSync(path.join(root, "prisma/manual-commerce-upgrade.sql"), "utf8");
+const discountCeilingUpgrade = readFileSync(path.join(root, "prisma/manual-discount-ceiling-upgrade.sql"), "utf8");
 // عميل Prisma يقرأ أعمدة الأصناف الفنية الجديدة، فتُطبَّق ترقيتها هنا أيضًا.
 const catalogUpgrade = readFileSync(path.join(root, "prisma/manual-catalog-sales-upgrade.sql"), "utf8");
 
@@ -77,7 +78,7 @@ test("isolated sales, money and returns", { timeout: 120_000 }, async (t) => {
         const levels = await other.query<{ qty: string }>("SELECT qty_on_hand::text AS qty FROM stock_levels WHERE warehouse_id=1 AND product_id=1"); assert.equal(levels.rows[0].qty, "3.00");
       } finally { await other.close(); }
     });
-    pg = new PGlite(); await setupInventory(pg); await pg.exec(commerceUpgrade); await pg.exec(catalogUpgrade);
+    pg = new PGlite(); await setupInventory(pg); await pg.exec(commerceUpgrade); await pg.exec(discountCeilingUpgrade); await pg.exec(catalogUpgrade);
     db = new TestClient({ adapter: new PrismaPGlite(pg) as never }); const client = db;
     let saleId = ""; let aidLineId = "";
 
@@ -86,6 +87,8 @@ test("isolated sales, money and returns", { timeout: 120_000 }, async (t) => {
       await expectProblem(() => createCommerceSale(client, 5n, sale()), /صلاحية/);
       await expectProblem(() => createCommerceSale(client, 4n, sale()), /صلاحية/);
       await expectProblem(() => createCommerceSale(client, 3n, sale({ discount: "11.51" })), /حد المسموح/);
+      // Synthetic manager invoice: EGP 60 of EGP 230 exceeds the default 25% manager ceiling.
+      await expectProblem(() => createCommerceSale(client, 1n, sale({ discount: "60" })), /حد المسموح للمدير/);
       await expectProblem(() => createCommerceSale(client, 3n, sale({ lines: [{ ...line("1", "1", ["1"]), expectedUnitPrice: "100" }] })), /تغيّر السعر/);
       await expectProblem(() => createCommerceSale(client, 3n, sale({ lines: [{ ...line("1", "1", ["1"]), expectedTaxRate: "14" }] })), /تغيّر السعر/);
       await expectProblem(() => createCommerceSale(client, 3n, sale({ lines: [{ ...line("1", "1", ["1"]), productId: "5" }] })), /غير محددة/);
@@ -146,6 +149,7 @@ test("isolated sales, money and returns", { timeout: 120_000 }, async (t) => {
       assert.equal(level.qtyOnHand.toFixed(2), "2.00"); assert.equal(level.avgCost.toFixed(4), "20.0000");
       const input = { requestId: randomUUID(), saleId, cancel: false, accepted: true, lines: [{ saleLineId: aidLineId, quantity: "1", serialIds: ["1"] }] };
       await expectProblem(() => returnCommerceSale(client, 3n, input), /صلاحية/);
+      await client.user.update({ where: { id: 2n }, data: { canCancelSales: false } });
       await expectProblem(() => returnCommerceSale(client, 2n, input), /صلاحية/);
       assert.equal((await returnCommerceSale(client, 1n, input)).replayed, false);
       assert.equal((await returnCommerceSale(client, 1n, input)).replayed, true);
@@ -191,7 +195,7 @@ test("isolated sales, money and returns", { timeout: 120_000 }, async (t) => {
     });
 
     await t.test("manager controls the staff discount setting, with an audit and safe retry", async () => {
-      const setting = { requestId: randomUUID(), percent: "7.5" };
+      const setting = { requestId: randomUUID(), percent: "7.5", managerPercent: "25" };
       await expectProblem(() => changeStaffDiscountLimit(client, 2n, setting), /صلاحية/);
       await changeStaffDiscountLimit(client, 1n, setting);
       assert.equal((await changeStaffDiscountLimit(client, 1n, setting)).replayed, true);
