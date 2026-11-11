@@ -112,3 +112,7 @@
 ### نجاح الترقية وثباتها بعد COMMIT — 2026-11-11
 
 نُفذت الترقية ذات البصمة `710bafab25399e44c80e28984028c6691f608362346bb37b8bab318bcde83a75` وأعادت `CONTROLS_INSTALLED_NOT_AN_APPLICATION_ACTIVATION`: 19 جدولًا، RLS على 19، 19 سياسة، 10 محفزات، وصفر روابط نتائج. ثم أثبت استعلام مستقل بعد COMMIT سجل البصمة نفسها، ومالك `request_results=selahtone_finance_admin`، والأعداد نفسها، وسحب USAGE/CREATE على finance وREFERENCES على public.users (`false` للثلاثة). هذه حالة كائنات ملتزمة وليست اختبار enforcement بدور التطبيق ولا تفعيلًا. يبقى مانع RLS/trigger مفتوحًا حتى اختبار سماح/منع فعلي بلا بيانات دائمة، وتبقى `FINANCE_ENABLED=false`.
+
+### مرشح اختبار enforcement بدور التطبيق
+
+أُعدّ `prisma/manual-finance-controls-enforcement.sql` للمراجعة فقط بالبصمة `0bf771a4de39f61a633767eb51c7692947291d1bafaf47e62ea12cc3c37921b0`. ينتقل مؤقتًا إلى selahtone_app، يقرأ ويدرج رابطًا اصطناعيًا بمستخدم موجود، يتحقق من رفض UPDATE على المحفزات العشرة ورفض DELETE/TRUNCATE، ثم ROLLBACK ويعد صف UUID الاختبار لإثبات غيابه. اختبارات controls أصبحت 6/6 على PGlite وتثبت اختفاء الصف وبقاء الضوابط. النطاق لا يثبت اتصال Render ولا default-deny لدور ثالث إنتاجي؛ الأول أثبت هويته فحص الخدمة سابقًا والثاني اختبار مخبري. يلزم اعتماد إنتاجي منفصل، وFINANCE_ENABLED=false.
