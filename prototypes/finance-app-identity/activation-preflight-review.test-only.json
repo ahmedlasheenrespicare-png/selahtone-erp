@@ -1,6 +1,6 @@
 {
   "record_id": "finance-activation-preflight-2026-11-11",
-  "status": "HOLD_PENDING_SEPARATE_PRODUCTION_CHECKS_AND_ACTIVATION_DECISION",
+  "status": "HOLD_COMMERCIAL_TENANCY_MODEL_REQUIRED",
   "decision": "WAIT_NO_ACTIVATION",
   "review_document": "../../docs/finance-activation-preflight-review.md",
   "first_live_use_plan": "../../docs/finance-first-live-use-plan.md",
@@ -39,6 +39,17 @@
     "rollback_to_false_on_problem": true,
     "interpretation_limit": "These are operator preferences for preflight planning, not a final activation command."
   },
+  "commercial_context_2026_11_11": {
+    "objective": "PREPARE_PRODUCT_FOR_SALE_AND_MARKETING_TO_CUSTOMERS",
+    "actual_cash": "ZERO_OPERATOR_REPORTED_BECAUSE_SYSTEM_UNUSED",
+    "cash_counter": "EMPLOYEE",
+    "cash_reviewers": ["MANAGER", "ACCOUNTANT"],
+    "users_created": ["MANAGER", "ACCOUNTANT", "EMPLOYEE"],
+    "operations_monitor": "ADMIN_OPERATOR",
+    "repository_observation": "NO_TENANT_OR_ORGANIZATION_MODEL_FOUND; BRANCH_AND_ROLE_SCOPES_ARE_NOT_PROOF_OF_CUSTOMER_ISOLATION",
+    "required_choice": "SEPARATE_DEPLOYMENT_AND_DATABASE_PER_CUSTOMER_OR_SHARED_MULTI_TENANT_ARCHITECTURE_REVIEW",
+    "activation_effect": "HOLD_FOR_COMMERCIAL_MULTI_CUSTOMER_USE_UNTIL_TENANCY_MODEL_IS_EXPLICIT"
+  },
   "operator_context_2026_11_11": {
     "current_deploy_commit": "UNKNOWN_OPERATOR_DOES_NOT_KNOW",
     "system_status": "NEW_SYSTEM_NO_REAL_USERS_YET",
@@ -55,5 +66,5 @@
     "BACKUP_AND_MONITORING_OWNER_AND_WINDOW",
     "SEPARATE_FINAL_ACTIVATION_DECISION"
   ],
-  "next_allowed_step": "COMPLETE_OPENING_COUNT_AND_OPERATIONAL_DETAILS_THEN_SEPARATE_FINAL_GO_NO_GO_REVIEW"
+  "next_allowed_step": "SELECT_CUSTOMER_ISOLATION_MODEL_THEN_COMPLETE_FIRST_CUSTOMER_GO_NO_GO_REVIEW"
 }
