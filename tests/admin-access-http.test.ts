@@ -80,6 +80,17 @@ test("only the system admin can change valid permissions and role/account preced
     assert.equal(identity.rollbackObserved, true);
     assert.equal(identity.financeEnabled, false);
     assert.doesNotMatch(identityText, /postgres(?:ql)?:\/\/|password|DATABASE_URL/i);
+    for (const cookie of [accountant, agent, manager]) {
+      assert.equal((await get("/api/admin/finance-controls", cookie)).status, 403);
+    }
+    const controlsResponse = await get("/api/admin/finance-controls", admin);
+    const controlsText = await controlsResponse.text();
+    assert.equal(controlsResponse.status, 200, controlsText);
+    const controls = JSON.parse(controlsText) as { status: string; rollbackObserved: boolean; financeEnabled: boolean };
+    assert.equal(controls.status, "OBSERVED_NOT_AN_ENFORCEMENT_TEST");
+    assert.equal(controls.rollbackObserved, true);
+    assert.equal(controls.financeEnabled, false);
+    assert.doesNotMatch(controlsText, /postgres(?:ql)?:\/\/|password|DATABASE_URL/i);
     const adminPage = await (await get("/admin", admin)).text();
     const form = forms(adminPage).find((entry) => entry.includes('name="kind"')); assert.ok(form);
     assert.match(adminPage, /نتيجة قواعد الصلاحيات/); assert.match(adminPage, /قيود الدور أو حالة السجل أو تفعيل الوحدة/);
