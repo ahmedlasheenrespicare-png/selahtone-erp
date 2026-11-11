@@ -1,11 +1,22 @@
 -- رجوع مستقل عن manual-finance-controls-upgrade.sql — للمراجعة فقط.
 -- يزيل السياسات والمحفزات وجدول request_results الفارغ فقط، ولا يحذف صفًا ماليًا.
 -- يرفض العمل إذا وُجد أي رابط نتيجة، أو اختلف سجل الترقية/البصمة. لا يغير FINANCE_ENABLED.
--- sha256: a4d95d701d3291ba2094e8de5d2f01cb2df4d73aa09d8caed4c9b3665d9710ab
--- upgrade_sha256: b3c4dead0b7ad67889d2faab104791dee85198695316ffe617efd41f7bd1d681
+-- sha256: 5152d26828e34011a3c41f76ea9d60bd5db62ec26af955ef15f9a4dacbee2bd8
+-- upgrade_sha256: 917a424948b4e9860989c1c1ec9516b8108f3d1c8b9150092157f25faf5a325f
 BEGIN;
 SET LOCAL statement_timeout = '10s';
 SET LOCAL lock_timeout = '3s';
+
+DO $$
+BEGIN
+ IF current_user <> session_user OR session_user <> 'neondb_owner' THEN
+  RAISE EXCEPTION 'finance controls rollback: expected neondb_owner with no SET ROLE';
+ END IF;
+ IF has_schema_privilege('selahtone_finance_admin','finance','USAGE') THEN
+  RAISE EXCEPTION 'finance controls rollback: unexpected admin USAGE; review before temporary grant';
+ END IF;
+ GRANT USAGE ON SCHEMA finance TO selahtone_finance_admin;
+END $$;
 SET LOCAL ROLE selahtone_finance_admin;
 
 DO $$
@@ -18,7 +29,7 @@ BEGIN
   RAISE EXCEPTION 'finance controls rollback: request_results is absent';
  END IF;
  SELECT checksum INTO recorded FROM finance_release.migrations WHERE name='finance_controls_upgrade';
- IF recorded IS DISTINCT FROM 'b3c4dead0b7ad67889d2faab104791dee85198695316ffe617efd41f7bd1d681' THEN
+ IF recorded IS DISTINCT FROM '917a424948b4e9860989c1c1ec9516b8108f3d1c8b9150092157f25faf5a325f' THEN
   RAISE EXCEPTION 'finance controls rollback: migration checksum mismatch';
  END IF;
  IF EXISTS (SELECT 1 FROM finance.request_results) THEN
@@ -45,6 +56,8 @@ END $$;
 DROP FUNCTION finance.append_only_guard();
 DROP TABLE finance.request_results;
 DELETE FROM finance_release.migrations WHERE name='finance_controls_upgrade';
+RESET ROLE;
+REVOKE USAGE ON SCHEMA finance FROM selahtone_finance_admin;
 
 SELECT jsonb_build_object(
  'status','CONTROLS_ROLLED_BACK_FINANCE_STILL_DISABLED',

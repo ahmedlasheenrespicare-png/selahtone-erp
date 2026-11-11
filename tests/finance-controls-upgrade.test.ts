@@ -47,7 +47,7 @@ async function fixture(): Promise<PGlite> {
   await pg.exec("CREATE TABLE finance_release.migrations(name text PRIMARY KEY,checksum char(64) NOT NULL,applied_at timestamptz NOT NULL DEFAULT now(),applied_by name NOT NULL DEFAULT session_user)");
   await pg.exec("CREATE TABLE public.users(id bigint PRIMARY KEY); INSERT INTO public.users VALUES(1); INSERT INTO finance.requests VALUES(1)");
   for (const table of baselineTables) await pg.exec(`ALTER TABLE finance.${table} OWNER TO selahtone_finance_admin`);
-  await pg.exec("ALTER SCHEMA finance OWNER TO finance_release_operator; ALTER SCHEMA finance_release OWNER TO selahtone_finance_admin; ALTER TABLE finance_release.migrations OWNER TO selahtone_finance_admin; GRANT USAGE ON SCHEMA finance TO selahtone_finance_admin");
+  await pg.exec("ALTER SCHEMA finance OWNER TO finance_release_operator; ALTER SCHEMA finance_release OWNER TO selahtone_finance_admin; ALTER TABLE finance_release.migrations OWNER TO selahtone_finance_admin");
   await pg.exec("GRANT USAGE ON SCHEMA finance TO selahtone_app,finance_intruder");
   await pg.exec("GRANT SELECT,INSERT,UPDATE ON ALL TABLES IN SCHEMA finance TO selahtone_app");
   await pg.exec("GRANT ALL ON ALL TABLES IN SCHEMA finance TO finance_intruder");
@@ -56,9 +56,9 @@ async function fixture(): Promise<PGlite> {
 }
 /** Execute with the observed non-superuser SQL-editor identity: it owns
  * public.users, inherits finance admin, and has both USAGE and CREATE. */
-async function apply(pg: PGlite, script = upgrade.replaceAll("neondb_owner", "finance_release_operator")): Promise<void> {
+async function apply(pg: PGlite, script = upgrade): Promise<void> {
   await pg.exec("SET SESSION AUTHORIZATION finance_release_operator");
-  try { await run(pg, script); }
+  try { await run(pg, script.replaceAll("neondb_owner", "finance_release_operator")); }
   finally { await pg.exec("RESET ROLE; SET SESSION AUTHORIZATION postgres"); }
 }
 async function controls(pg: PGlite) {
@@ -73,7 +73,8 @@ async function controls(pg: PGlite) {
 test("checksums pin both reviewed files", () => {
   assert.equal(checksum(upgrade).length, 64); assert.equal(checksum(rollback).length, 64);
   assert.ok(rollback.includes(`-- upgrade_sha256: ${checksum(upgrade)}`));
-  assert.doesNotMatch(upgrade, /GRANT (?:USAGE|USAGE,CREATE) ON SCHEMA finance/m);
+  assert.equal(upgrade.match(/^ GRANT USAGE ON SCHEMA finance TO selahtone_finance_admin;$/m)?.length, 1);
+  assert.equal(upgrade.match(/^ REVOKE USAGE ON SCHEMA finance FROM selahtone_finance_admin;$/m)?.length, 1);
   assert.equal(upgrade.match(/^SET LOCAL ROLE selahtone_finance_admin;/gm)?.length, 1);
   assert.equal(upgrade.match(/^RESET ROLE;/gm)?.length, 1);
   assert.doesNotMatch(upgrade, /ALTER TABLE finance\.request_results OWNER/);
@@ -93,6 +94,7 @@ test("default deny, one allowed app path, and every append-only trigger are exer
     assert.equal((await pg.query<{ n: number }>("SELECT count(*)::int AS n FROM pg_constraint WHERE conrelid='finance.request_results'::regclass AND contype='f' AND confrelid='public.users'::regclass")).rows[0].n, 1);
     assert.equal((await pg.query<{ allowed: boolean }>("SELECT has_table_privilege('selahtone_finance_admin','public.users','REFERENCES') AS allowed")).rows[0].allowed, false, "temporary REFERENCES must be revoked");
     assert.equal((await pg.query<{ allowed: boolean }>("SELECT has_schema_privilege('selahtone_finance_admin','finance','CREATE') AS allowed")).rows[0].allowed, false, "temporary schema CREATE must be revoked");
+    assert.equal((await pg.query<{ allowed: boolean }>("SELECT has_schema_privilege('selahtone_finance_admin','finance','USAGE') AS allowed")).rows[0].allowed, false, "temporary schema USAGE must be revoked");
     await pg.exec("SET SESSION AUTHORIZATION finance_release_operator");
     const operatorGrants = await pg.query<{ usage: boolean; create: boolean }>("SELECT has_schema_privilege(current_user,'finance','USAGE') AS usage,has_schema_privilege(current_user,'finance','CREATE') AS create");
     assert.deepEqual(operatorGrants.rows[0], { usage: true, create: true }, "existing schema privileges must remain untouched");
@@ -136,7 +138,7 @@ test("DDL failure names its stage and leaves no partial objects", async () => {
   const pg = await fixture();
   try {
     await pg.exec("ALTER TABLE public.users OWNER TO postgres; REVOKE ALL ON public.users FROM finance_release_operator");
-    await assert.rejects(() => apply(pg), /FINANCE_STAGE_(TEMP_REFERENCES_GRANT|CREATE_REQUEST_RESULTS)/);
+    await assert.rejects(() => apply(pg), /FINANCE_STAGE_(TEMP_ADMIN_GRANTS|CREATE_REQUEST_RESULTS)/);
     assert.equal((await pg.query<{ value: string | null }>("SELECT to_regclass('finance.request_results')::text AS value")).rows[0].value, null);
     assert.deepEqual(await controls(pg), { tables: 18, rls: 0, forced: 0, policies: 0, triggers: 0 });
   } finally { await pg.close(); }
