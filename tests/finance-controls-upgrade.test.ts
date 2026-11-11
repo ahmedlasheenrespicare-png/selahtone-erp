@@ -8,6 +8,7 @@ import { PGlite } from "@electric-sql/pglite";
 
 const upgrade = readFileSync("prisma/manual-finance-controls-upgrade.sql", "utf8");
 const rollback = readFileSync("prisma/manual-finance-controls-rollback.sql", "utf8");
+const enforcement = readFileSync("prisma/manual-finance-controls-enforcement.sql", "utf8");
 const zeros = "0".repeat(64);
 const baselineTables = ["accounts","audit_events","cash_counts","category_audit","category_requests","category_revisions",
   "custody_requests","expense_corrections","expense_reviews","expenses","historical_commerce","movements",
@@ -42,13 +43,14 @@ async function fixture(): Promise<PGlite> {
   await pg.exec("CREATE ROLE selahtone_app LOGIN; CREATE ROLE selahtone_finance_admin NOLOGIN; CREATE ROLE finance_intruder LOGIN; CREATE ROLE finance_release_operator INHERIT LOGIN;");
   const current = (await pg.query<{ user: string }>("SELECT current_user AS user")).rows[0].user;
   await pg.exec(`GRANT selahtone_finance_admin TO ${current},finance_release_operator`);
+  await pg.exec("GRANT selahtone_app TO finance_release_operator");
   await pg.exec("CREATE SCHEMA finance; CREATE SCHEMA finance_release;");
   for (const table of baselineTables) await pg.exec(`CREATE TABLE finance.${table}(id bigint PRIMARY KEY)`);
   await pg.exec("CREATE TABLE finance_release.migrations(name text PRIMARY KEY,checksum char(64) NOT NULL,applied_at timestamptz NOT NULL DEFAULT now(),applied_by name NOT NULL DEFAULT session_user)");
   await pg.exec("CREATE TABLE public.users(id bigint PRIMARY KEY); INSERT INTO public.users VALUES(1); INSERT INTO finance.requests VALUES(1)");
   for (const table of baselineTables) await pg.exec(`ALTER TABLE finance.${table} OWNER TO selahtone_finance_admin`);
   await pg.exec("ALTER SCHEMA finance OWNER TO finance_release_operator; ALTER SCHEMA finance_release OWNER TO finance_release_operator; ALTER TABLE finance_release.migrations OWNER TO finance_release_operator");
-  await pg.exec("GRANT USAGE ON SCHEMA finance TO selahtone_app,finance_intruder");
+  await pg.exec("GRANT USAGE ON SCHEMA finance TO selahtone_app,finance_intruder; GRANT SELECT ON public.users TO selahtone_app");
   await pg.exec("GRANT SELECT,INSERT,UPDATE ON ALL TABLES IN SCHEMA finance TO selahtone_app");
   await pg.exec("GRANT ALL ON ALL TABLES IN SCHEMA finance TO finance_intruder");
   await pg.exec("ALTER TABLE public.users OWNER TO finance_release_operator; GRANT USAGE,CREATE ON SCHEMA finance TO finance_release_operator");
@@ -71,7 +73,7 @@ async function controls(pg: PGlite) {
 }
 
 test("checksums pin both reviewed files", () => {
-  assert.equal(checksum(upgrade).length, 64); assert.equal(checksum(rollback).length, 64);
+  assert.equal(checksum(upgrade).length, 64); assert.equal(checksum(rollback).length, 64); assert.equal(checksum(enforcement).length, 64);
   assert.ok(rollback.includes(`-- upgrade_sha256: ${checksum(upgrade)}`));
   assert.equal(upgrade.match(/^ GRANT USAGE ON SCHEMA finance TO selahtone_finance_admin;$/m)?.length, 1);
   assert.equal(upgrade.match(/^ REVOKE USAGE ON SCHEMA finance FROM selahtone_finance_admin;$/m)?.length, 1);
@@ -120,6 +122,18 @@ test("default deny, one allowed app path, and every append-only trigger are exer
     await assert.rejects(() => apply(pg), /already applied|request_results already exists/);
     await assert.rejects(() => apply(pg, rollback), /request results exist/);
     assert.equal((await pg.query<{ n: number }>("SELECT count(*)::int AS n FROM finance.request_results")).rows[0].n, 1);
+  } finally { await pg.close(); }
+});
+
+test("application-role enforcement probe allows only its intended write and rolls back its probe row", { timeout: 120_000 }, async () => {
+  const pg = await fixture();
+  try {
+    await apply(pg);
+    await apply(pg, enforcement);
+    assert.equal((await pg.query<{ n: number }>("SELECT count(*)::int AS n FROM finance.request_results WHERE request_id='33333333-3333-4333-8333-333333333333'")).rows[0].n, 0, "probe INSERT must not survive ROLLBACK");
+    assert.deepEqual(await controls(pg), { tables: 19, rls: 19, forced: 0, policies: 19, triggers: appendOnly.length });
+    assert.match(enforcement, /ROLLBACK;/);
+    assert.match(enforcement, /NOT_DEPLOYED_CONNECTION_NOT_DEFAULT_DENY_OTHER_ROLE/);
   } finally { await pg.close(); }
 });
 
