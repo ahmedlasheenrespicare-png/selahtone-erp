@@ -1,0 +1,59 @@
+{
+  "record_id": "finance-conversion-window-2026-11-11",
+  "scope": "DISPOSABLE_NATIVE_POSTGRESQL_FICTIONAL_FIXTURE_ONLY",
+  "production_database_used": false,
+  "production_schema_or_roles_changed": false,
+  "finance_enabled_changed": false,
+  "database": {
+    "engine": "PostgreSQL 18.6 isolated temporary cluster",
+    "network": "Unix socket only; no TCP listener",
+    "lifecycle": "created, stopped and deleted by the test"
+  },
+  "checks": [
+    {
+      "command": "FINANCE_TEST_PG_BIN=$PWD/node_modules/@embedded-postgres/linux-x64/native/bin npm run check:finance:cutover",
+      "tests": 26,
+      "passed": 26,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "command": "npm run check:finance:cutover:guard",
+      "tests": 2,
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0
+    }
+  ],
+  "defined_window": {
+    "states": ["LEGACY", "FROZEN", "NEW"],
+    "guarded_fixture_tables": 27,
+    "freeze": "An exclusive control-row lock waits for in-flight guarded writers; the shared guard lock is retained for each writer transaction.",
+    "direct_write_protection": "BEFORE INSERT/UPDATE/DELETE/TRUNCATE statement triggers reject every guarded write in FROZEN, including zero-row updates and both application logins.",
+    "per_transaction_capability": "NEW requires a private xid/backend/login permit; custom GUC, application_name, autocommit authorization, savepoint rollback and the other login do not bypass it.",
+    "early_exit": "FROZEN can return to LEGACY only before NEW has ever activated.",
+    "after_activation": "NEW can freeze and resume; returning to LEGACY is prohibited.",
+    "transition_evidence": "Reason, database actor, request UUID and expected revision are recorded; identical retries do not repeat a transition and replay reports the current phase."
+  },
+  "explicitly_blocked_during_frozen": [
+    "ACTUAL_CREATE_COMMERCE_SALE",
+    "ACTUAL_RECORD_COMMERCE_COLLECTION",
+    "ACTUAL_RETURN_COMMERCE_SALE",
+    "LEGACY_CASH_REFUND_PATH",
+    "DIRECT_EXPENSE_INSERT",
+    "DIRECT_PAYMENT_INSERT",
+    "DIRECT_TRANSFER_INSERT",
+    "ALL_GUARDED_TABLE_DELETE_WHERE_FALSE",
+    "TRUNCATE",
+    "SPOOFED_CUSTOM_GUC_OR_NEW_LOGIN_WITHOUT_PERMIT"
+  ],
+  "atomicity": "The expense/payment/transfer test compares a full synthetic snapshot before and after rejection; actual commerce tests likewise preserve sale, collection, return, refund, stock and cash-evidence counts.",
+  "limits": [
+    "This is a defined and rehearsed test-only window, not an approved production migration or an installed production control.",
+    "Commerce exercises real repository service functions against the fixture; expense, payment and transfer are explicit fictional-table direct-write probes, not the production finance engine.",
+    "The 27-object fixture list is not asserted to be a complete production dependency inventory.",
+    "The test does not prove Render/Neon connection identity, pooler behavior, production ownership/RLS, operational timing, backup/restore, or a maintenance-window decision.",
+    "A separate reviewed production design, release audit and explicit operational approval remain necessary; nothing was deployed or activated."
+  ],
+  "closure": "RESOLVED_FOR_DEFINED_AND_NATIVE_REHEARSED_TEST_ONLY_WINDOW"
+}

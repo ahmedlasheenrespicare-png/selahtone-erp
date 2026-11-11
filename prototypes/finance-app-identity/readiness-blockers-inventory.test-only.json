@@ -6,7 +6,7 @@
   "authorization_received_verbatim": "تكليف منفصل صريح بتحليل أوفلاين للموانع",
   "no_action_boundary": "NO_SRC_NO_RENDER_YAML_NO_PRODUCTION_SQL_NO_DEPLOY_NO_SYNC_NO_TRUE",
   "overall_status": "NOT_READY",
-  "blockers_resolved": 7,
+  "blockers_resolved": 8,
   "gates_opened": 0,
   "no_blanket_approval": true,
   "strict_reject_phrase": "تعذّر التحقق من نتيجة الطلب المحفوظ؛ يلزم مراجعة أو ترحيل الطلب القديم.",
@@ -116,12 +116,14 @@
     },
     {
       "id": "CONVERSION_WINDOW_DEFINED",
-      "status": "UNRESOLVED",
-      "current_evidence": "نموذج معزول في prototypes/finance-cutover يوضح الحاجة لنافذة تحويل",
-      "gap": "لا نافذة مُعرَّفة تمنع البيع/التحصيل/الرد/الصرف/التحويل أثناء القطع ذي المرحلتين، ولا منع الطلبات المباشرة.",
-      "offline_design": "تحديد معيار النافذة، وحارس رفض، واختبار تجاوز مخبري، وخطة إنهاء النافذة.",
+      "status": "RESOLVED",
+      "current_evidence": "NATIVE_PG18_6_CUTOVER_26_OF_26_NO_SKIPS; LAB_GUARD_2_OF_2; FROZEN_DIRECT_COMMERCE_EXPENSE_PAYMENT_TRANSFER_BLOCKED; 27_FIXTURE_TABLES",
+      "gap": "مغلق لتعريف وبروفة نافذة اصطناعية فقط؛ ليست حارسًا مركبًا على الإنتاج ولا قائمة اعتماديات إنتاجية مكتملة ولا اختبار محرك المالية الفعلي للمصروف والتحويل.",
+      "offline_design": "LEGACY→FROZEN→NEW مع أقفال انتظار، تصريح خاص بكل معاملة، منع SQL المباشر وTRUNCATE، سبب ومراجعة إصدار لكل انتقال، رجوع مبكر فقط ومنع العودة للقديم بعد NEW.",
       "acceptance_criteria": "رفض كل كتابة محظورة داخل النافذة حتى عبر الطلب المباشر، مع اختبار معملي أخضر.",
-      "requires": "SEPARATE_REVIEWED_TEXT_THEN_SEPARATE_VERBATIM_APPROVAL_BEFORE_EXECUTION"
+      "requires": "SEPARATE_REVIEWED_TEXT_THEN_SEPARATE_VERBATIM_APPROVAL_BEFORE_EXECUTION",
+      "evidence_record": "../finance-cutover/conversion-window-evidence.test-only.json",
+      "check_command": "FINANCE_TEST_PG_BIN=$PWD/node_modules/@embedded-postgres/linux-x64/native/bin npm run check:finance:cutover"
     },
     {
       "id": "LOG_YEAR_TIMESTAMPS_AND_OPERATOR_DECISIONS_SUPPLIED",

@@ -98,7 +98,10 @@ async function counts(admin:Pool){return (await admin.query(`SELECT
  (SELECT count(*)::int FROM public.commerce_refunds) AS refunds,
  (SELECT qty_on_hand::text FROM public.stock_levels WHERE warehouse_id=1 AND product_id=2) AS stock,
  (SELECT count(*)::int FROM finance_cutover_fixture.movements) AS movements,
- (SELECT count(*)::int FROM finance_cutover_fixture.historical) AS historical`)).rows[0];}
+ (SELECT count(*)::int FROM finance_cutover_fixture.historical) AS historical,
+ (SELECT count(*)::int FROM finance_cutover_fixture.expenses) AS expenses,
+ (SELECT count(*)::int FROM finance_cutover_fixture.payments) AS payments,
+ (SELECT count(*)::int FROM finance_cutover_fixture.transfers) AS transfers`)).rows[0];}
 async function collection(c:PoolClient,saleId:string,method="CASH",amount="1"):Promise<string>{
  return String((await c.query(`INSERT INTO public.commerce_collections(request_id,request_hash,sale_id,amount,method,is_initial,created_by_id)
   VALUES($1::uuid,$2,$3::bigint,$4::numeric,$5,FALSE,1) RETURNING id`,[request(),"c".repeat(64),saleId,amount,method])).rows[0].id);
@@ -194,7 +197,7 @@ test("database cutover lab closes and reopens safely under concurrent real comme
      WHERE n.nspname='public' AND c.relkind='r' AND c.relname LIKE 'commerce\\_%' ESCAPE '\\' AND NOT EXISTS
      (SELECT 1 FROM pg_trigger t WHERE t.tgrelid=c.oid AND t.tgname='finance_cutover_test_guard' AND NOT t.tgisinternal)`);
     assert.deepEqual(missing.rows,[]);
-    assert.equal(Number((await admin!.query("SELECT count(*) AS n FROM pg_trigger WHERE tgname='finance_cutover_test_guard' AND NOT tgisinternal")).rows[0].n),26);
+    assert.equal(Number((await admin!.query("SELECT count(*) AS n FROM pg_trigger WHERE tgname='finance_cutover_test_guard' AND NOT tgisinternal")).rows[0].n),27);
    }finally{if(open)await writer.query("ROLLBACK").catch(()=>{});await installer.query("ROLLBACK").catch(()=>{});writer.release();installer.release();}
   });
   let dueSale="",refundSale="",accountId="",openingCheckpoint="";
@@ -267,6 +270,16 @@ test("database cutover lab closes and reopens safely under concurrent real comme
    await rejectsText(()=>recordCommerceCollection(oldApp!, actor(3n) ,collect(dueSale)),/FINANCE_CUTOVER_BLOCKED/);
    await rejectsText(()=>returnCommerceSale(oldApp!, actor(1n) ,returned(dueSale)),/FINANCE_CUTOVER_BLOCKED/);
    await rejectsText(()=>legacyRefund(oldApp!,2n,reviewedRefund(refundSale)),/FINANCE_CUTOVER_BLOCKED/);
+   assert.deepEqual(await counts(admin!),before);
+  });
+  await t.test("frozen mode explicitly rejects direct expense, payment and transfer writes with no partial rows",async()=>{
+   const before=await counts(admin!);
+   await rejectsText(()=>legacy!.query("INSERT INTO finance_cutover_fixture.expenses(label) VALUES('مصروف أثناء التجميد')"),/FINANCE_CUTOVER_BLOCKED/);
+   await rejectsText(()=>legacy!.query("INSERT INTO finance_cutover_fixture.payments(expense_id) VALUES(-1)"),/FINANCE_CUTOVER_BLOCKED/);
+   await rejectsText(()=>legacy!.query("INSERT INTO finance_cutover_fixture.transfers(source_account_id,destination_account_id,amount) VALUES(-1,-2,1)"),/FINANCE_CUTOVER_BLOCKED/);
+   // The other application login is not a bypass while the window is frozen.
+   await rejectsText(()=>next!.query("INSERT INTO finance_cutover_fixture.expenses(label) VALUES('مصروف بدور جديد أثناء التجميد')"),/FINANCE_CUTOVER_BLOCKED/);
+   await rejectsText(()=>next!.query("INSERT INTO finance_cutover_fixture.transfers(source_account_id,destination_account_id,amount) VALUES(-1,-2,1)"),/FINANCE_CUTOVER_BLOCKED/);
    assert.deepEqual(await counts(admin!),before);
   });
   await t.test("audited early rollback works only before NEW; replay exposes the CURRENT phase",async()=>{
