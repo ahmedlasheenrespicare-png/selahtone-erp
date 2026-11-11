@@ -6301,3 +6301,154 @@ test("the report opens no gate and changes no inventory state", () => {
   assert.ok(out.limitations.includes("NO_INVENTORY_CHANGE"));
   assert.equal(evaluate({ received_in_chat: true }).permissions_table_read_failure_report, null);
 });
+
+
+const DATABASE_REPAIR_FIXES_QUESTION = {
+  ...structuredClone(PERMISSIONS_TABLE_READ_FAILURE_REPORT),
+  database_repair_fixes_question: {
+    operator_text: "هل هناك اصلاحات اعملها لقاعده البيانات لحل المشكله؟",
+    kind: "PROCEDURAL_QUESTION_ABOUT_DATABASE_REPAIR_FIXES",
+    received_in_chat: true,
+    verdict: "DATABASE_REPAIR_FIXES_QUESTION_ANSWERED_DESCRIPTIVELY_NO_FIX_LIST_DELIVERED",
+    acknowledged_descriptively: true,
+    differs_from_section_121: "A_PROCEDURAL_REPAIR_QUESTION_NOT_AN_OPERATOR_STATUS_REPORT",
+    is_a_procedural_question: true,
+    is_a_request_for_sql_or_commands: false,
+    is_a_decision: false,
+    is_an_approval: false,
+    is_a_separate_verbatim_approval: false,
+    approval_verb_present: false,
+    references_pinned_sha: false,
+    no_pinned_sha_in_message: true,
+    answer_scope: "DESCRIPTIVE_ONLY_WHY_NO_DATABASE_REPAIR_LIST_CAN_BE_DELIVERED_NO_TEMPLATE_NO_PHRASE_SOLICITED",
+    distinguishes_two_problems: "REPORTED_READ_FAILURE_VERSUS_RELEASE_READINESS_EVIDENCE_GAPS",
+    reported_failure_has_no_verified_diagnosis: true,
+    no_verified_root_cause: true,
+    no_repair_list_delivered: true,
+    no_repair_plan_authored: true,
+    no_reviewed_repair_text_exists: true,
+    no_acceptance_criteria_for_repair: true,
+    no_repair_artifact_sha: true,
+    session_does_not_author_repair_sql_or_repair_plans: true,
+    no_diagnosis_from_an_operator_status_report: true,
+    no_pass_or_fail_verdict_inferred_from_a_repair: true,
+    a_repair_is_not_a_connectivity_proof: true,
+    repair_alone_does_not_close_any_gate: true,
+    blockers_are_evidence_gaps_not_database_repair_gaps: true,
+    only_a_connection_created_by_the_deployed_process_itself_using_its_own_runtime_config: true,
+    no_sql_delivered: true,
+    no_command_sent: true,
+    no_phrase_delivered: true,
+    no_template_delivered: true,
+    no_approval_phrase_solicited: true,
+    no_request_solicited: true,
+    no_reenable_decision_solicited: true,
+    no_database_repair_by_session: true,
+    no_gate_opened: true,
+    no_inventory_change: true,
+    no_action_taken_on_production: true,
+    no_src_modified: true,
+    no_render_yaml_modified: true,
+    no_deploy: true,
+    no_sync: true,
+    no_true: true,
+    no_financial_action: true,
+    no_secrets_in_chat: true,
+    no_database_url_in_chat: true,
+    no_rows_or_values_in_chat: true,
+    no_file_reference: true,
+    session_bound: "SESSION_NEVER_EXECUTES_PRODUCTION_SQL_OR_DEPLOYS_OR_SETS_ENV_VARS",
+    no_action_scope: "NO_SRC_NO_RENDER_YAML_NO_PRODUCTION_SQL_NO_DEPLOY_NO_SYNC_NO_TRUE",
+    execution_rule: "EXECUTION_BY_THE_OPERATOR_NOT_THE_SESSION",
+    strict_reject_phrase: "تعذّر التحقق من نتيجة الطلب المحفوظ؛ يلزم مراجعة أو ترحيل الطلب القديم.",
+    current_step_index: "6/11",
+    next_descriptive_step: "SEPARATE_SRC_AND_DEPLOY_APPROVALS_IF_NEEDED",
+    separate_in_service_path_approval: true,
+    src_and_deploy_approvals: false,
+    remaining_blockers: 9,
+    blockers_resolved: 0,
+    gates_opened: 0,
+    next_gate: "SEPARATE_REENABLE_DECISION",
+    reenable_gate: "CLOSED",
+    overall: "NOT_READY",
+  },
+};
+
+test("a database repair fixes question is answered descriptively", () => {
+  const out = evaluate(DATABASE_REPAIR_FIXES_QUESTION);
+  assert.equal(out.database_repair_fixes_question.kind,
+    "PROCEDURAL_QUESTION_ABOUT_DATABASE_REPAIR_FIXES");
+  assert.equal(out.database_repair_fixes_question.verdict,
+    "DATABASE_REPAIR_FIXES_QUESTION_ANSWERED_DESCRIPTIVELY_NO_FIX_LIST_DELIVERED");
+  assert.equal(out.database_repair_fixes_question.is_a_procedural_question, true);
+  assert.equal(out.database_repair_fixes_question.is_a_request_for_sql_or_commands, false);
+  assert.equal(out.database_repair_fixes_question.is_a_decision, false);
+  assert.equal(out.database_repair_fixes_question.is_an_approval, false);
+  assert.equal(out.database_repair_fixes_question.approval_verb_present, false);
+  assert.equal(out.database_repair_fixes_question.no_pinned_sha_in_message, true);
+  assert.equal(out.database_repair_fixes_question.differs_from_section_121,
+    "A_PROCEDURAL_REPAIR_QUESTION_NOT_AN_OPERATOR_STATUS_REPORT");
+  assert.equal(out.database_repair_fixes_question.distinguishes_two_problems,
+    "REPORTED_READ_FAILURE_VERSUS_RELEASE_READINESS_EVIDENCE_GAPS");
+  assert.equal(out.overall_release_status, "NOT_READY");
+});
+
+test("no diagnosis or repair list can be produced from an operator report", () => {
+  const out = evaluate(DATABASE_REPAIR_FIXES_QUESTION);
+  assert.equal(out.database_repair_fixes_question.reported_failure_has_no_verified_diagnosis, true);
+  assert.equal(out.database_repair_fixes_question.no_verified_root_cause, true);
+  assert.equal(out.database_repair_fixes_question.no_repair_list_delivered, true);
+  assert.equal(out.database_repair_fixes_question.no_repair_plan_authored, true);
+  assert.equal(out.database_repair_fixes_question.no_reviewed_repair_text_exists, true);
+  assert.equal(out.database_repair_fixes_question.no_acceptance_criteria_for_repair, true);
+  assert.equal(out.database_repair_fixes_question.no_repair_artifact_sha, true);
+  assert.equal(out.database_repair_fixes_question.session_does_not_author_repair_sql_or_repair_plans, true);
+  assert.equal(out.database_repair_fixes_question.no_diagnosis_from_an_operator_status_report, true);
+  assert.equal(out.database_repair_fixes_question.a_repair_is_not_a_connectivity_proof, true);
+  assert.equal(out.database_repair_fixes_question.repair_alone_does_not_close_any_gate, true);
+  assert.equal(out.database_repair_fixes_question.blockers_are_evidence_gaps_not_database_repair_gaps, true);
+  assert.equal(out.database_repair_fixes_question.only_a_connection_created_by_the_deployed_process_itself_using_its_own_runtime_config, true);
+  for (const w of ["NO_VERIFIED_ROOT_CAUSE_NO_REPAIR_LIST_DELIVERED",
+    "NO_DIAGNOSIS_FROM_AN_OPERATOR_STATUS_REPORT",
+    "SESSION_DOES_NOT_AUTHOR_REPAIR_SQL_OR_REPAIR_PLANS",
+    "NO_SQL_NO_COMMANDS_NO_REPAIR_PLAN_DELIVERED",
+    "BLOCKERS_ARE_EVIDENCE_GAPS_NOT_DATABASE_REPAIR_GAPS",
+    "A_REPAIR_IS_NOT_A_CONNECTIVITY_PROOF",
+    "REPAIR_ALONE_DOES_NOT_CLOSE_ANY_GATE",
+    "NO_PASS_OR_FAIL_VERDICT_INFERRED_FROM_A_REPAIR",
+    "ONLY_A_CONNECTION_CREATED_BY_THE_DEPLOYED_PROCESS_ITSELF_USING_ITS_OWN_RUNTIME_CONFIG",
+    "NO_BLANKET_APPROVAL_EACH_APPROVAL_NEEDS_ITS_OWN_SEPARATE_MESSAGE",
+    "DEPLOY_AND_SYNC_AND_TRUE_ARE_PROHIBITED",
+    "A_FIXED_CONDITION_CANNOT_BE_WAIVED_BY_THE_SESSION",
+    "STRICT_REJECT_POLICY_STILL_IN_FORCE"])
+    assert.ok(out.warnings.includes(w), w);
+});
+
+test("the repair question opens no gate and delivers nothing actionable", () => {
+  const out = evaluate(DATABASE_REPAIR_FIXES_QUESTION);
+  for (const k of ["no_sql_delivered", "no_command_sent", "no_phrase_delivered",
+    "no_template_delivered", "no_approval_phrase_solicited", "no_request_solicited",
+    "no_reenable_decision_solicited", "no_database_repair_by_session",
+    "no_gate_opened", "no_inventory_change", "no_action_taken_on_production",
+    "no_src_modified", "no_render_yaml_modified", "no_deploy", "no_sync",
+    "no_true", "no_financial_action", "no_secrets_in_chat",
+    "no_database_url_in_chat", "no_rows_or_values_in_chat", "no_file_reference"])
+    assert.equal((out.database_repair_fixes_question as unknown as Record<string, boolean>)[k], true, k);
+  assert.equal(out.database_repair_fixes_question.answer_scope,
+    "DESCRIPTIVE_ONLY_WHY_NO_DATABASE_REPAIR_LIST_CAN_BE_DELIVERED_NO_TEMPLATE_NO_PHRASE_SOLICITED");
+  assert.equal(out.database_repair_fixes_question.current_step_index, "6/11");
+  assert.equal(out.database_repair_fixes_question.next_descriptive_step,
+    "SEPARATE_SRC_AND_DEPLOY_APPROVALS_IF_NEEDED");
+  assert.equal(out.database_repair_fixes_question.remaining_blockers, 9);
+  assert.equal(out.database_repair_fixes_question.blockers_resolved, 0);
+  assert.equal(out.database_repair_fixes_question.gates_opened, 0);
+  assert.equal(out.database_repair_fixes_question.reenable_gate, "CLOSED");
+  assert.equal(out.database_repair_fixes_question.finance_enabled, false);
+  // Asserted on the report object: top-level next_gate depends on historical
+  // /tmp observations that are absent on this fresh branch.
+  assert.equal(out.database_repair_fixes_question.next_gate, "SEPARATE_REENABLE_DECISION");
+  assert.equal(out.database_repair_fixes_question.gate_status, "CLOSED_NOT_READY");
+  assert.ok(out.limitations.includes("DATABASE_REPAIR_FIXES_QUESTION_DOES_NOT_VERIFY_OR_CLOSE_ANY_GATE"));
+  assert.ok(out.limitations.includes("NO_REQUEST_SOLICITED_NO_PHRASE_SOLICITED"));
+  assert.equal(evaluate(PERMISSIONS_TABLE_READ_FAILURE_REPORT).database_repair_fixes_question, null);
+});

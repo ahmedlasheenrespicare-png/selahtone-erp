@@ -1723,3 +1723,29 @@ test("permissions table read failure report is recorded in section 121", () => {
   assert.equal(inv.blockers_resolved, 0);
   assert.equal(inv.gates_opened, 0);
 });
+
+test("database repair fixes question is answered in section 122", () => {
+  const log = read("docs/finance-release-log.md");
+  assert.match(log, /## ١٢٢\./);
+  assert.match(log, /PROCEDURAL_QUESTION_ABOUT_DATABASE_REPAIR_FIXES/);
+  assert.match(log, /DATABASE_REPAIR_FIXES_QUESTION_ANSWERED_DESCRIPTIVELY_NO_FIX_LIST_DELIVERED/);
+  assert.match(log, /NO_VERIFIED_ROOT_CAUSE_NO_REPAIR_LIST_DELIVERED/);
+  assert.match(log, /NO_DIAGNOSIS_FROM_AN_OPERATOR_STATUS_REPORT/);
+  assert.match(log, /SESSION_DOES_NOT_AUTHOR_REPAIR_SQL_OR_REPAIR_PLANS/);
+  assert.match(log, /NO_SQL_NO_COMMANDS_NO_REPAIR_PLAN_DELIVERED/);
+  assert.match(log, /BLOCKERS_ARE_EVIDENCE_GAPS_NOT_DATABASE_REPAIR_GAPS/);
+  assert.match(log, /A_REPAIR_IS_NOT_A_CONNECTIVITY_PROOF/);
+  assert.match(log, /REPAIR_ALONE_DOES_NOT_CLOSE_ANY_GATE/);
+  assert.match(log, /ONLY_A_CONNECTION_CREATED_BY_THE_DEPLOYED_PROCESS_ITSELF_USING_ITS_OWN_RUNTIME_CONFIG/);
+  assert.match(log, /NO_TRUE_NO_DEPLOY_NO_SYNC_NO_MANUAL_DEPLOY_NO_BLUEPRINT_NO_SQL_NO_SRC_NO_RENDER_YAML_NO_FINANCIAL_ACTION/);
+  const probe = read("docs/finance-app-connection-probe-result-ar.md");
+  assert.match(probe, /## ٩٥\./);
+  const ev = read("prototypes/finance-app-identity/evaluate-phase4-execution.mjs");
+  assert.match(ev, /DATABASE_REPAIR_FIXES_QUESTION_DOES_NOT_VERIFY_OR_CLOSE_ANY_GATE/);
+  assert.match(ev, /NO_SQL_NO_COMMANDS_NO_REPAIR_PLAN_DELIVERED/);
+  const inv: { blockers: Array<{ status: string }>; blockers_resolved: number; gates_opened: number } = JSON.parse(read("prototypes/finance-app-identity/readiness-blockers-inventory.test-only.json"));
+  assert.equal(inv.blockers[0].status, "UNRESOLVED");
+  assert.equal(inv.blockers.length, 9);
+  assert.equal(inv.blockers_resolved, 0);
+  assert.equal(inv.gates_opened, 0);
+});
