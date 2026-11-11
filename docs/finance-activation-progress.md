@@ -134,3 +134,11 @@
 أصبحت كتابات البيع والبيع الفني والتحصيل والرد والمرتجع وحدود الخصم وإدارة الكتالوج تستلم `TransactionActor={id,sessionId}` إلزاميًا. بعد فحص المستخدم وaccess_control تقفل صف auth_sessions بـFOR SHARE وتتحقق من ملكيته وانتهائه، ثم تعيد فحصه بعد العمل في كل معاملة وreplay ومسار P2002 قبل إعادة النتيجة للـadapter ليلتزم. قراءة سجل الكتالوج لم تتغير.
 
 أثبتت commerce-integration 19/19 أن الحذف والانتهاء وعدم تطابق المستخدم يمنع البيع بلا صف، وأن انتهاء الجلسة المحقن بعد إدراج التحصيل وقبل الفحص الثاني يلغي التحصيل. نجحت catalog-sales 6/6، وجلسة المالية 1/1، وwrite visibility 17/17، وtransaction retry 1/1، وحزم PGlite للعهدة والتسوية والتخصيص والرد والتجارة المخبرية. TypeScript وdiff check ناجحان. لم تُشغّل اختبارات PostgreSQL native المعدلة لغياب SYNTHETIC_POSTGRES_BIN؛ لا يُدّعى اختبار COMMIT الحقيقي أو pool. يُغلق مانع ATOMIC_ACCESS_CONTROL_GAP فقط، وFINANCE_ENABLED=false.
+
+### دورة اتصال PrismaPg عند فشل COMMIT — 2026-11-11
+
+أضيف `CommitFailureSafePool` لعلاج تسريب `@prisma/adapter-pg@6.19.3`: يعترض فشل COMMIT على العميل الفعلي، ويمنع release المبكر من Prisma، ثم ينفذ ROLLBACK بعد اكتمال bookkeeping. نجاح ROLLBACK يعيد جلسة نظيفة؛ فشل النقل/ROLLBACK يحرر بخطأ فيتلف الاتصال. المصنع يملك مجمعه ويغلقه عند disconnect، والمجمّع الخارجي يبقى مملوكًا لمنشئه. يدعم connect بوعد وcallback ولا يكدس wrappers عند إعادة الاستخدام. لا يعيد الكتابة تلقائيًا.
+
+على PostgreSQL 18.6 معزول أثبت `check:prisma:commit-lifecycle` بحد اتصال واحد أن قيد FK مؤجلًا يفشل عند COMMIT برمز P2003، وعدد الصفوف صفر، والاستعلام التالي ومعاملة صحيحة ينجحان. ثم قطع socket فعلي عند حدود COMMIT: وصل الخطأ للمتصل، ولم يُصنف retryable، وأُتلف الاتصال ونجح اتصال بديل، ولم يظهر الصف. نجح أيضًا cutover الحقيقي 25/25 بعد تحويل توثيق التسريب القديم إلى regression: FINANCE_CASH_LINK_REQUIRED عند COMMIT، صفر أثر، checkedOut=0، جلسة rollback نظيفة واستعلام لاحق ناجح. TypeScript ناجح.
+
+النطاق مختبر PostgreSQL/PrismaPg اصطناعي فقط، لا اتصال Render/Neon ولا إثبات COMMIT مجهول النتيجة بعد استلام الخادم له. التطبيق المنشور الحالي يستخدم Prisma الأصلي ولم يتبدل. أُغلق مانع PRISMAPG_6_19_3_COMMIT_FAILURE_LIFECYCLE فقط؛ FINANCE_ENABLED=false.

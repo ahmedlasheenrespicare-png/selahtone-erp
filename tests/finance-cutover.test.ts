@@ -10,6 +10,7 @@ import path from "node:path";
 import { Pool, type PoolClient } from "pg";
 import { PGlite } from "@electric-sql/pglite";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { CommitFailureSafePool } from "../src/lib/prisma-pg";
 import type { PrismaClient } from "@prisma/client";
 import { createCommerceSale,recordCommerceCollection,recordCommerceRefund,returnCommerceSale } from "../src/lib/commerce-operations";
 import { actor } from "./helpers/commerce-actor";
@@ -43,9 +44,9 @@ function authorizeLegacyCode(client:PrismaClient):PrismaClient{
   return (work:(tx:unknown)=>unknown,options:unknown)=>db.$transaction(async tx=>{
    await tx.$executeRawUnsafe("SELECT finance_cutover_test.begin_new_transaction()");
    const result=await work(tx);
-   // Force expected validation errors inside the callback. Deferred COMMIT
-   // failure with PrismaPg 6.19.3 leaked pooled connections in this fixture;
-   // this is not a general solution for serialization or connection failures.
+   // Force expected validation errors inside the callback. The dedicated
+   // deferred-COMMIT regression below leaves this wrapper unchanged and uses
+   // CommitFailureSafePool to recover the connection that Prisma 6.19.3 leaked.
    await tx.$executeRawUnsafe("SET CONSTRAINTS ALL IMMEDIATE");return result;
   },options as never);
  }}) as PrismaClient;
@@ -161,7 +162,7 @@ test("database cutover lab closes and reopens safely under concurrent real comme
     REVOKE INSERT,UPDATE,DELETE ON public.users,public.branches FROM cutover_legacy_test,cutover_new_test;
     GRANT USAGE,SELECT ON ALL SEQUENCES IN SCHEMA public,finance_cutover_fixture TO cutover_legacy_test,cutover_new_test;`);
   }finally{setup.release();}
-  legacy=new Pool({...config,user:"cutover_legacy_test"});next=new Pool({...config,user:"cutover_new_test"});
+  legacy=new CommitFailureSafePool({...config,user:"cutover_legacy_test"});next=new CommitFailureSafePool({...config,user:"cutover_new_test"});
   const Client=temporaryPrisma(tmp);
   oldApp=new Client({adapter:new PrismaPg(legacy) as never}) as PrismaClient;
   newRoleOldCode=new Client({adapter:new PrismaPg(next) as never}) as PrismaClient;
@@ -320,10 +321,8 @@ test("database cutover lab closes and reopens safely under concurrent real comme
    const after=await counts(admin!);assert.equal(after.sales,before.sales+1);assert.equal(after.collections,before.collections+1);
    assert.equal(after.movements,before.movements);assert.equal(after.historical,before.historical);
   });
-  await t.test("documents the PrismaPg 6.19.3 deferred-COMMIT error connection leak",async()=>{
-   // Isolate the known failure in a dedicated pool; explicitly release only
-   // its checked-out fixture clients so this regression never hangs cleanup.
-   const pool=new Pool({...config,user:"cutover_new_test",max:2});const checkedOut=new Set<PoolClient>();
+  await t.test("recovers the pooled connection after a deferred-COMMIT error",async()=>{
+   const pool=new CommitFailureSafePool({...config,user:"cutover_new_test",max:2});const checkedOut=new Set<PoolClient>();
    pool.on("acquire",(c:PoolClient)=>checkedOut.add(c));pool.on("release",(_e:Error|undefined,c:PoolClient)=>checkedOut.delete(c));
    const client=new Client({adapter:new PrismaPg(pool) as never}) as PrismaClient;const before=await counts(admin!);
    try{
@@ -334,10 +333,12 @@ test("database cutover lab closes and reopens safely under concurrent real comme
      // Intentionally DO NOT force deferred constraints here: COMMIT must fail.
     },{isolationLevel:"Serializable"}),/FINANCE_CASH_LINK_REQUIRED/);
     assert.deepEqual(await counts(admin!),before);
-    assert.equal(checkedOut.size,1,"known adapter behavior changed; re-evaluate this release blocker");
-    assert.equal(pool.idleCount,0);
+    for(let i=0;i<100&&checkedOut.size;i++)await new Promise(r=>setTimeout(r,20));
+    assert.equal(checkedOut.size,0,"COMMIT recovery must release its checked-out client");
+    assert.equal(pool.idleCount,1,"the successful ROLLBACK leaves one clean reusable session");
+    const alive=await client.$queryRawUnsafe<Array<{"?column?":number}>>("SELECT 1");assert.equal(alive[0]["?column?"],1);
    }finally{
-    for(const c of checkedOut)c.release(true);await client.$disconnect().catch(()=>{});await pool.end();
+    await client.$disconnect().catch(()=>{});await pool.end();
    }
   });
   await t.test("simulated new cash registration and ledger move are atomic on failure",async()=>{

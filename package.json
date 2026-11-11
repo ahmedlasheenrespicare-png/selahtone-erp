@@ -96,6 +96,7 @@
     "check:finance:cutover-receipt-audit": "tsx --test tests/finance-cutover-receipt-audit.test.ts",
     "check:admin:finance-disabled:http": "tsx --test tests/admin-finance-disabled-http.test.ts",
     "check:transaction-retry": "tsx --test tests/transaction-retry.test.ts",
+    "check:prisma:commit-lifecycle": "tsx --test tests/prisma-pg-commit-lifecycle-postgres.test.ts",
     "check:finance:transaction-retry": "tsx --test tests/finance-transaction-retry.test.ts",
     "check:finance:refund-checkpoint-prototype": "tsx --test tests/finance-refund-checkpoint-prototype.test.ts",
     "check:finance:refund-audit": "tsx --test tests/finance-refund-audit.test.ts",
