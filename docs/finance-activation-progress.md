@@ -124,3 +124,7 @@
 ### اختيار عمود عادي لاختبار المحفزات
 
 الخطأ `column "id" can only be updated to DEFAULT` كان اختيارًا خاطئًا لعمود GENERATED، لا غياب محفز. أُلغيت المعاملة بما فيها صف الاختبار وSET المؤقت. يختار النص الآن أول pg_attribute عادي غير مولد بخلاف id لكل جدول، ويظل request_results على action. البصمة `678ff5ba77a1a0d6e522f15c47cd3dfd27c9fbe56f7561fe6b91766e656269f6`. أصبح fixture بـGENERATED ALWAYS AS IDENTITY لإعادة إنتاج العيب، والاختبارات 6/6. يلزم اعتماد منفصل ولا تفعيل.
+
+### نجاح enforcement الإنتاجي بدور التطبيق — 2026-11-11
+
+أعاد النص ذو البصمة `678ff5ba77a1a0d6e522f15c47cd3dfd27c9fbe56f7561fe6b91766e656269f6` `PASS_APP_ROLE_CONTROLS_ROLLED_BACK`: SELECT/INSERT مسموحان، رفض UPDATE على المحفزات العشرة، DELETE/TRUNCATE مرفوضان، probe_rows_after_rollback=0، وapp_set_option_after_rollback=false. بالإضافة إلى جرد 19 RLS/19 سياسة/10 محفزات الملتزم ومنع الدور الثالث في الاختبار المخبري، يُغلق مانع RLS_AND_TRIGGER_ENFORCEMENT_TESTED_WITH_THE_APP_ROLE. النطاق لا يدّعي اختبار دور ثالث إنتاجيًا أو اتصال Render؛ هوية التطبيق المنشور أُغلقت بدليلها المنفصل. لا تفعيل، والمانع التالي ذرية الجلسة وقواعد الوصول داخل المعاملات.
