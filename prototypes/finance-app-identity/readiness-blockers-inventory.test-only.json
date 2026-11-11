@@ -6,7 +6,7 @@
   "authorization_received_verbatim": "تكليف منفصل صريح بتحليل أوفلاين للموانع",
   "no_action_boundary": "NO_SRC_NO_RENDER_YAML_NO_PRODUCTION_SQL_NO_DEPLOY_NO_SYNC_NO_TRUE",
   "overall_status": "NOT_READY",
-  "blockers_resolved": 6,
+  "blockers_resolved": 7,
   "gates_opened": 0,
   "no_blanket_approval": true,
   "strict_reject_phrase": "تعذّر التحقق من نتيجة الطلب المحفوظ؛ يلزم مراجعة أو ترحيل الطلب القديم.",
@@ -105,12 +105,14 @@
     },
     {
       "id": "CASH_MOVEMENT_TIMING_AND_HUMAN_REVIEW_EVIDENCE",
-      "status": "UNRESOLVED",
-      "current_evidence": "لا إثبات توقيت الحركة النقدية ولا المراجعة البشرية؛ رد نقدي ممنوع قبل الجاهزية",
-      "gap": "لا دليل على أن الحركة تُسجَّل عند قرار المراجعة البشرية ولا على عدم وجود حركات يتيمة.",
-      "offline_design": "تحليل وصفي لمسار الطلب⇒القرار⇒الحركة على بيانات اصطناعية مخبرية فقط، مع قائمة فحوصات قبول.",
+      "status": "RESOLVED",
+      "current_evidence": "SYNTHETIC_DECISION_EVIDENCE_30_OF_30; NINE_LINKED_MOVEMENTS_ZERO_ORPHANS; TAMPER_AND_LATE_APPROVAL_DETECTED; FINANCE_ENABLED_FALSE",
+      "gap": "مغلق لاتساق الطلب⇒القرار⇒الحركة وتوقيت السجل على بيانات PGlite اصطناعية فقط؛ لا يثبت شخصًا بشريًا فعليًا أو تسليم نقد مادي أو سلامة بيانات قديمة/إنتاجية.",
+      "offline_design": "مدقق قراءة فقط يربط كل حركة بنوع الطلب والنتيجة والجهة والزمن والقرار السابق، مع حالات صفرية ورفض وإلغاء وكشف عبث وحركة خام يتيمة.",
       "acceptance_criteria": "ارتباط كل حركة بقرار بشري موثّق، وصفر حركات يتيمة، بلا أي اختبار رد نقدي حقيقي أو بيانات فعلية.",
-      "requires": "SEPARATE_REVIEWED_TEXT_THEN_SEPARATE_VERBATIM_APPROVAL_BEFORE_EXECUTION"
+      "requires": "SEPARATE_REVIEWED_TEXT_THEN_SEPARATE_VERBATIM_APPROVAL_BEFORE_EXECUTION",
+      "evidence_record": "../finance-cash-decision-audit/evidence.test-only.json",
+      "check_command": "npm run check:finance:decision-evidence"
     },
     {
       "id": "CONVERSION_WINDOW_DEFINED",
