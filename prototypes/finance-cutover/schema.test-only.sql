@@ -163,7 +163,7 @@ BEGIN
     'public.stock_levels','public.inventory_serials','public.inventory_openings','public.inventory_receipts','public.inventory_product_creations',
     'public.expense_categories','public.expenses','public.journal_entries',
     'finance_cutover_fixture.accounts','finance_cutover_fixture.checkpoints','finance_cutover_fixture.expenses','finance_cutover_fixture.payments',
-    'finance_cutover_fixture.movements','finance_cutover_fixture.historical','finance_cutover_fixture.requests','finance_cutover_fixture.audit_events'
+    'finance_cutover_fixture.transfers','finance_cutover_fixture.movements','finance_cutover_fixture.historical','finance_cutover_fixture.requests','finance_cutover_fixture.audit_events'
   ] LOOP
     SELECT c.relowner INTO owner_oid FROM pg_catalog.pg_class c WHERE c.oid=pg_catalog.to_regclass(obj) AND c.relkind='r';
     IF NOT FOUND OR owner_oid IN (legacy_oid,new_oid) THEN
