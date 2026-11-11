@@ -18,6 +18,7 @@ import type { PrismaClient } from "@prisma/client";
 import { createCommerceSale, recordCommerceCollection, recordCommerceRefund, returnCommerceSale } from "../src/lib/commerce-operations";
 import { FinanceProblem, type FinanceDatabase, type FinanceTransaction } from "../prototypes/finance-engine/types";
 import { listAccounts, openAccount, postCashCollectionInTransaction, postCashRefundInTransaction } from "../prototypes/finance-engine/engine";
+import { actor } from "./helpers/commerce-actor";
 
 const root=process.cwd();
 const read=(p:string)=>readFileSync(path.join(root,p),"utf8");
@@ -89,6 +90,7 @@ test("experiment: real commerce functions and finance lab share one disposable t
     // Same upgrade order as tests/catalog-sales.test.ts: the generated client and
     // src/lib/commerce-operations.ts read columns the older four-file fixture lacked.
     for (const f of ["tests/fixtures/inventory-baseline.sql","prisma/manual-inventory-upgrade.sql","prisma/manual-receiving-upgrade.sql","prisma/manual-commerce-upgrade.sql","prisma/manual-catalog-sales-upgrade.sql","prisma/manual-menu-scope-upgrade.sql","prisma/manual-cancel-permission-upgrade.sql","prisma/manual-discount-ceiling-upgrade.sql"]) await pg.exec(read(f));
+    await pg.exec(read("tests/fixtures/commerce-auth-sessions.sql"));
     await pg.exec(`INSERT INTO tax_rates(code,name_ar,rate,kind,effective_from,is_active) VALUES('LAB-EX','معفى وهمي',0,'EXEMPT','2000-01-01',TRUE);
       UPDATE products SET sale_price=20,tax_rate_id=3 WHERE id=2;
       INSERT INTO stock_levels(warehouse_id,product_id,qty_on_hand,avg_cost) VALUES(1,2,30,4);
@@ -108,52 +110,52 @@ test("experiment: real commerce functions and finance lab share one disposable t
 
     await t.test("cash first payment posts once to actual custody; replay does not duplicate",async()=>{
       const request=saleInput(),bridged=probeBridge(db,{accountId:custody});
-      const saved=await createCommerceSale(bridged,3n,request);saleId=saved.id;
+      const saved=await createCommerceSale(bridged, actor(3n) ,request);saleId=saved.id;
       assert.equal(await balance(custody),"40.00");assert.equal(await balance(vault),"100.00");assert.equal(await movementCount(),1);
-      assert.equal((await createCommerceSale(bridged,3n,request)).replayed,true);assert.equal(await movementCount(),1);
+      assert.equal((await createCommerceSale(bridged, actor(3n) ,request)).replayed,true);assert.equal(await movementCount(),1);
       // Known integration blocker: the deployed sales parser/hash has no cash
       // account field, so a changed choice on the same request replays silently.
-      assert.equal((await createCommerceSale(probeBridge(db,{accountId:vault}),3n,request)).replayed,true);
+      assert.equal((await createCommerceSale(probeBridge(db,{accountId:vault}), actor(3n) ,request)).replayed,true);
       assert.equal(await balance(custody),"40.00");assert.equal(await balance(vault),"100.00");
     });
     await t.test("other payment methods do not touch physical cash; later cash goes to the selected vault",async()=>{
       const before=await movementCount();
-      await recordCommerceCollection(probeBridge(db,{}),2n,movement(saleId,"5","WALLET"));
+      await recordCommerceCollection(probeBridge(db,{}), actor(2n) ,movement(saleId,"5","WALLET"));
       assert.equal(await movementCount(),before);
       const input=movement(saleId,"5","CASH");const bridged=probeBridge(db,{accountId:vault});
-      await recordCommerceCollection(bridged,3n,input);assert.equal((await recordCommerceCollection(bridged,3n,input)).replayed,true);
+      await recordCommerceCollection(bridged, actor(3n) ,input);assert.equal((await recordCommerceCollection(bridged, actor(3n) ,input)).replayed,true);
       // The legacy collection hash also omits this test-only account choice.
-      assert.equal((await recordCommerceCollection(probeBridge(db,{accountId:custody}),3n,input)).replayed,true);
+      assert.equal((await recordCommerceCollection(probeBridge(db,{accountId:custody}), actor(3n) ,input)).replayed,true);
       assert.equal(await balance(vault),"105.00");assert.equal(await movementCount(),before+1);
-      for(const method of ["CARD","BANK_TRANSFER","WALLET"])await createCommerceSale(probeBridge(db,{}),3n,saleInput(method));
+      for(const method of ["CARD","BANK_TRANSFER","WALLET"])await createCommerceSale(probeBridge(db,{}), actor(3n) ,saleInput(method));
       assert.equal(await balance(custody),"40.00");assert.equal(await balance(vault),"105.00");assert.equal(await movementCount(),before+1);
     });
     await t.test("invalid holder or a late ledger failure rolls back the sale and collection",async()=>{
       const beforeSales=await db.commerceSale.count(),beforeCollections=await db.commerceCollection.count(),beforeStock=(await db.stockLevel.findUniqueOrThrow({where:{warehouseId_productId:{warehouseId:1n,productId:2n}}})).qtyOnHand.toFixed(2);
-      await assert.rejects(()=>createCommerceSale(probeBridge(db,{accountId:otherVault}),3n,saleInput()),(error:unknown)=>error instanceof FinanceProblem&&error.code==="forbidden");
+      await assert.rejects(()=>createCommerceSale(probeBridge(db,{accountId:otherVault}), actor(3n) ,saleInput()),(error:unknown)=>error instanceof FinanceProblem&&error.code==="forbidden");
       assert.equal(await db.commerceSale.count(),beforeSales);assert.equal(await db.commerceCollection.count(),beforeCollections);
       assert.equal((await db.stockLevel.findUniqueOrThrow({where:{warehouseId_productId:{warehouseId:1n,productId:2n}}})).qtyOnHand.toFixed(2),beforeStock);
       await pg!.exec(`CREATE FUNCTION finance_lab.reject_lab_collection() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.kind='COLLECTION' THEN RAISE EXCEPTION 'late lab rejection'; END IF; RETURN NEW; END $$;
         CREATE TRIGGER reject_lab_collection BEFORE INSERT ON finance_lab.movements FOR EACH ROW EXECUTE FUNCTION finance_lab.reject_lab_collection();`);
       try {
-        await assert.rejects(()=>recordCommerceCollection(probeBridge(db,{accountId:custody}),3n,movement(saleId,"1","CASH")));
+        await assert.rejects(()=>recordCommerceCollection(probeBridge(db,{accountId:custody}), actor(3n) ,movement(saleId,"1","CASH")));
         assert.equal(await db.commerceCollection.count(),beforeCollections);assert.equal(await balance(custody),"40.00");
       } finally {await pg!.exec("DROP TRIGGER reject_lab_collection ON finance_lab.movements; DROP FUNCTION finance_lab.reject_lab_collection()");}
     });
     await t.test("return alone moves no cash; a NEW cash refund is refused before any write; the lab bridge still debits once",async()=>{
       const before=await movementCount();
-      await returnCommerceSale(probeBridge(db,{}),1n,{requestId:req(),saleId,cancel:true,accepted:true,lines:[]});
+      await returnCommerceSale(probeBridge(db,{}), actor(1n) ,{requestId:req(),saleId,cancel:true,accepted:true,lines:[]});
       assert.equal(await movementCount(),before);assert.equal(await balance(custody),"40.00");
       // Production now refuses a NEW cash refund before any write while
       // FINANCE_ENABLED is off. Assert no refund row, no movement, no balance
       // change: the old assumption that this service routes cash into the lab
       // no longer holds (the production finance callbacks are out of scope).
       const ref=movement(saleId,"5","CASH",true);
-      await assert.rejects(()=>recordCommerceRefund(probeBridge(db,{accountId:custody,expectedBalance:"40"}),2n,ref),/الرد النقدي متوقف للمراجعة/);
+      await assert.rejects(()=>recordCommerceRefund(probeBridge(db,{accountId:custody,expectedBalance:"40"}), actor(2n) ,ref),/الرد النقدي متوقف للمراجعة/);
       assert.equal(await db.commerceRefund.count(),0);
       assert.equal(await movementCount(),before);assert.equal(await balance(custody),"40.00");
       // Non-cash refunds remain recordable and never touch physical cash.
-      await recordCommerceRefund(probeBridge(db,{}),1n,movement(saleId,"3","CARD",true));
+      await recordCommerceRefund(probeBridge(db,{}), actor(1n) ,movement(saleId,"3","CARD",true));
       assert.equal(await movementCount(),before);assert.equal(await balance(custody),"40.00");
       // The laboratory's own one-transaction cash bridge is unchanged; exercise
       // it directly instead of pretending the production service calls it.

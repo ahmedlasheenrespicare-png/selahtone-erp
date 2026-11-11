@@ -18,6 +18,7 @@ import type { PrismaClient as ClientType } from "@prisma/client";
 
 import { InventoryProblem } from "../src/lib/inventory-operations";
 import { createCatalogSale, createSalesCategory, createSalesType, createSalesField, listCatalogAudit, loadSalesCatalog, setSalesCategoryActive, setSalesTypeActive, setSalesFieldActive, updateSalesCategory, updateSalesType, updateSalesField } from "../src/lib/catalog-sales";
+import { actor } from "./helpers/commerce-actor";
 
 const root = process.cwd();
 const read = (f: string) => readFileSync(path.join(root, f), "utf8");
@@ -44,7 +45,7 @@ test("catalog sales run without a warehouse, without stock and with unknown tax"
     const { PrismaClient: TestClient } = localRequire(path.join(tmp, "client")) as { PrismaClient: typeof import("@prisma/client").PrismaClient };
 
     pg = new PGlite();
-    await pg.exec(read("tests/fixtures/inventory-baseline.sql"));
+    await pg.exec(read("tests/fixtures/inventory-baseline.sql")); await pg.exec(read("tests/fixtures/commerce-auth-sessions.sql"));
     await pg.exec(read("prisma/manual-inventory-upgrade.sql"));
     await pg.exec(read("prisma/manual-receiving-upgrade.sql"));
     await pg.exec(read("prisma/manual-commerce-upgrade.sql"));
@@ -77,7 +78,7 @@ test("catalog sales run without a warehouse, without stock and with unknown tax"
 
     await t.test("a sale is recorded without stock, serials or tax", async () => {
       const input = saleInput();
-      const result = await createCatalogSale(client, 3n, input);
+      const result = await createCatalogSale(client, actor(3n) , input);
       const saved = await client.commerceSale.findUniqueOrThrow({ where: { id: BigInt(result.id) }, include: { lines: true, collections: true } });
       assert.equal(result.replayed, false);
       assert.equal(saved.warehouseId, null);
@@ -113,44 +114,44 @@ test("catalog sales run without a warehouse, without stock and with unknown tax"
 
     await t.test("idempotency replays the same request and rejects a changed one", async () => {
       const input = saleInput();
-      const first = await createCatalogSale(client, 3n, input);
+      const first = await createCatalogSale(client, actor(3n) , input);
       assert.equal(first.replayed, false);
-      assert.equal((await createCatalogSale(client, 3n, input)).replayed, true);
-      await expectProblem(() => createCatalogSale(client, 3n, { ...input, customerName: "اسم آخر" }), /بيانات مختلفة/);
+      assert.equal((await createCatalogSale(client, actor(3n) , input)).replayed, true);
+      await expectProblem(() => createCatalogSale(client, actor(3n) , { ...input, customerName: "اسم آخر" }), /بيانات مختلفة/);
       assert.equal(await client.commerceSale.count(), 2);
     });
 
     await t.test("staff limits, branches and required fields are enforced", async () => {
-      await expectProblem(() => createCatalogSale(client, 3n, saleInput({ branchId: "2" })), /صلاحية/);
-      await expectProblem(() => createCatalogSale(client, 2n, saleInput()), /صلاحية/);
-      await expectProblem(() => createCatalogSale(client, 1n, saleInput({ branchId: "999" })), /الفرع غير موجود/);
-      await expectProblem(() => createCatalogSale(client, 3n, saleInput({ discount: "50" })), /الحد المسموح/);
-      await expectProblem(() => createCatalogSale(client, 3n, saleInput({ initialPayment: "500" })), /التحصيل|المتبقي/);
-      await expectProblem(() => createCatalogSale(client, 3n, saleInput({ lines: [maintenanceLine({ ...filled, condition_note: "" })] })), /بيان الحالة/);
-      await expectProblem(() => createCatalogSale(client, 3n, saleInput({ lines: [{ typeId: battery.id, quantity: "1", unitPrice: "10", details: [] }, { typeId: battery.id, quantity: "1", unitPrice: "10", details: [] }] })), /لا تكرر/);
-      await expectProblem(() => createCatalogSale(client, 3n, saleInput({ lines: [{ typeId: maintenance.id, quantity: "1", unitPrice: "10", details: [{ key: "unknown_field", value: "x" }] }] })), /غير معروفة|غير محددة|راجع/);
+      await expectProblem(() => createCatalogSale(client, actor(3n) , saleInput({ branchId: "2" })), /صلاحية/);
+      await expectProblem(() => createCatalogSale(client, actor(2n) , saleInput()), /صلاحية/);
+      await expectProblem(() => createCatalogSale(client, actor(1n) , saleInput({ branchId: "999" })), /الفرع غير موجود/);
+      await expectProblem(() => createCatalogSale(client, actor(3n) , saleInput({ discount: "50" })), /الحد المسموح/);
+      await expectProblem(() => createCatalogSale(client, actor(3n) , saleInput({ initialPayment: "500" })), /التحصيل|المتبقي/);
+      await expectProblem(() => createCatalogSale(client, actor(3n) , saleInput({ lines: [maintenanceLine({ ...filled, condition_note: "" })] })), /بيان الحالة/);
+      await expectProblem(() => createCatalogSale(client, actor(3n) , saleInput({ lines: [{ typeId: battery.id, quantity: "1", unitPrice: "10", details: [] }, { typeId: battery.id, quantity: "1", unitPrice: "10", details: [] }] })), /لا تكرر/);
+      await expectProblem(() => createCatalogSale(client, actor(3n) , saleInput({ lines: [{ typeId: maintenance.id, quantity: "1", unitPrice: "10", details: [{ key: "unknown_field", value: "x" }] }] })), /غير معروفة|غير محددة|راجع/);
       assert.equal(await client.commerceSale.count(), 2);
     });
 
     await t.test("a stopped type cannot be sold, and stopping keeps history", async () => {
-      await setSalesTypeActive(client, 1n, { requestId: randomUUID(), id: battery.id, active: false, reason: "إيقاف تجريبي" });
-      await expectProblem(() => setSalesTypeActive(client, 3n, { requestId: randomUUID(), id: battery.id, active: true, reason: "محاولة من موظف" }), /للمدير فقط/);
-      await expectProblem(() => createCatalogSale(client, 3n, saleInput()), /غير متاح أو موقوف/);
+      await setSalesTypeActive(client, actor(1n) , { requestId: randomUUID(), id: battery.id, active: false, reason: "إيقاف تجريبي" });
+      await expectProblem(() => setSalesTypeActive(client, actor(3n) , { requestId: randomUUID(), id: battery.id, active: true, reason: "محاولة من موظف" }), /للمدير فقط/);
+      await expectProblem(() => createCatalogSale(client, actor(3n) , saleInput()), /غير متاح أو موقوف/);
       const stopped = await loadSalesCatalog(client);
       assert.equal(stopped[0]!.types.some((type) => type.id === battery.id), false);
       const all = await loadSalesCatalog(client, true);
       const row = all[0]!.types.find((type) => type.id === battery.id)!;
       assert.equal(row.isActive, false);
-      await setSalesTypeActive(client, 1n, { requestId: randomUUID(), id: battery.id, active: true, reason: "إعادة تشغيل بعد المراجعة" });
+      await setSalesTypeActive(client, actor(1n) , { requestId: randomUUID(), id: battery.id, active: true, reason: "إعادة تشغيل بعد المراجعة" });
     });
 
     await t.test("catalog administration is manager-only, audited and replayable", async () => {
-      await expectProblem(() => createSalesCategory(client, 3n, { requestId: randomUUID(), code: "NEW", nameAr: "جديد", sortOrder: 5 }), /للمدير فقط/);
+      await expectProblem(() => createSalesCategory(client, actor(3n) , { requestId: randomUUID(), code: "NEW", nameAr: "جديد", sortOrder: 5 }), /للمدير فقط/);
       const requestId = randomUUID();
-      const created = await createSalesCategory(client, 1n, { requestId, code: "NEW", nameAr: "جديد", sortOrder: 5 });
+      const created = await createSalesCategory(client, actor(1n) , { requestId, code: "NEW", nameAr: "جديد", sortOrder: 5 });
       assert.equal(created.replayed, false);
-      assert.equal((await createSalesCategory(client, 1n, { requestId, code: "NEW", nameAr: "جديد", sortOrder: 5 })).replayed, true);
-      await expectProblem(() => createSalesCategory(client, 1n, { requestId: randomUUID(), code: "NEW", nameAr: "مكرر", sortOrder: 6 }), /مستخدم بالفعل|تعارض/);
+      assert.equal((await createSalesCategory(client, actor(1n) , { requestId, code: "NEW", nameAr: "جديد", sortOrder: 5 })).replayed, true);
+      await expectProblem(() => createSalesCategory(client, actor(1n) , { requestId: randomUUID(), code: "NEW", nameAr: "مكرر", sortOrder: 6 }), /مستخدم بالفعل|تعارض/);
       const audit = await listCatalogAudit(client, 1n);
       assert.ok(audit.length >= 3);
       assert.equal(audit[0]!.entity, "CATEGORY");
@@ -160,59 +161,59 @@ test("catalog sales run without a warehouse, without stock and with unknown tax"
       await expectProblem(() => listCatalogAudit(client, 3n), /للمدير فقط/);
       // A saved audit's operation and target are reliable discriminators even
       // for older rows, unlike inventing a request hash for legacy data.
-      await expectProblem(() => createSalesType(client, 1n, {requestId,categoryId:created.id,nameAr:"صنف آخر",sortOrder:1}), /عملية مختلفة/);
-      await expectProblem(() => setSalesCategoryActive(client, 1n, {requestId,id:created.id,active:false,reason:"سبب اصطناعي"}), /عملية مختلفة/);
-      const other=await createSalesCategory(client,1n,{requestId:randomUUID(),code:"OTHER_TEST",nameAr:"تصنيف ثان",sortOrder:6});
+      await expectProblem(() => createSalesType(client, actor(1n) , {requestId,categoryId:created.id,nameAr:"صنف آخر",sortOrder:1}), /عملية مختلفة/);
+      await expectProblem(() => setSalesCategoryActive(client, actor(1n) , {requestId,id:created.id,active:false,reason:"سبب اصطناعي"}), /عملية مختلفة/);
+      const other=await createSalesCategory(client, actor(1n) ,{requestId:randomUUID(),code:"OTHER_TEST",nameAr:"تصنيف ثان",sortOrder:6});
       const update={requestId:randomUUID(),id:created.id,nameAr:"اسم بعد المراجعة",sortOrder:7};
-      const updated=await updateSalesCategory(client,1n,update);
+      const updated=await updateSalesCategory(client, actor(1n) ,update);
       assert.equal(updated.replayed,false);
-      assert.deepEqual(await updateSalesCategory(client,1n,update),{id:created.id,replayed:true});
+      assert.deepEqual(await updateSalesCategory(client, actor(1n) ,update),{id:created.id,replayed:true});
       // Audit data can disambiguate the saved values without inventing a hash.
-      await expectProblem(()=>updateSalesCategory(client,1n,{...update,nameAr:"اسم مختلف"}),/بيانات مختلفة/);
-      await expectProblem(()=>updateSalesCategory(client,1n,{...update,sortOrder:8}),/بيانات مختلفة/);
+      await expectProblem(()=>updateSalesCategory(client, actor(1n) ,{...update,nameAr:"اسم مختلف"}),/بيانات مختلفة/);
+      await expectProblem(()=>updateSalesCategory(client, actor(1n) ,{...update,sortOrder:8}),/بيانات مختلفة/);
       assert.equal((await client.salesItemCategory.findUniqueOrThrow({where:{id:BigInt(created.id)}})).nameAr,"اسم بعد المراجعة");
-      await expectProblem(()=>updateSalesCategory(client,1n,{...update,id:other.id}),/عملية مختلفة/);
-      await expectProblem(()=>setSalesCategoryActive(client,1n,{requestId:update.requestId,id:created.id,active:false,reason:"سبب اصطناعي"}),/عملية مختلفة/);
+      await expectProblem(()=>updateSalesCategory(client, actor(1n) ,{...update,id:other.id}),/عملية مختلفة/);
+      await expectProblem(()=>setSalesCategoryActive(client, actor(1n) ,{requestId:update.requestId,id:created.id,active:false,reason:"سبب اصطناعي"}),/عملية مختلفة/);
       assert.equal((await client.salesItemCategory.findUniqueOrThrow({where:{id:BigInt(other.id)}})).nameAr,"تصنيف ثان");
       assert.equal((await client.salesItemCategory.findUniqueOrThrow({where:{id:BigInt(created.id)}})).isActive,true);
       assert.equal(await client.salesCatalogAudit.count({where:{requestId:update.requestId}}),1);
-      await expectProblem(()=>createSalesCategory(client,1n,{requestId,code:"NEW",nameAr:"مختلف",sortOrder:5}),/بيانات مختلفة/);
-      await expectProblem(()=>createSalesCategory(client,1n,{requestId,code:"OTHER_CODE",nameAr:"جديد",sortOrder:5}),/بيانات مختلفة/);
+      await expectProblem(()=>createSalesCategory(client, actor(1n) ,{requestId,code:"NEW",nameAr:"مختلف",sortOrder:5}),/بيانات مختلفة/);
+      await expectProblem(()=>createSalesCategory(client, actor(1n) ,{requestId,code:"OTHER_CODE",nameAr:"جديد",sortOrder:5}),/بيانات مختلفة/);
       // Replay is tied to the saved audit, not the entity's current values.
-      assert.deepEqual(await createSalesCategory(client,1n,{requestId,code:"NEW",nameAr:"جديد",sortOrder:5}),{id:created.id,replayed:true});
+      assert.deepEqual(await createSalesCategory(client, actor(1n) ,{requestId,code:"NEW",nameAr:"جديد",sortOrder:5}),{id:created.id,replayed:true});
       const status={requestId:randomUUID(),id:created.id,active:false,reason:"سبب أول"};
-      assert.equal((await setSalesCategoryActive(client,1n,status)).replayed,false);
-      assert.deepEqual(await setSalesCategoryActive(client,1n,status),{id:created.id,replayed:true});
-      await expectProblem(()=>setSalesCategoryActive(client,1n,{...status,reason:"سبب مختلف"}),/بيانات مختلفة/);
+      assert.equal((await setSalesCategoryActive(client, actor(1n) ,status)).replayed,false);
+      assert.deepEqual(await setSalesCategoryActive(client, actor(1n) ,status),{id:created.id,replayed:true});
+      await expectProblem(()=>setSalesCategoryActive(client, actor(1n) ,{...status,reason:"سبب مختلف"}),/بيانات مختلفة/);
       const typeInput={requestId:randomUUID(),categoryId:created.id,nameAr:"نوع إضافي",sortOrder:3};
-      const type=await createSalesType(client,1n,typeInput);
-      assert.deepEqual(await createSalesType(client,1n,typeInput),{id:type.id,replayed:true});
-      await expectProblem(()=>createSalesType(client,1n,{...typeInput,categoryId:other.id}),/بيانات مختلفة/);
+      const type=await createSalesType(client, actor(1n) ,typeInput);
+      assert.deepEqual(await createSalesType(client, actor(1n) ,typeInput),{id:type.id,replayed:true});
+      await expectProblem(()=>createSalesType(client, actor(1n) ,{...typeInput,categoryId:other.id}),/بيانات مختلفة/);
       const typeUpdate={requestId:randomUUID(),id:type.id,nameAr:"نوع محدث",sortOrder:4};
-      await updateSalesType(client,1n,typeUpdate);
-      assert.deepEqual(await updateSalesType(client,1n,typeUpdate),{id:type.id,replayed:true});
-      await expectProblem(()=>updateSalesType(client,1n,{...typeUpdate,sortOrder:9}),/بيانات مختلفة/);
+      await updateSalesType(client, actor(1n) ,typeUpdate);
+      assert.deepEqual(await updateSalesType(client, actor(1n) ,typeUpdate),{id:type.id,replayed:true});
+      await expectProblem(()=>updateSalesType(client, actor(1n) ,{...typeUpdate,sortOrder:9}),/بيانات مختلفة/);
       const fieldInput={requestId:randomUUID(),typeId:type.id,fieldKey:"field_test",labelAr:"حقل إضافي",isRequired:true,sortOrder:1};
-      const field=await createSalesField(client,1n,fieldInput);
-      assert.deepEqual(await createSalesField(client,1n,fieldInput),{id:field.id,replayed:true});
-      await expectProblem(()=>createSalesField(client,1n,{...fieldInput,isRequired:false}),/بيانات مختلفة/);
-      await expectProblem(()=>createSalesField(client,1n,{...fieldInput,fieldKey:"field_other"}),/بيانات مختلفة/);
+      const field=await createSalesField(client, actor(1n) ,fieldInput);
+      assert.deepEqual(await createSalesField(client, actor(1n) ,fieldInput),{id:field.id,replayed:true});
+      await expectProblem(()=>createSalesField(client, actor(1n) ,{...fieldInput,isRequired:false}),/بيانات مختلفة/);
+      await expectProblem(()=>createSalesField(client, actor(1n) ,{...fieldInput,fieldKey:"field_other"}),/بيانات مختلفة/);
       const fieldUpdate={requestId:randomUUID(),id:field.id,labelAr:"حقل محدث",isRequired:false,sortOrder:2};
-      await updateSalesField(client,1n,fieldUpdate);
-      assert.deepEqual(await updateSalesField(client,1n,fieldUpdate),{id:field.id,replayed:true});
-      await expectProblem(()=>updateSalesField(client,1n,{...fieldUpdate,labelAr:"حقل آخر"}),/بيانات مختلفة/);
+      await updateSalesField(client, actor(1n) ,fieldUpdate);
+      assert.deepEqual(await updateSalesField(client, actor(1n) ,fieldUpdate),{id:field.id,replayed:true});
+      await expectProblem(()=>updateSalesField(client, actor(1n) ,{...fieldUpdate,labelAr:"حقل آخر"}),/بيانات مختلفة/);
       const fieldStatus={requestId:randomUUID(),id:field.id,active:false,reason:"إيقاف مؤقت"};
-      await setSalesFieldActive(client,1n,fieldStatus);
-      assert.deepEqual(await setSalesFieldActive(client,1n,fieldStatus),{id:field.id,replayed:true});
-      await expectProblem(()=>setSalesFieldActive(client,1n,{...fieldStatus,reason:"سبب آخر"}),/بيانات مختلفة/);
+      await setSalesFieldActive(client, actor(1n) ,fieldStatus);
+      assert.deepEqual(await setSalesFieldActive(client, actor(1n) ,fieldStatus),{id:field.id,replayed:true});
+      await expectProblem(()=>setSalesFieldActive(client, actor(1n) ,{...fieldStatus,reason:"سبب آخر"}),/بيانات مختلفة/);
       // An incomplete historic audit is never turned into an invented request
       // identity, nor is a second write performed as a fallback.
       const legacy={requestId:randomUUID(),code:"LEGACY_TEST",nameAr:"سجل قديم",sortOrder:5};
-      const legacySaved=await createSalesCategory(client,1n,legacy);
+      const legacySaved=await createSalesCategory(client, actor(1n) ,legacy);
       await client.$executeRawUnsafe("UPDATE public.sales_catalog_audit SET after_data=NULL WHERE request_id=$1::uuid",legacy.requestId);
-      await expectProblem(()=>createSalesCategory(client,1n,legacy),/لا تتوفر بيانات كافية/);
+      await expectProblem(()=>createSalesCategory(client, actor(1n) ,legacy),/لا تتوفر بيانات كافية/);
       await client.$executeRawUnsafe("UPDATE public.sales_catalog_audit SET after_data=jsonb_build_object('code','LEGACY_TEST') WHERE request_id=$1::uuid",legacy.requestId);
-      await expectProblem(()=>createSalesCategory(client,1n,legacy),/لا تتوفر بيانات كافية/);
+      await expectProblem(()=>createSalesCategory(client, actor(1n) ,legacy),/لا تتوفر بيانات كافية/);
       assert.equal(await client.salesItemCategory.count({where:{id:BigInt(legacySaved.id)}}),1);
       assert.equal(await client.salesCatalogAudit.count({where:{requestId:legacy.requestId}}),1);
     });

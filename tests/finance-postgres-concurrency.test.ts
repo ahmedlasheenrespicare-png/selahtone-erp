@@ -52,6 +52,7 @@ import { auditSyntheticUnmatchedReviews } from "../prototypes/finance-holder-che
 import { auditSyntheticHolderCorrections } from "../prototypes/finance-holder-checkpoint-audit/corrections.test-only";
 import { auditSyntheticHolderCheckpoints } from "../prototypes/finance-holder-checkpoint-audit/audit.test-only";
 import type { FinanceDatabase, FinanceTransaction } from "../src/lib/finance/types";
+import { actor } from "./helpers/commerce-actor";
 
 const root = process.cwd(), req = createRequire(join(root, "package.json"));
 const read = (f: string) => readFileSync(join(root, f), "utf8");
@@ -1798,7 +1799,7 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     admin = new Client(config); await admin.connect();
     const { buildDdl } = req("./scripts/local-pglite-ddl.cjs") as { buildDdl: () => string };
     await admin.query(buildDdl());
-    await admin.query(read("scripts/local-pglite-seed.sql").replaceAll("__PREVIEW_BCRYPT__", "synthetic"));
+    await admin.query(read("scripts/local-pglite-seed.sql").replaceAll("__PREVIEW_BCRYPT__", "synthetic"));await admin.query(read("tests/fixtures/commerce-auth-sessions.sql"));
     await admin.query("SET selahtone.finance_release_candidate_test_only='yes'");
     for (const f of ["prototypes/finance-release/release-candidate.test-only.sql", "prisma/manual-settlement-upgrade.sql", "prisma/manual-custody-closure-upgrade.sql", "prisma/manual-custody-and-count-requests.sql"]) await admin.query(read(f));
     await admin.query("UPDATE commerce_sales SET created_by_id=3 WHERE id=2; UPDATE commerce_sales SET total=9000 WHERE id=9; UPDATE commerce_collections SET created_at=now()-interval '10 days'");
@@ -1814,7 +1815,7 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     const pendingSettlement = requestSettlement(gatedFinance(prisma, first), "3", settlement());
     await first.entered;
     const rejectedInput = collection();
-    const rejectedPayment = recordCommerceCollection(prisma, 3n, rejectedInput);
+    const rejectedPayment = recordCommerceCollection(prisma, actor(3n) , rejectedInput);
     await waitForLock(admin, "accounts"); first.release();
     const created = await pendingSettlement;
     await assert.rejects(rejectedPayment, /طلب تسوية أو جرد مفتوح/);
@@ -1822,7 +1823,7 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     await cancelSettlement(db, "3", { requestId: randomUUID(), settlementId: created.id, reason: "إلغاء اختبار" });
     // Collection owns the account; request waits with its own older snapshot.
     const second = gate();
-    const acceptedPayment = recordCommerceCollection(gatedCommerce(prisma, second), 3n, collection());
+    const acceptedPayment = recordCommerceCollection(gatedCommerce(prisma, second), actor(3n) , collection());
     await second.entered;
     const laterSettlement = requestSettlement(db, "3", settlement());
     await waitForLock(admin, "accounts"); second.release();
@@ -1838,7 +1839,7 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
         ? requestCountFromHolder(gatedFinance(prisma, g), "1", { requestId: randomUUID(), accountId: custody.id, reason: "جرد موجه" })
         : requestCashCount(gatedFinance(prisma, g), "1", { requestId: randomUUID(), accountId: custody.id, expectedBalance: "10", countedAmount: "10", reason: "جرد مباشر", actuallyCounted: true }, today);
       await g.entered;
-      const blocked = recordCommerceCollection(prisma, 3n, collection());
+      const blocked = recordCommerceCollection(prisma, actor(3n) , collection());
       await waitForLock(admin, "accounts"); g.release();
       const count = await opening;
       await assert.rejects(blocked, /طلب تسوية أو جرد مفتوح/);
@@ -1847,7 +1848,7 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     // A count begun before a concurrent committed collection is retried and
     // rejects the obsolete expected amount instead of saving it.
     const countRace = gate();
-    const paymentFirst = recordCommerceCollection(gatedCommerce(prisma, countRace), 3n, collection());
+    const paymentFirst = recordCommerceCollection(gatedCommerce(prisma, countRace), actor(3n) , collection());
     await countRace.entered;
     const staleCount = requestCashCount(db, "1", { requestId: randomUUID(), accountId: custody.id, expectedBalance: "10", countedAmount: "10", reason: "جرد قديم", actuallyCounted: true }, today);
     await waitForLock(admin, "accounts"); countRace.release();
@@ -1860,14 +1861,14 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     // committed collection after retry and replay must not duplicate it.
     const directedRace = gate();
     const directedCollectionInput = collection();
-    const directedCollection = recordCommerceCollection(gatedCommerce(prisma, directedRace), 3n, directedCollectionInput);
+    const directedCollection = recordCommerceCollection(gatedCommerce(prisma, directedRace), actor(3n) , directedCollectionInput);
     await directedRace.entered;
     const directedInput = { requestId: randomUUID(), accountId: custody.id, reason: "جرد موجّه بعد تحصيل" };
     const directedRequest = requestCountFromHolder(db, "1", directedInput);
     try { await waitForLock(admin, "accounts"); } finally { directedRace.release(); }
     await directedCollection;
     const directedCount = await directedRequest;
-    assert.equal((await recordCommerceCollection(prisma, 3n, directedCollectionInput)).replayed, true);
+    assert.equal((await recordCommerceCollection(prisma, actor(3n) , directedCollectionInput)).replayed, true);
     assert.equal((await requestCountFromHolder(db, "1", directedInput)).replayed, true);
     const directedSubmit = { requestId: randomUUID(), countId: directedCount.id, countedAmount: "30", actuallyCounted: true };
     await submitHolderCount(db, "3", directedSubmit);
@@ -1883,9 +1884,9 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
       const before: string = (await admin.query<{ revision: string }>("SELECT revision::text AS revision FROM finance.accounts WHERE id=$1::bigint", [custody.id])).rows[0].revision;
       const saleRevision: number = (await prisma.commerceSale.findUniqueOrThrow({ where: { id: 2n }, select: { revision: true } })).revision;
       const g = gate();
-      const firstDelivery = recordCommerceCollection(gatedCommerce(prisma, g), 3n, input);
+      const firstDelivery = recordCommerceCollection(gatedCommerce(prisma, g), actor(3n) , input);
       await g.entered;
-      const secondDelivery = recordCommerceCollection(prisma, 3n, changed ? { ...input, amount: "11" } : input);
+      const secondDelivery = recordCommerceCollection(prisma, actor(3n) , changed ? { ...input, amount: "11" } : input);
       // Attach the rejection handler before releasing the winner.
       const outcome = secondDelivery.then(value => ({ value }), error => ({ error }));
       try { await waitForLock(admin, "commerce_sales"); } finally { g.release(); }
@@ -1912,9 +1913,9 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     const firstInput = { ...collection(), saleId: limitedSale };
     const secondInput = { ...collection(), saleId: limitedSale };
     const limitGate = gate();
-    const limitedWinner = recordCommerceCollection(gatedCommerce(prisma, limitGate), 3n, firstInput);
+    const limitedWinner = recordCommerceCollection(gatedCommerce(prisma, limitGate), actor(3n) , firstInput);
     await limitGate.entered;
-    const limitedLoser = recordCommerceCollection(prisma, 3n, secondInput).then(value => ({ value }), error => ({ error }));
+    const limitedLoser = recordCommerceCollection(prisma, actor(3n) , secondInput).then(value => ({ value }), error => ({ error }));
     try { await waitForLock(admin, "commerce_sales"); } finally { limitGate.release(); }
     await limitedWinner;
     const limitedOutcome = await limitedLoser;
@@ -1950,13 +1951,13 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
         return work(observed);
       },options as never);
     }}) as PrismaClient;
-    await assert.rejects(()=>createCommerceSale(observedStockDb,3n,missingSerialSale),/سيريال/);
+    await assert.rejects(()=>createCommerceSale(observedStockDb, actor(3n) ,missingSerialSale),/سيريال/);
     assert.equal(stockDecrements,1,"the attempted stock decrement ran before serial validation failed");
     assert.deepEqual((await admin.query<{qty:string;cost:string}>("SELECT qty_on_hand::text AS qty,avg_cost::text AS cost FROM stock_levels WHERE warehouse_id=1 AND product_id=1")).rows[0],stockBeforeFailure);
     assert.equal((await admin.query<{revision:string}>("SELECT revision::text AS revision FROM finance.accounts WHERE id=$1::bigint",[custody.id])).rows[0].revision,revisionBeforeFailure);
     assert.equal((await admin.query<{n:number}>("SELECT count(*)::int AS n FROM commerce_sales WHERE request_id=$1::uuid",[missingSerialSale.requestId])).rows[0].n,0);
     assert.equal((await admin.query<{n:number}>("SELECT count(*)::int AS n FROM commerce_collections WHERE request_id=$1::uuid",[missingSerialSale.requestId])).rows[0].n,0);
-    for (const sale of [() => createCatalogSale(prisma!, 3n, base), () => createCommerceSale(prisma!, 3n, stock)]) {
+    for (const sale of [() => createCatalogSale(prisma!, actor(3n) , base), () => createCommerceSale(prisma!, actor(3n) , stock)]) {
       const g = gate(); const request = requestCountFromHolder(gatedFinance(prisma, g), "1", { requestId: randomUUID(), accountId: custody.id, reason: "جرد موجه" });
       await g.entered; const rejected = sale();
       await waitForLock(admin, "accounts"); g.release(); const count = await request;
@@ -2012,7 +2013,7 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     for (const point of ["collection","revision"] as const) {
       injectionPoint=point;
       for (const [kind,body] of [["catalog",{...catalogInitial,requestId:randomUUID()}],["stock",{...inventoryInitial,requestId:randomUUID()}]] as const) {
-        const run=()=>kind==="catalog" ? createCatalogSale(failAfterInitialCollection,410n,body) : createCommerceSale(failAfterInitialCollection,410n,body);
+        const run=()=>kind==="catalog" ? createCatalogSale(failAfterInitialCollection, actor(410n) ,body) : createCommerceSale(failAfterInitialCollection, actor(410n) ,body);
         await assert.rejects(run,point==="collection" ? /synthetic after initial collection/ : /synthetic after custody revision/);
         rolledBackRequests.push({kind,body});
         assert.equal((await admin.query<{n:number}>("SELECT count(*)::int AS n FROM commerce_sales WHERE request_id=$1::uuid",[body.requestId])).rows[0].n,0);
@@ -2022,8 +2023,8 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     assert.equal(injectedCollections,2); assert.equal(injectedRevisions,2);
     assert.equal((await admin.query<{qty:string}>("SELECT qty_on_hand::text AS qty FROM stock_levels WHERE warehouse_id=$1::bigint AND product_id=2",[replayWarehouse])).rows[0].qty,"5.00");
     assert.equal((await admin.query<{revision:string}>("SELECT revision::text AS revision FROM finance.accounts WHERE id=$1::bigint",[replayCustody.id])).rows[0].revision,revisionBeforeInjected);
-    const createdCatalog=await createCatalogSale(prisma,410n,catalogInitial);
-    const createdInventory=await createCommerceSale(prisma,410n,inventoryInitial);
+    const createdCatalog=await createCatalogSale(prisma, actor(410n) ,catalogInitial);
+    const createdInventory=await createCommerceSale(prisma, actor(410n) ,inventoryInitial);
     assert.equal(createdCatalog.replayed,false); assert.equal(createdInventory.replayed,false);
     // Base identity must exactly match the current real services' saved sale
     // and initial collection hashes; the reviewed identity is not persisted.
@@ -2037,22 +2038,22 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     assert.equal((await admin.query<{qty:string}>("SELECT qty_on_hand::text AS qty FROM stock_levels WHERE warehouse_id=$1::bigint AND product_id=2",[replayWarehouse])).rows[0].qty,"4.00");
     const replayOpenCount=await requestCountFromHolder(db,"1",{requestId:randomUUID(),accountId:replayCustody.id,reason:"جرد لاختبار الإعادة"});
     const beforeInitialReplays: string=(await admin.query<{revision:string}>("SELECT revision::text AS revision FROM finance.accounts WHERE id=$1::bigint",[replayCustody.id])).rows[0].revision;
-    assert.deepEqual(await createCatalogSale(prisma,410n,catalogInitial),{id:createdCatalog.id,replayed:true});
-    assert.deepEqual(await createCommerceSale(prisma,410n,inventoryInitial),{id:createdInventory.id,replayed:true});
-    await assert.rejects(()=>createCatalogSale(prisma!,410n,{...catalogInitial,initialPayment:"8"}),/بيانات مختلفة/);
-    await assert.rejects(()=>createCommerceSale(prisma!,410n,{...inventoryInitial,initialPayment:"6"}),/بيانات مختلفة/);
-    await assert.rejects(()=>createCatalogSale(prisma!,410n,{...catalogInitial,requestId:randomUUID()}),/طلب تسوية أو جرد مفتوح/);
-    await assert.rejects(()=>createCommerceSale(prisma!,410n,{...inventoryInitial,requestId:randomUUID()}),/طلب تسوية أو جرد مفتوح/);
+    assert.deepEqual(await createCatalogSale(prisma, actor(410n) ,catalogInitial),{id:createdCatalog.id,replayed:true});
+    assert.deepEqual(await createCommerceSale(prisma, actor(410n) ,inventoryInitial),{id:createdInventory.id,replayed:true});
+    await assert.rejects(()=>createCatalogSale(prisma!, actor(410n) ,{...catalogInitial,initialPayment:"8"}),/بيانات مختلفة/);
+    await assert.rejects(()=>createCommerceSale(prisma!, actor(410n) ,{...inventoryInitial,initialPayment:"6"}),/بيانات مختلفة/);
+    await assert.rejects(()=>createCatalogSale(prisma!, actor(410n) ,{...catalogInitial,requestId:randomUUID()}),/طلب تسوية أو جرد مفتوح/);
+    await assert.rejects(()=>createCommerceSale(prisma!, actor(410n) ,{...inventoryInitial,requestId:randomUUID()}),/طلب تسوية أو جرد مفتوح/);
     assert.equal((await admin.query<{revision:string}>("SELECT revision::text AS revision FROM finance.accounts WHERE id=$1::bigint",[replayCustody.id])).rows[0].revision,beforeInitialReplays);
     assert.equal((await admin.query<{qty:string}>("SELECT qty_on_hand::text AS qty FROM stock_levels WHERE warehouse_id=$1::bigint AND product_id=2",[replayWarehouse])).rows[0].qty,"4.00");
     assert.equal((await admin.query<{n:number}>("SELECT count(*)::int AS n FROM commerce_collections WHERE sale_id IN ($1::bigint,$2::bigint)",[createdCatalog.id,createdInventory.id])).rows[0].n,2);
     await admin.query("UPDATE users SET status='SUSPENDED' WHERE id=410");
-    await assert.rejects(()=>createCatalogSale(prisma!,410n,catalogInitial),/صلاحية/);
-    await assert.rejects(()=>createCommerceSale(prisma!,410n,inventoryInitial),/صلاحية/);
+    await assert.rejects(()=>createCatalogSale(prisma!, actor(410n) ,catalogInitial),/صلاحية/);
+    await assert.rejects(()=>createCommerceSale(prisma!, actor(410n) ,inventoryInitial),/صلاحية/);
     await admin.query("UPDATE users SET status='ACTIVE' WHERE id=410");
     await cancelCashCount(db,"1",{requestId:randomUUID(),countId:replayOpenCount.id,reason:"إلغاء جرد اختبار"});
     for (const {kind,body} of rolledBackRequests) {
-      const run=()=>kind==="catalog" ? createCatalogSale(prisma!,410n,body) : createCommerceSale(prisma!,410n,body);
+      const run=()=>kind==="catalog" ? createCatalogSale(prisma!, actor(410n) ,body) : createCommerceSale(prisma!, actor(410n) ,body);
       const saved=await run(); assert.equal(saved.replayed,false);
       assert.deepEqual(await run(),{id:saved.id,replayed:true});
       assert.equal((await admin.query<{n:number}>("SELECT count(*)::int AS n FROM commerce_collections WHERE request_id=$1::uuid",[body.requestId])).rows[0].n,1);
@@ -2085,7 +2086,7 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
           return work(wrapped);
         },options as never);
       }}) as PrismaClient;
-      const run=(client:PrismaClient,input:unknown)=>kind==="catalog" ? createCatalogSale(client,410n,input) : createCommerceSale(client,410n,input);
+      const run=(client:PrismaClient,input:unknown)=>kind==="catalog" ? createCatalogSale(client, actor(410n) ,input) : createCommerceSale(client, actor(410n) ,input);
       const first=run(gatedInitial,body); await entered.entered;
       const second:Promise<{value:{id:string;replayed:boolean}}|{error:unknown}>=run(prisma,competitor).then(value=>({value}),error=>({error}));
       try {await waitForLock(admin,"accounts");} finally {entered.release();}
@@ -2128,8 +2129,8 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
         return work(wrapped);
       },options as never);
     }}) as PrismaClient;
-    const stockWinner=createCommerceSale(lockedStockSale,410n,winnerInput); await stockGate.entered;
-    const stockLoser:Promise<{value:{id:string;replayed:boolean}}|{error:unknown}>=createCommerceSale(prisma,411n,loserInput).then(value=>({value}),error=>({error}));
+    const stockWinner=createCommerceSale(lockedStockSale, actor(410n) ,winnerInput); await stockGate.entered;
+    const stockLoser:Promise<{value:{id:string;replayed:boolean}}|{error:unknown}>=createCommerceSale(prisma, actor(411n) ,loserInput).then(value=>({value}),error=>({error}));
     try {await waitForLock(admin,"stock_levels");} finally {stockGate.release();}
     const winningSale=await stockWinner;
     const losingSale:{value:{id:string;replayed:boolean}}|{error:unknown}=await stockLoser;
@@ -2142,8 +2143,8 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
       const after=revisionsAfterRace.find(row=>row.id===before.id)!;
       assert.equal(BigInt(after.revision),BigInt(before.revision)+(before.id===replayCustody.id?1n:0n));
     }
-    assert.deepEqual(await createCommerceSale(prisma,410n,winnerInput),{id:winningSale.id,replayed:true});
-    await assert.rejects(()=>createCommerceSale(prisma!,411n,loserInput),/الكمية المتاحة/);
+    assert.deepEqual(await createCommerceSale(prisma, actor(410n) ,winnerInput),{id:winningSale.id,replayed:true});
+    await assert.rejects(()=>createCommerceSale(prisma!, actor(411n) ,loserInput),/الكمية المتاحة/);
 
     // Reversed input line order is normalized by the real sale parser; both
     // transactions contend on the same first stock row rather than deadlocking.
@@ -2176,8 +2177,8 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
       if(key!=="$transaction") return Reflect.get(target,key,receiver);
       return (work:(tx:unknown)=>Promise<unknown>,options:unknown)=>{attemptsB++;return target.$transaction(work as never,options as never);};
     }}) as PrismaClient;
-    const orderedFirst=createCommerceSale(orderedDb,410n,oppositeA);await orderedGate.entered;
-    const orderedSecond=createCommerceSale(countedDb,411n,oppositeB);
+    const orderedFirst=createCommerceSale(orderedDb, actor(410n) ,oppositeA);await orderedGate.entered;
+    const orderedSecond=createCommerceSale(countedDb, actor(411n) ,oppositeB);
     try {await waitForLock(admin,"stock_levels");} finally {orderedGate.release();}
     const [orderedSavedA,orderedSavedB]=await Promise.all([orderedFirst,orderedSecond]);
     assert.ok(attemptsB>=2,"the waiting sale retries its old serializable snapshot");
@@ -2189,22 +2190,22 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
       assert.equal((await admin.query<{n:number}>("SELECT count(*)::int AS n FROM commerce_collections WHERE request_id=$1::uuid",[input.requestId])).rows[0].n,1);
     }
     const revAfterOrdered=(await admin.query<{id:string;revision:string}>("SELECT id::text AS id,revision::text AS revision FROM finance.accounts WHERE id IN ($1::bigint,$2::bigint) ORDER BY id",[replayCustody.id,secondCustody.id])).rows;
-    assert.deepEqual(await createCommerceSale(prisma,410n,oppositeA),{id:orderedSavedA.id,replayed:true});
-    assert.deepEqual(await createCommerceSale(prisma,410n,{...oppositeA,lines:[line3,line2]}),{id:orderedSavedA.id,replayed:true},"reordering lines preserves request identity");
-    assert.deepEqual(await createCommerceSale(prisma,411n,oppositeB),{id:orderedSavedB.id,replayed:true});
-    assert.deepEqual(await createCommerceSale(prisma,411n,{...oppositeB,lines:[line2,line3]}),{id:orderedSavedB.id,replayed:true});
-    await assert.rejects(()=>createCommerceSale(prisma!,410n,{...oppositeA,lines:[line2,{...line3,quantity:"2"}]}),/بيانات مختلفة/);
+    assert.deepEqual(await createCommerceSale(prisma, actor(410n) ,oppositeA),{id:orderedSavedA.id,replayed:true});
+    assert.deepEqual(await createCommerceSale(prisma, actor(410n) ,{...oppositeA,lines:[line3,line2]}),{id:orderedSavedA.id,replayed:true},"reordering lines preserves request identity");
+    assert.deepEqual(await createCommerceSale(prisma, actor(411n) ,oppositeB),{id:orderedSavedB.id,replayed:true});
+    assert.deepEqual(await createCommerceSale(prisma, actor(411n) ,{...oppositeB,lines:[line2,line3]}),{id:orderedSavedB.id,replayed:true});
+    await assert.rejects(()=>createCommerceSale(prisma!, actor(410n) ,{...oppositeA,lines:[line2,{...line3,quantity:"2"}]}),/بيانات مختلفة/);
     assert.deepEqual((await admin.query<{id:string;revision:string}>("SELECT id::text AS id,revision::text AS revision FROM finance.accounts WHERE id IN ($1::bigint,$2::bigint) ORDER BY id",[replayCustody.id,secondCustody.id])).rows,revAfterOrdered);
     assert.deepEqual((await admin.query<{product:string;qty:string}>("SELECT product_id::text AS product,qty_on_hand::text AS qty FROM stock_levels WHERE warehouse_id=$1::bigint AND product_id IN (2,3) ORDER BY product_id",[replayWarehouse])).rows,remainingStock);
 
     // Branch access is checked on replay as well. Direct SQL deliberately
     // creates this otherwise guarded synthetic state; it is not an admin path.
     await admin.query("UPDATE branches SET is_active=false WHERE id=410");
-    await assert.rejects(()=>createCatalogSale(prisma!,410n,catalogInitial),/غير نشط|صلاحية/);
-    await assert.rejects(()=>createCommerceSale(prisma!,410n,inventoryInitial),/غير نشط|صلاحية/);
+    await assert.rejects(()=>createCatalogSale(prisma!, actor(410n) ,catalogInitial),/غير نشط|صلاحية/);
+    await assert.rejects(()=>createCommerceSale(prisma!, actor(410n) ,inventoryInitial),/غير نشط|صلاحية/);
     await admin.query("UPDATE branches SET is_active=true WHERE id=410");
-    assert.deepEqual(await createCatalogSale(prisma,410n,catalogInitial),{id:createdCatalog.id,replayed:true});
-    assert.deepEqual(await createCommerceSale(prisma,410n,inventoryInitial),{id:createdInventory.id,replayed:true});
+    assert.deepEqual(await createCatalogSale(prisma, actor(410n) ,catalogInitial),{id:createdCatalog.id,replayed:true});
+    assert.deepEqual(await createCommerceSale(prisma, actor(410n) ,inventoryInitial),{id:createdInventory.id,replayed:true});
     // Existing sale parsers discard the experimental receipt field. Supplying
     // it to a current old request is therefore not a recorded acknowledgement.
     const extraCatalog={...catalogInitial,vaultReceived:true},extraInventory={...inventoryInitial,vaultReceived:true};
@@ -2212,12 +2213,12 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     assert.ok(parsedExtraCatalog.ok);assert.ok(parsedExtraInventory.ok);
     assert.equal(Object.hasOwn(parsedExtraCatalog.value,"vaultReceived"),false);
     assert.equal(Object.hasOwn(parsedExtraInventory.value,"vaultReceived"),false);
-    assert.deepEqual(await createCatalogSale(prisma,410n,extraCatalog),{id:createdCatalog.id,replayed:true});
-    assert.deepEqual(await createCommerceSale(prisma,410n,extraInventory),{id:createdInventory.id,replayed:true});
+    assert.deepEqual(await createCatalogSale(prisma, actor(410n) ,extraCatalog),{id:createdCatalog.id,replayed:true});
+    assert.deepEqual(await createCommerceSale(prisma, actor(410n) ,extraInventory),{id:createdInventory.id,replayed:true});
     // Both sale paths share the same request namespace; a request already
     // saved by the other path is a conflict, not a cross-path replay.
-    await assert.rejects(()=>createCatalogSale(prisma!,410n,{...catalogInitial,requestId:inventoryInitial.requestId}),/بيانات مختلفة/);
-    await assert.rejects(()=>createCommerceSale(prisma!,410n,{...inventoryInitial,requestId:catalogInitial.requestId}),/بيانات مختلفة/);
+    await assert.rejects(()=>createCatalogSale(prisma!, actor(410n) ,{...catalogInitial,requestId:inventoryInitial.requestId}),/بيانات مختلفة/);
+    await assert.rejects(()=>createCommerceSale(prisma!, actor(410n) ,{...inventoryInitial,requestId:catalogInitial.requestId}),/بيانات مختلفة/);
     assert.equal((await admin.query<{n:number}>("SELECT count(*)::int AS n FROM commerce_collections WHERE sale_id IN ($1::bigint,$2::bigint)",[createdCatalog.id,createdInventory.id])).rows[0].n,2);
     assert.deepEqual((await admin.query<{id:string;revision:string}>("SELECT id::text AS id,revision::text AS revision FROM finance.accounts WHERE id IN ($1::bigint,$2::bigint) ORDER BY id",[replayCustody.id,secondCustody.id])).rows,revAfterOrdered);
 
@@ -2250,9 +2251,9 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
           return work(wrapped);
         },options as never);
       }}) as PrismaClient;
-      const winner=winnerKind==="catalog"?createCatalogSale(uniqueWinner,winnerActor,catalogBody):createCommerceSale(uniqueWinner,winnerActor,stockBody);
+      const winner=winnerKind==="catalog"?createCatalogSale(uniqueWinner,actor(winnerActor),catalogBody):createCommerceSale(uniqueWinner,actor(winnerActor),stockBody);
       await uniqueGate.entered;
-      const loser:Promise<{value:{id:string;replayed:boolean}}|{error:unknown}>=(winnerKind==="catalog"?createCommerceSale(prisma,loserActor,stockBody):createCatalogSale(prisma,loserActor,catalogBody)).then(value=>({value}),error=>({error}));
+      const loser:Promise<{value:{id:string;replayed:boolean}}|{error:unknown}>=(winnerKind==="catalog"?createCommerceSale(prisma,actor(loserActor),stockBody):createCatalogSale(prisma,actor(loserActor),catalogBody)).then(value=>({value}),error=>({error}));
       try {await waitForLock(admin,"commerce_sales");} finally {uniqueGate.release();}
       const saved=await winner;
       const outcome:{value:{id:string;replayed:boolean}}|{error:unknown}=await loser;
@@ -2262,7 +2263,7 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
       assert.equal((await admin.query<{qty:string}>("SELECT qty_on_hand::text AS qty FROM stock_levels WHERE warehouse_id=$1::bigint AND product_id=2",[replayWarehouse])).rows[0].qty,winnerKind==="stock"?"0.00":"1.00");
       const revisionsAfter:Array<{id:string;revision:string}>=(await admin.query<{id:string;revision:string}>("SELECT id::text AS id,revision::text AS revision FROM finance.accounts WHERE id IN ($1::bigint,$2::bigint) ORDER BY id",[replayCustody.id,secondCustody.id])).rows;
       for(const before of revisionsBefore) assert.equal(BigInt(revisionsAfter.find(row=>row.id===before.id)!.revision),BigInt(before.revision)+(before.id===replayCustody.id?1n:0n));
-      assert.deepEqual(await (winnerKind==="catalog"?createCatalogSale(prisma,winnerActor,catalogBody):createCommerceSale(prisma,winnerActor,stockBody)),{id:saved.id,replayed:true});
+      assert.deepEqual(await (winnerKind==="catalog"?createCatalogSale(prisma,actor(winnerActor),catalogBody):createCommerceSale(prisma,actor(winnerActor),stockBody)),{id:saved.id,replayed:true});
     }
 
     // Observe selected ordering in the real initial-sale services. This trace
@@ -2304,7 +2305,7 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
         },options as never);
       }}) as PrismaClient;
       const body=kind==="catalog"?{...catalogInitial,requestId:randomUUID()}:{...inventoryInitial,requestId:randomUUID()};
-      const run=()=>kind==="catalog"?createCatalogSale(traced,410n,body):createCommerceSale(traced,410n,body);
+      const run=()=>kind==="catalog"?createCatalogSale(traced, actor(410n) ,body):createCommerceSale(traced, actor(410n) ,body);
       const saved=await run();
       assert.deepEqual(events,kind==="stock"?["sale_lookup","custody_lock","sale_create","stock_update","collection_create","revision_update"]:["sale_lookup","custody_lock","sale_create","collection_create","revision_update"]);
       events.length=0;
@@ -2349,10 +2350,10 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
       },options as never);
     }}) as PrismaClient;
     const laterInput={requestId:randomUUID(),saleId:createdCatalog.id,amount:"5",method:"CASH",actuallyPaid:false};
-    const laterSaved=await recordCommerceCollection(tracedCollection,410n,laterInput);
+    const laterSaved=await recordCommerceCollection(tracedCollection, actor(410n) ,laterInput);
     assert.deepEqual(collectTrace,["invoice_lock","collection_lookup","invoice_revision","custody_lock","collection_create","custody_revision"]);
     collectTrace.length=0;
-    assert.deepEqual(await recordCommerceCollection(tracedCollection,410n,laterInput),{id:laterSaved.id,replayed:true});
+    assert.deepEqual(await recordCommerceCollection(tracedCollection, actor(410n) ,laterInput),{id:laterSaved.id,replayed:true});
     assert.deepEqual(collectTrace,["invoice_lock","collection_lookup"]);
 
     // Simulate a duplicate-key conflict after the original transaction has
@@ -2385,7 +2386,7 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
           }
         };
       }}) as PrismaClient;
-      const run=()=>kind==="catalog"?createCatalogSale(conflictDb,410n,catalogInitial):kind==="stock"?createCommerceSale(conflictDb,410n,inventoryInitial):recordCommerceCollection(conflictDb,410n,laterInput);
+      const run=()=>kind==="catalog"?createCatalogSale(conflictDb, actor(410n) ,catalogInitial):kind==="stock"?createCommerceSale(conflictDb, actor(410n) ,inventoryInitial):recordCommerceCollection(conflictDb, actor(410n) ,laterInput);
       try {
         if(mode==="suspended") await assert.rejects(run,/صلاحية/);
         else {
@@ -2402,7 +2403,7 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     // The service line is non-stock, so this specifically checks invoice and
     // money serialization, not serial-number or inventory-lock concurrency.
     const newServiceInvoice = async () => {
-      const made = await createCommerceSale(prisma!, 3n, { ...stock, requestId: randomUUID(), method: "CARD", initialPayment: "10" });
+      const made = await createCommerceSale(prisma!, actor(3n) , { ...stock, requestId: randomUUID(), method: "CARD", initialPayment: "10" });
       const line = await prisma!.commerceSaleLine.findFirstOrThrow({ where: { saleId: BigInt(made.id) }, select: { id: true } });
       return { saleId: made.id, lineId: line.id.toString() };
     };
@@ -2410,9 +2411,9 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     const replayInvoice = await newServiceInvoice();
     const replayInput = makeReturn(replayInvoice);
     const returnGate = gate();
-    const firstReturn = returnCommerceSale(gatedSale(prisma, returnGate), 1n, replayInput);
+    const firstReturn = returnCommerceSale(gatedSale(prisma, returnGate), actor(1n) , replayInput);
     await returnGate.entered;
-    const secondReturn = returnCommerceSale(prisma, 1n, replayInput).then(value => ({ value }), error => ({ error }));
+    const secondReturn = returnCommerceSale(prisma, actor(1n) , replayInput).then(value => ({ value }), error => ({ error }));
     try { await waitForLock(admin, "commerce_sales"); } finally { returnGate.release(); }
     const returnWinner = await firstReturn;
     const returnReplay = await secondReturn;
@@ -2424,9 +2425,9 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     const contestedInvoice = await newServiceInvoice();
     const contestedInput = makeReturn(contestedInvoice);
     const contestGate = gate();
-    const firstContested = returnCommerceSale(gatedSale(prisma, contestGate), 1n, contestedInput);
+    const firstContested = returnCommerceSale(gatedSale(prisma, contestGate), actor(1n) , contestedInput);
     await contestGate.entered;
-    const secondContested = returnCommerceSale(prisma, 1n, { ...contestedInput, requestId: randomUUID() }).then(value => ({ value }), error => ({ error }));
+    const secondContested = returnCommerceSale(prisma, actor(1n) , { ...contestedInput, requestId: randomUUID() }).then(value => ({ value }), error => ({ error }));
     try { await waitForLock(admin, "commerce_sales"); } finally { contestGate.release(); }
     await firstContested;
     const contestedResult = await secondContested;
@@ -2438,9 +2439,9 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
 
     const replayRefundInput = { requestId: randomUUID(), saleId: replayInvoice.saleId, amount: "6", method: "CARD", actuallyPaid: true };
     const replayRefundGate = gate();
-    const firstReplayRefund = recordCommerceRefund(gatedSale(prisma, replayRefundGate), 1n, replayRefundInput);
+    const firstReplayRefund = recordCommerceRefund(gatedSale(prisma, replayRefundGate), actor(1n) , replayRefundInput);
     await replayRefundGate.entered;
-    const secondReplayRefund = recordCommerceRefund(prisma, 1n, replayRefundInput).then(value => ({ value }), error => ({ error }));
+    const secondReplayRefund = recordCommerceRefund(prisma, actor(1n) , replayRefundInput).then(value => ({ value }), error => ({ error }));
     try { await waitForLock(admin, "commerce_sales"); } finally { replayRefundGate.release(); }
     const savedRefund = await firstReplayRefund;
     const replayRefund = await secondReplayRefund;
@@ -2454,9 +2455,9 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     // deliberately injected in disposable fixtures, not a real admin action.
     const currentDiscount=(await admin.query<{staff:number;manager:number}>("SELECT staff_discount_bps AS staff,manager_discount_bps AS manager FROM commerce_settings WHERE id=1")).rows[0];
     const savedDiscountInput={requestId:randomUUID(),percent:String(currentDiscount.staff/100),managerPercent:String(currentDiscount.manager/100)};
-    const savedDiscount=await changeStaffDiscountLimit(prisma,1n,savedDiscountInput);
+    const savedDiscount=await changeStaffDiscountLimit(prisma, actor(1n) ,savedDiscountInput);
     const categoryInput={requestId:randomUUID(),code:"CONFLICT_TEST",nameAr:"تصنيف تعارض اصطناعي",sortOrder:5};
-    const savedCategory=await createSalesCategory(prisma,1n,categoryInput);
+    const savedCategory=await createSalesCategory(prisma, actor(1n) ,categoryInput);
     for(const kind of ["return","refund","discount","catalogAdmin","catalogOther","catalogChanged"] as const) for(const mode of ["active","suspended"] as const) {
       let inject=true;
       const duplicateDb:PrismaClient=new Proxy(prisma,{get(target,key,receiver) {
@@ -2483,7 +2484,7 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
           }
         };
       }}) as PrismaClient;
-      const run=()=>kind==="return"?returnCommerceSale(duplicateDb,1n,replayInput):kind==="refund"?recordCommerceRefund(duplicateDb,1n,replayRefundInput):kind==="discount"?changeStaffDiscountLimit(duplicateDb,1n,savedDiscountInput):kind==="catalogOther"?createSalesType(duplicateDb,1n,{requestId:categoryInput.requestId,categoryId:savedCategory.id,nameAr:"صنف اصطناعي",sortOrder:1}):createSalesCategory(duplicateDb,1n,kind==="catalogChanged"?{...categoryInput,nameAr:"اسم مختلف"}:categoryInput);
+      const run=()=>kind==="return"?returnCommerceSale(duplicateDb, actor(1n) ,replayInput):kind==="refund"?recordCommerceRefund(duplicateDb, actor(1n) ,replayRefundInput):kind==="discount"?changeStaffDiscountLimit(duplicateDb, actor(1n) ,savedDiscountInput):kind==="catalogOther"?createSalesType(duplicateDb, actor(1n) ,{requestId:categoryInput.requestId,categoryId:savedCategory.id,nameAr:"صنف اصطناعي",sortOrder:1}):createSalesCategory(duplicateDb, actor(1n) ,kind==="catalogChanged"?{...categoryInput,nameAr:"اسم مختلف"}:categoryInput);
       try {
         if(mode==="suspended") await assert.rejects(run,/صلاحية|للمدير/);
         else if(kind==="catalogOther") await assert.rejects(run,/عملية مختلفة/);
@@ -2497,15 +2498,15 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
 
     const refundInput = { requestId: randomUUID(), saleId: contestedInvoice.saleId, amount: "6", method: "CARD", actuallyPaid: true };
     const refundGate = gate();
-    const firstRefund = recordCommerceRefund(gatedSale(prisma, refundGate), 1n, refundInput);
+    const firstRefund = recordCommerceRefund(gatedSale(prisma, refundGate), actor(1n) , refundInput);
     await refundGate.entered;
-    const excessRefund = recordCommerceRefund(prisma, 1n, { ...refundInput, requestId: randomUUID() }).then(value => ({ value }), error => ({ error }));
+    const excessRefund = recordCommerceRefund(prisma, actor(1n) , { ...refundInput, requestId: randomUUID() }).then(value => ({ value }), error => ({ error }));
     try { await waitForLock(admin, "commerce_sales"); } finally { refundGate.release(); }
     const refundWinner = await firstRefund;
     const excessOutcome = await excessRefund;
     assert.ok("error" in excessOutcome);
     assert.match(String(excessOutcome.error), /يزيد/);
-    assert.deepEqual(await recordCommerceRefund(prisma, 1n, refundInput), { id: refundWinner.id, replayed: true });
+    assert.deepEqual(await recordCommerceRefund(prisma, actor(1n) , refundInput), { id: refundWinner.id, replayed: true });
     assert.equal(await prisma.commerceRefund.count({ where: { saleId: BigInt(contestedInvoice.saleId) } }), 1);
     assert.equal((await prisma.commerceSale.findUniqueOrThrow({ where: { id: BigInt(contestedInvoice.saleId) }, select: { revision: true } })).revision, 2);
 
@@ -2518,12 +2519,12 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
       const collectInput = { requestId: randomUUID(), saleId: invoice.saleId, amount: "20", method: "CARD", actuallyPaid: false };
       const g = gate();
       const leader = returnFirst
-        ? returnCommerceSale(gatedSale(prisma, g), 1n, returnInput)
-        : recordCommerceCollection(gatedSale(prisma, g), 3n, collectInput);
+        ? returnCommerceSale(gatedSale(prisma, g), actor(1n) , returnInput)
+        : recordCommerceCollection(gatedSale(prisma, g), actor(3n) , collectInput);
       await g.entered;
       const follower = (returnFirst
-        ? recordCommerceCollection(prisma, 3n, collectInput)
-        : returnCommerceSale(prisma, 1n, returnInput)).then(value => ({ value }), error => ({ error }));
+        ? recordCommerceCollection(prisma, actor(3n) , collectInput)
+        : returnCommerceSale(prisma, actor(1n) , returnInput)).then(value => ({ value }), error => ({ error }));
       try { await waitForLock(admin, "commerce_sales"); } finally { g.release(); }
       await leader;
       const result = await follower;
@@ -2546,14 +2547,14 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
       SELECT 40,1,role_code,'موظف رد اصطناعي','pg-cash-refund@selahtone.local',password_hash,'ACTIVE',false,'FULL',false,now() FROM users WHERE id=3`);
     const refundAccount = await openAccount(db, "1", { requestId: randomUUID(), branchId: "1", kind: "CUSTODY", holderId: "40", openingAmount: "10", openingDate: today, counted: true }, today);
     const cashInvoiceA = await newServiceInvoice(), cashInvoiceB = await newServiceInvoice();
-    await returnCommerceSale(prisma, 1n, makeReturn(cashInvoiceA));
-    await returnCommerceSale(prisma, 1n, makeReturn(cashInvoiceB));
+    await returnCommerceSale(prisma, actor(1n) , makeReturn(cashInvoiceA));
+    await returnCommerceSale(prisma, actor(1n) , makeReturn(cashInvoiceB));
     const cashRefundA = { requestId: randomUUID(), saleId: cashInvoiceA.saleId, amount: "6", method: "CASH", actuallyPaid: true, accountId: refundAccount.id, negativeAcknowledged: false, checkpointRef: "OPENING", timing: "AFTER_REVIEWED_CHECKPOINT" };
     const cashRefundB = { ...cashRefundA, requestId: randomUUID(), saleId: cashInvoiceB.saleId };
     const refundAccountGate = gate();
-    const paidFirst = recordCommerceRefund(gatedRefundAccount(prisma, refundAccountGate), 1n, cashRefundA);
+    const paidFirst = recordCommerceRefund(gatedRefundAccount(prisma, refundAccountGate), actor(1n) , cashRefundA);
     await refundAccountGate.entered;
-    const paidSecond = recordCommerceRefund(prisma, 1n, cashRefundB).then(value => ({ value }), error => ({ error }));
+    const paidSecond = recordCommerceRefund(prisma, actor(1n) , cashRefundB).then(value => ({ value }), error => ({ error }));
     try { await waitForLock(admin, "accounts"); } finally { refundAccountGate.release(); }
     const cashSaved = await paidFirst;
     const cashBlocked = await paidSecond;
@@ -2564,16 +2565,16 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     const cashState = async () => (await admin!.query<{ balance: string; revision: string; movements: string }>(`SELECT (a.opening_amount + COALESCE((SELECT sum(CASE WHEN destination_id=a.id THEN amount ELSE -amount END) FROM finance.movements WHERE source_id=a.id OR destination_id=a.id),0))::text AS balance,
       a.revision::text AS revision,(SELECT count(*)::text FROM finance.movements WHERE source_id=a.id AND kind='REFUND') AS movements FROM finance.accounts a WHERE a.id=$1::bigint`, [refundAccount.id])).rows[0];
     assert.deepEqual(await cashState(), { balance: "4.00", revision: "1", movements: "1" });
-    assert.deepEqual(await recordCommerceRefund(prisma, 1n, cashRefundA), { id: cashSaved.id, replayed: true });
+    assert.deepEqual(await recordCommerceRefund(prisma, actor(1n) , cashRefundA), { id: cashSaved.id, replayed: true });
     assert.deepEqual(await cashState(), { balance: "4.00", revision: "1", movements: "1" });
 
     // Concurrent deliveries of the same cash-refund request do not duplicate
     // either the refund or its linked account movement.
     const cashRefundC = { ...cashRefundB, requestId: randomUUID(), amount: "2" };
     const duplicateCashGate = gate();
-    const cashLeader = recordCommerceRefund(gatedRefundAccount(prisma, duplicateCashGate), 1n, cashRefundC);
+    const cashLeader = recordCommerceRefund(gatedRefundAccount(prisma, duplicateCashGate), actor(1n) , cashRefundC);
     await duplicateCashGate.entered;
-    const cashFollower = recordCommerceRefund(prisma, 1n, cashRefundC).then(value => ({ value }), error => ({ error }));
+    const cashFollower = recordCommerceRefund(prisma, actor(1n) , cashRefundC).then(value => ({ value }), error => ({ error }));
     try { await waitForLock(admin, "commerce_sales"); } finally { duplicateCashGate.release(); }
     const cashWinner = await cashLeader;
     const cashReplay = await cashFollower;
@@ -2591,14 +2592,14 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     for (const holder of ["41", "42"]) {
       const account = await openAccount(db, "1", { requestId: randomUUID(), branchId: "1", kind: "CUSTODY", holderId: holder, openingAmount: "10", openingDate: today, counted: true }, today);
       const invoice = await newServiceInvoice();
-      await returnCommerceSale(prisma, 1n, makeReturn(invoice));
+      await returnCommerceSale(prisma, actor(1n) , makeReturn(invoice));
       const refund = { requestId: randomUUID(), saleId: invoice.saleId, amount: "6", method: "CASH", actuallyPaid: true, accountId: account.id, negativeAcknowledged: false, checkpointRef: "OPENING", timing: "AFTER_REVIEWED_CHECKPOINT" };
       const countInput = { requestId: randomUUID(), accountId: account.id, expectedBalance: "10", countedAmount: "10", reason: "جرد ورد نقدي اصطناعي", actuallyCounted: true };
       const g = gate();
       if (holder === "41") {
         const counting = requestCashCount(gatedFinance(prisma, g), "1", countInput, today);
         await g.entered;
-        const refunding = recordCommerceRefund(prisma, 1n, refund);
+        const refunding = recordCommerceRefund(prisma, actor(1n) , refund);
         try { await waitForLock(admin, "accounts"); } finally { g.release(); }
         const count = await counting;
         await refunding;
@@ -2607,7 +2608,7 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
         assert.equal((await admin.query<{ n: string }>("SELECT count(*)::text AS n FROM finance.movements WHERE cash_count_id=$1::bigint", [count.id])).rows[0].n, "0");
         await cancelCashCount(db, "1", { requestId: randomUUID(), countId: count.id, reason: "إلغاء جرد قديم" });
       } else {
-        const refunding = recordCommerceRefund(gatedRefundAccount(prisma, g), 1n, refund);
+        const refunding = recordCommerceRefund(gatedRefundAccount(prisma, g), actor(1n) , refund);
         await g.entered;
         const counting = requestCashCount(db, "1", countInput, today).then(value => ({ value }), error => ({ error }));
         try { await waitForLock(admin, "accounts"); } finally { g.release(); }
@@ -2629,14 +2630,14 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     for (const holder of ["43", "44"]) {
       const account = await openAccount(db, "1", { requestId: randomUUID(), branchId: "1", kind: "CUSTODY", holderId: holder, openingAmount: "0", openingDate: today, counted: true }, today);
       const invoice = await newServiceInvoice();
-      await returnCommerceSale(prisma, 1n, makeReturn(invoice));
+      await returnCommerceSale(prisma, actor(1n) , makeReturn(invoice));
       const refund = { requestId: randomUUID(), saleId: invoice.saleId, amount: "6", method: "CASH", actuallyPaid: true, accountId: account.id, negativeAcknowledged: true, checkpointRef: "OPENING", timing: "AFTER_REVIEWED_CHECKPOINT" };
       const close = { requestId: randomUUID(), accountId: account.id, reason: "إقفال ورد نقدي اصطناعي" };
       const g = gate();
       if (holder === "43") {
         const closing = closeAccount(gatedFinance(prisma, g), "1", close);
         await g.entered;
-        const refunding = recordCommerceRefund(prisma, 1n, refund).then(value => ({ value }), error => ({ error }));
+        const refunding = recordCommerceRefund(prisma, actor(1n) , refund).then(value => ({ value }), error => ({ error }));
         try { await waitForLock(admin, "accounts"); } finally { g.release(); }
         await closing;
         const result = await refunding;
@@ -2648,7 +2649,7 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
         assert.deepEqual(state, { closed: true, movements: "0" });
         assert.equal((await closeAccount(db, "1", close)).replayed, true);
       } else {
-        const refunding = recordCommerceRefund(gatedRefundAccount(prisma, g), 1n, refund);
+        const refunding = recordCommerceRefund(gatedRefundAccount(prisma, g), actor(1n) , refund);
         await g.entered;
         const closing = closeAccount(db, "1", close).then(value => ({ value }), error => ({ error }));
         try { await waitForLock(admin, "accounts"); } finally { g.release(); }
@@ -2658,7 +2659,7 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
         assert.match(String(result.error), /لا تُقفل العهدة وفي ذمتها/);
         const state: { closed: boolean; balance: string; movements: string } = (await admin.query<{ closed: boolean; balance: string; movements: string }>(`SELECT closed_at IS NOT NULL AS closed,(a.opening_amount + COALESCE((SELECT sum(CASE WHEN destination_id=a.id THEN amount ELSE -amount END) FROM finance.movements WHERE source_id=a.id OR destination_id=a.id),0))::text AS balance,(SELECT count(*)::text FROM finance.movements WHERE source_id=a.id) AS movements FROM finance.accounts a WHERE id=$1::bigint`, [account.id])).rows[0];
         assert.deepEqual(state, { closed: false, balance: "-6.00", movements: "1" });
-        assert.deepEqual(await recordCommerceRefund(prisma, 1n, refund), { id: saved.id, replayed: true });
+        assert.deepEqual(await recordCommerceRefund(prisma, actor(1n) , refund), { id: saved.id, replayed: true });
         assert.equal((await admin.query<{ n: string }>("SELECT count(*)::text AS n FROM finance.requests WHERE request_id=$1::uuid", [close.requestId])).rows[0].n, "0");
       }
     }
@@ -2671,7 +2672,7 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     const checkpointCount = await requestCashCount(db, "1", { requestId: randomUUID(), accountId: checkpointAccount.id, expectedBalance: "10", countedAmount: "10", reason: "نقطة مراجعة اصطناعية", actuallyCounted: true }, today);
     await confirmCashCount(db, "1", { requestId: randomUUID(), countId: checkpointCount.id, reason: "تأكيد نقطة المراجعة", stillCurrent: true });
     const checkpointInvoice = await newServiceInvoice();
-    await returnCommerceSale(prisma, 1n, makeReturn(checkpointInvoice));
+    await returnCommerceSale(prisma, actor(1n) , makeReturn(checkpointInvoice));
     // Simulate a pre-upgrade event solely inside the disposable database.
     const legacyRequest = randomUUID();
     const unreviewed = await admin.query<{ id: string }>(`INSERT INTO commerce_refunds(request_id,request_hash,sale_id,amount,method,created_by_id) VALUES($1::uuid,repeat('a',64),$2::bigint,6,'CASH',1) RETURNING id::text`, [legacyRequest, checkpointInvoice.saleId]).then(result => ({ id: result.rows[0].id }));
@@ -2697,14 +2698,14 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
       const count = await requestCashCount(db, "1", { requestId: randomUUID(), accountId: account.id, expectedBalance: "100", countedAmount: "100", reason: "جرد مرجع اصطناعي", actuallyCounted: true }, today);
       const confirm = { requestId: randomUUID(), countId: count.id, reason: "اعتماد مرجع اصطناعي", stillCurrent: true };
       const invoice = await newServiceInvoice();
-      await returnCommerceSale(prisma, 1n, makeReturn(invoice));
+      await returnCommerceSale(prisma, actor(1n) , makeReturn(invoice));
       const refund = { requestId: randomUUID(), saleId: invoice.saleId, amount: "6", method: "CASH", actuallyPaid: true, accountId: account.id, negativeAcknowledged: false, checkpointRef: "OPENING", timing: "AFTER_REVIEWED_CHECKPOINT" };
       const review = { actorId: "1", branchId: "1", saleId: invoice.saleId, accountId: account.id, checkpointRef: "OPENING", afterCheckpoint: true, timing: "AFTER_REVIEWED_CHECKPOINT" as const };
       const g = gate();
       if (holder === "46") {
         const confirming = confirmCashCount(gatedFinance(prisma, g), "1", confirm);
         await g.entered;
-        const refunding = recordCommerceRefund(prisma, 1n, refund).then(value => ({ value }), error => ({ error }));
+        const refunding = recordCommerceRefund(prisma, actor(1n) , refund).then(value => ({ value }), error => ({ error }));
         try { await waitForLock(admin, "accounts"); } finally { g.release(); }
         await confirming;
         const result = await refunding;
@@ -2714,10 +2715,10 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
         assert.equal((await prisma.commerceSale.findUniqueOrThrow({ where: { id: BigInt(invoice.saleId) }, select: { revision: true } })).revision, 1);
         assert.equal((await admin.query<{ n: string }>("SELECT count(*)::text AS n FROM finance.movements WHERE source_id=$1::bigint AND kind='REFUND'", [account.id])).rows[0].n, "0");
         const afterReview = { ...review, checkpointRef: count.id };
-        const saved = await recordCommerceRefund(prisma, 1n, { ...refund, checkpointRef: afterReview.checkpointRef });
+        const saved = await recordCommerceRefund(prisma, actor(1n) , { ...refund, checkpointRef: afterReview.checkpointRef });
         assert.deepEqual((await admin.query<{ count_id: string | null; after_opening: boolean }>("SELECT after_cash_count_id::text AS count_id,after_opening FROM finance.movements WHERE external_ref=$1", [`refund:${saved.id}`])).rows[0], { count_id: count.id, after_opening: false });
       } else {
-        const refunding = recordCommerceRefund(gatedRefundAccount(prisma, g), 1n, refund);
+        const refunding = recordCommerceRefund(gatedRefundAccount(prisma, g), actor(1n) , refund);
         await g.entered;
         const confirming = confirmCashCount(db, "1", confirm).then(value => ({ value }), error => ({ error }));
         try { await waitForLock(admin, "accounts"); } finally { g.release(); }
@@ -2732,14 +2733,14 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
 
         // Versioned identity, duplicate same request; not proof of P2002 handling.
         const identityInvoice = await newServiceInvoice();
-        await returnCommerceSale(prisma, 1n, makeReturn(identityInvoice));
+        await returnCommerceSale(prisma, actor(1n) , makeReturn(identityInvoice));
         const body = { requestId: randomUUID(), saleId: identityInvoice.saleId, amount: "6", method: "CASH", actuallyPaid: true, accountId: account.id, negativeAcknowledged: false, checkpointRef: "OPENING", timing: "AFTER_REVIEWED_CHECKPOINT" };
         const snapshot = { ...review, saleId: identityInvoice.saleId };
         const makeService = (client: PrismaClient) => client;
         const duplicateGate = gate();
-        const leader = recordCommerceRefund(makeService(gatedSale(prisma, duplicateGate)), 1n, body);
+        const leader = recordCommerceRefund(makeService(gatedSale(prisma, duplicateGate)), actor(1n) , body);
         await duplicateGate.entered;
-        const follower: Promise<{ value: { id: string; replayed: boolean } } | { error: unknown }> = recordCommerceRefund(makeService(prisma), 1n, body).then(value => ({ value }), (error: unknown) => ({ error }));
+        const follower: Promise<{ value: { id: string; replayed: boolean } } | { error: unknown }> = recordCommerceRefund(makeService(prisma), actor(1n) , body).then(value => ({ value }), (error: unknown) => ({ error }));
         try { await waitForLock(admin, "commerce_sales"); } finally { duplicateGate.release(); }
         const savedIdentity = await leader;
         const duplicate = await follower;
@@ -2758,15 +2759,15 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     const serialId: string = (await admin.query<{ id: string }>(`INSERT INTO inventory_serials(opening_id,serial_number,serial_key) VALUES($1::bigint,'PG-RETURN-01','PG-RETURN-01') RETURNING id::text`, [openingId])).rows[0].id;
     const stockBefore = (await admin.query<{ qty: string; cost: string }>("SELECT qty_on_hand::text AS qty,avg_cost::text AS cost FROM stock_levels WHERE warehouse_id=1 AND product_id=1")).rows[0];
     const stockSaleInput = { requestId: randomUUID(), warehouseId: "1", customerName: "عميل مخزون اصطناعي", customerPhone: "01000000000", discount: "0", initialPayment: "10", method: "CARD", lines: [{ productId: "1", quantity: "1", serialIds: [serialId], expectedUnitPrice: "18500", expectedTaxRateId: "2", expectedTaxKind: "SCHEDULE", expectedTaxRate: "5" }] };
-    const firstStockSale = await createCommerceSale(prisma, 3n, stockSaleInput);
+    const firstStockSale = await createCommerceSale(prisma, actor(3n) , stockSaleInput);
     const soldLine = await prisma.commerceSaleLine.findFirstOrThrow({ where: { saleId: BigInt(firstStockSale.id) }, select: { id: true } });
     const returnStockInput = { requestId: randomUUID(), saleId: firstStockSale.id, cancel: false, accepted: true, lines: [{ saleLineId: soldLine.id.toString(), quantity: "1", serialIds: [serialId] }] };
     assert.equal((await admin.query<{ qty: string }>("SELECT qty_on_hand::text AS qty FROM stock_levels WHERE warehouse_id=1 AND product_id=1")).rows[0].qty, (Number(stockBefore.qty) - 1).toFixed(2));
     const serialGate = gate();
-    const returningStock = returnCommerceSale(gatedReturnedSerial(prisma, serialGate), 1n, returnStockInput).then(value => ({ value }), error => ({ error }));
+    const returningStock = returnCommerceSale(gatedReturnedSerial(prisma, serialGate), actor(1n) , returnStockInput).then(value => ({ value }), error => ({ error }));
     await serialGate.entered;
     const resaleInput = { ...stockSaleInput, requestId: randomUUID() };
-    const resellingStock = createCommerceSale(prisma, 3n, resaleInput).then(value => ({ value }), error => ({ error }));
+    const resellingStock = createCommerceSale(prisma, actor(3n) , resaleInput).then(value => ({ value }), error => ({ error }));
     let resaleOutcome: Awaited<typeof resellingStock>;
     try { resaleOutcome = await resellingStock; } finally { serialGate.release(); }
     const returnOutcome = await returningStock;
@@ -2779,7 +2780,7 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     assert.deepEqual(stockRestored, stockBefore);
     assert.equal((await prisma.inventorySerial.findUniqueOrThrow({ where: { id: BigInt(serialId) }, select: { currentSaleLineId: true } })).currentSaleLineId, null);
     // A new attempt with the same token after rollback may now sell the serial.
-    const resold = await createCommerceSale(prisma, 3n, resaleInput);
+    const resold = await createCommerceSale(prisma, actor(3n) , resaleInput);
     const newLine = await prisma.commerceSaleLine.findFirstOrThrow({ where: { saleId: BigInt(resold.id) }, select: { id: true } });
     assert.equal((await prisma.inventorySerial.findUniqueOrThrow({ where: { id: BigInt(serialId) }, select: { currentSaleLineId: true } })).currentSaleLineId, newLine.id);
     const stockAfter = (await admin.query<{ qty: string; cost: string }>("SELECT qty_on_hand::text AS qty,avg_cost::text AS cost FROM stock_levels WHERE warehouse_id=1 AND product_id=1")).rows[0];
@@ -2787,16 +2788,16 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     assert.equal(stockAfter.cost, stockBefore.cost);
     assert.equal(await prisma.commerceSale.count({ where: { requestId: resaleInput.requestId } }), 1);
     assert.equal(await prisma.commerceReturnSerial.count({ where: { saleLineSerial: { serialId: BigInt(serialId) } } }), 1);
-    assert.equal((await returnCommerceSale(prisma, 1n, returnStockInput)).replayed, true);
+    assert.equal((await returnCommerceSale(prisma, actor(1n) , returnStockInput)).replayed, true);
     assert.equal((await admin.query<{ qty: string }>("SELECT qty_on_hand::text AS qty FROM stock_levels WHERE warehouse_id=1 AND product_id=1")).rows[0].qty, stockAfter.qty);
 
     // Two deliveries of the return on the resold item must not restore stock
     // twice or create two links to its sale-line serial.
     const secondReturnInput = { ...returnStockInput, requestId: randomUUID(), saleId: resold.id, lines: [{ saleLineId: newLine.id.toString(), quantity: "1", serialIds: [serialId] }] };
     const duplicateReturnGate = gate();
-    const returnLeader = returnCommerceSale(gatedSale(prisma, duplicateReturnGate), 1n, secondReturnInput);
+    const returnLeader = returnCommerceSale(gatedSale(prisma, duplicateReturnGate), actor(1n) , secondReturnInput);
     await duplicateReturnGate.entered;
-    const returnFollower = returnCommerceSale(prisma, 1n, secondReturnInput).then(value => ({ value }), error => ({ error }));
+    const returnFollower = returnCommerceSale(prisma, actor(1n) , secondReturnInput).then(value => ({ value }), error => ({ error }));
     try { await waitForLock(admin, "commerce_sales"); } finally { duplicateReturnGate.release(); }
     const newReturned = await returnLeader;
     const repeatedReturn = await returnFollower;
@@ -2816,7 +2817,7 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     const closeGate = gate();
     const closing = closeAccount(gatedFinance(prisma, closeGate), "1", { requestId: randomUUID(), accountId: managerCustody.id, reason: "إقفال اختبار" });
     await closeGate.entered;
-    const tooLate = recordCommerceCollection(prisma, 1n, managerPayment);
+    const tooLate = recordCommerceCollection(prisma, actor(1n) , managerPayment);
     await waitForLock(admin, "accounts"); closeGate.release();
     await closing; await assert.rejects(tooLate, /يلزم وجود عهدة مفتوحة/);
     assert.equal((await admin.query<{ n: string }>("SELECT count(*)::text AS n FROM commerce_collections WHERE request_id=$1::uuid", [managerPayment.requestId])).rows[0].n, "0");
@@ -2825,7 +2826,7 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
       UPDATE commerce_sales SET created_by_id=4,total=19750 WHERE id=1`);
     const otherCustody = await openAccount(db, "1", { requestId: randomUUID(), branchId: "1", kind: "CUSTODY", holderId: "4", openingAmount: "0", openingDate: today, counted: true }, today);
     const collectGate = gate();
-    const firstCash = recordCommerceCollection(gatedCommerce(prisma, collectGate), 4n, { ...collection(), saleId: "1" });
+    const firstCash = recordCommerceCollection(gatedCommerce(prisma, collectGate), actor(4n) , { ...collection(), saleId: "1" });
     await collectGate.entered;
     const delayedClose = closeAccount(db, "1", { requestId: randomUUID(), accountId: otherCustody.id, reason: "إقفال اختبار" });
     await waitForLock(admin, "accounts"); collectGate.release();
@@ -3046,7 +3047,7 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     const initialRevisionBefore: string=(await admin.query<{revision:string}>("SELECT revision::text AS revision FROM finance.accounts WHERE id=$1::bigint",[replayCustody.id])).rows[0].revision;
     for(const [kind,body] of [["catalog",{...catalogInitial,requestId:randomUUID()}],["stock",{...inventoryInitial,requestId:randomUUID()}]] as const) {
       const failDb=testCollectionService(prisma,"410",true);
-      const run=()=>kind==="catalog"?createCatalogSale(failDb,410n,body):createCommerceSale(failDb,410n,body);
+      const run=()=>kind==="catalog"?createCatalogSale(failDb, actor(410n) ,body):createCommerceSale(failDb, actor(410n) ,body);
       await assert.rejects(run,/synthetic failure after allocation/);
       assert.equal((await admin.query<{n:number}>("SELECT count(*)::int AS n FROM commerce_sales WHERE request_id=$1::uuid",[body.requestId])).rows[0].n,0);
       assert.equal((await admin.query<{n:number}>("SELECT count(*)::int AS n FROM commerce_collections WHERE request_id=$1::uuid",[body.requestId])).rows[0].n,0);
@@ -3057,13 +3058,13 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     // Existing real-service safeguard rejects a manager without custody before
     // the hook can select the vault, even though a vault exists in the branch.
     for(const [kind,body] of [["catalog",{...catalogInitial,requestId:randomUUID()}],["stock",{...inventoryInitial,requestId:randomUUID()}]] as const) {
-      const run=()=>kind==="catalog"?createCatalogSale(testCollectionService(prisma!,"1"),1n,body):createCommerceSale(testCollectionService(prisma!,"1"),1n,body);
+      const run=()=>kind==="catalog"?createCatalogSale(testCollectionService(prisma!,"1"), actor(1n) ,body):createCommerceSale(testCollectionService(prisma!,"1"), actor(1n) ,body);
       await assert.rejects(run,/يلزم وجود عهدة مفتوحة/);
       assert.equal((await admin.query<{n:number}>("SELECT count(*)::int AS n FROM commerce_sales WHERE request_id=$1::uuid",[body.requestId])).rows[0].n,0);
     }
     assert.equal((await admin.query<{n:number}>("SELECT count(*)::int AS n FROM finance.movements WHERE source_id=$1::bigint OR destination_id=$1::bigint",[labVault410.id])).rows[0].n,0);
     for(const [kind,body] of [["catalog",{...catalogInitial,requestId:randomUUID()}],["stock",{...inventoryInitial,requestId:randomUUID()}]] as const) {
-      const run=()=>kind==="catalog"?createCatalogSale(testCollectionService(prisma!,"410"),410n,body):createCommerceSale(testCollectionService(prisma!,"410"),410n,body);
+      const run=()=>kind==="catalog"?createCatalogSale(testCollectionService(prisma!,"410"), actor(410n) ,body):createCommerceSale(testCollectionService(prisma!,"410"), actor(410n) ,body);
       const saved=await run();assert.equal(saved.replayed,false);
       assert.deepEqual(await run(),{id:saved.id,replayed:true});
       const assignments:Array<{accountId:string;treatment:string;movementId:string|null}>=(await admin.query<{accountId:string;treatment:string;movementId:string|null}>(`SELECT a.account_id::text AS "accountId",a.treatment,a.movement_id::text AS "movementId"
@@ -3240,7 +3241,7 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     await admin.query("BEGIN");
     try {
       await admin.query("SELECT id FROM finance.accounts WHERE id=$1::bigint FOR UPDATE", [vaultId]);
-      const collected = await recordCommerceCollection(testCollectionService(timed, "17"), 17n, lockCollection);
+      const collected = await recordCommerceCollection(testCollectionService(timed, "17"), actor(17n) , lockCollection);
       assert.equal(collected.replayed, false);
     } finally { await admin.query("ROLLBACK"); }
     assert.equal((await db.serializable(tx => reviewTestPeriod(tx, lockAccount.id))).collections.length, 1);
@@ -3254,7 +3255,7 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     const transferring = transferCash(gatedFinance(prisma, transferGate), "1", transferInput);
     await transferGate.entered;
     const newCollection = { ...lockCollection, requestId: randomUUID(), amount: "7" };
-    const collecting = recordCommerceCollection(testCollectionService(gatedCommerce(timed, collectionGate), "17"), 17n, newCollection);
+    const collecting = recordCommerceCollection(testCollectionService(gatedCommerce(timed, collectionGate), "17"), actor(17n) , newCollection);
     await collectionGate.entered;
     collectionGate.release();
     try {
@@ -3263,7 +3264,7 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     } finally { transferGate.release(); }
     await transferring;
     assert.equal((await transferCash(db, "1", transferInput)).replayed, true);
-    assert.equal((await recordCommerceCollection(testCollectionService(prisma, "17"), 17n, newCollection)).replayed, true);
+    assert.equal((await recordCommerceCollection(testCollectionService(prisma, "17"), actor(17n) , newCollection)).replayed, true);
     const assigned17 = await db.serializable(tx => reviewTestPeriod(tx, lockAccount.id));
     assert.deepEqual(assigned17.collections.map(row => row.amount), ["6.00", "7.00"]);
     assert.equal((await admin.query<{ n: string }>("SELECT count(*)::text AS n FROM finance.movements WHERE kind='TRANSFER' AND destination_id=$1::bigint", [lockAccount.id])).rows[0].n, "1");
@@ -3276,7 +3277,7 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     await admin.query("UPDATE finance.accounts SET opened_at=now()-interval '1 day' WHERE id=$1::bigint", [realAccount.id]);
     const realSale = (await admin.query<{ id: string }>(`INSERT INTO commerce_sales(request_id,request_hash,branch_id,warehouse_id,customer_name,customer_phone,subtotal,discount,taxable_base,tax_total,total,revision,created_by_id)
       SELECT $1::uuid,repeat('a',64),branch_id,warehouse_id,'فاتورة اعتماد اصطناعية',customer_phone,subtotal,discount,taxable_base,tax_total,total,revision,18 FROM commerce_sales WHERE id=2 RETURNING id::text`, [randomUUID()])).rows[0].id;
-    await recordCommerceCollection(testCollectionService(prisma, "18"), 18n, { requestId: randomUUID(), saleId: realSale, amount: "10", method: "CASH", actuallyPaid: false });
+    await recordCommerceCollection(testCollectionService(prisma, "18"), actor(18n) , { requestId: randomUUID(), saleId: realSale, amount: "10", method: "CASH", actuallyPaid: false });
     const realDraft = async (amount: string) => {
       const e = await createExpense(db, "18", { requestId: randomUUID(), branchId: "1", categoryId: "1", amount, expenseDate: today, description: "مصروف اعتماد اصطناعي" });
       await approveExpense(db, "1", { requestId: randomUUID(), expenseId: e.id, expectedRevision: "1" });
@@ -3320,9 +3321,9 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     for (const holder of ["70", "71"]) {
       const refundCustody = await openAccount(db, "1", { requestId: randomUUID(), branchId: "1", kind: "CUSTODY", holderId: holder, openingAmount: "20", openingDate: today, counted: true }, today);
       await admin.query("UPDATE finance.accounts SET opened_at=now()-interval '1 day' WHERE id=$1::bigint", [refundCustody.id]);
-      const sold = await createCommerceSale(testCollectionService(prisma, holder), BigInt(holder), { ...stock, requestId: randomUUID(), initialPayment: "10", method: "CASH" });
+      const sold = await createCommerceSale(testCollectionService(prisma, holder), actor(BigInt(holder)), { ...stock, requestId: randomUUID(), initialPayment: "10", method: "CASH" });
       const soldLine = await prisma.commerceSaleLine.findFirstOrThrow({ where: { saleId: BigInt(sold.id) }, select: { id: true } });
-      await returnCommerceSale(prisma, 1n, { requestId: randomUUID(), saleId: sold.id, cancel: false, accepted: true, lines: [{ saleLineId: String(soldLine.id), quantity: "1", serialIds: [] }] });
+      await returnCommerceSale(prisma, actor(1n) , { requestId: randomUUID(), saleId: sold.id, cancel: false, accepted: true, lines: [{ saleLineId: String(soldLine.id), quantity: "1", serialIds: [] }] });
       const reviewed = await db.serializable(tx => reviewTestPeriod(tx, refundCustody.id));
       assert.deepEqual(reviewed.collections.map(x => x.amount), ["10.00"]);
       const req = await requestSettlement(db, holder, { requestId: randomUUID(), accountId: refundCustody.id, expectedBalance: "20", countedAmount: "30", reason: "تسوية ورد متزامنان اصطناعيًا", actuallyCounted: true });
@@ -3333,17 +3334,17 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
       if (holder === "70") {
         const confirmed = confirmSettlement(testRealSettlementWithPeriod(gatedFinance(prisma, lock), hook), "1", decision);
         await lock.entered;
-        const delayedRefund = recordCommerceRefund(prisma, 1n, refund);
+        const delayedRefund = recordCommerceRefund(prisma, actor(1n) , refund);
         try { await waitForLock(admin, "accounts"); } finally { lock.release(); }
         assert.equal((await confirmed).replayed, false);
         const saved = await delayedRefund;
         assert.equal(saved.replayed, false);
-        assert.deepEqual(await recordCommerceRefund(prisma, 1n, refund), { id: saved.id, replayed: true });
+        assert.deepEqual(await recordCommerceRefund(prisma, actor(1n) , refund), { id: saved.id, replayed: true });
         assert.equal((await confirmSettlement(testRealSettlementWithPeriod(db, hook), "1", decision)).replayed, true);
         assert.equal((await db.serializable(tx => reviewTestPeriod(tx, refundCustody.id))).collections.length, 0);
         assert.equal((await admin.query<{n:string}>("SELECT count(*)::text AS n FROM finance.settlement_allocation_receipts_test_only WHERE settlement_id=$1::bigint", [req.id])).rows[0].n, "1");
       } else {
-        const refundFirst = recordCommerceRefund(gatedRefundAccount(prisma, lock), 1n, refund);
+        const refundFirst = recordCommerceRefund(gatedRefundAccount(prisma, lock), actor(1n) , refund);
         await lock.entered;
         const staleConfirmation = confirmSettlement(testRealSettlementWithPeriod(db, hook), "1", decision).then(value => ({ value }), error => ({ error }));
         try { await waitForLock(admin, "accounts"); } finally { lock.release(); }
@@ -3351,7 +3352,7 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
         const failed = await staleConfirmation;
         assert.ok("error" in failed);
         assert.match(String(failed.error), /تغيّرت العهدة منذ طلب التسوية/);
-        assert.deepEqual(await recordCommerceRefund(prisma, 1n, refund), { id: saved.id, replayed: true });
+        assert.deepEqual(await recordCommerceRefund(prisma, actor(1n) , refund), { id: saved.id, replayed: true });
         assert.deepEqual(await db.serializable(tx => reviewTestPeriod(tx, refundCustody.id)), reviewed, "refund movement is not in the experimental period hash");
         assert.equal((await admin.query<{status:string}>("SELECT status FROM finance.settlements WHERE id=$1::bigint", [req.id])).rows[0].status, "OPEN");
         assert.equal((await admin.query<{n:string}>("SELECT count(*)::text AS n FROM finance.settlement_allocation_receipts_test_only WHERE settlement_id=$1::bigint", [req.id])).rows[0].n, "0");
@@ -3374,9 +3375,9 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     for (const holder of ["74", "75"]) {
       const account = await openAccount(db, "1", { requestId: randomUUID(), branchId: "1", kind: "CUSTODY", holderId: holder, openingAmount: "20", openingDate: today, counted: true }, today);
       await admin.query("UPDATE finance.accounts SET opened_at=now()-interval '1 day' WHERE id=$1::bigint", [account.id]);
-      const sale = await createCommerceSale(testCollectionService(prisma, holder), BigInt(holder), { ...stock, requestId: randomUUID(), initialPayment: "10", method: "CASH" });
+      const sale = await createCommerceSale(testCollectionService(prisma, holder), actor(BigInt(holder)), { ...stock, requestId: randomUUID(), initialPayment: "10", method: "CASH" });
       const line = await prisma.commerceSaleLine.findFirstOrThrow({ where: { saleId: BigInt(sale.id) }, select: { id: true } });
-      await returnCommerceSale(prisma, 1n, { requestId: randomUUID(), saleId: sale.id, cancel: false, accepted: true, lines: [{ saleLineId: String(line.id), quantity: "1", serialIds: [] }] });
+      await returnCommerceSale(prisma, actor(1n) , { requestId: randomUUID(), saleId: sale.id, cancel: false, accepted: true, lines: [{ saleLineId: String(line.id), quantity: "1", serialIds: [] }] });
       const reviewed = await db.serializable(tx => reviewTestPeriod(tx, account.id));
       const request = await requestSettlement(db, holder, { requestId: randomUUID(), accountId: account.id, expectedBalance: "20", countedAmount: "30", reason: "مقارنة نسخة تجريبية", actuallyCounted: true });
       const refund = { requestId: randomUUID(), saleId: sale.id, amount: "4", method: "CASH", actuallyPaid: true, accountId: account.id, negativeAcknowledged: false, checkpointRef: "OPENING", timing: "AFTER_REVIEWED_CHECKPOINT" };
@@ -3385,15 +3386,15 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
       if (holder === "74") {
         const first: Promise<{replayed:boolean}> = gatedFinance(prisma, lock).serializable(capture);
         await lock.entered;
-        const after = recordCommerceRefund(prisma, 1n, refund);
+        const after = recordCommerceRefund(prisma, actor(1n) , refund);
         try { await waitForLock(admin, "accounts"); } finally { lock.release(); }
         assert.equal((await first).replayed, false);
         const saved = await after;
-        assert.deepEqual(await recordCommerceRefund(prisma, 1n, refund), { id: saved.id, replayed: true });
+        assert.deepEqual(await recordCommerceRefund(prisma, actor(1n) , refund), { id: saved.id, replayed: true });
         assert.equal((await db.serializable(capture)).replayed, true, "the lab receipt replays after the refund bumped the account revision");
         assert.equal((await db.serializable(tx => reviewTestPeriod(tx, account.id))).collections.length, 0);
       } else {
-        const first = recordCommerceRefund(gatedRefundAccount(prisma, lock), 1n, refund);
+        const first = recordCommerceRefund(gatedRefundAccount(prisma, lock), actor(1n) , refund);
         await lock.entered;
         let attempts = 0;
         const retryCapture = async () => {
@@ -3409,7 +3410,7 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
         assert.ok("error" in failed);
         assert.match(String(failed.error), /تغيّرت نسخة العهدة/);
         assert.ok(attempts >= 2, "serialization retry is test-harness behavior");
-        assert.deepEqual(await recordCommerceRefund(prisma, 1n, refund), { id: saved.id, replayed: true });
+        assert.deepEqual(await recordCommerceRefund(prisma, actor(1n) , refund), { id: saved.id, replayed: true });
         assert.deepEqual(await db.serializable(tx => reviewTestPeriod(tx, account.id)), reviewed);
       }
       const state: {status:string;receipts:string;refunds:string;settlementMoves:string} = (await admin.query<{status:string;receipts:string;refunds:string;settlementMoves:string}>(`SELECT s.status,
@@ -3429,7 +3430,7 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     for (const holder of ["77", "78"]) {
       const account = await openAccount(db, "1", { requestId: randomUUID(), branchId: "1", kind: "CUSTODY", holderId: holder, openingAmount: "0", openingDate: today, counted: true }, today);
       await admin.query("UPDATE finance.accounts SET opened_at=now()-interval '1 day' WHERE id=$1::bigint", [account.id]);
-      await createCommerceSale(testCollectionService(prisma, holder), BigInt(holder), { ...stock, requestId: randomUUID(), initialPayment: "10", method: "CASH" });
+      await createCommerceSale(testCollectionService(prisma, holder), actor(BigInt(holder)), { ...stock, requestId: randomUUID(), initialPayment: "10", method: "CASH" });
       const review = await db.serializable(tx => reviewTestPeriod(tx, account.id));
       assert.deepEqual(review.collections.map(x => x.amount), ["10.00"]);
       const collectionId = review.collections[0].id;
@@ -3495,9 +3496,9 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     for (const holder of ["72", "73"]) {
       const selectedCustody = await openAccount(db, "1", { requestId: randomUUID(), branchId: "1", kind: "CUSTODY", holderId: holder, openingAmount: "20", openingDate: today, counted: true }, today);
       await admin.query("UPDATE finance.accounts SET opened_at=now()-interval '1 day' WHERE id=$1::bigint", [selectedCustody.id]);
-      const invoice = await createCommerceSale(testCollectionService(prisma, holder), BigInt(holder), { ...stock, requestId: randomUUID(), initialPayment: "10", method: "CASH" });
+      const invoice = await createCommerceSale(testCollectionService(prisma, holder), actor(BigInt(holder)), { ...stock, requestId: randomUUID(), initialPayment: "10", method: "CASH" });
       const line = await prisma.commerceSaleLine.findFirstOrThrow({ where: { saleId: BigInt(invoice.id) }, select: { id: true } });
-      await returnCommerceSale(prisma, 1n, { requestId: randomUUID(), saleId: invoice.id, cancel: false, accepted: true, lines: [{ saleLineId: String(line.id), quantity: "1", serialIds: [] }] });
+      await returnCommerceSale(prisma, actor(1n) , { requestId: randomUUID(), saleId: invoice.id, cancel: false, accepted: true, lines: [{ saleLineId: String(line.id), quantity: "1", serialIds: [] }] });
       const reviewed = await db.serializable(tx => reviewTestPeriod(tx, selectedCustody.id));
       assert.deepEqual(reviewed.collections.map(x => x.amount), ["10.00"]);
       const req = await requestSettlement(db, holder, { requestId: randomUUID(), accountId: selectedCustody.id, expectedBalance: "20", countedAmount: "30", reason: "تسوية اصطناعية ورد من خزنة", actuallyCounted: true });
@@ -3509,7 +3510,7 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
       const lock = gate();
       let savedRefund: {id:string;replayed:boolean};
       if (holder === "72") {
-        const vaultFirst = recordCommerceRefund(gatedRefundAccount(prisma, lock), 1n, refund);
+        const vaultFirst = recordCommerceRefund(gatedRefundAccount(prisma, lock), actor(1n) , refund);
         await lock.entered;
         const confirmAfter = confirmSettlement(testRealSettlementWithPeriod(db, hook), "1", decision);
         try { await waitForLock(admin, "accounts"); } finally { lock.release(); }
@@ -3518,13 +3519,13 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
       } else {
         const confirmFirst = confirmSettlement(testRealSettlementWithPeriod(gatedFinance(prisma, lock, "FROM finance.accounts WHERE branch_id=$1::bigint AND kind='VAULT' FOR UPDATE"), hook), "1", decision);
         await lock.entered;
-        const vaultAfter = recordCommerceRefund(prisma, 1n, refund);
+        const vaultAfter = recordCommerceRefund(prisma, actor(1n) , refund);
         try { await waitForLock(admin, "accounts"); } finally { lock.release(); }
         assert.equal((await confirmFirst).replayed, false);
         savedRefund = await vaultAfter;
       }
       assert.equal(savedRefund.replayed, false);
-      assert.deepEqual(await recordCommerceRefund(prisma, 1n, refund), { id: savedRefund.id, replayed: true });
+      assert.deepEqual(await recordCommerceRefund(prisma, actor(1n) , refund), { id: savedRefund.id, replayed: true });
       assert.equal((await confirmSettlement(testRealSettlementWithPeriod(db, hook), "1", decision)).replayed, true);
       assert.equal((await db.serializable(tx => reviewTestPeriod(tx, selectedCustody.id))).collections.length, 0);
       const state: {status:string;refunds:string;settlementMoves:string;receipts:string;custodyBalance:string} = (await admin.query<{status:string;refunds:string;settlementMoves:string;receipts:string;custodyBalance:string}>(`SELECT s.status,
@@ -3594,7 +3595,7 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     const pendingSale: string = (await admin.query<{id:string}>(`INSERT INTO commerce_sales(request_id,request_hash,branch_id,warehouse_id,customer_name,customer_phone,subtotal,discount,taxable_base,tax_total,total,revision,created_by_id)
       SELECT $1::uuid,repeat('a',64),branch_id,warehouse_id,'عقد معلق اصطناعي',customer_phone,subtotal,discount,taxable_base,tax_total,total,revision,79 FROM commerce_sales WHERE id=2 RETURNING id::text`, [randomUUID()])).rows[0].id;
     const pendingCollectionInput = { requestId: randomUUID(), saleId: pendingSale, amount: "30", method: "CASH", actuallyPaid: false };
-    const pendingCollection = await recordCommerceCollection(testCollectionService(prisma, "79"), 79n, pendingCollectionInput);
+    const pendingCollection = await recordCommerceCollection(testCollectionService(prisma, "79"), actor(79n) , pendingCollectionInput);
     const pendingExpense = await createExpense(db, "79", { requestId: randomUUID(), branchId: "1", categoryId: "1", amount: "10", expenseDate: today, description: "مصروف عقد معلق اصطناعي" });
     await approveExpense(db, "1", { requestId: randomUUID(), expenseId: pendingExpense.id, expectedRevision: "1" });
     const pendingPaymentInput = { requestId: randomUUID(), expenseId: pendingExpense.id, expectedRevision: "2", method: "CASH", accountId: null, paymentDate: today, actuallyPaid: true, source: "HOLDER_CASH" };
@@ -3628,9 +3629,9 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     const pendingAfter = await settlementOverview(db, "79", pendingAccount.id);
     assert.equal(pendingAfter.account?.balance,"113.00"); assert.equal(pendingAfter.sales,"0.00"); assert.equal(pendingAfter.expenses,"0.00"); assert.equal(pendingAfter.expected,"113.00");
     assert.equal((await confirmSettlement(testRealSettlementWithPeriod(db, pendingHook), "1", pendingDecision)).replayed, true);
-    assert.equal((await recordCommerceCollection(testCollectionService(prisma, "79"), 79n, pendingCollectionInput)).replayed, true);
+    assert.equal((await recordCommerceCollection(testCollectionService(prisma, "79"), actor(79n) , pendingCollectionInput)).replayed, true);
     assert.equal((await payExpense(testHolderPaymentService(db, "79"), "79", pendingPaymentInput, today)).replayed, true);
-    const laterPending = await recordCommerceCollection(testCollectionService(prisma, "79"), 79n, { ...pendingCollectionInput, requestId: randomUUID(), amount: "7" });
+    const laterPending = await recordCommerceCollection(testCollectionService(prisma, "79"), actor(79n) , { ...pendingCollectionInput, requestId: randomUUID(), amount: "7" });
     const laterContractReview = await db.serializable(tx => reviewTestPeriod(tx, pendingAccount.id));
     assert.deepEqual(laterContractReview.collections.map(x => [x.id,x.amount]), [[laterPending.id,"7.00"]]);
     assert.equal((await confirmSettlement(testRealSettlementWithPeriod(db, pendingHook), "1", pendingDecision)).replayed, true);
@@ -3843,9 +3844,9 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     const itemCategory = (await admin.query<{id:string}>("INSERT INTO sales_item_categories(code,name_ar) VALUES('SYNRET83','فئة اختبار المستحق') RETURNING id::text")).rows[0].id;
     const itemType = (await admin.query<{id:string}>("INSERT INTO sales_item_types(category_id,name_ar) VALUES($1::bigint,'نوع اختبار المستحق') RETURNING id::text", [itemCategory])).rows[0].id;
     const catalogInput = (paid: string) => ({ requestId: randomUUID(), branchId: "83", customerName: "عميل اصطناعي", customerPhone: "01000000000", discount: "0", initialPayment: paid, method: "CARD", lines: [{typeId:itemType,quantity:"10",unitPrice:"10",details:[]}] });
-    const returnSale = await createCatalogSale(prisma,1n,catalogInput("40"));
+    const returnSale = await createCatalogSale(prisma, actor(1n) ,catalogInput("40"));
     const returnLine = await prisma.commerceSaleLine.findFirstOrThrow({where:{saleId:BigInt(returnSale.id)},select:{id:true}});
-    await returnCommerceSale(prisma,1n,{requestId:randomUUID(),saleId:returnSale.id,cancel:false,accepted:true,lines:[{saleLineId:String(returnLine.id),quantity:"3",serialIds:[]}]});
+    await returnCommerceSale(prisma, actor(1n) ,{requestId:randomUUID(),saleId:returnSale.id,cancel:false,accepted:true,lines:[{saleLineId:String(returnLine.id),quantity:"3",serialIds:[]}]});
     // 100 - 30 returned - 40 collected = 30 due.
     const returnCommand = {...rawCommand,requestId:randomUUID(),saleId:returnSale.id,amount:"31"};
     await assert.rejects(() => db.serializable(tx => recordVaultCollectionTestOnly(tx,1n,returnCommand)),/مبلغ التحصيل لا يمكن أن يزيد على المتبقي/);
@@ -3854,24 +3855,24 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     const exactReturn = await db.serializable(tx => recordVaultCollectionTestOnly(tx,1n,exactReturnCommand));
     assert.equal(exactReturn.replayed,false);
     assert.deepEqual(await db.serializable(tx => recordVaultCollectionTestOnly(tx,1n,exactReturnCommand)),{id:exactReturn.id,replayed:true});
-    const fullyPaidSale = await createCatalogSale(prisma,1n,catalogInput("80"));
+    const fullyPaidSale = await createCatalogSale(prisma, actor(1n) ,catalogInput("80"));
     const fullyPaidLine = await prisma.commerceSaleLine.findFirstOrThrow({where:{saleId:BigInt(fullyPaidSale.id)},select:{id:true}});
-    await returnCommerceSale(prisma,1n,{requestId:randomUUID(),saleId:fullyPaidSale.id,cancel:false,accepted:true,lines:[{saleLineId:String(fullyPaidLine.id),quantity:"3",serialIds:[]}]});
+    await returnCommerceSale(prisma, actor(1n) ,{requestId:randomUUID(),saleId:fullyPaidSale.id,cancel:false,accepted:true,lines:[{saleLineId:String(fullyPaidLine.id),quantity:"3",serialIds:[]}]});
     // Remaining sale 70, net collected 80 - refund 10 = 70, so due is zero.
-    await recordCommerceRefund(prisma,1n,{requestId:randomUUID(),saleId:fullyPaidSale.id,amount:"10",method:"CARD",actuallyPaid:true});
+    await recordCommerceRefund(prisma, actor(1n) ,{requestId:randomUUID(),saleId:fullyPaidSale.id,amount:"10",method:"CARD",actuallyPaid:true});
     const zeroDueCommand = {...rawCommand,requestId:randomUUID(),saleId:fullyPaidSale.id,amount:"0.01"};
     await assert.rejects(() => db.serializable(tx => recordVaultCollectionTestOnly(tx,1n,zeroDueCommand)),/مبلغ التحصيل لا يمكن أن يزيد على المتبقي/);
     assert.equal((await admin.query<{n:number}>("SELECT count(*)::int AS n FROM commerce_collections WHERE request_id=$1::uuid",[zeroDueCommand.requestId])).rows[0].n,0);
     // Real return vs the *test-only* vault command on separate catalog
     // invoices. The invoices' initial card collections are real service writes.
     for (const order of ["return-first", "collection-first"] as const) {
-      const invoice = await createCatalogSale(prisma,1n,catalogInput("40"));
+      const invoice = await createCatalogSale(prisma, actor(1n) ,catalogInput("40"));
       const line: {id: bigint} = await prisma.commerceSaleLine.findFirstOrThrow({where:{saleId:BigInt(invoice.id)},select:{id:true}});
       const returnInput: {requestId:string;saleId:string;cancel:boolean;accepted:boolean;lines:Array<{saleLineId:string;quantity:string;serialIds:string[]}>} = {requestId:randomUUID(),saleId:invoice.id,cancel:false,accepted:true,lines:[{saleLineId:String(line.id),quantity:"3",serialIds:[]}]};
       const collectionInput = {...rawCommand,requestId:randomUUID(),saleId:invoice.id,amount:"40"};
       const lock = gate();
       if (order === "return-first") {
-        const first = returnCommerceSale(gatedSale(prisma,lock),1n,returnInput);
+        const first = returnCommerceSale(gatedSale(prisma,lock), actor(1n) ,returnInput);
         await lock.entered;
         let attempts = 0;
         const retryExperimental = async () => {
@@ -3887,17 +3888,17 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
         assert.ok("error" in rejected); assert.match(String(rejected.error),/مبلغ التحصيل لا يمكن أن يزيد على المتبقي/);
         assert.ok(attempts >= 2,"the laboratory harness retries serialization failure");
         assert.equal((await admin.query<{n:number}>("SELECT count(*)::int AS n FROM commerce_collections WHERE request_id=$1::uuid",[collectionInput.requestId])).rows[0].n,0);
-        assert.deepEqual(await returnCommerceSale(prisma,1n,returnInput),{id:returned.id,replayed:true});
+        assert.deepEqual(await returnCommerceSale(prisma, actor(1n) ,returnInput),{id:returned.id,replayed:true});
       } else {
         const first: Promise<{id:string;replayed:boolean}> = gatedFinance(prisma,lock).serializable(tx => recordVaultCollectionTestOnly(tx,1n,collectionInput));
         await lock.entered;
-        const delayed = returnCommerceSale(prisma,1n,returnInput);
+        const delayed = returnCommerceSale(prisma, actor(1n) ,returnInput);
         try { await waitForLock(admin,"commerce_sales"); } finally { lock.release(); }
         const saved: {id:string;replayed:boolean} = await first;
         const returned: {id:string;replayed:boolean} = await delayed;
         assert.equal(saved.replayed,false); assert.equal(returned.replayed,false);
         assert.deepEqual(await db.serializable(tx => recordVaultCollectionTestOnly(tx,1n,collectionInput)),{id:saved.id,replayed:true});
-        assert.deepEqual(await returnCommerceSale(prisma,1n,returnInput),{id:returned.id,replayed:true});
+        assert.deepEqual(await returnCommerceSale(prisma, actor(1n) ,returnInput),{id:returned.id,replayed:true});
         assert.equal((await admin.query<{n:number}>("SELECT count(*)::int AS n FROM finance.movements WHERE kind='COLLECTION' AND external_ref=$1", [`collection:${saved.id}`])).rows[0].n,1);
         const totals: {collected:string;returned:string;refunded:string} = (await admin.query<{collected:string;returned:string;refunded:string}>(`SELECT
           (SELECT COALESCE(sum(amount),0)::text FROM commerce_collections WHERE sale_id=$1::bigint) AS collected,
@@ -3910,15 +3911,15 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     // invoice lock. In these fixtures there is a recorded customer liability,
     // not money due from the customer, both before and after the refund.
     for (const order of ["refund-first", "collection-first"] as const) {
-      const invoice = await createCatalogSale(prisma,1n,catalogInput("80"));
+      const invoice = await createCatalogSale(prisma, actor(1n) ,catalogInput("80"));
       const line: {id:bigint} = await prisma.commerceSaleLine.findFirstOrThrow({where:{saleId:BigInt(invoice.id)},select:{id:true}});
-      await returnCommerceSale(prisma,1n,{requestId:randomUUID(),saleId:invoice.id,cancel:false,accepted:true,lines:[{saleLineId:String(line.id),quantity:"3",serialIds:[]}]});
+      await returnCommerceSale(prisma, actor(1n) ,{requestId:randomUUID(),saleId:invoice.id,cancel:false,accepted:true,lines:[{saleLineId:String(line.id),quantity:"3",serialIds:[]}]});
       const refundInput = {requestId:randomUUID(),saleId:invoice.id,amount:"10",method:"CARD",actuallyPaid:true};
       const collectionInput = {...rawCommand,requestId:randomUUID(),saleId:invoice.id,amount:"0.01"};
       const lock = gate();
       let refund: {id:string;replayed:boolean};
       if (order === "refund-first") {
-        const first = recordCommerceRefund(gatedSale(prisma,lock),1n,refundInput);
+        const first = recordCommerceRefund(gatedSale(prisma,lock), actor(1n) ,refundInput);
         await lock.entered;
         let attempts = 0;
         const retryExperimental = async () => {
@@ -3936,14 +3937,14 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
       } else {
         const first = gatedFinance(prisma,lock,"FROM public.commerce_sales s JOIN public.branches").serializable(tx => recordVaultCollectionTestOnly(tx,1n,collectionInput)).then(value => ({value}),error => ({error}));
         await lock.entered;
-        const delayed = recordCommerceRefund(prisma,1n,refundInput);
+        const delayed = recordCommerceRefund(prisma, actor(1n) ,refundInput);
         try { await waitForLock(admin,"commerce_sales"); } finally { lock.release(); }
         const rejected = await first;
         assert.ok("error" in rejected); assert.match(String(rejected.error),/مبلغ التحصيل لا يمكن أن يزيد على المتبقي/);
         refund = await delayed;
       }
       assert.equal(refund.replayed,false);
-      assert.deepEqual(await recordCommerceRefund(prisma,1n,refundInput),{id:refund.id,replayed:true});
+      assert.deepEqual(await recordCommerceRefund(prisma, actor(1n) ,refundInput),{id:refund.id,replayed:true});
       const state: {rows:Array<{collections:string;refunds:string;badRequest:number;cashMoves:number}>} = await admin.query<{collections:string;refunds:string;badRequest:number;cashMoves:number}>(`SELECT
         (SELECT COALESCE(sum(amount),0)::text FROM commerce_collections WHERE sale_id=$1::bigint) AS collections,
         (SELECT COALESCE(sum(amount),0)::text FROM commerce_refunds WHERE sale_id=$1::bigint) AS refunds,
@@ -3954,15 +3955,15 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     // Repeat the selected invoice-lock orders with an actual CASH refund from
     // the same synthetic vault. The later collection remains laboratory-only.
     for (const order of ["cash-refund-first", "collection-before-cash-refund"] as const) {
-      const invoice = await createCatalogSale(prisma,1n,catalogInput("80"));
+      const invoice = await createCatalogSale(prisma, actor(1n) ,catalogInput("80"));
       const line: {id:bigint} = await prisma.commerceSaleLine.findFirstOrThrow({where:{saleId:BigInt(invoice.id)},select:{id:true}});
-      await returnCommerceSale(prisma,1n,{requestId:randomUUID(),saleId:invoice.id,cancel:false,accepted:true,lines:[{saleLineId:String(line.id),quantity:"3",serialIds:[]}]});
+      await returnCommerceSale(prisma, actor(1n) ,{requestId:randomUUID(),saleId:invoice.id,cancel:false,accepted:true,lines:[{saleLineId:String(line.id),quantity:"3",serialIds:[]}]});
       const refundInput = {requestId:randomUUID(),saleId:invoice.id,amount:"10",method:"CASH",actuallyPaid:true,accountId:commandVault.id,negativeAcknowledged:false,checkpointRef:"OPENING",timing:"AFTER_REVIEWED_CHECKPOINT"};
       const collectionInput = {...rawCommand,requestId:randomUUID(),saleId:invoice.id,amount:"0.01"};
       const lock = gate();
       let refund: {id:string;replayed:boolean};
       if (order === "cash-refund-first") {
-        const first = recordCommerceRefund(gatedSale(prisma,lock),1n,refundInput);
+        const first = recordCommerceRefund(gatedSale(prisma,lock), actor(1n) ,refundInput);
         await lock.entered;
         let attempts = 0;
         const retryExperimental = async () => {
@@ -3980,14 +3981,14 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
       } else {
         const first = gatedFinance(prisma,lock,"FROM public.commerce_sales s JOIN public.branches").serializable(tx => recordVaultCollectionTestOnly(tx,1n,collectionInput)).then(value => ({value}),error => ({error}));
         await lock.entered;
-        const delayed = recordCommerceRefund(prisma,1n,refundInput);
+        const delayed = recordCommerceRefund(prisma, actor(1n) ,refundInput);
         try { await waitForLock(admin,"commerce_sales"); } finally { lock.release(); }
         const rejected = await first;
         assert.ok("error" in rejected); assert.match(String(rejected.error),/مبلغ التحصيل لا يمكن أن يزيد على المتبقي/);
         refund = await delayed;
       }
       assert.equal(refund.replayed,false);
-      assert.deepEqual(await recordCommerceRefund(prisma,1n,refundInput),{id:refund.id,replayed:true});
+      assert.deepEqual(await recordCommerceRefund(prisma, actor(1n) ,refundInput),{id:refund.id,replayed:true});
       const refundEvidence: {rows:Array<{source:string;amount:string;n:number}>} = await admin.query<{source:string;amount:string;n:number}>(`SELECT source_id::text AS source,sum(amount)::text AS amount,count(*)::int AS n FROM finance.movements WHERE kind='REFUND' AND external_ref=$1 GROUP BY source_id`, [`refund:${refund.id}`]);
       assert.deepEqual(refundEvidence.rows,[{source:commandVault.id,amount:"10.00",n:1}]);
       assert.equal((await admin.query<{n:number}>("SELECT count(*)::int AS n FROM commerce_collections WHERE request_id=$1::uuid",[collectionInput.requestId])).rows[0].n,0);
@@ -3995,17 +3996,17 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     // Separate invoices share the same vault, so both operations may be
     // legitimate; account locking must serialize the selected interleavings.
     for (const order of ["vault-refund-first", "vault-collection-first"] as const) {
-      const collectionSale = await createCatalogSale(prisma,1n,catalogInput("40"));
-      const refundSale = await createCatalogSale(prisma,1n,catalogInput("80"));
+      const collectionSale = await createCatalogSale(prisma, actor(1n) ,catalogInput("40"));
+      const refundSale = await createCatalogSale(prisma, actor(1n) ,catalogInput("80"));
       const refundLine: {id:bigint} = await prisma.commerceSaleLine.findFirstOrThrow({where:{saleId:BigInt(refundSale.id)},select:{id:true}});
-      await returnCommerceSale(prisma,1n,{requestId:randomUUID(),saleId:refundSale.id,cancel:false,accepted:true,lines:[{saleLineId:String(refundLine.id),quantity:"3",serialIds:[]}]});
+      await returnCommerceSale(prisma, actor(1n) ,{requestId:randomUUID(),saleId:refundSale.id,cancel:false,accepted:true,lines:[{saleLineId:String(refundLine.id),quantity:"3",serialIds:[]}]});
       const refundInput = {requestId:randomUUID(),saleId:refundSale.id,amount:"10",method:"CASH",actuallyPaid:true,accountId:commandVault.id,negativeAcknowledged:false,checkpointRef:"OPENING",timing:"AFTER_REVIEWED_CHECKPOINT"};
       const collectionInput = {...rawCommand,requestId:randomUUID(),saleId:collectionSale.id,amount:"10"};
       const lock = gate();
       let refund: {id:string;replayed:boolean};
       let collected: {id:string;replayed:boolean};
       if (order === "vault-refund-first") {
-        const first = recordCommerceRefund(gatedRefundAccount(prisma,lock),1n,refundInput);
+        const first = recordCommerceRefund(gatedRefundAccount(prisma,lock), actor(1n) ,refundInput);
         await lock.entered;
         let attempts = 0;
         const retryExperimental = async () => {
@@ -4021,12 +4022,12 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
       } else {
         const first: Promise<{id:string;replayed:boolean}> = gatedFinance(prisma,lock).serializable(tx => recordVaultCollectionTestOnly(tx,1n,collectionInput));
         await lock.entered;
-        const delayed = recordCommerceRefund(prisma,1n,refundInput);
+        const delayed = recordCommerceRefund(prisma, actor(1n) ,refundInput);
         try { await waitForLock(admin,"accounts"); } finally { lock.release(); }
         collected = await first; refund = await delayed;
       }
       assert.equal(refund.replayed,false); assert.equal(collected.replayed,false);
-      assert.deepEqual(await recordCommerceRefund(prisma,1n,refundInput),{id:refund.id,replayed:true});
+      assert.deepEqual(await recordCommerceRefund(prisma, actor(1n) ,refundInput),{id:refund.id,replayed:true});
       assert.deepEqual(await db.serializable(tx => recordVaultCollectionTestOnly(tx,1n,collectionInput)),{id:collected.id,replayed:true});
       const effects: {rows:Array<{kind:string;source:string|null;destination:string|null;amount:string;n:number}>} = await admin.query<{kind:string;source:string|null;destination:string|null;amount:string;n:number}>(`SELECT kind,source_id::text AS source,destination_id::text AS destination,sum(amount)::text AS amount,count(*)::int AS n
         FROM finance.movements WHERE (kind='REFUND' AND external_ref=$1) OR (kind='COLLECTION' AND external_ref=$2)
@@ -4075,10 +4076,10 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     // The existing sales service has a separate creator-attribution guard that
     // the proposed laboratory command intentionally does not model. Neither
     // its experiment nor its success authorizes removing the real guard.
-    const someoneElsesSale = await createCatalogSale(prisma,85n,catalogInput("40"));
+    const someoneElsesSale = await createCatalogSale(prisma, actor(85n) ,catalogInput("40"));
     const proxyPayment = {...rawCommand,requestId:randomUUID(),saleId:someoneElsesSale.id,amount:"5"};
     const beforeCreatorGuard = (await admin.query<{revision:string}>("SELECT revision::text AS revision FROM commerce_sales WHERE id=$1::bigint",[someoneElsesSale.id])).rows[0].revision;
-    await assert.rejects(() => recordCommerceCollection(prisma!,1n,proxyPayment),/التحصيل النقدي بالنيابة عن منشئ الفاتورة متوقف مؤقتًا/);
+    await assert.rejects(() => recordCommerceCollection(prisma!, actor(1n) ,proxyPayment),/التحصيل النقدي بالنيابة عن منشئ الفاتورة متوقف مؤقتًا/);
     assert.equal((await admin.query<{revision:string}>("SELECT revision::text AS revision FROM commerce_sales WHERE id=$1::bigint",[someoneElsesSale.id])).rows[0].revision,beforeCreatorGuard);
     assert.equal((await admin.query<{n:number}>("SELECT count(*)::int AS n FROM commerce_collections WHERE request_id=$1::uuid",[proxyPayment.requestId])).rows[0].n,0);
     const labProxy = await db.serializable(tx => recordVaultCollectionTestOnly(tx,1n,proxyPayment));
@@ -5108,7 +5109,7 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
       if (holder === "29") {
         const sale = (await admin.query<{ id: string }>(`INSERT INTO commerce_sales(request_id,request_hash,branch_id,warehouse_id,customer_name,customer_phone,subtotal,discount,taxable_base,tax_total,total,revision,created_by_id)
           SELECT $1::uuid,repeat('a',64),branch_id,warehouse_id,'حد جرد اصطناعي',customer_phone,subtotal,discount,taxable_base,tax_total,total,revision,$2::bigint FROM commerce_sales WHERE id=2 RETURNING id::text`, [randomUUID(),holder])).rows[0].id;
-        await recordCommerceCollection(testCollectionService(prisma, holder), BigInt(holder), { requestId: randomUUID(), saleId: sale, amount: "8", method: "CASH", actuallyPaid: false });
+        await recordCommerceCollection(testCollectionService(prisma, holder), actor(BigInt(holder)), { requestId: randomUUID(), saleId: sale, amount: "8", method: "CASH", actuallyPaid: false });
         const pending = await db.serializable(tx => reviewTestPeriod(tx, account.id));
         assert.deepEqual(pending.collections.map(item => item.amount), ["8.00"]);
         await admin.query("UPDATE commerce_collections SET created_at=(SELECT opened_at FROM finance.accounts WHERE id=$1::bigint) WHERE id=$2::bigint", [account.id,pending.collections[0].id]);
@@ -5452,7 +5453,7 @@ test("real PostgreSQL exercises cash collection and holder-expense races", { tim
     await reopenGate.entered;
     let new22;
     try {
-      await recordCommerceCollection(prisma, 22n, { requestId: randomUUID(), saleId: sale22, amount: "5", method: "CASH", actuallyPaid: false });
+      await recordCommerceCollection(prisma, actor(22n) , { requestId: randomUUID(), saleId: sale22, amount: "5", method: "CASH", actuallyPaid: false });
       const settlement22 = await requestSettlement(db, "22", { requestId: randomUUID(), accountId: old22.id, expectedBalance: "0", countedAmount: "5", reason: "تسوية قبل إعادة الفتح", actuallyCounted: true });
       await confirmSettlement(db, "1", { requestId: randomUUID(), settlementId: settlement22.id, expectedBalance: "0", transferAmount: "5", transferDirection: "TO_VAULT", reason: "اعتماد قبل الإقفال", actuallyTransferred: true });
       await closeAccount(db, "1", { requestId: randomUUID(), accountId: old22.id, reason: "إقفال قبل إعادة الفتح" });

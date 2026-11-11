@@ -18,6 +18,7 @@ import type { FinanceDatabase } from "../src/lib/finance/types";
 import { testCollectionService, testHolderPaymentService, testRealSettlementWithPeriod } from "../prototypes/finance-collection-policy/runtime-adapters.test-only";
 import { allocateTestCollection } from "../prototypes/finance-collection-policy/allocate.test-only";
 import { captureRevisionCheckedTestPeriod, captureTestPeriod, reviewTestPeriod } from "../prototypes/finance-collection-policy/period.test-only";
+import { actor } from "./helpers/commerce-actor";
 
 const root = process.cwd();
 const require = createRequire(join(root, "package.json"));
@@ -30,7 +31,7 @@ test("experimental allocation in real collection, initial-sale and holder-paymen
   process.env.FINANCE_ENABLED = "true"; process.env.SALES_STOCK_DECOUPLED = "false";
   try {
     execFileSync(process.execPath, [join(root, "scripts/local-pglite-preview.cjs")], { cwd: root, env: { ...process.env, PREVIEW_PGLITE_DIR: dir, PREVIEW_PASSWORD: "Synthetic-Test-2026!" }, stdio: "pipe", timeout: 60_000 });
-    pg = new PGlite(dir);
+    pg = new PGlite(dir); await pg.exec(readFileSync(join(root,"tests/fixtures/commerce-auth-sessions.sql"),"utf8"));
     await pg.exec("SET selahtone.finance_release_candidate_test_only='yes'; SET selahtone.collection_policy_test_only='yes'");
     for (const f of ["prototypes/finance-release/release-candidate.test-only.sql", "prisma/manual-settlement-upgrade.sql", "prisma/manual-custody-closure-upgrade.sql", "prisma/manual-custody-and-count-requests.sql", "prototypes/finance-collection-policy/allocations.test-only.sql"]) await pg.exec(readFileSync(join(root, f), "utf8"));
     client = new WasmClient({ adapter: new PrismaPGlite(pg) });
@@ -45,7 +46,7 @@ test("experimental allocation in real collection, initial-sale and holder-paymen
       SELECT $1::uuid,repeat('a',64),branch_id,warehouse_id,'فاتورة مدير اصطناعية',customer_phone,subtotal,discount,taxable_base,tax_total,total,revision,1 FROM commerce_sales WHERE id=2 RETURNING id::text`, [randomUUID()])).rows[0].id;
     const managerInput = { requestId: randomUUID(), saleId: managerSale, amount: "19", method: "CASH", actuallyPaid: true };
     const vaultRev = (await pg.query<{revision:string}>("SELECT revision::text AS revision FROM finance.accounts WHERE id=$1::bigint", [currentVault.id])).rows[0].revision;
-    await assert.rejects(() => recordCommerceCollection(testCollectionService(client!, "1"), 1n, managerInput), /يلزم وجود عهدة مفتوحة للمسجّل/);
+    await assert.rejects(() => recordCommerceCollection(testCollectionService(client!, "1"), actor(1n) , managerInput), /يلزم وجود عهدة مفتوحة للمسجّل/);
     assert.equal((await pg.query<{n:number}>("SELECT count(*)::int AS n FROM commerce_collections WHERE request_id=$1::uuid", [managerInput.requestId])).rows[0].n, 0);
     assert.equal((await pg.query<{n:number}>("SELECT count(*)::int AS n FROM finance.movements WHERE source_id=$1::bigint OR destination_id=$1::bigint", [currentVault.id])).rows[0].n, 0);
     assert.equal((await pg.query<{revision:string}>("SELECT revision::text AS revision FROM finance.accounts WHERE id=$1::bigint", [currentVault.id])).rows[0].revision, vaultRev);
@@ -56,19 +57,19 @@ test("experimental allocation in real collection, initial-sale and holder-paymen
     const revision = async () => (await pg!.query<{ n: string }>("SELECT revision::text AS n FROM finance.accounts WHERE id=$1::bigint", [account.id])).rows[0].n;
     const count = async (table: string) => (await pg!.query<{ n: number }>(`SELECT count(*)::int AS n FROM ${table}`)).rows[0].n;
     const before = { allocations: await count("finance.collection_allocations_test_only"), collections: await count("commerce_collections"), revision: await revision() };
-    await assert.rejects(() => recordCommerceCollection(broken, 3n, later), /synthetic failure after allocation/);
+    await assert.rejects(() => recordCommerceCollection(broken, actor(3n) , later), /synthetic failure after allocation/);
     assert.equal(await count("finance.collection_allocations_test_only"), before.allocations);
     assert.equal(await count("commerce_collections"), before.collections);
     assert.equal(await revision(), before.revision);
-    const first = await recordCommerceCollection(hooked, 3n, later);
+    const first = await recordCommerceCollection(hooked, actor(3n) , later);
     assert.equal(first.replayed, false);
     const r1 = await revision();
-    assert.equal((await recordCommerceCollection(hooked, 3n, later)).replayed, true);
+    assert.equal((await recordCommerceCollection(hooked, actor(3n) , later)).replayed, true);
     assert.equal(await revision(), r1, "replay must not allocate or bump twice");
-    await assert.rejects(() => recordCommerceCollection(hooked, 3n, { ...later, amount: "12" }), /بيانات مختلفة/);
+    await assert.rejects(() => recordCommerceCollection(hooked, actor(3n) , { ...later, amount: "12" }), /بيانات مختلفة/);
     const card = { ...later, requestId: randomUUID(), amount: "2", method: "CARD" };
     const allocationCount = await count("finance.collection_allocations_test_only");
-    assert.equal((await recordCommerceCollection(broken, 3n, card)).replayed, false, "noncash skips even the failure-injecting allocation hook");
+    assert.equal((await recordCommerceCollection(broken, actor(3n) , card)).replayed, false, "noncash skips even the failure-injecting allocation hook");
     assert.equal(await count("finance.collection_allocations_test_only"), allocationCount);
     assert.equal(await revision(), r1);
 
@@ -81,14 +82,14 @@ test("experimental allocation in real collection, initial-sale and holder-paymen
     const originalQty = await stockQty();
     for (const [service, payload] of [[createCatalogSale, initialCatalog], [createCommerceSale, stockSale]] as const) {
       const oldRev = await revision(); const oldCollections = await count("commerce_collections");
-      await assert.rejects(() => service(broken, 3n, payload), /synthetic failure after allocation/);
+      await assert.rejects(() => service(broken, actor(3n), payload), /synthetic failure after allocation/);
       assert.equal(await count("commerce_sales"), saleCount + (payload === stockSale ? 1 : 0));
       assert.equal(await count("commerce_collections"), oldCollections);
       assert.equal(await revision(), oldRev);
       if (payload === stockSale) assert.equal(await stockQty(), originalQty, "failed allocation rolls back stock decrement");
-      const result = await service(hooked, 3n, payload);
+      const result = await service(hooked, actor(3n), payload);
       assert.equal(result.replayed, false); const current = await revision();
-      assert.equal((await service(hooked, 3n, payload)).replayed, true);
+      assert.equal((await service(hooked, actor(3n), payload)).replayed, true);
       assert.equal(await revision(), current);
     }
     assert.equal(Number(await stockQty()), Number(originalQty) - 1);
@@ -157,7 +158,7 @@ test("experimental allocation in real collection, initial-sale and holder-paymen
     const afterConfirmation = await db.serializable(tx => reviewTestPeriod(tx, account.id));
     assert.equal(afterConfirmation.collections.length, 0); assert.equal(afterConfirmation.payments.length, 0);
     const next = { ...later, requestId: randomUUID(), amount: "2" };
-    await recordCommerceCollection(hooked, 3n, next);
+    await recordCommerceCollection(hooked, actor(3n) , next);
     assert.equal((await confirmSettlement(testRealSettlementWithPeriod(db, hook), "1", decision)).replayed, true);
     assert.equal(await count("finance.movements"), 2); assert.equal(await count("finance.settlement_allocation_receipts_test_only"), 1);
     assert.deepEqual((await db.serializable(tx => reviewTestPeriod(tx, account.id))).collections.map(c => c.amount), ["2.00"]);
@@ -233,7 +234,7 @@ test("synthetic pending collection and cash refund affect different evidence; re
   process.env.FINANCE_ENABLED = "true"; process.env.SALES_STOCK_DECOUPLED = "false";
   try {
     execFileSync(process.execPath, [join(root, "scripts/local-pglite-preview.cjs")], { cwd: root, env: { ...process.env, PREVIEW_PGLITE_DIR: dir, PREVIEW_PASSWORD: "Synthetic-Test-2026!" }, stdio: "pipe", timeout: 60_000 });
-    pg = new PGlite(dir);
+    pg = new PGlite(dir); await pg.exec(readFileSync(join(root,"tests/fixtures/commerce-auth-sessions.sql"),"utf8"));
     await pg.exec("SET selahtone.finance_release_candidate_test_only='yes'; SET selahtone.collection_policy_test_only='yes'");
     for (const f of ["prototypes/finance-release/release-candidate.test-only.sql", "prisma/manual-settlement-upgrade.sql", "prisma/manual-custody-closure-upgrade.sql", "prisma/manual-custody-and-count-requests.sql", "prototypes/finance-collection-policy/allocations.test-only.sql"]) await pg.exec(readFileSync(join(root, f), "utf8"));
     client = new WasmClient({ adapter: new PrismaPGlite(pg) });
@@ -246,10 +247,10 @@ test("synthetic pending collection and cash refund affect different evidence; re
     await pg.query("UPDATE public.commerce_collections SET created_at=now()-interval '2 days'");
     // Deliberately separate the synthetic opening timestamp from the collection.
     await pg.query("UPDATE finance.accounts SET opened_at=now()-interval '1 day' WHERE id=$1::bigint", [account.id]);
-    const sale = await createCommerceSale(testCollectionService(client, "3"), 3n, { requestId: randomUUID(), warehouseId: "1", customerName: "عميل رد اصطناعي", customerPhone: "01000000000", discount: "0", initialPayment: "10", method: "CASH", lines: [{ productId: "4", quantity: "1", serialIds: [], expectedUnitPrice: "150", expectedTaxRateId: "3", expectedTaxKind: "VAT", expectedTaxRate: "14" }] });
+    const sale = await createCommerceSale(testCollectionService(client, "3"), actor(3n) , { requestId: randomUUID(), warehouseId: "1", customerName: "عميل رد اصطناعي", customerPhone: "01000000000", discount: "0", initialPayment: "10", method: "CASH", lines: [{ productId: "4", quantity: "1", serialIds: [], expectedUnitPrice: "150", expectedTaxRateId: "3", expectedTaxKind: "VAT", expectedTaxRate: "14" }] });
     const line = await client.commerceSaleLine.findFirstOrThrow({ where: { saleId: BigInt(sale.id) }, select: { id: true } });
     const returnInput = { requestId: randomUUID(), saleId: sale.id, cancel: false, accepted: true, lines: [{ saleLineId: String(line.id), quantity: "1", serialIds: [] }] };
-    await returnCommerceSale(client, 1n, returnInput);
+    await returnCommerceSale(client, actor(1n) , returnInput);
     const periodBefore = await db.serializable(tx => reviewTestPeriod(tx, account.id));
     assert.deepEqual(periodBefore.collections.map(item => item.amount), ["10.00"]);
     assert.equal(periodBefore.payments.length, 0);
@@ -258,9 +259,9 @@ test("synthetic pending collection and cash refund affect different evidence; re
     assert.equal(overviewBefore.sales, "10.00");
     const request = await requestSettlement(db, "3", { requestId: randomUUID(), accountId: account.id, expectedBalance: "20", countedAmount: "30", reason: "تسوية قبل رد اصطناعي", actuallyCounted: true });
     const refund = { requestId: randomUUID(), saleId: sale.id, amount: "4", method: "CASH", actuallyPaid: true, accountId: account.id, negativeAcknowledged: false, checkpointRef: "OPENING", timing: "AFTER_REVIEWED_CHECKPOINT" };
-    const saved = await recordCommerceRefund(client, 1n, refund);
+    const saved = await recordCommerceRefund(client, actor(1n) , refund);
     assert.equal(saved.replayed, false);
-    assert.deepEqual(await recordCommerceRefund(client, 1n, refund), { id: saved.id, replayed: true });
+    assert.deepEqual(await recordCommerceRefund(client, actor(1n) , refund), { id: saved.id, replayed: true });
     const periodAfter = await db.serializable(tx => reviewTestPeriod(tx, account.id));
     assert.deepEqual(periodAfter, periodBefore, "the experimental collection/payment fingerprint alone does not include refund movements");
     const overviewAfter = await settlementOverview(db, "3", account.id);
@@ -302,9 +303,9 @@ test("synthetic pending collection and cash refund affect different evidence; re
     const reviewed = await db.serializable(tx => reviewTestPeriod(tx, account.id));
     const revisionBefore = (await pg.query<{ revision: string }>("SELECT revision::text AS revision FROM finance.accounts WHERE id=$1::bigint", [account.id])).rows[0].revision;
     const vaultRefund = { ...refund, requestId: randomUUID(), amount: "3", accountId: vault.id };
-    const vaultSaved = await recordCommerceRefund(client, 1n, vaultRefund);
+    const vaultSaved = await recordCommerceRefund(client, actor(1n) , vaultRefund);
     assert.equal(vaultSaved.replayed, false);
-    assert.deepEqual(await recordCommerceRefund(client, 1n, vaultRefund), { id: vaultSaved.id, replayed: true });
+    assert.deepEqual(await recordCommerceRefund(client, actor(1n) , vaultRefund), { id: vaultSaved.id, replayed: true });
     const afterVaultRefund = await settlementOverview(db, "3", account.id);
     assert.equal(afterVaultRefund.account?.balance, "16.00");
     assert.equal(afterVaultRefund.sales, "10.00");
@@ -335,7 +336,7 @@ test("synthetic pending-items example posts only settlement adjustment and parti
   process.env.FINANCE_ENABLED = "true"; process.env.SALES_STOCK_DECOUPLED = "false";
   try {
     execFileSync(process.execPath, [join(root, "scripts/local-pglite-preview.cjs")], { cwd: root, env: { ...process.env, PREVIEW_PGLITE_DIR: dir, PREVIEW_PASSWORD: "Synthetic-Test-2026!" }, stdio: "pipe", timeout: 60_000 });
-    pg = new PGlite(dir);
+    pg = new PGlite(dir); await pg.exec(readFileSync(join(root,"tests/fixtures/commerce-auth-sessions.sql"),"utf8"));
     await pg.exec("SET selahtone.finance_release_candidate_test_only='yes'; SET selahtone.collection_policy_test_only='yes'");
     for (const f of ["prototypes/finance-release/release-candidate.test-only.sql", "prisma/manual-settlement-upgrade.sql", "prisma/manual-custody-closure-upgrade.sql", "prisma/manual-custody-and-count-requests.sql", "prototypes/finance-collection-policy/allocations.test-only.sql"]) await pg.exec(readFileSync(join(root, f), "utf8"));
     client = new WasmClient({ adapter: new PrismaPGlite(pg) });
@@ -346,7 +347,7 @@ test("synthetic pending-items example posts only settlement adjustment and parti
     const account = await openAccount(db, "1", { requestId: randomUUID(), branchId: "1", kind: "CUSTODY", holderId: "3", openingAmount: "100", openingDate: today, counted: true }, today);
     await pg.query("UPDATE finance.accounts SET opened_at=now()-interval '1 day' WHERE id=$1::bigint", [account.id]);
     const collection = { requestId: randomUUID(), saleId: "2", amount: "30", method: "CASH", actuallyPaid: false };
-    const collected = await recordCommerceCollection(testCollectionService(client, "3"), 3n, collection);
+    const collected = await recordCommerceCollection(testCollectionService(client, "3"), actor(3n) , collection);
     const expense = await createExpense(db, "3", { requestId: randomUUID(), branchId: "1", categoryId: "1", amount: "10", expenseDate: today, description: "مصروف مثال اصطناعي" });
     await approveExpense(db, "1", { requestId: randomUUID(), expenseId: expense.id, expectedRevision: "1" });
     const payment = { requestId: randomUUID(), expenseId: expense.id, expectedRevision: "2", method: "CASH", accountId: null, paymentDate: today, actuallyPaid: true, source: "HOLDER_CASH" };
@@ -380,11 +381,11 @@ test("synthetic pending-items example posts only settlement adjustment and parti
     assert.equal((await db.serializable(tx => reviewTestPeriod(tx, account.id))).payments.length, 0);
     assert.equal((await pg.query<{n:number}>("SELECT count(*)::int AS n FROM finance.settlement_allocation_receipts_test_only WHERE settlement_id=$1::bigint", [request.id])).rows[0].n, 1);
     assert.equal((await confirmSettlement(testRealSettlementWithPeriod(db, hook), "1", decision)).replayed, true);
-    assert.equal((await recordCommerceCollection(testCollectionService(client, "3"), 3n, collection)).replayed, true);
+    assert.equal((await recordCommerceCollection(testCollectionService(client, "3"), actor(3n) , collection)).replayed, true);
     assert.equal((await payExpense(testHolderPaymentService(db, "3"), "3", payment, today)).replayed, true);
     assert.equal((await pg.query<{n:number}>("SELECT count(*)::int AS n FROM finance.movements WHERE settlement_id=$1::bigint", [request.id])).rows[0].n, 2);
     const nextCollection = { ...collection, requestId: randomUUID(), amount: "7" };
-    const later = await recordCommerceCollection(testCollectionService(client, "3"), 3n, nextCollection);
+    const later = await recordCommerceCollection(testCollectionService(client, "3"), actor(3n) , nextCollection);
     const nextReview = await db.serializable(tx => reviewTestPeriod(tx, account.id));
     assert.deepEqual(nextReview.collections.map(x => [x.id,x.amount]), [[later.id,"7.00"]]);
     assert.equal((await confirmSettlement(testRealSettlementWithPeriod(db, hook), "1", decision)).replayed, true);

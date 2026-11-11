@@ -12,13 +12,14 @@ import { PGlite } from "@electric-sql/pglite";
 import { PrismaPg } from "@prisma/adapter-pg";
 import type { PrismaClient } from "@prisma/client";
 import { createCommerceSale,recordCommerceCollection,recordCommerceRefund,returnCommerceSale } from "../src/lib/commerce-operations";
+import { actor } from "./helpers/commerce-actor";
 
 const root=process.cwd(),read=(f:string)=>readFileSync(path.join(root,f),"utf8");
 const cutover=read("prototypes/finance-cutover/schema.test-only.sql");
 // Same upgrade order as tests/catalog-sales.test.ts (plus the two finance
 // fixtures below): the generated client and src/lib/commerce-operations.ts read
 // columns that the older four-file fixture never created.
-const files=["tests/fixtures/inventory-baseline.sql","prisma/manual-inventory-upgrade.sql","prisma/manual-receiving-upgrade.sql","prisma/manual-commerce-upgrade.sql","prisma/manual-catalog-sales-upgrade.sql","prisma/manual-menu-scope-upgrade.sql","prisma/manual-cancel-permission-upgrade.sql","prisma/manual-discount-ceiling-upgrade.sql","tests/fixtures/finance-legacy-categories.sql","tests/fixtures/finance-cutover.sql"];
+const files=["tests/fixtures/inventory-baseline.sql","prisma/manual-inventory-upgrade.sql","prisma/manual-receiving-upgrade.sql","prisma/manual-commerce-upgrade.sql","prisma/manual-catalog-sales-upgrade.sql","prisma/manual-menu-scope-upgrade.sql","prisma/manual-cancel-permission-upgrade.sql","prisma/manual-discount-ceiling-upgrade.sql","tests/fixtures/finance-legacy-categories.sql","tests/fixtures/finance-cutover.sql","tests/fixtures/commerce-auth-sessions.sql"];
 const request=()=>randomUUID();
 const saleInput=(initialPayment="10",method="CASH")=>({requestId:request(),warehouseId:"1",customerName:"عميل اختبار وهمي",customerPhone:"01000000000",discount:"0",initialPayment,method,
  lines:[{productId:"2",quantity:"2",serialIds:[],expectedUnitPrice:"20",expectedTaxRateId:3,expectedTaxKind:"EXEMPT",expectedTaxRate:"0"}]});
@@ -30,7 +31,7 @@ const refund=(saleId:string)=>({requestId:request(),saleId,amount:"1",method:"CA
 const reviewedRefund=(saleId:string)=>({...refund(saleId),accountId:"1",checkpointRef:"OPENING",timing:"AFTER_REVIEWED_CHECKPOINT"});
 async function legacyRefund(db:PrismaClient,actorId:bigint,raw:unknown):Promise<unknown>{
  const previous=process.env.FINANCE_ENABLED;process.env.FINANCE_ENABLED="true";
- try{return await recordCommerceRefund(db,actorId,raw);}
+ try{return await recordCommerceRefund(db,actor(actorId),raw);}
  finally{if(previous===undefined)delete process.env.FINANCE_ENABLED;else process.env.FINANCE_ENABLED=previous;}
 }
 const returned=(saleId:string)=>({requestId:request(),saleId,cancel:true,accepted:true,lines:[]});
@@ -198,9 +199,9 @@ test("database cutover lab closes and reopens safely under concurrent real comme
   let dueSale="",refundSale="",accountId="",openingCheckpoint="";
   await t.test("legacy sale and return continue normally before the frozen phase",async()=>{
    assert.equal((await legacy!.query("SELECT session_user AS role")).rows[0].role,"cutover_legacy_test");
-   const first=await createCommerceSale(oldApp!,3n,saleInput());dueSale=first.id;
-   const second=await createCommerceSale(oldApp!,1n,saleInput("40"));refundSale=second.id;
-   await returnCommerceSale(oldApp!,1n,returned(refundSale));
+   const first=await createCommerceSale(oldApp!, actor(3n) ,saleInput());dueSale=first.id;
+   const second=await createCommerceSale(oldApp!, actor(1n) ,saleInput("40"));refundSale=second.id;
+   await returnCommerceSale(oldApp!, actor(1n) ,returned(refundSale));
    const c=await counts(admin!);assert.equal(c.sales,2);assert.equal(c.collections,2);assert.equal(c.returns,1);assert.equal(c.stock,"98.00");assert.equal(c.movements,0);
    await rejectsText(()=>next!.query("SELECT finance_cutover_test.begin_new_transaction()"),/FINANCE_CUTOVER_BLOCKED/);
   });
@@ -261,9 +262,9 @@ test("database cutover lab closes and reopens safely under concurrent real comme
   });
   await t.test("the actual legacy commerce functions cannot write during freeze; stock and invoice stay unchanged",async()=>{
    const before=await counts(admin!);
-   await rejectsText(()=>createCommerceSale(oldApp!,3n,saleInput()),/FINANCE_CUTOVER_BLOCKED/);
-   await rejectsText(()=>recordCommerceCollection(oldApp!,3n,collect(dueSale)),/FINANCE_CUTOVER_BLOCKED/);
-   await rejectsText(()=>returnCommerceSale(oldApp!,1n,returned(dueSale)),/FINANCE_CUTOVER_BLOCKED/);
+   await rejectsText(()=>createCommerceSale(oldApp!, actor(3n) ,saleInput()),/FINANCE_CUTOVER_BLOCKED/);
+   await rejectsText(()=>recordCommerceCollection(oldApp!, actor(3n) ,collect(dueSale)),/FINANCE_CUTOVER_BLOCKED/);
+   await rejectsText(()=>returnCommerceSale(oldApp!, actor(1n) ,returned(dueSale)),/FINANCE_CUTOVER_BLOCKED/);
    await rejectsText(()=>legacyRefund(oldApp!,2n,reviewedRefund(refundSale)),/FINANCE_CUTOVER_BLOCKED/);
    assert.deepEqual(await counts(admin!),before);
   });
@@ -273,15 +274,15 @@ test("database cutover lab closes and reopens safely under concurrent real comme
    const back=await transition(admin!,request(),2,"FROZEN","LEGACY","إلغاء تجريبي قبل التفعيل");assert.equal(back.current_revision,3);
    const replayed=await transition(admin!,firstFreeze,1,"LEGACY","FROZEN");
    assert.deepEqual(replayed,{applied_revision:2,current_revision:3,current_phase:"LEGACY",replayed:true});
-   await recordCommerceCollection(oldApp!,3n,collect(dueSale));
+   await recordCommerceCollection(oldApp!, actor(3n) ,collect(dueSale));
    const row=(await admin!.query("SELECT phase,revision,ever_new FROM finance_cutover_test.control")).rows[0];assert.deepEqual(row,{phase:"LEGACY",revision:3,ever_new:false});
   });
   await t.test("after activation the old code is blocked even if connected with the new database login",async()=>{
    assert.equal((await transition(admin!,request(),3,"LEGACY","FROZEN")).current_revision,4);
    assert.equal((await transition(admin!,request(),4,"FROZEN","NEW")).current_revision,5);
    const before=await counts(admin!);
-   await rejectsText(()=>createCommerceSale(oldApp!,3n,saleInput()),/FINANCE_CUTOVER_BLOCKED/);
-   await rejectsText(()=>createCommerceSale(newRoleOldCode!,3n,saleInput()),/FINANCE_CUTOVER_BLOCKED/);
+   await rejectsText(()=>createCommerceSale(oldApp!, actor(3n) ,saleInput()),/FINANCE_CUTOVER_BLOCKED/);
+   await rejectsText(()=>createCommerceSale(newRoleOldCode!, actor(3n) ,saleInput()),/FINANCE_CUTOVER_BLOCKED/);
    assert.deepEqual(await counts(admin!),before);
    // Calling the authorizer in autocommit cannot authorize a later transaction.
    await next!.query("SELECT finance_cutover_test.begin_new_transaction()");
@@ -305,17 +306,17 @@ test("database cutover lab closes and reopens safely under concurrent real comme
   });
   await t.test("a permit alone cannot let old code commit unlinked cash; noncash needs no cash movement",async()=>{
    const authorized=authorizeLegacyCode(newRoleOldCode!),before=await counts(admin!),cashRequest=saleInput();
-   await rejectsText(()=>createCommerceSale(authorized,3n,cashRequest),/FINANCE_CASH_LINK_REQUIRED/);
-   await rejectsText(()=>createCommerceSale(authorized,3n,cashRequest),/FINANCE_CASH_LINK_REQUIRED/);
-   await rejectsText(()=>recordCommerceCollection(authorized,3n,collect(dueSale)),/FINANCE_CASH_LINK_REQUIRED/);
+   await rejectsText(()=>createCommerceSale(authorized, actor(3n) ,cashRequest),/FINANCE_CASH_LINK_REQUIRED/);
+   await rejectsText(()=>createCommerceSale(authorized, actor(3n) ,cashRequest),/FINANCE_CASH_LINK_REQUIRED/);
+   await rejectsText(()=>recordCommerceCollection(authorized, actor(3n) ,collect(dueSale)),/FINANCE_CASH_LINK_REQUIRED/);
    // Production now refuses a NEW cash refund before any write while finance is
    // disabled; with finance enabled it requires the real `finance` schema, which
    // this cutover fixture deliberately does not install. Assert the deferred
    // database invariant directly, exactly as the later subtests already do.
    await rejectsText(()=>inNewTransaction(next!,async c=>{await refundEvent(c,refundSale);}),/FINANCE_CASH_LINK_REQUIRED/);
    assert.deepEqual(await counts(admin!),before);
-   const cardRequest=saleInput("10","CARD"),cashless=await createCommerceSale(authorized,3n,cardRequest);assert(cashless.id);
-   assert.equal((await createCommerceSale(authorized,3n,cardRequest)).id,cashless.id);
+   const cardRequest=saleInput("10","CARD"),cashless=await createCommerceSale(authorized, actor(3n) ,cardRequest);assert(cashless.id);
+   assert.equal((await createCommerceSale(authorized, actor(3n) ,cardRequest)).id,cashless.id);
    const after=await counts(admin!);assert.equal(after.sales,before.sales+1);assert.equal(after.collections,before.collections+1);
    assert.equal(after.movements,before.movements);assert.equal(after.historical,before.historical);
   });

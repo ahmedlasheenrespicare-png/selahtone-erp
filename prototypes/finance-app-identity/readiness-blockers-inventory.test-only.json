@@ -6,7 +6,7 @@
   "authorization_received_verbatim": "تكليف منفصل صريح بتحليل أوفلاين للموانع",
   "no_action_boundary": "NO_SRC_NO_RENDER_YAML_NO_PRODUCTION_SQL_NO_DEPLOY_NO_SYNC_NO_TRUE",
   "overall_status": "NOT_READY",
-  "blockers_resolved": 3,
+  "blockers_resolved": 4,
   "gates_opened": 0,
   "no_blanket_approval": true,
   "strict_reject_phrase": "تعذّر التحقق من نتيجة الطلب المحفوظ؛ يلزم مراجعة أو ترحيل الطلب القديم.",
@@ -76,9 +76,9 @@
     },
     {
       "id": "ATOMIC_ACCESS_CONTROL_GAP_RESOLVED",
-      "status": "UNRESOLVED",
-      "current_evidence": "check:finance:atomic-contract-gap = 4/4 يوثّق الفجوة مخبريًا",
-      "gap": "الذرية مثبتة في بُعد الصفوف لا عبر حدود access_control/request_results؛ لا عقد مقبول موقع.",
+      "status": "RESOLVED",
+      "current_evidence": "COMMERCE_TRANSACTION_ACTOR_REQUIRES_SESSION_ID; USER_ACCESS_SESSION_LOCK_BEFORE_WORK_AND_SESSION_RECHECK_BEFORE_COMMIT_ON_WRITE_REPLAY_RETRY; COMMERCE_19_OF_19_CATALOG_6_OF_6_PGLITE_SUITES_PASS_TYPECHECK",
+      "gap": "مغلق لذرية قرار الوصول والجلسة في كود المالية والتجارة مع اختبارات معملية؛ لا يغلق فشل COMMIT الحقيقي أو دورة المجمع أو التفعيل. اختبارات PostgreSQL native المعدلة لم تُشغّل لغياب الثنائيات.",
       "offline_design": "نموذج عقد ذري على PostgreSQL مؤقت: حد معاملة واحد، حقن فشل عند الالتزام، وفحص عدم وجود كتابات جزئية.",
       "acceptance_criteria": "صفر كتابات جزئية عند الفشل، وارتباط كل نتيجة بطلبها، واختبارات معملية خضراء على قاعدة مؤقتة فقط.",
       "requires": "SEPARATE_REVIEWED_TEXT_THEN_SEPARATE_VERBATIM_APPROVAL_BEFORE_EXECUTION"

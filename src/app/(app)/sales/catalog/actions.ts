@@ -33,11 +33,11 @@ function refresh() {
 }
 
 type Result = { id: string; replayed: boolean };
-async function run(key: string, work: (actorId: bigint) => Promise<Result>, done: string): Promise<CatalogActionState> {
+async function run(key: string, work: (actor: { id: bigint; sessionId: string }) => Promise<Result>, done: string): Promise<CatalogActionState> {
   const session = await requireSession();
   if (!(await writeAccessAllowed(key))) return { status: "error", message: WRITE_DENIED_MESSAGE };
   try {
-    const result = await work(BigInt(session.id));
+    const result = await work({ id: BigInt(session.id), sessionId: session.sessionId });
     refresh();
     return { status: "success", message: result.replayed ? "سبق حفظ هذا الطلب؛ لم يُكرر." : done };
   } catch (error) { return failure(error); }
@@ -46,35 +46,35 @@ async function run(key: string, work: (actorId: bigint) => Promise<Result>, done
 export async function createCategoryAction(_previous: CatalogActionState, formData: FormData): Promise<CatalogActionState> {
   if (text(formData, "reviewed") !== "yes") return { status: "error", message: "راجع بيانات التصنيف قبل الحفظ." };
   const raw = { requestId: text(formData, "requestId"), code: text(formData, "code"), nameAr: text(formData, "nameAr"), sortOrder: number(text(formData, "sortOrder")) };
-  return run("/sales/catalog#create-category", (actorId) => createSalesCategory(prisma, actorId, raw), "تمت إضافة التصنيف.");
+  return run("/sales/catalog#create-category", (actor) => createSalesCategory(prisma, actor, raw), "تمت إضافة التصنيف.");
 }
 
 export async function updateCategoryAction(_previous: CatalogActionState, formData: FormData): Promise<CatalogActionState> {
   if (text(formData, "reviewed") !== "yes") return { status: "error", message: "راجع بيانات التصنيف قبل الحفظ." };
   const raw = { requestId: text(formData, "requestId"), id: text(formData, "id"), nameAr: text(formData, "nameAr"), sortOrder: number(text(formData, "sortOrder")) };
-  return run("/sales/catalog#edit-category", (actorId) => updateSalesCategory(prisma, actorId, raw), "تم تعديل التصنيف.");
+  return run("/sales/catalog#edit-category", (actor) => updateSalesCategory(prisma, actor, raw), "تم تعديل التصنيف.");
 }
 
 export async function setCategoryActiveAction(_previous: CatalogActionState, formData: FormData): Promise<CatalogActionState> {
   const raw = { requestId: text(formData, "requestId"), id: text(formData, "id"), active: text(formData, "active") === "yes", reason: text(formData, "reason") };
-  return run("/sales/catalog#change-category-status", (actorId) => setSalesCategoryActive(prisma, actorId, raw), "تم تحديث حالة التصنيف.");
+  return run("/sales/catalog#change-category-status", (actor) => setSalesCategoryActive(prisma, actor, raw), "تم تحديث حالة التصنيف.");
 }
 
 export async function createTypeAction(_previous: CatalogActionState, formData: FormData): Promise<CatalogActionState> {
   if (text(formData, "reviewed") !== "yes") return { status: "error", message: "راجع بيانات الصنف قبل الحفظ." };
   const raw = { requestId: text(formData, "requestId"), categoryId: text(formData, "categoryId"), nameAr: text(formData, "nameAr"), sortOrder: number(text(formData, "sortOrder")) };
-  return run("/sales/catalog#create-type", (actorId) => createSalesType(prisma, actorId, raw), "تمت إضافة الصنف.");
+  return run("/sales/catalog#create-type", (actor) => createSalesType(prisma, actor, raw), "تمت إضافة الصنف.");
 }
 
 export async function updateTypeAction(_previous: CatalogActionState, formData: FormData): Promise<CatalogActionState> {
   if (text(formData, "reviewed") !== "yes") return { status: "error", message: "راجع بيانات الصنف قبل الحفظ." };
   const raw = { requestId: text(formData, "requestId"), id: text(formData, "id"), nameAr: text(formData, "nameAr"), sortOrder: number(text(formData, "sortOrder")) };
-  return run("/sales/catalog#edit-type", (actorId) => updateSalesType(prisma, actorId, raw), "تم تعديل الصنف.");
+  return run("/sales/catalog#edit-type", (actor) => updateSalesType(prisma, actor, raw), "تم تعديل الصنف.");
 }
 
 export async function setTypeActiveAction(_previous: CatalogActionState, formData: FormData): Promise<CatalogActionState> {
   const raw = { requestId: text(formData, "requestId"), id: text(formData, "id"), active: text(formData, "active") === "yes", reason: text(formData, "reason") };
-  return run("/sales/catalog#change-type-status", (actorId) => setSalesTypeActive(prisma, actorId, raw), "تم تحديث حالة الصنف.");
+  return run("/sales/catalog#change-type-status", (actor) => setSalesTypeActive(prisma, actor, raw), "تم تحديث حالة الصنف.");
 }
 
 export async function createFieldAction(_previous: CatalogActionState, formData: FormData): Promise<CatalogActionState> {
@@ -83,7 +83,7 @@ export async function createFieldAction(_previous: CatalogActionState, formData:
     requestId: text(formData, "requestId"), typeId: text(formData, "typeId"), fieldKey: text(formData, "fieldKey"),
     labelAr: text(formData, "labelAr"), isRequired: text(formData, "isRequired") === "yes", sortOrder: number(text(formData, "sortOrder")),
   };
-  return run("/sales/catalog#create-field", (actorId) => createSalesField(prisma, actorId, raw), "تمت إضافة الحقل.");
+  return run("/sales/catalog#create-field", (actor) => createSalesField(prisma, actor, raw), "تمت إضافة الحقل.");
 }
 
 export async function updateFieldAction(_previous: CatalogActionState, formData: FormData): Promise<CatalogActionState> {
@@ -92,10 +92,10 @@ export async function updateFieldAction(_previous: CatalogActionState, formData:
     requestId: text(formData, "requestId"), id: text(formData, "id"), labelAr: text(formData, "labelAr"),
     isRequired: text(formData, "isRequired") === "yes", sortOrder: number(text(formData, "sortOrder")),
   };
-  return run("/sales/catalog#edit-field", (actorId) => updateSalesField(prisma, actorId, raw), "تم تعديل الحقل.");
+  return run("/sales/catalog#edit-field", (actor) => updateSalesField(prisma, actor, raw), "تم تعديل الحقل.");
 }
 
 export async function setFieldActiveAction(_previous: CatalogActionState, formData: FormData): Promise<CatalogActionState> {
   const raw = { requestId: text(formData, "requestId"), id: text(formData, "id"), active: text(formData, "active") === "yes", reason: text(formData, "reason") };
-  return run("/sales/catalog#change-field-status", (actorId) => setSalesFieldActive(prisma, actorId, raw), "تم تحديث حالة الحقل.");
+  return run("/sales/catalog#change-field-status", (actor) => setSalesFieldActive(prisma, actor, raw), "تم تحديث حالة الحقل.");
 }

@@ -15,6 +15,7 @@ import { createCatalogSale } from "../src/lib/catalog-sales";
 import { openAccount } from "../src/lib/finance/engine";
 import { financePort } from "../src/lib/finance/port";
 import type { FinanceDatabase } from "../src/lib/finance/types";
+import { actor } from "./helpers/commerce-actor";
 
 const root=process.cwd(), require=createRequire(join(root,"package.json"));
 const { PrismaClient: WasmClient }=require("@prisma/client/wasm") as { PrismaClient:new (options:{adapter:unknown})=>PrismaClient };
@@ -31,7 +32,7 @@ test("catalog cash sale and directory role change in two controlled PostgreSQL i
     ctl(["-D",data,"-l",log,"-o",`-k ${dir} -p 55441 -c listen_addresses=''`,"-w","start"]);started=true;
     const config={host:dir,port:55441,user:"postgres",database:"postgres"};admin=new Client(config);await admin.connect();
     const {buildDdl}=require("./scripts/local-pglite-ddl.cjs") as {buildDdl:()=>string};
-    await admin.query(buildDdl());await admin.query(read("scripts/local-pglite-seed.sql").replaceAll("__PREVIEW_BCRYPT__","synthetic"));
+    await admin.query(buildDdl());await admin.query(read("scripts/local-pglite-seed.sql").replaceAll("__PREVIEW_BCRYPT__","synthetic"));await admin.query(read("tests/fixtures/commerce-auth-sessions.sql"));
     await admin.query("SET selahtone.finance_release_candidate_test_only='yes'");
     for(const f of ["prototypes/finance-release/release-candidate.test-only.sql","prisma/manual-settlement-upgrade.sql","prisma/manual-custody-closure-upgrade.sql","prisma/manual-custody-and-count-requests.sql"]) await admin.query(read(f));
     prisma=new WasmClient({adapter:new PrismaPg(config)});
@@ -63,7 +64,7 @@ test("catalog cash sale and directory role change in two controlled PostgreSQL i
         return work(wrapped);
       },options as never);}catch(e){throw e;}};
     }}) as PrismaClient;
-    const pending=createCatalogSale(gated,3n,input).then(value=>({value}),error=>({error}));
+    const pending=createCatalogSale(gated, actor(3n) ,input).then(value=>({value}),error=>({error}));
     await entered;
     try {
       await updateDirectoryUser(prisma,{userId:3n,actorRole:"MANAGER",expected:original,data:{...original,roleCode:"ACCOUNTANT"},financeOn:true});
@@ -104,7 +105,7 @@ test("catalog cash sale and directory role change in two controlled PostgreSQL i
       },options as never);
     }}) as PrismaClient;
     const second={...input,requestId:randomUUID()};
-    const writing=createCatalogSale(gatedSecond,3n,second);
+    const writing=createCatalogSale(gatedSecond, actor(3n) ,second);
     await enteredSecond;
     const changing=updateDirectoryUser(prisma,{userId:3n,actorRole:"MANAGER",expected:original,data:{...original,roleCode:"ACCOUNTANT"},financeOn:true});
     try {
@@ -122,7 +123,7 @@ test("catalog cash sale and directory role change in two controlled PostgreSQL i
     assert.equal((await admin.query<{n:number}>("SELECT count(*)::int AS n FROM commerce_sales WHERE request_id=$1::uuid",[second.requestId])).rows[0].n,1);
     assert.equal((await admin.query<{n:number}>("SELECT count(*)::int AS n FROM commerce_collections WHERE request_id=$1::uuid",[second.requestId])).rows[0].n,1);
     assert.equal((await admin.query<{revision:string}>("SELECT revision::text AS revision FROM finance.accounts WHERE id=$1::bigint",[account.id])).rows[0].revision,"1");
-    await assert.rejects(()=>createCatalogSale(prisma!,3n,second),/ليس لديك صلاحية/);
+    await assert.rejects(()=>createCatalogSale(prisma!, actor(3n) ,second),/ليس لديك صلاحية/);
   } finally {
     if(prisma)await prisma.$disconnect();if(admin)await admin.end();
     if(started)ctl(["-D",data,"-m","immediate","-w","stop"]);

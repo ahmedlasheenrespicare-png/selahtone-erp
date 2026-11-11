@@ -13,6 +13,7 @@ import { InventoryProblem } from "../src/lib/inventory-operations";
 import { receiveInventoryStock } from "../src/lib/receiving-operations";
 import { createCommerceSale, recordCommerceCollection, recordCommerceRefund, returnCommerceSale, changeStaffDiscountLimit } from "../src/lib/commerce-operations";
 import { searchAvailableSaleSerials } from "../src/lib/commerce-serial-search";
+import { actor } from "./helpers/commerce-actor";
 
 const root = process.cwd();
 const baseline = readFileSync(path.join(root, "tests/fixtures/inventory-baseline.sql"), "utf8");
@@ -35,7 +36,7 @@ async function expectProblem(fn: () => Promise<unknown>, pattern: RegExp) {
   await assert.rejects(fn, (error: unknown) => error instanceof InventoryProblem && pattern.test(error.message));
 }
 async function setupInventory(pg: PGlite) {
-  await pg.exec(baseline); await pg.exec(openingUpgrade); await pg.exec(receivingUpgrade);
+  await pg.exec(baseline); await pg.exec(readFileSync(path.join(root,"tests/fixtures/commerce-auth-sessions.sql"),"utf8")); await pg.exec(openingUpgrade); await pg.exec(receivingUpgrade);
   await pg.exec(readFileSync(path.join(root, "prisma/manual-cancel-permission-upgrade.sql"), "utf8"));
   await pg.exec(`UPDATE tax_rates SET effective_from='2000-01-01' WHERE id=1;
     INSERT INTO tax_rates(code,name_ar,rate,kind,effective_from,is_active) VALUES('TEST-EX','معفى تجريبي',0,'EXEMPT','2000-01-01',TRUE);
@@ -84,13 +85,13 @@ test("isolated sales, money and returns", { timeout: 120_000 }, async (t) => {
     let saleId = ""; let aidLineId = "";
 
     await t.test("roles, branch scope, stale prices and discount cap reject before committing", async () => {
-      await expectProblem(() => createCommerceSale(client, 2n, sale()), /صلاحية/);
-      await expectProblem(() => createCommerceSale(client, 5n, sale()), /صلاحية/);
-      await expectProblem(() => createCommerceSale(client, 4n, sale()), /صلاحية/);
-      await expectProblem(() => createCommerceSale(client, 3n, sale({ discount: "11.51" })), /حد المسموح/);
-      await expectProblem(() => createCommerceSale(client, 3n, sale({ lines: [{ ...line("1", "1", ["1"]), expectedUnitPrice: "100" }] })), /تغيّر السعر/);
-      await expectProblem(() => createCommerceSale(client, 3n, sale({ lines: [{ ...line("1", "1", ["1"]), expectedTaxRate: "14" }] })), /تغيّر السعر/);
-      await expectProblem(() => createCommerceSale(client, 3n, sale({ lines: [{ ...line("1", "1", ["1"]), productId: "5" }] })), /غير محددة/);
+      await expectProblem(() => createCommerceSale(client, actor(2n) , sale()), /صلاحية/);
+      await expectProblem(() => createCommerceSale(client, actor(5n) , sale()), /صلاحية/);
+      await expectProblem(() => createCommerceSale(client, actor(4n) , sale()), /صلاحية/);
+      await expectProblem(() => createCommerceSale(client, actor(3n) , sale({ discount: "11.51" })), /حد المسموح/);
+      await expectProblem(() => createCommerceSale(client, actor(3n) , sale({ lines: [{ ...line("1", "1", ["1"]), expectedUnitPrice: "100" }] })), /تغيّر السعر/);
+      await expectProblem(() => createCommerceSale(client, actor(3n) , sale({ lines: [{ ...line("1", "1", ["1"]), expectedTaxRate: "14" }] })), /تغيّر السعر/);
+      await expectProblem(() => createCommerceSale(client, actor(3n) , sale({ lines: [{ ...line("1", "1", ["1"]), productId: "5" }] })), /غير محددة/);
       assert.equal(await client.commerceSale.count(), 0);
     });
 
@@ -107,9 +108,9 @@ test("isolated sales, money and returns", { timeout: 120_000 }, async (t) => {
 
     await t.test("sale atomically snapshots inclusive tax, cost, first payment and serials", async () => {
       const input = sale();
-      const result = await createCommerceSale(client, 3n, input); saleId = result.id;
-      assert.equal(result.replayed, false); assert.equal((await createCommerceSale(client, 3n, input)).replayed, true);
-      await expectProblem(() => createCommerceSale(client, 3n, { ...input, customerName: "اسم مختلف" }), /بيانات مختلفة/);
+      const result = await createCommerceSale(client, actor(3n) , input); saleId = result.id;
+      assert.equal(result.replayed, false); assert.equal((await createCommerceSale(client, actor(3n) , input)).replayed, true);
+      await expectProblem(() => createCommerceSale(client, actor(3n) , { ...input, customerName: "اسم مختلف" }), /بيانات مختلفة/);
       const saved = await client.commerceSale.findUniqueOrThrow({ where: { id: BigInt(saleId) }, include: { lines: true, collections: true } });
       assert.equal(saved.subtotal.toFixed(2), "230.00"); assert.equal(saved.discount.toFixed(2), "10.00"); assert.equal(saved.total.toFixed(2), "220.00");
       assert.equal(saved.taxableBase!.plus(saved.taxTotal!).toFixed(2), saved.total.toFixed(2));
@@ -126,38 +127,77 @@ test("isolated sales, money and returns", { timeout: 120_000 }, async (t) => {
     await t.test("unavailable or wrong-branch serial rolls back the entire sale and payment", async () => {
       const beforeSales = await client.commerceSale.count(); const beforeCollections = await client.commerceCollection.count();
       const before = await client.stockLevel.findUniqueOrThrow({ where: { warehouseId_productId: { warehouseId: 1n, productId: 1n } } });
-      await expectProblem(() => createCommerceSale(client, 3n, sale({ discount: "0", initialPayment: "10", lines: [line("1", "1", ["1"])] })), /غير متاح/);
-      await expectProblem(() => createCommerceSale(client, 3n, sale({ discount: "0", initialPayment: "10", lines: [line("1", "1", ["4"])] })), /غير متاح/);
+      await expectProblem(() => createCommerceSale(client, actor(3n) , sale({ discount: "0", initialPayment: "10", lines: [line("1", "1", ["1"])] })), /غير متاح/);
+      await expectProblem(() => createCommerceSale(client, actor(3n) , sale({ discount: "0", initialPayment: "10", lines: [line("1", "1", ["4"])] })), /غير متاح/);
       assert.equal(await client.commerceSale.count(), beforeSales); assert.equal(await client.commerceCollection.count(), beforeCollections);
       const after = await client.stockLevel.findUniqueOrThrow({ where: { id: before.id } }); assert.equal(after.qtyOnHand.toFixed(2), before.qtyOnHand.toFixed(2));
     });
 
     await t.test("later collections honor permissions, remaining due and idempotency", async () => {
-      await expectProblem(() => recordCommerceCollection(client, 5n, movement(saleId, "1")), /صلاحية/);
-      await expectProblem(() => recordCommerceCollection(client, 2n, movement(saleId, "120.01")), /يزيد/);
+      await expectProblem(() => recordCommerceCollection(client, actor(5n) , movement(saleId, "1")), /صلاحية/);
+      await expectProblem(() => recordCommerceCollection(client, actor(2n) , movement(saleId, "120.01")), /يزيد/);
       const payment = movement(saleId, "30", { method: "WALLET" });
       const revisionBefore = (await client.commerceSale.findUniqueOrThrow({ where: { id: BigInt(saleId) }, select: { revision: true } })).revision;
-      assert.equal((await recordCommerceCollection(client, 2n, payment)).replayed, false);
+      assert.equal((await recordCommerceCollection(client, actor(2n) , payment)).replayed, false);
       const afterWrite = (await client.commerceSale.findUniqueOrThrow({ where: { id: BigInt(saleId) }, select: { revision: true } })).revision;
       assert.equal(afterWrite, revisionBefore + 1);
-      assert.equal((await recordCommerceCollection(client, 2n, payment)).replayed, true);
+      assert.equal((await recordCommerceCollection(client, actor(2n) , payment)).replayed, true);
       assert.equal((await client.commerceSale.findUniqueOrThrow({ where: { id: BigInt(saleId) }, select: { revision: true } })).revision, afterWrite);
-      await expectProblem(() => recordCommerceCollection(client, 2n, { ...payment, amount: "31" }), /بيانات مختلفة/);
+      await expectProblem(() => recordCommerceCollection(client, actor(2n) , { ...payment, amount: "31" }), /بيانات مختلفة/);
       assert.equal(await client.commerceCollection.count({ where: { saleId: BigInt(saleId) } }), 2);
     });
 
     await t.test("a permission revoked after the HTTP decision blocks the commerce transaction", async () => {
-      const isolated = await createCommerceSale(client, 3n, sale({ discount: "0", initialPayment: "1", method: "CARD", lines: [line("2", "1", [])] }));
+      const isolated = await createCommerceSale(client, actor(3n) , sale({ discount: "0", initialPayment: "1", method: "CARD", lines: [line("2", "1", [])] }));
       await pg!.query(`INSERT INTO access_control(subject_kind,subject,key,allowed)
         VALUES('role','ACCOUNTANT','/sales#collect',false)`);
       const payment = movement(isolated.id, "1", { method: "WALLET" });
-      await expectProblem(() => recordCommerceCollection(client, 2n, payment), /تغيّرت صلاحية هذه العملية/);
+      await expectProblem(() => recordCommerceCollection(client, actor(2n) , payment), /تغيّرت صلاحية هذه العملية/);
       assert.equal(await client.commerceCollection.count({ where: { requestId: payment.requestId } }), 0);
       // User-level allow retains the same precedence as the outer HTTP guard.
       await pg!.query(`INSERT INTO access_control(subject_kind,subject,key,allowed)
         VALUES('user','2','/sales#collect',true)`);
-      assert.equal((await recordCommerceCollection(client, 2n, payment)).replayed, false);
+      assert.equal((await recordCommerceCollection(client, actor(2n) , payment)).replayed, false);
       await pg!.exec("DELETE FROM access_control WHERE key='/sales#collect'");
+    });
+
+    await t.test("revoked, expired and wrong-user sessions block writes and final recheck rolls back", async () => {
+      const isolated = await createCommerceSale(client, actor(3n), sale({ discount: "0", initialPayment: "1", method: "CARD", lines: [line("2", "1", [])] }));
+      const newSale = sale({ discount: "0", initialPayment: "1", method: "CARD", lines: [line("2", "1", [])] });
+      await pg!.exec("DELETE FROM auth_sessions WHERE id='synthetic-commerce-session-3'");
+      await expectProblem(() => createCommerceSale(client, actor(3n), newSale), /انتهت الجلسة/);
+      assert.equal(await client.commerceSale.count({ where: { requestId: newSale.requestId } }), 0);
+      await pg!.exec("INSERT INTO auth_sessions(id,user_id,expires_at) VALUES('synthetic-commerce-session-3',3,clock_timestamp()-interval '1 second')");
+      await expectProblem(() => createCommerceSale(client, actor(3n), newSale), /انتهت الجلسة/);
+      await pg!.exec("UPDATE auth_sessions SET expires_at=clock_timestamp()+interval '1 day' WHERE id='synthetic-commerce-session-3'");
+      await expectProblem(() => createCommerceSale(client, { id: 3n, sessionId: "synthetic-commerce-session-1" }, newSale), /انتهت الجلسة/);
+
+      const payment = movement(isolated.id, "1", { method: "CARD" });
+      let expiredBeforeFinalCheck = false; let sessionReads = 0;
+      const expiring = new Proxy(client, { get(target, key, receiver) {
+        if (key !== "$transaction") return Reflect.get(target, key, receiver);
+        return async (work: (tx: unknown) => Promise<unknown>, options: unknown) => target.$transaction(async tx => {
+          const wrapped = new Proxy(tx, { get(obj, prop, recv) {
+            if (prop !== "$queryRaw") return Reflect.get(obj, prop, recv);
+            const raw = tx.$queryRaw.bind(tx) as (...args: unknown[]) => Promise<unknown>;
+            return async (...args: unknown[]) => {
+              const sql = Array.isArray(args[0]) ? (args[0] as string[]).join(" ") : String(args[0]);
+              if (sql.includes("FROM public.auth_sessions") && !sql.includes("FOR SHARE")) sessionReads++;
+              if (!expiredBeforeFinalCheck && sessionReads === 2 && sql.includes("FROM public.auth_sessions") && !sql.includes("FOR SHARE")) {
+                expiredBeforeFinalCheck = true;
+                const update = Object.assign(["UPDATE public.auth_sessions SET expires_at=clock_timestamp()-interval '1 second' WHERE id='synthetic-commerce-session-3'"], { raw: ["UPDATE public.auth_sessions SET expires_at=clock_timestamp()-interval '1 second' WHERE id='synthetic-commerce-session-3'"] });
+                await raw(update);
+              }
+              return raw(...args);
+            };
+          } });
+          return work(wrapped);
+        }, options as never);
+      } }) as ClientType;
+      await expectProblem(() => recordCommerceCollection(expiring, actor(3n), payment), /انتهت الجلسة/);
+      assert.equal(expiredBeforeFinalCheck, true, "the after-write session check must be reached");
+      assert.equal(await client.commerceCollection.count({ where: { requestId: payment.requestId } }), 0, "late revocation rolls back the collection");
+      await pg!.exec("UPDATE auth_sessions SET expires_at=clock_timestamp()+interval '1 day' WHERE id='synthetic-commerce-session-3'");
     });
 
     await t.test("return after a new-cost receipt restores saved sale cost and only creates a liability", async () => {
@@ -165,13 +205,13 @@ test("isolated sales, money and returns", { timeout: 120_000 }, async (t) => {
       let level = await client.stockLevel.findUniqueOrThrow({ where: { warehouseId_productId: { warehouseId: 1n, productId: 1n } } });
       assert.equal(level.qtyOnHand.toFixed(2), "2.00"); assert.equal(level.avgCost.toFixed(4), "20.0000");
       const input = { requestId: randomUUID(), saleId, cancel: false, accepted: true, lines: [{ saleLineId: aidLineId, quantity: "1", serialIds: ["1"] }] };
-      await expectProblem(() => returnCommerceSale(client, 3n, input), /صلاحية/);
-      await expectProblem(() => returnCommerceSale(client, 2n, input), /صلاحية/);
+      await expectProblem(() => returnCommerceSale(client, actor(3n) , input), /صلاحية/);
+      await expectProblem(() => returnCommerceSale(client, actor(2n) , input), /صلاحية/);
       const revisionBefore = (await client.commerceSale.findUniqueOrThrow({ where: { id: BigInt(saleId) }, select: { revision: true } })).revision;
-      assert.equal((await returnCommerceSale(client, 1n, input)).replayed, false);
+      assert.equal((await returnCommerceSale(client, actor(1n) , input)).replayed, false);
       const afterWrite = (await client.commerceSale.findUniqueOrThrow({ where: { id: BigInt(saleId) }, select: { revision: true } })).revision;
       assert.equal(afterWrite, revisionBefore + 1);
-      assert.equal((await returnCommerceSale(client, 1n, input)).replayed, true);
+      assert.equal((await returnCommerceSale(client, actor(1n) , input)).replayed, true);
       assert.equal((await client.commerceSale.findUniqueOrThrow({ where: { id: BigInt(saleId) }, select: { revision: true } })).revision, afterWrite);
       level = await client.stockLevel.findUniqueOrThrow({ where: { id: level.id } });
       assert.equal(level.qtyOnHand.toFixed(2), "3.00"); assert.equal(level.avgCost.toFixed(4), "16.6667");
@@ -179,65 +219,65 @@ test("isolated sales, money and returns", { timeout: 120_000 }, async (t) => {
       assert.equal(returned.total.toFixed(2), "100.44");
       assert.equal(await client.commerceRefund.count({ where: { saleId: BigInt(saleId) } }), 0);
       assert.equal((await client.inventorySerial.findUniqueOrThrow({ where: { id: 1n } })).currentSaleLineId, null);
-      await expectProblem(() => returnCommerceSale(client, 1n, { ...input, requestId: randomUUID() }), /غير متاح|سابقًا/);
+      await expectProblem(() => returnCommerceSale(client, actor(1n) , { ...input, requestId: randomUUID() }), /غير متاح|سابقًا/);
     });
 
     await t.test("refunds are recorded only after actual payment and may be partial", async () => {
-      await expectProblem(() => recordCommerceRefund(client, 2n, movement(saleId, "5", { actuallyPaid: false })), /راجع رد المبلغ/);
-      await expectProblem(() => recordCommerceRefund(client, 3n, movement(saleId, "5", { actuallyPaid: true })), /صلاحية/);
-      await expectProblem(() => recordCommerceRefund(client, 2n, movement(saleId, "10.45", { actuallyPaid: true })), /يزيد/);
+      await expectProblem(() => recordCommerceRefund(client, actor(2n) , movement(saleId, "5", { actuallyPaid: false })), /راجع رد المبلغ/);
+      await expectProblem(() => recordCommerceRefund(client, actor(3n) , movement(saleId, "5", { actuallyPaid: true })), /صلاحية/);
+      await expectProblem(() => recordCommerceRefund(client, actor(2n) , movement(saleId, "10.45", { actuallyPaid: true })), /يزيد/);
       const refund = movement(saleId, "5", { actuallyPaid: true });
       const revisionBefore = (await client.commerceSale.findUniqueOrThrow({ where: { id: BigInt(saleId) }, select: { revision: true } })).revision;
-      assert.equal((await recordCommerceRefund(client, 2n, refund)).replayed, false);
+      assert.equal((await recordCommerceRefund(client, actor(2n) , refund)).replayed, false);
       const afterWrite = (await client.commerceSale.findUniqueOrThrow({ where: { id: BigInt(saleId) }, select: { revision: true } })).revision;
       assert.equal(afterWrite, revisionBefore + 1);
-      assert.equal((await recordCommerceRefund(client, 2n, refund)).replayed, true);
+      assert.equal((await recordCommerceRefund(client, actor(2n) , refund)).replayed, true);
       assert.equal((await client.commerceSale.findUniqueOrThrow({ where: { id: BigInt(saleId) }, select: { revision: true } })).revision, afterWrite);
-      await expectProblem(() => recordCommerceRefund(client, 1n, movement(saleId, "5.44", { actuallyPaid: true, method: "CASH" })), /متوقف للمراجعة عند تعطيل المالية/);
-      await recordCommerceRefund(client, 1n, movement(saleId, "5.44", { actuallyPaid: true, method: "CARD" }));
+      await expectProblem(() => recordCommerceRefund(client, actor(1n) , movement(saleId, "5.44", { actuallyPaid: true, method: "CASH" })), /متوقف للمراجعة عند تعطيل المالية/);
+      await recordCommerceRefund(client, actor(1n) , movement(saleId, "5.44", { actuallyPaid: true, method: "CARD" }));
       assert.equal(await client.commerceRefund.count({ where: { saleId: BigInt(saleId) } }), 2);
-      await expectProblem(() => recordCommerceRefund(client, 1n, movement(saleId, "0.01", { actuallyPaid: true })), /يزيد/);
+      await expectProblem(() => recordCommerceRefund(client, actor(1n) , movement(saleId, "0.01", { actuallyPaid: true })), /يزيد/);
     });
 
     await t.test("returned serial can be resold, but not returned twice on its original sale", async () => {
-      const second = await createCommerceSale(client, 3n, sale({ discount: "0", initialPayment: "105", lines: [line("1", "1", ["1"])] }));
+      const second = await createCommerceSale(client, actor(3n) , sale({ discount: "0", initialPayment: "105", lines: [line("1", "1", ["1"])] }));
       const secondLine = await client.commerceSaleLine.findFirstOrThrow({ where: { saleId: BigInt(second.id) } });
       assert.equal(secondLine.unitCost!.toFixed(4), "16.6667");
-      await expectProblem(() => returnCommerceSale(client, 1n, { requestId: randomUUID(), saleId, cancel: false, accepted: true, lines: [{ saleLineId: aidLineId, quantity: "1", serialIds: ["1"] }] }), /غير متاح|سابقًا/);
+      await expectProblem(() => returnCommerceSale(client, actor(1n) , { requestId: randomUUID(), saleId, cancel: false, accepted: true, lines: [{ saleLineId: aidLineId, quantity: "1", serialIds: ["1"] }] }), /غير متاح|سابقًا/);
       assert.equal(await client.commerceSaleLineSerial.count({ where: { serialId: 1n } }), 2);
     });
 
     await t.test("cancellation returns remaining quantities and does not automatically refund", async () => {
       const refundsBefore = await client.commerceRefund.count({ where: { saleId: BigInt(saleId) } });
-      const result = await returnCommerceSale(client, 1n, { requestId: randomUUID(), saleId, cancel: true, accepted: true, lines: [] });
+      const result = await returnCommerceSale(client, actor(1n) , { requestId: randomUUID(), saleId, cancel: true, accepted: true, lines: [] });
       const invoice = await client.commerceSale.findUniqueOrThrow({ where: { id: BigInt(saleId) }, include: { returns: { include: { lines: true } } } });
       assert.ok(invoice.cancelledAt); assert.ok(result.id);
       const returnedTotal = invoice.returns.flatMap((entry) => entry.lines).reduce((sum, entry) => sum.plus(entry.total), invoice.total.minus(invoice.total));
       assert.equal(returnedTotal.toFixed(2), invoice.total.toFixed(2));
       assert.equal(await client.commerceRefund.count({ where: { saleId: BigInt(saleId) } }), refundsBefore);
       assert.equal((await client.inventorySerial.findUniqueOrThrow({ where: { id: 2n } })).currentSaleLineId, null);
-      await expectProblem(() => returnCommerceSale(client, 1n, { requestId: randomUUID(), saleId, cancel: true, accepted: true, lines: [] }), /ملغاة/);
+      await expectProblem(() => returnCommerceSale(client, actor(1n) , { requestId: randomUUID(), saleId, cancel: true, accepted: true, lines: [] }), /ملغاة/);
     });
 
     await t.test("manager controls the staff discount setting, with an audit and safe retry", async () => {
       const setting = { requestId: randomUUID(), percent: "7.5", managerPercent: "25" };
-      await expectProblem(() => changeStaffDiscountLimit(client, 2n, setting), /صلاحية/);
-      await changeStaffDiscountLimit(client, 1n, setting);
-      assert.equal((await changeStaffDiscountLimit(client, 1n, setting)).replayed, true);
+      await expectProblem(() => changeStaffDiscountLimit(client, actor(2n) , setting), /صلاحية/);
+      await changeStaffDiscountLimit(client, actor(1n) , setting);
+      assert.equal((await changeStaffDiscountLimit(client, actor(1n) , setting)).replayed, true);
       assert.equal((await client.commerceSettings.findUniqueOrThrow({ where: { id: 1 } })).staffDiscountBps, 750);
       assert.equal(await client.commerceSettingsChange.count(), 1);
       const permitted = sale({ discount: "6", initialPayment: "10", lines: [line("1", "1", ["2"])] });
-      await createCommerceSale(client, 3n, permitted);
+      await createCommerceSale(client, actor(3n) , permitted);
     });
 
     await t.test("missing, unsupported, inconsistent and inactive tax is never silently exempt", async () => {
       const draft = () => sale({ discount: "0", initialPayment: "1", lines: [line("1", "1", ["3"])] });
       await pg!.exec("UPDATE tax_rates SET kind='COMPOSITE' WHERE id=1");
-      await expectProblem(() => createCommerceSale(client, 3n, draft()), /مراجعة منفصلتين/);
+      await expectProblem(() => createCommerceSale(client, actor(3n) , draft()), /مراجعة منفصلتين/);
       await pg!.exec("UPDATE tax_rates SET kind='EXEMPT', rate=5 WHERE id=1");
-      await expectProblem(() => createCommerceSale(client, 3n, sale({ discount: "0", initialPayment: "1", lines: [{ ...line("1", "1", ["3"]), expectedTaxKind: "EXEMPT" }] })), /يجب أن يساوي صفرًا/);
+      await expectProblem(() => createCommerceSale(client, actor(3n) , sale({ discount: "0", initialPayment: "1", lines: [{ ...line("1", "1", ["3"]), expectedTaxKind: "EXEMPT" }] })), /يجب أن يساوي صفرًا/);
       await pg!.exec("UPDATE tax_rates SET kind='VAT', rate=5, is_active=false WHERE id=1");
-      await expectProblem(() => createCommerceSale(client, 3n, draft()), /غير محددة أو غير سارية/);
+      await expectProblem(() => createCommerceSale(client, actor(3n) , draft()), /غير محددة أو غير سارية/);
       await pg!.exec("UPDATE tax_rates SET is_active=true WHERE id=1");
     });
 
@@ -245,22 +285,22 @@ test("isolated sales, money and returns", { timeout: 120_000 }, async (t) => {
       const beforeStock = await client.stockLevel.findUniqueOrThrow({ where: { warehouseId_productId: { warehouseId: 1n, productId: 1n } } });
       const left = sale({ discount: "0", initialPayment: "1", lines: [line("1", "1", ["3"])] });
       const right = sale({ discount: "0", initialPayment: "1", lines: [line("1", "1", ["3"])] });
-      const race = await Promise.allSettled([createCommerceSale(client, 3n, left), createCommerceSale(client, 3n, right)]);
+      const race = await Promise.allSettled([createCommerceSale(client, actor(3n) , left), createCommerceSale(client, actor(3n) , right)]);
       const winners = race.filter((entry): entry is PromiseFulfilledResult<{ id: string; replayed: boolean }> => entry.status === "fulfilled");
       assert.equal(winners.length, 1);
       const raceSaleId = winners[0].value.id;
       const afterStock = await client.stockLevel.findUniqueOrThrow({ where: { id: beforeStock.id } });
       assert.equal(Number(beforeStock.qtyOnHand.toFixed(2)) - Number(afterStock.qtyOnHand.toFixed(2)), 1);
       const saleLine = await client.commerceSaleLine.findFirstOrThrow({ where: { saleId: BigInt(raceSaleId) } });
-      const collections = await Promise.allSettled([recordCommerceCollection(client, 2n, movement(raceSaleId, "70")), recordCommerceCollection(client, 3n, movement(raceSaleId, "70"))]);
+      const collections = await Promise.allSettled([recordCommerceCollection(client, actor(2n) , movement(raceSaleId, "70")), recordCommerceCollection(client, actor(3n) , movement(raceSaleId, "70"))]);
       assert.equal(collections.filter((entry) => entry.status === "fulfilled").length, 1);
       const aggregate = await client.commerceCollection.aggregate({ where: { saleId: BigInt(raceSaleId) }, _sum: { amount: true } });
       assert.equal(aggregate._sum.amount!.toFixed(2), "71.00");
       const makeReturn = () => ({ requestId: randomUUID(), saleId: raceSaleId, cancel: false, accepted: true, lines: [{ saleLineId: saleLine.id.toString(), quantity: "1", serialIds: ["3"] }] });
-      const returns = await Promise.allSettled([returnCommerceSale(client, 1n, makeReturn()), returnCommerceSale(client, 1n, makeReturn())]);
+      const returns = await Promise.allSettled([returnCommerceSale(client, actor(1n) , makeReturn()), returnCommerceSale(client, actor(1n) , makeReturn())]);
       assert.equal(returns.filter((entry) => entry.status === "fulfilled").length, 1);
       assert.equal(await client.commerceReturnLine.count({ where: { saleLineId: saleLine.id } }), 1);
-      const refunds = await Promise.allSettled([recordCommerceRefund(client, 2n, movement(raceSaleId, "50", { actuallyPaid: true })), recordCommerceRefund(client, 1n, movement(raceSaleId, "50", { actuallyPaid: true }))]);
+      const refunds = await Promise.allSettled([recordCommerceRefund(client, actor(2n) , movement(raceSaleId, "50", { actuallyPaid: true })), recordCommerceRefund(client, actor(1n) , movement(raceSaleId, "50", { actuallyPaid: true }))]);
       assert.equal(refunds.filter((entry) => entry.status === "fulfilled").length, 1);
       const refundSum = await client.commerceRefund.aggregate({ where: { saleId: BigInt(raceSaleId) }, _sum: { amount: true } });
       assert.equal(refundSum._sum.amount!.toFixed(2), "50.00");
@@ -273,7 +313,7 @@ test("isolated sales, money and returns", { timeout: 120_000 }, async (t) => {
       const beforeSales = await client.commerceSale.count();
       const beforeLevel = await client.stockLevel.findUniqueOrThrow({ where: { warehouseId_productId: { warehouseId: 1n, productId: 1n } } });
       assert.equal((await client.inventorySerial.findUniqueOrThrow({ where: { id: 3n } })).currentSaleLineId, null);
-      await assert.rejects(() => createCommerceSale(client, 3n, sale({ discount: "0", initialPayment: "1", lines: [line("1", "1", ["3"])] })));
+      await assert.rejects(() => createCommerceSale(client, actor(3n) , sale({ discount: "0", initialPayment: "1", lines: [line("1", "1", ["3"])] })));
       assert.equal(await client.commerceSale.count(), beforeSales);
       assert.equal((await client.stockLevel.findUniqueOrThrow({ where: { id: beforeLevel.id } })).qtyOnHand.toFixed(2), beforeLevel.qtyOnHand.toFixed(2));
       assert.equal((await client.inventorySerial.findUniqueOrThrow({ where: { id: 3n } })).currentSaleLineId, null);
@@ -281,12 +321,12 @@ test("isolated sales, money and returns", { timeout: 120_000 }, async (t) => {
     });
 
     await t.test("a late return error does not release serials or change stock", async () => {
-      const made = await createCommerceSale(client, 3n, sale({ discount: "0", initialPayment: "1", lines: [line("1", "1", ["3"])] }));
+      const made = await createCommerceSale(client, actor(3n) , sale({ discount: "0", initialPayment: "1", lines: [line("1", "1", ["3"])] }));
       const madeLine = await client.commerceSaleLine.findFirstOrThrow({ where: { saleId: BigInt(made.id) } });
       await pg!.exec(`CREATE FUNCTION reject_return_serial() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'intentional return failure'; END $$ LANGUAGE plpgsql;
         CREATE TRIGGER reject_return_serial BEFORE INSERT ON commerce_return_serials FOR EACH ROW EXECUTE FUNCTION reject_return_serial();`);
       const before = await client.stockLevel.findUniqueOrThrow({ where: { warehouseId_productId: { warehouseId: 1n, productId: 1n } } });
-      await assert.rejects(() => returnCommerceSale(client, 1n, { requestId: randomUUID(), saleId: made.id, cancel: false, accepted: true, lines: [{ saleLineId: madeLine.id.toString(), quantity: "1", serialIds: ["3"] }] }));
+      await assert.rejects(() => returnCommerceSale(client, actor(1n) , { requestId: randomUUID(), saleId: made.id, cancel: false, accepted: true, lines: [{ saleLineId: madeLine.id.toString(), quantity: "1", serialIds: ["3"] }] }));
       assert.equal(await client.commerceReturn.count({ where: { saleId: BigInt(made.id) } }), 0);
       assert.equal((await client.inventorySerial.findUniqueOrThrow({ where: { id: 3n } })).currentSaleLineId, madeLine.id);
       assert.equal((await client.stockLevel.findUniqueOrThrow({ where: { id: before.id } })).qtyOnHand.toFixed(2), before.qtyOnHand.toFixed(2));
@@ -309,19 +349,19 @@ test("isolated sales, money and returns", { timeout: 120_000 }, async (t) => {
       const previous = process.env.FINANCE_ENABLED; process.env.FINANCE_ENABLED = "true";
       try {
         // صنف غير مسلسل: السيريالات المستخدمة في الاختبارات السابقة لم تعد متاحة.
-        const made = await createCommerceSale(client, 3n, sale({ discount: "0", initialPayment: "20", lines: [line("2", "1", [])] }));
+        const made = await createCommerceSale(client, actor(3n) , sale({ discount: "0", initialPayment: "20", lines: [line("2", "1", [])] }));
         const saleLine = await client.commerceSaleLine.findFirstOrThrow({ where: { saleId: BigInt(made.id) } });
         // مرتجع كامل: يولّد مبلغًا مستحقًا للعميل، ولا يحرك نقدًا بذاته.
-        await returnCommerceSale(client, 1n, { requestId: randomUUID(), saleId: made.id, cancel: false, accepted: true, lines: [{ saleLineId: saleLine.id.toString(), quantity: "1", serialIds: [] }] });
+        await returnCommerceSale(client, actor(1n) , { requestId: randomUUID(), saleId: made.id, cancel: false, accepted: true, lines: [{ saleLineId: saleLine.id.toString(), quantity: "1", serialIds: [] }] });
         assert.equal(await balanceOf(), "1000.00");
 
         // رد نقدي بلا حساب مرفوض قبل أي حركة: النقد يخرج ولا نعرف من أين.
         await assert.rejects(
-          () => recordCommerceRefund(client, 1n, { requestId: randomUUID(), saleId: made.id, amount: "20", method: "CASH", actuallyPaid: true }),
+          () => recordCommerceRefund(client, actor(1n) , { requestId: randomUUID(), saleId: made.id, amount: "20", method: "CASH", actuallyPaid: true }),
           (error: unknown) => error instanceof InventoryProblem && JSON.stringify(error).includes("الحساب"),
         );
 
-        await recordCommerceRefund(client, 1n, { requestId: randomUUID(), saleId: made.id, amount: "20", method: "CASH", actuallyPaid: true, accountId, negativeAcknowledged: false, checkpointRef: "OPENING", timing: "AFTER_REVIEWED_CHECKPOINT" });
+        await recordCommerceRefund(client, actor(1n) , { requestId: randomUUID(), saleId: made.id, amount: "20", method: "CASH", actuallyPaid: true, accountId, negativeAcknowledged: false, checkpointRef: "OPENING", timing: "AFTER_REVIEWED_CHECKPOINT" });
         const movements = await pg!.query<{ kind: string; amount: string; source: string | null; external: string | null }>(
           `SELECT kind::text AS kind, amount::text AS amount, source_id::text AS source, external_ref AS external FROM finance.movements ORDER BY id`);
         assert.equal(movements.rows.length, 1);
@@ -332,10 +372,10 @@ test("isolated sales, money and returns", { timeout: 120_000 }, async (t) => {
         assert.equal(await balanceOf(), "980.00");
 
         // الرد غير النقدي لا يحرك نقد الفرع ولو أُرسل حساب.
-        const other = await createCommerceSale(client, 3n, sale({ discount: "0", initialPayment: "20", lines: [line("2", "1", [])] }));
+        const other = await createCommerceSale(client, actor(3n) , sale({ discount: "0", initialPayment: "20", lines: [line("2", "1", [])] }));
         const otherLine = await client.commerceSaleLine.findFirstOrThrow({ where: { saleId: BigInt(other.id) } });
-        await returnCommerceSale(client, 1n, { requestId: randomUUID(), saleId: other.id, cancel: false, accepted: true, lines: [{ saleLineId: otherLine.id.toString(), quantity: "1", serialIds: [] }] });
-        await recordCommerceRefund(client, 1n, { requestId: randomUUID(), saleId: other.id, amount: "20", method: "CARD", actuallyPaid: true, accountId: "9" });
+        await returnCommerceSale(client, actor(1n) , { requestId: randomUUID(), saleId: other.id, cancel: false, accepted: true, lines: [{ saleLineId: otherLine.id.toString(), quantity: "1", serialIds: [] }] });
+        await recordCommerceRefund(client, actor(1n) , { requestId: randomUUID(), saleId: other.id, amount: "20", method: "CARD", actuallyPaid: true, accountId: "9" });
         assert.equal((await pg!.query<{ n: number }>(`SELECT count(*)::int AS n FROM finance.movements`)).rows[0].n, 1);
         assert.equal(await balanceOf(), "980.00");
       } finally {

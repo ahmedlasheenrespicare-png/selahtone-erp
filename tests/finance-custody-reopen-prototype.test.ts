@@ -16,6 +16,7 @@ import { financePort } from "../src/lib/finance/port";
 import type { FinanceDatabase } from "../src/lib/finance/types";
 import { testCollectionService, testHolderPaymentService } from "../prototypes/finance-collection-policy/runtime-adapters.test-only";
 import { reviewTestPeriod } from "../prototypes/finance-collection-policy/period.test-only";
+import { actor } from "./helpers/commerce-actor";
 
 const root = process.cwd(), read = (f: string) => readFileSync(join(root, f), "utf8");
 const require = createRequire(join(root, "package.json"));
@@ -27,7 +28,7 @@ test("reopening custody candidate: index-only experiment with real interim servi
   const previous = process.env.FINANCE_ENABLED; process.env.FINANCE_ENABLED = "true";
   try {
     execFileSync(process.execPath, [join(root, "scripts/local-pglite-preview.cjs")], { cwd: root, env: { ...process.env, PREVIEW_PGLITE_DIR: dir, PREVIEW_PASSWORD: "Synthetic-Test-2026!" }, stdio: "pipe", timeout: 60_000 });
-    pg = new PGlite(dir);
+    pg = new PGlite(dir); await pg.exec(readFileSync(join(root,"tests/fixtures/commerce-auth-sessions.sql"),"utf8"));
     await pg.exec("SET selahtone.finance_release_candidate_test_only='yes'");
     for (const f of ["prototypes/finance-release/release-candidate.test-only.sql", "prisma/manual-settlement-upgrade.sql", "prisma/manual-custody-closure-upgrade.sql", "prisma/manual-custody-and-count-requests.sql"]) await pg.exec(read(f));
     await assert.rejects(() => pg!.exec(read("prototypes/finance-custody-reopen/index.test-only.sql")), /explicit opt-in/);
@@ -44,7 +45,7 @@ test("reopening custody candidate: index-only experiment with real interim servi
     const oldInput = opening(); const old = await openAccount(db, "1", oldInput, today);
     await assert.rejects(() => openAccount(db, "1", opening(), today), /مسجّل بالفعل/);
     const firstCash = { requestId: randomUUID(), saleId: "2", amount: "5", method: "CASH", actuallyPaid: false };
-    await recordCommerceCollection(client, 3n, firstCash);
+    await recordCommerceCollection(client, actor(3n) , firstCash);
     const unsettled = { requestId: randomUUID(), accountId: old.id, reason: "عهدة اصطناعية" };
     await assert.rejects(() => closeAccount(db, "1", unsettled), /تحصيلات أو مصروفات غير مسوّاة/);
     const request = await requestSettlement(db, "3", { requestId: randomUUID(), accountId: old.id, expectedBalance: "0", countedAmount: "5", reason: "تسوية اصطناعية", actuallyCounted: true });
@@ -55,11 +56,11 @@ test("reopening custody candidate: index-only experiment with real interim servi
     assert.equal((await openAccount(db, "1", oldInput, today)).id, old.id, "replay refers to the original closed account");
     assert.equal((await openAccount(db, "1", newerInput, today)).id, newer.id);
     assert.equal((await closeAccount(db, "1", unsettled)).replayed, true);
-    assert.equal((await recordCommerceCollection(client, 3n, firstCash)).replayed, true);
+    assert.equal((await recordCommerceCollection(client, actor(3n) , firstCash)).replayed, true);
     assert.equal((await settlementOverview(db, "3")).account?.id, newer.id);
     assert.equal((await settlementOverview(db, "3")).sales, "0.00", "old settled cash should not enter the new normal-time period");
     const nextCash = { ...firstCash, requestId: randomUUID(), amount: "2" };
-    await recordCommerceCollection(testCollectionService(client, "3"), 3n, nextCash);
+    await recordCommerceCollection(testCollectionService(client, "3"), actor(3n) , nextCash);
     assert.equal((await settlementOverview(db, "3")).sales, "2.00");
     const expense = await createExpense(db, "3", { requestId: randomUUID(), branchId: "1", categoryId: "1", amount: "1", expenseDate: today, description: "مصروف عهدة بديلة اصطناعي" });
     await approveExpense(db, "1", { requestId: randomUUID(), expenseId: expense.id, expectedRevision: "1" });
@@ -78,7 +79,7 @@ test("reopening custody candidate: index-only experiment with real interim servi
       VALUES(1,'CUSTODY',3,0,$1::date,1) RETURNING id::text`, [today])).rows[0].id;
     const secondExpense = await createExpense(db, "3", { requestId: randomUUID(), branchId: "1", categoryId: "1", amount: "1", expenseDate: today, description: "اختبار عهدتين مفتوحتين" });
     await approveExpense(db, "1", { requestId: randomUUID(), expenseId: secondExpense.id, expectedRevision: "1" });
-    await assert.rejects(() => recordCommerceCollection(client!, 3n, { ...nextCash, requestId: randomUUID() }), /يلزم وجود عهدة مفتوحة للمسجّل/);
+    await assert.rejects(() => recordCommerceCollection(client!, actor(3n) , { ...nextCash, requestId: randomUUID() }), /يلزم وجود عهدة مفتوحة للمسجّل/);
     await assert.rejects(() => payExpense(db, "3", { ...payment, requestId: randomUUID(), expenseId: secondExpense.id }, today), /يلزم وجود عهدة مفتوحة للمسجّل/);
     assert.equal((await pg.query<{ status: string }>("SELECT status FROM finance.expenses WHERE id=$1::bigint", [secondExpense.id])).rows[0].status, "APPROVED");
     await pg.query("DELETE FROM finance.accounts WHERE id=$1::bigint", [duplicate]);
