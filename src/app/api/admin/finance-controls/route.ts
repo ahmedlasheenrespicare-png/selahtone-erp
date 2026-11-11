@@ -13,7 +13,8 @@ export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "private, no-store" };
 
 type ControlsMetadata = {
-  schemas: Array<{ schema: string; tables: number; rlsEnabled: number; rlsForced: number; policies: number }>;
+  schemas: Array<{ schema: string; tables: number; rlsEnabled: number; rlsForced: number; policies: number; tableNames: string[] }>;
+  migrationLedger: Array<{ name: string; checksum: string; appliedAt: string; appliedBy: string }>;
   ownership: { objects: number; ownedByAdmin: number; ownedByApp: number; mismatches: string[] };
   privileges: {
     tables: number;
@@ -48,6 +49,20 @@ async function observe(tx: Prisma.TransactionClient): Promise<ControlsMetadata> 
       COALESCE(sum(pc.policies),0)::int AS policies
     FROM relations r LEFT JOIN policy_counts pc ON pc.polrelid=r.oid
     GROUP BY nspname ORDER BY nspname`);
+  for (const schema of schemas) {
+    schema.tableNames = (await tx.$queryRawUnsafe<Array<{ name: string }>>(
+      `SELECT c.relname::text AS name FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+       WHERE n.nspname=$1 AND c.relkind='r' ORDER BY c.relname`, schema.schema,
+    )).map((row) => row.name);
+  }
+  const ledgerExists = await tx.$queryRawUnsafe<Array<{ present: boolean }>>(
+    `SELECT to_regclass('finance_release.migrations') IS NOT NULL AS present`,
+  );
+  const migrationLedger = ledgerExists[0]?.present
+    ? await tx.$queryRawUnsafe<ControlsMetadata["migrationLedger"]>(`
+        SELECT name::text, checksum::text, applied_at::text AS "appliedAt", applied_by::text AS "appliedBy"
+        FROM finance_release.migrations ORDER BY name`)
+    : [];
   const ownership = await tx.$queryRawUnsafe<Array<{ objects: number; ownedByAdmin: number; ownedByApp: number }>>(`
     SELECT count(*)::int AS objects,
       count(*) FILTER (WHERE pg_get_userbyid(c.relowner)='selahtone_finance_admin')::int AS "ownedByAdmin",
@@ -76,6 +91,7 @@ async function observe(tx: Prisma.TransactionClient): Promise<ControlsMetadata> 
 
   return {
     schemas,
+    migrationLedger,
     ownership: {
       objects: ownership[0]?.objects ?? 0,
       ownedByAdmin: ownership[0]?.ownedByAdmin ?? 0,
