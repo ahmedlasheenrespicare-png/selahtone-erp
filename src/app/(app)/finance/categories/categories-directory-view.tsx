@@ -527,7 +527,7 @@ export default function CategoriesDirectoryView({
               لا توجد بنود تطابق معايير البحث أو التصفية المحددة حاليًا.
             </div>
           ) : (
-            <div className="fin-table-wrap">
+            <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
               <table className="fin-table">
                 <caption>دليل البنود ومدفوعات الشهر مع مقارنة الشهر السابق</caption>
                 <thead>
@@ -721,7 +721,7 @@ export default function CategoriesDirectoryView({
                 : "لا توجد قيود تدقيق تطابق البحث أو التصفية الحالية."}
             </div>
           ) : (
-            <div className="fin-table-wrap">
+            <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
               <table className="fin-table">
                 <caption>سجل تدقيق بنود المصروفات — إنشاء وتعديل مسمى وإيقاف وتفعيل</caption>
                 <thead>

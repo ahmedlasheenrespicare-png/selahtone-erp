@@ -52,7 +52,7 @@ export default async function FinanceHelpPage() {
           <h2>١. الأركان الثلاثة</h2>
           <p>العهدة وعاء، الجرد عد، والتسليم حركة موقّعة. أي خلل في ركن يخصّك يبدأ من هنا.</p>
         </div>
-        <div className="fin-table-wrap">
+        <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
           <table className="fin-table">
             <caption>أركان التشغيل النقدي في وحدة المالية</caption>
             <thead>
@@ -75,7 +75,7 @@ export default async function FinanceHelpPage() {
           <h2>٢. من يفتح ماذا؟</h2>
           <p>حسب الدور. بيانات غير دورك لا تُعرض، وجرد/تسليم/تقارير محصورة بالإدارة.</p>
         </div>
-        <div className="fin-table-wrap">
+        <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
           <table className="fin-table">
             <caption>مصفوفة الوصول لشاشات وحدة المالية</caption>
             <thead>
@@ -180,7 +180,7 @@ export default async function FinanceHelpPage() {
           <h2>٥. أخطاء شائعة وتصرفاتها</h2>
           <p>التشخيص أولًا بأول قبل أي إجراء تصحيحي.</p>
         </div>
-        <div className="fin-table-wrap">
+        <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
           <table className="fin-table">
             <caption>أخطاء التشغيل النقدي المعتادة ومعالجتها</caption>
             <thead>

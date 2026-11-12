@@ -160,7 +160,7 @@ export default async function CountsPage() {
         {history.length === 0 ? (
           <div className="fin-panel__body"><p>لا يوجد جرد مُسوًّى بعد.</p></div>
         ) : (
-          <div className="fin-table-wrap">
+          <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
             <table className="fin-table">
               <caption>سجل الجرد بحالته ومن أكّده وسببه</caption>
               <thead>

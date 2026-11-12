@@ -293,7 +293,7 @@ export default async function FinanceAccountsPage({
               <h2>الخزائن والعُهَد المفتوحة حاليًا ({openAccounts.length})</h2>
               <p>مراجعة سريعة للحسابات النشطة وأرصدتها الحالية لتفادي تكرار الفتح.</p>
             </div>
-            <div className="fin-table-wrap">
+            <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
               <table className="fin-table">
                 <caption>الخزائن والعُهَد المفتوحة وأرصدتها الدفترية الحالية</caption>
                 <thead>

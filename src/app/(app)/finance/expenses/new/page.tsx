@@ -295,7 +295,7 @@ export default async function NewExpensePage({
               </h2>
               <p>مراجعة سريعة لآخر القيود المسجّلة وحالتها لتفادي تكرار الإدخال.</p>
             </div>
-            <div className="fin-table-wrap">
+            <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
               <table className="fin-table">
                 <caption>آخر خمسة مصروفات مسجّلة لتفادي التكرار ومتابعة الحال</caption>
                 <thead>

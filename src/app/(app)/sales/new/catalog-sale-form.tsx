@@ -1213,7 +1213,7 @@ export default function CatalogSaleForm({
                   لم تُضف بنودًا بعد. إن كانت الفاتورة لبند واحد يمكنك تعبئة السعر أعلاه والضغط على «مراجعة الفاتورة» مباشرةً.
                 </p>
               ) : (
-                <div className="inv-table-wrap table-wrap">
+                <div className="inv-table-wrap table-wrap" role="region" aria-label="بنود سلة البيع" tabIndex={0}>
                   <table className="inv-table">
                     <thead>
                       <tr>

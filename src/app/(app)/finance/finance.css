@@ -695,6 +695,8 @@ a.fin-kpi-card:hover {
 
 .finance-suite .fin-table-wrap {
   overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
   border: 1px solid var(--fn-border);
   border-radius: 14px;
 }
