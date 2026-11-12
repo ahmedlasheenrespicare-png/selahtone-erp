@@ -66,6 +66,20 @@ import {
   custodyMovementSearch,
   type CustodyMovementItem,
 } from "../src/app/(app)/finance/mine/custody-activity-metadata";
+import {
+  categoryAuditColumns,
+  categoryAuditCsvColumns,
+  categoryAuditFilters,
+  categoryAuditSearch,
+  categoryDirectorySearch,
+  categoryFilters,
+  categorySortOptions,
+  createCategoryCsvColumns,
+  createCategoryDirectoryColumns,
+  sortCategoryDirectory,
+  type CategoryAuditItem,
+  type CategoryDirectoryItem,
+} from "../src/app/(app)/finance/categories/categories-directory-metadata";
 import { csvHeaders, csvRows, filterRowsBySearch } from "../src/lib/data-driven-ui";
 
 Object.assign(globalThis, { React });
@@ -506,4 +520,68 @@ test("custody movement table preserves caption and signed financial amounts", ()
   assert.ok(html.includes("fin-money fin-money--negative"));
   assert.ok(html.includes("-250.00"));
   assert.ok(html.includes('aria-label="جدول مالي قابل للتمرير"'));
+});
+
+const category: CategoryDirectoryItem = {
+  id: "3", code: "EXP-MAINT", name: "صيانة", active: true, revision: 2, snapshot: "صيانة",
+  shortCode: "MAINT", monthPaidNum: 500, monthPaidFormatted: "500.00", monthPendingNum: 100,
+  monthPendingFormatted: "100.00", prevMonthPaidNum: 300, prevMonthPaidFormatted: "300.00",
+  momDeltaLabel: "+200", momTone: "up", sharePct: 50, allTimePaidNum: 800,
+  allTimePaidFormatted: "800.00", allTimeTotalFormatted: "900.00", totalCount: 4, paidCount: 3,
+  pendingCount: 1, lastExpenseDate: "2026-11-12", createdByName: "منى", updatedByName: "أحمد",
+};
+
+const categoryAudit: CategoryAuditItem = {
+  id: "9", categoryId: "3", categoryName: "صيانة", shortCode: "MAINT", actionKind: "RENAME",
+  actionLabel: "تعديل مسمى", diffSummary: "إصلاح ← صيانة", reasonText: "توحيد المسمى",
+  actorName: "منى", timestampFormatted: "١٢ نوفمبر ٢٠٢٦", dateKey: "2026-11-12",
+};
+
+test("category directory metadata shares filters, sorting, search, and CSV definitions", () => {
+  const inactive = { ...category, id: "4", name: "أرشيف", active: false, monthPaidNum: 900, monthPendingNum: 0, totalCount: 0 };
+  const rows = [category, inactive];
+  assert.deepEqual(categoryFilters.map((filter) => rows.filter(filter.matches).length), [2, 1, 1, 2, 1]);
+  assert.deepEqual(filterRowsBySearch(rows, "صيانة", categoryDirectorySearch.text), [category]);
+  assert.deepEqual(sortCategoryDirectory([...rows], "month_desc").map((row) => row.id), ["4", "3"]);
+  assert.deepEqual(sortCategoryDirectory([...rows], "name_asc").map((row) => row.id), ["4", "3"]);
+  assert.equal(categorySortOptions.length, 5);
+  const columns = createCategoryCsvColumns("نوفمبر", "أكتوبر");
+  assert.equal(csvHeaders(columns).length, 12);
+  assert.equal(csvHeaders(columns)[4], "المدفوع فعليًا (نوفمبر)");
+  assert.deepEqual(csvRows([category], columns)[0].slice(0, 4), ["صيانة", "EXP-MAINT", "نشط", "2"]);
+  assert.deepEqual(categoryAuditFilters.map((filter) => [categoryAudit].filter(filter.matches).length), [1, 0, 1, 0]);
+  assert.equal(filterRowsBySearch([categoryAudit], "توحيد المسمى", categoryAuditSearch.text).length, 1);
+  assert.equal(csvRows([categoryAudit], categoryAuditCsvColumns)[0][0], "#9");
+});
+
+test("category tables preserve actions, audit badges, captions, and optional edit rows", () => {
+  const columns = createCategoryDirectoryColumns({
+    currentMonthLabel: "نوفمبر", prevMonthLabel: "أكتوبر", editingId: "3", copiedId: "3",
+    canEdit: true, canCreateExpense: true, canOpenExpenses: true,
+    onCopyCode: () => {}, onToggleEdit: () => {}, onOpenAudit: () => {},
+  });
+  const html = renderToStaticMarkup(React.createElement(DataTable<CategoryDirectoryItem>, {
+    rows: [category], columns, rowKey: (row) => row.id,
+    rowClassName: (row) => row.id === "3" ? "fin-cat-row--editing" : undefined,
+    renderAfterRow: (row) => row.id === "3" ? React.createElement("tr", { className: "fin-cat-edit-row no-print" }, React.createElement("td", { colSpan: 6 }, "نموذج التحرير")) : null,
+    regionLabel: "جدول مالي قابل للتمرير", regionClassName: "fin-table-wrap", tableClassName: "fin-table",
+    caption: "دليل البنود ومدفوعات الشهر مع مقارنة الشهر السابق",
+  }));
+  assert.equal((html.match(/<th /g) ?? []).length, 6);
+  assert.ok(html.includes("نُسخ ✓"));
+  assert.ok(html.includes("إغلاق التحرير"));
+  assert.ok(html.includes("fin-cat-row--editing"));
+  assert.ok(html.includes("نموذج التحرير"));
+  assert.ok(html.includes('href="/finance/expenses/new?categoryId=3"'));
+  assert.ok(html.includes('href="/finance/expenses?category=%D8%B5%D9%8A%D8%A7%D9%86%D8%A9"'));
+  assert.ok(html.includes("<caption>دليل البنود"));
+  const auditHtml = renderToStaticMarkup(React.createElement(DataTable<CategoryAuditItem>, {
+    rows: [categoryAudit], columns: categoryAuditColumns, rowKey: (row) => row.id,
+    regionLabel: "جدول مالي قابل للتمرير", regionClassName: "fin-table-wrap", tableClassName: "fin-table",
+    caption: "سجل تدقيق بنود المصروفات — إنشاء وتعديل مسمى وإيقاف وتفعيل",
+  }));
+  assert.equal((auditHtml.match(/<th /g) ?? []).length, 7);
+  assert.ok(auditHtml.includes("fin-badge fin-badge--vault"));
+  assert.ok(auditHtml.includes("توحيد المسمى"));
+  assert.ok(auditHtml.includes("<caption>سجل تدقيق"));
 });

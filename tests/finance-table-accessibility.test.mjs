@@ -19,13 +19,14 @@ const wrappers = financeFiles.flatMap((path) => {
     tag: match[0],
   }));
 });
-const sharedTables = financeFiles.filter((path) => {
+const sharedTables = financeFiles.flatMap((path) => {
   const source = readFileSync(path, "utf8");
-  return source.includes("<DataTable") && source.includes('regionClassName="fin-table-wrap"');
+  if (!source.includes('regionClassName="fin-table-wrap"')) return [];
+  return Array.from({ length: (source.match(/<DataTable\b/g) ?? []).length }, () => path);
 });
 
 test("every finance table scroller is a named keyboard-accessible region", () => {
-  assert.ok(wrappers.length + sharedTables.length >= 23, `expected the existing finance tables, found ${wrappers.length + sharedTables.length}`);
+  assert.ok(wrappers.length + sharedTables.length >= 24, `expected the existing finance tables, found ${wrappers.length + sharedTables.length}`);
   for (const { path, tag } of wrappers) {
     assert.match(tag, /role="region"/, path);
     assert.match(tag, /aria-label="[^"]+"/, path);

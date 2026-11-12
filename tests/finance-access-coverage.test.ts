@@ -80,5 +80,5 @@ test("account, custody, settlement and category forms are gated by their operati
   const accountView = readFileSync(join(financeDir, "finance-accounts-view.tsx"), "utf8");
   const categoryView = readFileSync(join(financeDir, "categories/categories-directory-view.tsx"), "utf8");
   assert.ok(accountView.includes("account.canClose && canCloseCustody"));
-  assert.ok(categoryView.includes("canEdit && isEditing"));
+  assert.ok(categoryView.includes("canEdit && editingId === item.id"));
 });

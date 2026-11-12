@@ -895,6 +895,10 @@ test("صفحة بنود المصروفات تفصل المدفوع عن المع
     new URL("../src/app/(app)/finance/categories/categories-directory-view.tsx", import.meta.url),
     "utf8",
   );
+  const catMetadataSrc = readFileSync(
+    new URL("../src/app/(app)/finance/categories/categories-directory-metadata.tsx", import.meta.url),
+    "utf8",
+  );
   const catFormsSrc = readFileSync(
     new URL("../src/app/(app)/finance/categories/category-forms.tsx", import.meta.url),
     "utf8",
@@ -910,8 +914,8 @@ test("صفحة بنود المصروفات تفصل المدفوع عن المع
   // ٢) سجل تعديلات البنود + البحث والفلترة والتصدير + تكامل روابط المصروفات
   assert.ok(catDirSrc.includes("سجل تعديلات البنود"));
   assert.ok(catDirSrc.includes("downloadCsvFile"));
-  assert.ok(catDirSrc.includes("/finance/expenses/new?categoryId="));
-  assert.ok(catDirSrc.includes("/finance/expenses?category="));
+  assert.ok(catMetadataSrc.includes("/finance/expenses/new?categoryId="));
+  assert.ok(catMetadataSrc.includes("/finance/expenses?category="));
 
   // ٣) كشف التكرار الحي ودعم الإضافة المتتالية ومعاينة التغيير قبل الحفظ
   assert.ok(catFormsSrc.includes("isDuplicate"));
