@@ -26,6 +26,14 @@ import {
   salesStatsItemSearch,
   type SafeTopItem,
 } from "../src/app/(app)/sales/stats/sales-stats-items-metadata";
+import {
+  salesStatsBranchColumns,
+  salesStatsCategoryColumns,
+  salesStatsStaffColumns,
+  type SalesStatsBranchRow,
+  type SalesStatsCategoryRow,
+  type SalesStatsStaffRow,
+} from "../src/app/(app)/sales/stats/sales-stats-tables-metadata";
 import { csvHeaders, csvRows, filterRowsBySearch } from "../src/lib/data-driven-ui";
 
 const invoice: SalesInvoiceRow = {
@@ -225,4 +233,45 @@ test("sales stats kind filters and search share the same item metadata", () => {
   assert.deepEqual(salesStatsItemKinds.map((kind) => rows.filter(kind.matches).length), [2, 1, 1]);
   assert.deepEqual(filterRowsBySearch(rows, "خدمات", salesStatsItemSearch.text), [catalog]);
   assert.deepEqual(filterRowsBySearch(rows, "متقدمة", salesStatsItemSearch.text), [topItem]);
+});
+
+test("sales stats comparison metadata defines every branch, staff, and category column", () => {
+  assert.deepEqual(salesStatsBranchColumns.map((column) => column.id), ["branch", "invoices", "net-sales", "collection", "outstanding"]);
+  assert.deepEqual(salesStatsStaffColumns.map((column) => column.id), ["staff", "branch", "invoices", "net-sales", "average"]);
+  assert.deepEqual(salesStatsCategoryColumns.map((column) => column.id), ["category", "lines", "quantity", "revenue", "share"]);
+});
+
+test("sales stats comparison tables render their values and accessible regions", () => {
+  const branch: SalesStatsBranchRow = {
+    branchId: "1", branchName: "القاهرة", branchCode: "CAI", invoiceCount: 3,
+    netSalesFormatted: "12,000", outstandingFormatted: "500", outstandingNum: 500,
+    collectionRatePct: 75, sharePct: 60,
+  };
+  const staff: SalesStatsStaffRow = {
+    userId: "2", staffName: "أحمد", branchName: "القاهرة", invoiceCount: 3,
+    netSalesFormatted: "12,000", averageInvoiceFormatted: "4,000", collectionRatePct: 75,
+  };
+  const category: SalesStatsCategoryRow = { category: "سماعات", lines: 4, qty: 6, revenue: 12000, sharePct: 60 };
+  const branchHtml = renderToStaticMarkup(React.createElement(DataTable<SalesStatsBranchRow>, {
+    rows: [branch], columns: salesStatsBranchColumns, rowKey: (row) => row.branchId,
+    regionLabel: "جدول مقارنة الفروع", tableClassName: "inv-table sales-stats-table",
+  }));
+  const staffHtml = renderToStaticMarkup(React.createElement(DataTable<SalesStatsStaffRow>, {
+    rows: [staff], columns: salesStatsStaffColumns, rowKey: (row) => row.userId,
+    regionLabel: "جدول أداء الموظفين", tableClassName: "inv-table sales-stats-table",
+  }));
+  const categoryHtml = renderToStaticMarkup(React.createElement(DataTable<SalesStatsCategoryRow>, {
+    rows: [category], columns: salesStatsCategoryColumns, rowKey: (row) => row.category,
+    regionLabel: "جدول تحليل التصنيفات", tableClassName: "inv-table sales-stats-table",
+  }));
+  assert.ok(branchHtml.includes('aria-label="جدول مقارنة الفروع"'));
+  assert.ok(branchHtml.includes("CAI"));
+  assert.ok(branchHtml.includes("sales-stats-due"));
+  assert.ok(branchHtml.includes("75%"));
+  assert.ok(staffHtml.includes("أحمد"));
+  assert.ok(staffHtml.includes("4,000"));
+  assert.equal((staffHtml.match(/<th /g) ?? []).length, 5);
+  assert.ok(categoryHtml.includes("سماعات"));
+  assert.ok(categoryHtml.includes("60%"));
+  assert.equal((categoryHtml.match(/<th /g) ?? []).length, 5);
 });
