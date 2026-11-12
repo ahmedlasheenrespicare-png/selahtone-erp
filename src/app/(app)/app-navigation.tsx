@@ -83,7 +83,9 @@ export function AppNavigation({
   );
 
   useEffect(() => {
+    // التنقل بالروابط أو بأزرار المتصفح يبدأ صفحة جديدة بلا بقاء لوحات الجوال فوقها.
     setAccountOpen(false);
+    setMenuOpen(false);
   }, [pathname]);
 
   useEffect(() => {
@@ -280,6 +282,7 @@ export function AppNavigation({
             className={`workspace-mobile-account__trigger${accountOpen ? " is-open" : ""}`}
             aria-expanded={accountOpen}
             aria-controls="workspace-mobile-account-popover"
+            aria-haspopup="dialog"
             aria-label={`حساب المستخدم ومساحة العمل: ${userName}`}
             title={`${userName} — ${roleLabel} · ${branchLabel}`}
             onClick={() => {
@@ -600,7 +603,8 @@ export function AppNavigation({
                     setMenuOpen((open) => {
                       const next = !open;
                       if (next && typeof window !== "undefined") {
-                        window.scrollTo({ top: 0, behavior: "smooth" });
+                        const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+                        window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
                       }
                       return next;
                     });
