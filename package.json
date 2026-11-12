@@ -58,6 +58,7 @@
     "check:finance:access": "tsx --test tests/finance-access-coverage.test.ts tests/access-control.test.ts",
     "check:write-visibility": "tsx --test tests/write-access-coverage.test.ts",
     "check:api:access": "tsx --test tests/api-access-coverage.test.ts",
+    "check:sales:accessibility": "node --test tests/sales-async-states.test.mjs tests/sales-list-accessibility.test.mjs tests/sales-mobile-touch-targets.test.mjs",
     "check:sales:stats:csv": "tsx --test tests/sales-stats-csv-access.test.ts",
     "check:sales:stats:access:http": "tsx --test tests/sales-stats-access-http.test.ts",
     "check:admin:access:http": "tsx --test tests/admin-access-http.test.ts",

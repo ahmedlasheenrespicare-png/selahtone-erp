@@ -145,6 +145,7 @@ export function SalesStatsActionToolbar({
   exportPayload: CsvExportPayload;
   fileSlug: string;
 }) {
+  const [exportMessage, setExportMessage] = useState("");
   const handleExportCsv = () => {
     const csvText = buildSalesStatsCsv(exportPayload);
     const blob = new Blob([csvText], { type: "text/csv;charset=utf-8;" });
@@ -156,6 +157,7 @@ export function SalesStatsActionToolbar({
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+    setExportMessage(`تم بدء تنزيل تقرير CSV ويضم ${exportPayload.invoiceCount} فاتورة نشطة.`);
   };
 
   const handlePrint = () => {
@@ -164,6 +166,7 @@ export function SalesStatsActionToolbar({
 
   return (
     <div className="sales-stats-export-bar no-print">
+      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{exportMessage}</p>
       <button
         type="button"
         className="inv-button inv-button--secondary sales-stats-export-btn"
@@ -226,6 +229,12 @@ export function SalesStatsTopItemsPanel({ items, showProfitability }: { items: S
         return b.revenueNum - a.revenueNum || b.quantityNum - a.quantityNum;
       });
   }, [items, kindFilter, query, sortBy]);
+
+  function resetItemFilters(): void {
+    setQuery("");
+    setKindFilter("all");
+    setSortBy("revenue");
+  }
 
   return (
     <div id="top-items-section" className="inv-panel sales-stats-items-panel">
@@ -300,11 +309,12 @@ export function SalesStatsTopItemsPanel({ items, showProfitability }: { items: S
 
       {items.length === 0 ? (
         <div className="inv-panel__body">
-          <p className="inv-field__hint">لا توجد مبيعات مسجلة في هذه الفترة أو النطاق المختار.</p>
+          <p className="inv-field__hint" role="status">لا توجد مبيعات مسجلة في هذه الفترة أو النطاق المختار.</p>
         </div>
       ) : filteredAndSorted.length === 0 ? (
         <div className="inv-panel__body">
-          <p className="inv-field__hint">لا توجد أصناف مطابقة للفلتر أو عبارة البحث الحالية.</p>
+          <p className="inv-field__hint" role="status">لا توجد أصناف مطابقة للفلتر أو عبارة البحث الحالية.</p>
+          <button type="button" className="inv-button inv-button--secondary no-print" onClick={resetItemFilters}>مسح البحث والفلاتر</button>
         </div>
       ) : (
         <div
