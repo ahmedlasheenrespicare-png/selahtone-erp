@@ -104,6 +104,7 @@ import {
 import { cashCountHistoryColumns, cashCountHistoryCsvColumns, type CashCountHistoryRow } from "../src/app/(app)/finance/counts/count-history-metadata";
 import { reportBranchColumns, reportCategoryColumns, type ReportBranchRow, type ReportCategoryRow } from "../src/app/(app)/finance/reports/report-tables-metadata";
 import { createEmployeeSettlementColumns, type EmployeeSettlementRow } from "../src/app/(app)/finance/settlements/settlement-history-metadata";
+import { openAccountSummaryColumns, type OpenAccountSummaryRow } from "../src/app/(app)/finance/accounts/open-account-summary-metadata";
 import { expenseReviewQueueColumns, type ExpenseReviewQueueRow } from "../src/app/(app)/finance/expenses/reviews/expense-reviews-metadata";
 import { saleDetailLineColumns, type SaleDetailLineRow } from "../src/app/(app)/sales/[saleId]/sale-lines-metadata";
 import { csvHeaders, csvRows, filterRowsBySearch } from "../src/lib/data-driven-ui";
@@ -797,4 +798,23 @@ test("employee settlement metadata guards cancellation and preserves all period 
   const denied = render(false);
   assert.ok(!denied.includes("إلغاء 8"));
   assert.ok(denied.includes("fin-field__hint"));
+});
+
+test("open account summary metadata preserves badges, LTR values, and current balances", () => {
+  const rows: OpenAccountSummaryRow[] = [
+    { id: "1", kind: "VAULT", kindLabel: "خزنة فرع", branchName: "القاهرة", holderName: "—", openingDate: "2026-11-01", openingBalanceFormatted: "100.00", balanceFormatted: "900.00" },
+    { id: "2", kind: "CUSTODY", kindLabel: "عهدة موظف", branchName: "الجيزة", holderName: "أحمد", openingDate: "2026-11-02", openingBalanceFormatted: "50.00", balanceFormatted: "750.00" },
+  ];
+  const html = renderToStaticMarkup(React.createElement(DataTable<OpenAccountSummaryRow>, {
+    rows, columns: openAccountSummaryColumns, rowKey: (row) => row.id,
+    regionLabel: "جدول مالي قابل للتمرير", regionClassName: "fin-table-wrap", tableClassName: "fin-table",
+    caption: "الخزائن والعُهَد المفتوحة وأرصدتها الدفترية الحالية",
+  }));
+  assert.equal((html.match(/<th /g) ?? []).length, 7);
+  assert.ok(!html.includes("<td><td"));
+  assert.ok(html.includes("fin-badge fin-badge--approved"));
+  assert.ok(html.includes("fin-badge fin-badge--paid"));
+  assert.ok(html.includes("<strong>#1</strong>"));
+  assert.ok(html.includes("<strong>900.00</strong>"));
+  for (const text of ["القاهرة", "الجيزة", "أحمد", "2026-11-02", "50.00"]) assert.ok(html.includes(text));
 });
