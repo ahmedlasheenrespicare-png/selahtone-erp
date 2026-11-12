@@ -56,8 +56,11 @@ export function AppNavigation({
     WORKSPACE_THEME_GROUPS.map((group) => group.id),
   );
   const toggleRef = useRef<HTMLButtonElement>(null);
+  const navigationRef = useRef<HTMLElement>(null);
   const accountTriggerRef = useRef<HTMLButtonElement>(null);
   const accountPopoverRef = useRef<HTMLDivElement>(null);
+  const menuWasOpenRef = useRef(false);
+  const accountWasOpenRef = useRef(false);
   const [accountPopoverPosition, setAccountPopoverPosition] = useState<CSSProperties | null>(null);
 
   const effectiveRole: BottomDockRole = role ?? (canViewAllBranches ? "MANAGER" : "CS_AGENT");
@@ -87,6 +90,34 @@ export function AppNavigation({
     setAccountOpen(false);
     setMenuOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!menuOpen) {
+      if (menuWasOpenRef.current) toggleRef.current?.focus();
+      menuWasOpenRef.current = false;
+      return;
+    }
+    menuWasOpenRef.current = true;
+    const frame = window.requestAnimationFrame(() => {
+      navigationRef.current
+        ?.querySelector<HTMLElement>('[aria-current="page"], button, a[href]')
+        ?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (!accountOpen) {
+      if (accountWasOpenRef.current) accountTriggerRef.current?.focus();
+      accountWasOpenRef.current = false;
+      return;
+    }
+    accountWasOpenRef.current = true;
+    const frame = window.requestAnimationFrame(() => {
+      accountPopoverRef.current?.querySelector<HTMLElement>("a[href], button")?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [accountOpen]);
 
   useEffect(() => {
     if (!activeSidebarHref) return;
@@ -369,7 +400,7 @@ export function AppNavigation({
         ), accountPortalTarget) : null}
       </div>
 
-      <nav id="workspace-navigation" className={`workspace-navigation${menuOpen ? " is-open" : ""}`} aria-label="التنقل الرئيسي">
+      <nav ref={navigationRef} id="workspace-navigation" className={`workspace-navigation${menuOpen ? " is-open" : ""}`} aria-label="التنقل الرئيسي">
         {navGroups.map((group) => (
           <div className="workspace-nav-group" key={group.label}>
             <p className="workspace-nav-group__label">{group.label}</p>

@@ -17,6 +17,20 @@ test("mobile account trigger exposes its dialog semantics", () => {
   assert.match(trigger, /aria-expanded=\{accountOpen\}/);
 });
 
+test("mobile menu and account dialog move focus on open and restore it on close", () => {
+  assert.match(navigation, /const navigationRef = useRef<HTMLElement>\(null\)/);
+  assert.match(navigation, /<nav ref=\{navigationRef\}/);
+
+  const menuEffect = navigation.match(/useEffect\(\(\) => \{[\s\S]*?\}, \[menuOpen\]\);/)?.[0] ?? "";
+  assert.match(menuEffect, /menuWasOpenRef\.current\) toggleRef\.current\?\.focus\(\)/);
+  assert.match(menuEffect, /querySelector<HTMLElement>\('\[aria-current="page"\], button, a\[href\]'\)/);
+  assert.match(menuEffect, /cancelAnimationFrame/);
+
+  const accountEffect = navigation.match(/useEffect\(\(\) => \{[\s\S]*?\}, \[accountOpen\]\);/)?.[0] ?? "";
+  assert.match(accountEffect, /accountWasOpenRef\.current\) accountTriggerRef\.current\?\.focus\(\)/);
+  assert.match(accountEffect, /accountPopoverRef\.current\?\.querySelector<HTMLElement>\("a\[href\], button"\)\?\.focus\(\)/);
+});
+
 test("programmatic mobile scrolling respects reduced motion", () => {
   assert.match(navigation, /matchMedia\("\(prefers-reduced-motion: reduce\)"\)\.matches/);
   assert.match(navigation, /behavior: reduceMotion \? "auto" : "smooth"/);
