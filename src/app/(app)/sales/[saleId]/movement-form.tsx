@@ -24,6 +24,7 @@ export default function MovementForm({ mode, saleId, requestId, maximum, account
   const [state, action, pending] = useActionState(refund ? refundAction : collectAction, initialSalesActionState);
   const [dismissed, setDismissed] = useState<SalesActionState | null>(null);
   useEffect(() => { if (!amountEdited && state.status === "idle") setAmount(fixedScaled(BigInt(maximum))); }, [maximum, amountEdited, state.status]);
+  useEffect(() => { if (state.status === "success") document.getElementById(`${mode}-movement-success-title`)?.focus(); }, [state.status, mode]);
   function edited() { setReview(false); setError(""); setDismissed(state); }
   // نقدي فقط هو ما يخرج من حساب؛ غير النقدي لا يحرك نقد الفرع.
   const cashRefund = refund && method === "CASH";
@@ -43,10 +44,11 @@ export default function MovementForm({ mode, saleId, requestId, maximum, account
       const cents = scaledInteger(parsed.value.amount, 2);
       if (refund) validateRefundAmount(BigInt(maximum), cents); else validateCollectionAmount(BigInt(maximum), cents);
       setError(""); setReview(true);
+      requestAnimationFrame(() => document.getElementById(`${mode}-movement-review-title`)?.focus());
     } catch (problem) { setError(problem instanceof Error ? problem.message : "راجع المبلغ."); }
   }
   const title = refund ? "تسجيل رد مبلغ للعميل" : "تسجيل تحصيل";
-  if (state.status === "success") return <div className="inv-panel inv-panel__body" role="status"><h2>{title}</h2><p>{state.message}</p><a className="inv-button inv-button--secondary" href={`/sales/${saleId}`}>تحديث الفاتورة</a></div>;
+  if (state.status === "success") return <div className="inv-panel inv-panel__body" role="status"><h2 id={`${mode}-movement-success-title`} tabIndex={-1}>{title}</h2><p>{state.message}</p><a className="inv-button inv-button--secondary" href={`/sales/${saleId}`}>تحديث الفاتورة</a></div>;
   if (BigInt(maximum) <= 0n) return null;
   return <form className="inv-panel" action={action} onSubmit={(event) => { if (!review) { event.preventDefault(); reviewValues(); } }} noValidate>
     <input type="hidden" name="requestId" value={requestId} /><input type="hidden" name="saleId" value={saleId} /><input type="hidden" name="reviewed" value={review ? "yes" : "no"} />
@@ -90,8 +92,8 @@ export default function MovementForm({ mode, saleId, requestId, maximum, account
         </>
       ) : null}
       {refund && <label className="inv-check"><input type="checkbox" name="actuallyPaid" value="yes" checked={paid} disabled={pending} onChange={(e) => { edited(); setPaid(e.target.checked); }} /><span><strong>أؤكد أن المبلغ دُفع للعميل فعليًا</strong><small>هذا التسجيل لا يحوّل أموالًا ولا يثبت تحويلًا تلقائيًا.</small></span></label>}
-      {review && <div className="inv-review" aria-live="polite"><h2>مراجعة {refund ? "الرد" : "التحصيل"}</h2><p>المبلغ: {amount} ج.م. {refund ? "سيسجّل كمدفوع فعليًا للعميل." : "سيسجّل كتحصيل من العميل."}{cashRefund && account ? ` ويُخصم من: ${account.label}، بعد ${account.checkpointRef === "OPENING" ? "افتتاح الحساب" : `الجرد رقم ${account.checkpointRef}`}.` : ""}</p></div>}
-      <div className="inv-form-actions">{review ? <><button type="submit" className="inv-button" disabled={pending || (needsWarning && !negativeAcknowledged)} aria-busy={pending}><span aria-live="polite">{pending ? "جارٍ الحفظ…" : "تأكيد التسجيل"}</span></button><button type="button" className="inv-button inv-button--secondary" disabled={pending} onClick={() => setReview(false)}>تعديل</button></> : <button type="button" className="inv-button" disabled={pending || (cashRefund && !accountId)} onClick={(event) => { event.preventDefault(); reviewValues(); }}>مراجعة {refund ? "الرد" : "التحصيل"}</button>}</div>
+      {review && <div className="inv-review" aria-live="polite"><h2 id={`${mode}-movement-review-title`} tabIndex={-1}>مراجعة {refund ? "الرد" : "التحصيل"}</h2><p>المبلغ: {amount} ج.م. {refund ? "سيسجّل كمدفوع فعليًا للعميل." : "سيسجّل كتحصيل من العميل."}{cashRefund && account ? ` ويُخصم من: ${account.label}، بعد ${account.checkpointRef === "OPENING" ? "افتتاح الحساب" : `الجرد رقم ${account.checkpointRef}`}.` : ""}</p></div>}
+      <div className="inv-form-actions">{review ? <><button type="submit" className="inv-button" disabled={pending || (needsWarning && !negativeAcknowledged)} aria-busy={pending}><span aria-live="polite">{pending ? "جارٍ الحفظ…" : "تأكيد التسجيل"}</span></button><button type="button" className="inv-button inv-button--secondary" disabled={pending} onClick={() => { setReview(false); requestAnimationFrame(() => document.getElementById(`${mode}-movement-review-button`)?.focus()); }}>تعديل</button></> : <button id={`${mode}-movement-review-button`} type="button" className="inv-button" disabled={pending || (cashRefund && !accountId)} onClick={(event) => { event.preventDefault(); reviewValues(); }}>مراجعة {refund ? "الرد" : "التحصيل"}</button>}</div>
     </div>
   </form>;
 }

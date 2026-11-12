@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { parseDiscountSetting } from "@/lib/commerce-validation";
 import { discountSettingAction } from "../actions";
 import { initialSalesActionState, type SalesActionState } from "../sales-state";
@@ -24,6 +24,7 @@ export default function SettingForm({
   const [error, setError] = useState("");
   const [state, action, pending] = useActionState(discountSettingAction, initialSalesActionState);
   const [dismissed, setDismissed] = useState<SalesActionState | null>(null);
+  useEffect(() => { if (state.status === "success") document.getElementById("discount-success-title")?.focus(); }, [state.status]);
 
   const sampleNum = Math.max(0, Number(sampleAmount) || 0);
   const staffPctNum = Math.min(100, Math.max(0, Number(percent) || 0));
@@ -39,12 +40,13 @@ export default function SettingForm({
     }
     setError("");
     setReview(true);
+    requestAnimationFrame(() => document.getElementById("discount-review-title")?.focus());
   }
 
   if (state.status === "success") {
     return (
       <div className="inv-panel inv-success" role="status">
-        <h2>تم تحديث الحد</h2>
+        <h2 id="discount-success-title" tabIndex={-1}>تم تحديث الحد</h2>
         <p>{state.message}</p>
         <a className="inv-button inv-button--secondary" href="/sales/settings">
           عرض الإعداد الحالي
@@ -179,7 +181,7 @@ export default function SettingForm({
 
         {review && (
           <div className="inv-review" aria-live="polite">
-            <h2>مراجعة التغيير</h2>
+            <h2 id="discount-review-title" tabIndex={-1}>مراجعة التغيير</h2>
             <p>
               سيصبح حد الموظف والمحاسب {percent}%، وسقف المدير {managerPercent}% من قيمة الفاتورة قبل الخصم.
             </p>
@@ -195,13 +197,14 @@ export default function SettingForm({
                 className="inv-button inv-button--secondary"
                 type="button"
                 disabled={pending}
-                onClick={() => setReview(false)}
+                onClick={() => { setReview(false); requestAnimationFrame(() => document.getElementById("discount-review-button")?.focus()); }}
               >
                 تعديل
               </button>
             </>
           ) : (
             <button
+              id="discount-review-button"
               className="inv-button"
               type="button"
               disabled={pending}

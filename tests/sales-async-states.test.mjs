@@ -47,6 +47,24 @@ test("invoice movements, returns and discount settings announce pending", () => 
   assert.ok(movement.includes('disabled={pending || (needsWarning && !negativeAcknowledged)}'));
 });
 
+test("sales operation review and success transitions preserve focus", () => {
+  const movement = read("../src/app/(app)/sales/[saleId]/movement-form.tsx");
+  for (const part of ["review-title", "review-button", "success-title"]) {
+    assert.ok(movement.includes(`id={\`${'${mode}'}-movement-${part}\`}`), part);
+    assert.ok(movement.includes(`document.getElementById(\`${'${mode}'}-movement-${part}\`)?.focus()`), part);
+  }
+  for (const [path, prefix] of [
+    ["../src/app/(app)/sales/[saleId]/return-form.tsx", "return"],
+    ["../src/app/(app)/sales/settings/setting-form.tsx", "discount"],
+  ]) {
+    const source = read(path);
+    for (const part of ["review-title", "review-button", "success-title"]) {
+      assert.ok(source.includes(`id="${prefix}-${part}"`), `${prefix}-${part}`);
+      assert.ok(source.includes(`document.getElementById("${prefix}-${part}")?.focus()`), `${prefix}-${part}`);
+    }
+  }
+});
+
 test("invoice empty states are announced without changing their recovery actions", () => {
   for (const path of [
     "../src/app/(app)/sales/page.tsx",
