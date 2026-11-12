@@ -1944,3 +1944,23 @@ a.fin-kpi-card:hover {
     padding-top: 0;
   }
 }
+
+@media screen and (max-width: 720px) {
+  .finance-suite .fin-button,
+  .finance-suite .fin-filter-pill,
+  .finance-suite .fin-voucher-print-btn,
+  .fin-branch-select {
+    min-height: 44px;
+  }
+
+  .fin-search-box input,
+  .fin-search-box__clear {
+    min-height: 44px;
+  }
+
+  .fin-search-box__clear {
+    width: 44px;
+    height: 44px;
+    inset-inline-end: 0;
+  }
+}
