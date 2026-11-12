@@ -12,7 +12,9 @@ test("inventory filter result count and empty matches are announced", () => {
   assert.ok(source.includes('setCategoryFilter("ALL")'));
   assert.ok(source.includes('setStockFilter("ALL")'));
   assert.ok(source.includes('onClick={resetFilters}>مسح البحث والفلاتر</button>'));
-  assert.ok(source.includes('role="region" aria-label="جدول الأصناف وأرصدة المستودعات" tabIndex={0}'));
+  const table = read("../src/components/data-driven/data-table.tsx");
+  assert.ok(source.includes('regionLabel="جدول الأصناف وأرصدة المستودعات"'));
+  assert.ok(table.includes('role="region" aria-label={regionLabel} tabIndex={0}'));
 });
 
 test("invalid serial search is linked to its input and alert", () => {
@@ -31,11 +33,17 @@ test("inventory CSV export announces the filtered download", () => {
 
 test("product and receipt tables expose all column headers", () => {
   const products = read("../src/app/(app)/inventory/inventory-products-view.tsx");
+  const metadata = read("../src/app/(app)/inventory/inventory-products-metadata.tsx");
+  const table = read("../src/components/data-driven/data-table.tsx");
   const receipts = read("../src/app/(app)/inventory/receipts/page.tsx");
-  for (const [source, expected] of [[products, 8], [receipts, 9]]) {
-    assert.equal((source.match(/<th(?: scope="col")?>/g) ?? []).length, expected);
-    assert.equal((source.match(/<th scope="col">/g) ?? []).length, expected);
+  assert.ok(products.includes("<DataTable"));
+  for (const id of ["sku", "name", "category", "tax", "purchase-cost", "sale-price", "serial", "stock"]) {
+    assert.ok(metadata.includes(`id: "${id}"`), id);
   }
+  assert.ok(metadata.includes('...(canSeeCost ? [{'));
+  assert.ok(table.includes('<th key={column.id} scope="col" aria-label={column.headerAriaLabel}>'));
+  assert.equal((receipts.match(/<th(?: scope="col")?>/g) ?? []).length, 9);
+  assert.equal((receipts.match(/<th scope="col">/g) ?? []).length, 9);
   assert.ok(receipts.includes('{showUnitCost && <th scope="col">تكلفة الوحدة (ج.م)</th>}'));
 });
 

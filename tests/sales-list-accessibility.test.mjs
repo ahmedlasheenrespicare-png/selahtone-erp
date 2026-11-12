@@ -8,7 +8,9 @@ test("invoice filtering announces the result count", () => {
   const source = read("../src/app/(app)/sales/sales-invoices-view.tsx");
   assert.ok(source.includes('className="sr-only" role="status" aria-live="polite" aria-atomic="true">عدد الفواتير المطابقة: {filtered.length}</p>'));
   assert.ok(source.includes('className="inv-panel sales-empty-filter" role="status"'));
-  assert.ok(source.includes('role="region" aria-label="جدول فواتير البيع" tabIndex={0}'));
+  const table = read("../src/components/data-driven/data-table.tsx");
+  assert.ok(source.includes('regionLabel="جدول فواتير البيع"'));
+  assert.ok(table.includes('role="region" aria-label={regionLabel} tabIndex={0}'));
 });
 
 test("invoice CSV export announces the filtered download", () => {
@@ -21,9 +23,13 @@ test("invoice CSV export announces the filtered download", () => {
 
 test("invoice list and detail tables expose column headers", () => {
   const list = read("../src/app/(app)/sales/sales-invoices-view.tsx");
+  const table = read("../src/components/data-driven/data-table.tsx");
+  const metadata = read("../src/app/(app)/sales/sales-invoices-metadata.tsx");
   const detail = read("../src/app/(app)/sales/[saleId]/page.tsx");
-  assert.equal((list.match(/<th(?: scope="col")?(?: aria-label="تفاصيل")?\s*\/?>/g) ?? []).length, 9);
-  assert.equal((list.match(/<th scope="col"/g) ?? []).length, 9);
+  assert.ok(list.includes("<DataTable"));
+  assert.ok(table.includes('<th key={column.id} scope="col" aria-label={column.headerAriaLabel}>'));
+  assert.equal((metadata.match(/^      id: "/gm) ?? []).length, 9);
+  assert.ok(metadata.includes('headerAriaLabel: "تفاصيل"'));
   assert.equal((detail.match(/<th scope="col">/g) ?? []).length, 6);
   assert.ok(detail.includes('role="region" aria-label="بنود الفاتورة" tabIndex={0}'));
 });
