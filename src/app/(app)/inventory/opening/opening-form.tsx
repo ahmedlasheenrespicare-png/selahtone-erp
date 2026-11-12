@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { MAX_SERIALS_PER_OPENING, parseOpeningInput, type FieldErrors, type OpeningInput, type OpeningInputRaw } from "@/lib/inventory-validation";
 import { createOpeningAction } from "../actions";
 import { initialInventoryActionState, type InventoryActionState } from "../inventory-state";
@@ -19,6 +19,16 @@ export default function OpeningForm({ requestId, initialProductId, products, war
   const [state, formAction, pending] = useActionState(createOpeningAction, initialInventoryActionState);
   const [dismissedError, setDismissedError] = useState<InventoryActionState | null>(null);
   const selectedProduct = products.find((product) => product.id === values.productId);
+
+  useEffect(() => {
+    if (state.status === "success") {
+      document.getElementById("opening-success-title")?.focus();
+      return;
+    }
+    if (state.status !== "error" || state === dismissedError) return;
+    const first = Object.keys(state.fieldErrors ?? {}).find((key) => key !== "form");
+    if (first) document.getElementById(`opening-${first}`)?.focus();
+  }, [state, dismissedError]);
 
   function update<K extends keyof OpeningInputRaw>(key: K, value: OpeningInputRaw[K]) {
     setDismissedError(state);
@@ -38,18 +48,19 @@ export default function OpeningForm({ requestId, initialProductId, products, war
     }
     setErrors({});
     setReview(parsed.value);
+    requestAnimationFrame(() => document.getElementById("opening-review-title")?.focus());
   }
 
   if (state.status === "success") {
     return <div className="inv-panel inv-success" role="status">
-      <h2>تم تسجيل الرصيد</h2><p>{state.message}</p>
+      <h2 id="opening-success-title" tabIndex={-1}>تم تسجيل الرصيد</h2><p>{state.message}</p>
       <div className="inv-actions"><a className="inv-button" href="/inventory/opening">تسجيل رصيد آخر</a><Link className="inv-button inv-button--secondary" href="/inventory/serials">عرض السيريالات</Link><Link className="inv-button inv-button--text" href="/inventory">العودة إلى المخزون</Link></div>
     </div>;
   }
 
   const reviewProduct = review && products.find((product) => product.id === review.productId);
   const reviewWarehouse = review && warehouses.find((warehouse) => warehouse.id === review.warehouseId);
-  const fieldError = (key: string) => errors[key];
+  const fieldError = (key: string) => errors[key] ?? (state.status === "error" && state !== dismissedError ? state.fieldErrors?.[key] : undefined);
   const errorId = (key: string) => fieldError(key) ? `opening-${key}-error` : undefined;
   const enteredSerials = values.serialNumbers.split(/\r?\n/).filter((line) => line.trim()).length;
 
@@ -99,7 +110,7 @@ export default function OpeningForm({ requestId, initialProductId, products, war
           </div></div>
         </section>}
         {review && <section className="inv-review" aria-labelledby="opening-review-title" aria-live="polite">
-          <h2 id="opening-review-title">راجع الرصيد قبل الحفظ</h2><p>لن يُحفظ شيء حتى تؤكد. لا يمكن تعديل هذا الرصيد من هنا بعد الحفظ.</p>
+          <h2 id="opening-review-title" tabIndex={-1}>راجع الرصيد قبل الحفظ</h2><p>لن يُحفظ شيء حتى تؤكد. لا يمكن تعديل هذا الرصيد من هنا بعد الحفظ.</p>
           <dl>
             <div><dt>الصنف</dt><dd>{reviewProduct?.name} ({reviewProduct?.sku})</dd></div>
             <div><dt>الفرع والمستودع</dt><dd>{reviewWarehouse?.branch} — {reviewWarehouse?.name}</dd></div>
@@ -109,7 +120,7 @@ export default function OpeningForm({ requestId, initialProductId, products, war
           {review.serials.length > 0 && <div className="inv-review__serials" dir="ltr" role="region" aria-label="الأرقام التسلسلية للمراجعة" tabIndex={0}>{review.serials.map((serial) => serial.number).join("\n")}</div>}
         </section>}
         <div className="inv-form-actions">
-          {!review ? <button type="button" className="inv-button" onClick={(event) => { event.preventDefault(); reviewValues(); }} disabled={pending}>مراجعة الرصيد</button> : <><button type="submit" className="inv-button" disabled={pending}>{pending ? "جارٍ الحفظ…" : "تأكيد وحفظ الرصيد"}</button><button type="button" className="inv-button inv-button--secondary" onClick={() => setReview(null)} disabled={pending}>تعديل البيانات</button></>}
+          {!review ? <button id="opening-review-button" type="button" className="inv-button" onClick={(event) => { event.preventDefault(); reviewValues(); }} disabled={pending}>مراجعة الرصيد</button> : <><button type="submit" className="inv-button" disabled={pending} aria-busy={pending}><span aria-live="polite">{pending ? "جارٍ الحفظ…" : "تأكيد وحفظ الرصيد"}</span></button><button type="button" className="inv-button inv-button--secondary" onClick={() => { setReview(null); requestAnimationFrame(() => document.getElementById("opening-review-button")?.focus()); }} disabled={pending}>تعديل البيانات</button></>}
           {pending ? <span className="inv-button inv-button--text" aria-disabled="true">انتظر انتهاء الحفظ</span> : <Link className="inv-button inv-button--text" href="/inventory">إلغاء</Link>}
         </div>
       </div>

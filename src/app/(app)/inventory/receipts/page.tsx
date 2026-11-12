@@ -26,9 +26,9 @@ export default async function ReceiptsPage() {
       <div className="inv-actions">{canReceive && <Link className="inv-button" href="/inventory/receipts/new">تسجيل توريد</Link>}{access.isAllowed("/inventory") && <Link className="inv-button inv-button--secondary" href="/inventory">المخزون</Link>}</div>
     </div>
     <div className="inv-alert">هذا سجل مخزني فقط؛ لا يمثّل فواتير أو حسابات موردين أو دفعات شراء.</div>
-    {!receipts.length ? <div className="inv-panel inv-empty">لا توجد توريدات مسجلة في نطاق حسابك.</div> : <>
+    {!receipts.length ? <div className="inv-panel inv-empty" role="status">لا توجد توريدات مسجلة في نطاق حسابك.</div> : <>
       <div className="inv-table-wrap table-wrap" role="region" aria-label="جدول التوريدات" tabIndex={0}>
-        <table className="inv-table"><thead><tr><th>رقم الحركة</th><th>الصنف</th><th>الفرع والمستودع</th><th>الكمية</th>{showUnitCost && <th>تكلفة الوحدة (ج.م)</th>}<th>سيريالات</th><th>المرجع</th><th>سجّلها</th><th>التاريخ</th></tr></thead>
+        <table className="inv-table"><thead><tr><th scope="col">رقم الحركة</th><th scope="col">الصنف</th><th scope="col">الفرع والمستودع</th><th scope="col">الكمية</th>{showUnitCost && <th scope="col">تكلفة الوحدة (ج.م)</th>}<th scope="col">سيريالات</th><th scope="col">المرجع</th><th scope="col">سجّلها</th><th scope="col">التاريخ</th></tr></thead>
           <tbody>{receipts.map((receipt) => <tr key={receipt.id.toString()}>
             <td><bdi dir="ltr">{receipt.id.toString()}</bdi></td>
             <td>{receipt.product.nameAr} <span className="muted">({receipt.product.sku})</span></td>

@@ -50,11 +50,11 @@ export default async function SerialsPage({ searchParams }: Props) {
       <div className="inv-panel__body">
         <form className="inv-search" action="/inventory/serials" method="get">
           <label className="sr-only" htmlFor="serial-search">البحث برقم السيريال</label>
-          <input id="serial-search" name="q" dir="ltr" defaultValue={rawSearch.slice(0, 80)} maxLength={80} placeholder="بحث برقم السيريال" />
+          <input id="serial-search" name="q" dir="ltr" defaultValue={rawSearch.slice(0, 80)} maxLength={80} placeholder="بحث برقم السيريال" aria-invalid={invalidSearch} aria-describedby={invalidSearch ? "serial-search-error" : undefined} />
           <button className="inv-button" type="submit">بحث</button>
           {rawSearch && <Link href="/inventory/serials" className="inv-button inv-button--secondary">مسح البحث</Link>}
         </form>
-        {invalidSearch ? <div className="inv-alert inv-alert--error" role="alert">أدخل بحثًا لا يزيد على 80 حرفًا ودون رموز تحكم.</div> : visible.length ? <div className="inv-table-wrap" role="region" aria-label="جدول الأرقام التسلسلية" tabIndex={0}>
+        {invalidSearch ? <div id="serial-search-error" className="inv-alert inv-alert--error" role="alert">أدخل بحثًا لا يزيد على 80 حرفًا ودون رموز تحكم.</div> : visible.length ? <div className="inv-table-wrap" role="region" aria-label="جدول الأرقام التسلسلية" tabIndex={0}>
           <table className="inv-table"><thead><tr><th scope="col">الرقم التسلسلي</th><th scope="col">الصنف</th><th scope="col">الفرع</th><th scope="col">المستودع</th><th scope="col">الحالة</th><th scope="col">تاريخ التسجيل</th></tr></thead>
             <tbody>{visible.map((serial) => {
               const source = serial.opening ?? serial.receipt;
@@ -67,7 +67,7 @@ export default async function SerialsPage({ searchParams }: Props) {
               </tr>;
             })}</tbody>
           </table>
-        </div> : <div className="inv-empty">لا توجد أرقام مسجّلة مطابقة في نطاق حسابك.</div>}
+        </div> : <div className="inv-empty" role="status">لا توجد أرقام مسجّلة مطابقة في نطاق حسابك.</div>}
         {hasMore && <div className="inv-actions" style={{ marginTop: 16 }}><Link className="inv-button inv-button--secondary" href={`/inventory/serials?${nextParams.toString()}`}>عرض الأرقام التالية</Link></div>}
       </div>
     </section>

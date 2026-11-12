@@ -31,6 +31,7 @@ export default function InventoryProductsView({
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [stockFilter, setStockFilter] = useState<StockFilter>("ALL");
+  const [exportMessage, setExportMessage] = useState("");
 
   const lowCount = useMemo(
     () => rows.filter((r) => !r.isService && r.qtyUnits > 0 && r.qtyUnits <= 2).length,
@@ -55,6 +56,12 @@ export default function InventoryProductsView({
       return true;
     });
   }, [rows, query, categoryFilter, stockFilter]);
+
+  function resetFilters(): void {
+    setQuery("");
+    setCategoryFilter("ALL");
+    setStockFilter("ALL");
+  }
 
   function handleExportCsv(): void {
     const headers = canSeeCost
@@ -86,13 +93,14 @@ export default function InventoryProductsView({
             ],
       ),
     );
+    setExportMessage(`تم بدء تنزيل ملف CSV ويضم ${filtered.length} صنف.`);
   }
 
   return (
     <div className="card">
       <div className="inv-card-head">
         <h2>
-          الأصناف ومعدل الضريبة <span className="pill">{filtered.length} / {rows.length} صنف</span>
+          الأصناف ومعدل الضريبة <span className="pill" role="status" aria-live="polite" aria-atomic="true">{filtered.length} / {rows.length} صنف</span>
         </h2>
         <button
           type="button"
@@ -104,6 +112,7 @@ export default function InventoryProductsView({
           <span>تصدير CSV</span>
         </button>
       </div>
+      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{exportMessage}</p>
 
       {(zeroCount > 0 || lowCount > 0) ? (
         <div className="alert alert-warn" role="status">
@@ -150,21 +159,22 @@ export default function InventoryProductsView({
         <table>
           <thead>
             <tr>
-              <th>SKU</th>
-              <th>الصنف</th>
-              <th>التصنيف</th>
-              <th>ضريبة</th>
-              {canSeeCost ? <th>سعر الشراء</th> : null}
-              <th>سعر البيع</th>
-              <th>سيريال</th>
-              <th>الأرصدة (فرع: كمية)</th>
+              <th scope="col">SKU</th>
+              <th scope="col">الصنف</th>
+              <th scope="col">التصنيف</th>
+              <th scope="col">ضريبة</th>
+              {canSeeCost ? <th scope="col">سعر الشراء</th> : null}
+              <th scope="col">سعر البيع</th>
+              <th scope="col">سيريال</th>
+              <th scope="col">الأرصدة (فرع: كمية)</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr>
                 <td colSpan={canSeeCost ? 8 : 7} className="muted">
-                  لا توجد أصناف تطابق البحث أو التصفية المختارة.
+                  <p role="status">لا توجد أصناف تطابق البحث أو التصفية المختارة.</p>
+                  <button type="button" className="inv-button inv-button--secondary" onClick={resetFilters}>مسح البحث والفلاتر</button>
                 </td>
               </tr>
             ) : (

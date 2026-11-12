@@ -85,6 +85,8 @@
   .inv-page .inv-button,
   .inv-page .inv-back,
   .inv-page .inv-search input,
+  .inv-page .admin-filter-bar__search,
+  .inv-page .admin-filter-bar select,
   .inv-page .inv-check {
     min-height: 44px;
   }
