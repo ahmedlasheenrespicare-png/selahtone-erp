@@ -1,5 +1,15 @@
 import type { DataColumn } from "@/components/data-driven/data-table";
 
+export type ReportSettlementRow = { id: string; label: string; value: string; money?: boolean };
+export const reportSettlementColumns: DataColumn<ReportSettlementRow>[] = [
+  { id: "metric", header: "المؤشر", renderCell: (row) => row.label, cellAsRowHeader: true },
+  {
+    id: "value", header: "القيمة", renderCell: (row) => row.money
+      ? <span className="fin-money"><bdi dir="ltr">{row.value}</bdi> ج.م</span>
+      : row.value,
+  },
+];
+
 export type ReportCategoryRow = {
   id: string;
   name: string;

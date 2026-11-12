@@ -25,7 +25,7 @@ import { FinKpiStrip } from "@/components/finance/fin-kpi-strip";
 import { FinEmptyState } from "@/components/finance/fin-empty-state";
 import { FinSectionTitle } from "@/components/finance/fin-section-title";
 import { FinCsvButton } from "@/components/finance/fin-csv-button";
-import { reportBranchColumns, reportCategoryColumns, type ReportBranchRow, type ReportCategoryRow } from "./report-tables-metadata";
+import { reportBranchColumns, reportCategoryColumns, type ReportBranchRow, type ReportCategoryRow, reportSettlementColumns, type ReportSettlementRow } from "./report-tables-metadata";
 
 export const dynamic = "force-dynamic";
 
@@ -101,6 +101,13 @@ export default async function FinanceReportsPage({ searchParams }: Props) {
     vaultTotal,
     custodyTotal,
   });
+
+  const settlementRows: ReportSettlementRow[] = [
+    { id: "month-count", label: "عدد التسويات هذا الشهر", value: String(report.settlements.monthCount) },
+    { id: "deviation", label: "إجمالي الفرق المطلق عن المؤشر (|المعدود − المؤشر|)", value: formatReportCents(report.settlements.monthAbsDeviationCents), money: true },
+    { id: "open", label: "تسويات مفتوحة بانتظار القرار الآن", value: String(report.settlements.openCount) },
+    { id: "stale", label: "منها المتقادمة (أكثر من ٧ أيام منذ الطلب)", value: String(report.settlements.staleOpenCount) },
+  ];
 
   return (
     <div className="fin-page">
@@ -318,39 +325,9 @@ export default async function FinanceReportsPage({ searchParams }: Props) {
           />
         </div>
         <div className="fin-panel__body">
-          <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
-            <table className="fin-table">
-              <caption>تسويات الشهر الحالي: العدد والفرق المطلق عن المؤشر والمعلّق المتقادم</caption>
-              <thead>
-                <tr>
-                  <th scope="col">المؤشر</th>
-                  <th scope="col">القيمة</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <th scope="row">عدد التسويات هذا الشهر</th>
-                  <td>{report.settlements.monthCount}</td>
-                </tr>
-                <tr>
-                  <th scope="row">إجمالي الفرق المطلق عن المؤشر (|المعدود − المؤشر|)</th>
-                  <td>
-                    <span className="fin-money">
-                      <bdi dir="ltr">{formatReportCents(report.settlements.monthAbsDeviationCents)}</bdi> ج.م
-                    </span>
-                  </td>
-                </tr>
-                <tr>
-                  <th scope="row">تسويات مفتوحة بانتظار القرار الآن</th>
-                  <td>{report.settlements.openCount}</td>
-                </tr>
-                <tr>
-                  <th scope="row">منها المتقادمة (أكثر من ٧ أيام منذ الطلب)</th>
-                  <td>{report.settlements.staleOpenCount}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <DataTable rows={settlementRows} columns={reportSettlementColumns} rowKey={(row) => row.id}
+            regionLabel="جدول مالي قابل للتمرير" regionClassName="fin-table-wrap" tableClassName="fin-table"
+            caption="تسويات الشهر الحالي: العدد والفرق المطلق عن المؤشر والمعلّق المتقادم" />
         </div>
       </section>
     </div>

@@ -92,17 +92,19 @@ import {
 import {
   expenseCorrectionColumns,
   expenseCorrectionMovementColumns,
+  expenseInformationColumns,
   expensePaymentColumns,
   expenseReviewHistoryColumns,
   openExpenseReviewColumns,
   type ExpenseCorrectionMovementRow,
   type ExpenseCorrectionRow,
+  type ExpenseInformationRow,
   type ExpensePaymentDetailRow,
   type ExpenseReviewHistoryRow,
   type OpenExpenseReviewRow,
 } from "../src/app/(app)/finance/expenses/[expenseId]/expense-detail-tables-metadata";
 import { cashCountHistoryColumns, cashCountHistoryCsvColumns, type CashCountHistoryRow } from "../src/app/(app)/finance/counts/count-history-metadata";
-import { reportBranchColumns, reportCategoryColumns, type ReportBranchRow, type ReportCategoryRow } from "../src/app/(app)/finance/reports/report-tables-metadata";
+import { reportBranchColumns, reportCategoryColumns, reportSettlementColumns, type ReportBranchRow, type ReportCategoryRow, type ReportSettlementRow } from "../src/app/(app)/finance/reports/report-tables-metadata";
 import { createEmployeeSettlementColumns, type EmployeeSettlementRow } from "../src/app/(app)/finance/settlements/settlement-history-metadata";
 import { openAccountSummaryColumns, type OpenAccountSummaryRow } from "../src/app/(app)/finance/accounts/open-account-summary-metadata";
 import { createRecentExpenseColumns, type RecentExpenseRow } from "../src/app/(app)/finance/expenses/new/recent-expenses-metadata";
@@ -113,6 +115,20 @@ import {
   type ReadinessCheckItem,
 } from "../src/app/(app)/setup/setup-readiness-tables-metadata";
 import { securityAttemptColumns, type SecurityAttemptRow } from "../src/app/(app)/admin/security-audit-table-metadata";
+import { createUserDirectoryColumns, type AdminUserDirectoryRow } from "../src/app/(app)/admin/user-directory-table-metadata";
+import { createBranchDirectoryColumns, type AdminBranchDirectoryRow } from "../src/app/(app)/admin/branch-directory-table-metadata";
+import { createCatalogCartColumns, type CatalogCartTableRow } from "../src/app/(app)/sales/new/cart-table-metadata";
+import {
+  financeAccessHelpColumns,
+  financeAccessHelpRows,
+  financeErrorHelpColumns,
+  financeErrorHelpRows,
+  financePillarColumns,
+  financePillarRows,
+  type FinanceAccessHelpRow,
+  type FinanceErrorHelpRow,
+  type FinancePillarRow,
+} from "../src/app/(app)/finance/help/finance-help-tables-metadata";
 import { expenseReviewQueueColumns, type ExpenseReviewQueueRow } from "../src/app/(app)/finance/expenses/reviews/expense-reviews-metadata";
 import { saleDetailLineColumns, type SaleDetailLineRow } from "../src/app/(app)/sales/[saleId]/sale-lines-metadata";
 import { csvHeaders, csvRows, filterRowsBySearch } from "../src/lib/data-driven-ui";
@@ -903,4 +919,130 @@ test("security audit metadata preserves hashed identity, role, result tone, and 
   assert.ok(html.includes("admin-pill admin-pill--ok"));
   assert.ok(html.includes("2026-11-12 10:30"));
   for (const text of ["أحمد", "موظف فرع", "القاهرة", "دخول ناجح"]) assert.ok(html.includes(text));
+});
+
+test("user directory metadata preserves role hierarchy, custody, sessions, and editing state", () => {
+  const user: AdminUserDirectoryRow = {
+    id: "4", fullName: "أحمد", email: "ahmed@example.com", phone: "01000000000", role: "CS_AGENT",
+    branchId: "1", branchName: "القاهرة", isActive: true, mustChangePassword: true, isSelf: false,
+    activeSessionCount: 2, lastLoginLabel: "2026-11-12 10:00", openCustodyId: "8",
+  };
+  const manager: AdminUserDirectoryRow = { ...user, id: "1", fullName: "المدير", role: "MANAGER", branchId: null, branchName: null, openCustodyId: null, activeSessionCount: 0, mustChangePassword: false };
+  const render = (actorRole: "MANAGER" | "ACCOUNTANT", financeOn: boolean) => renderToStaticMarkup(React.createElement(DataTable<AdminUserDirectoryRow>, {
+    rows: [user, manager],
+    columns: createUserDirectoryColumns({ actorRole, financeOn, editingUserId: actorRole === "MANAGER" ? "4" : null, onToggleUser: () => undefined }),
+    rowKey: (row) => row.id, regionLabel: "جدول المستخدمين", tableClassName: "dashboard-table",
+  }));
+  const html = render("MANAGER", true);
+  assert.equal((html.match(/<th /g) ?? []).length, 5);
+  assert.ok(html.includes('href="/finance/accounts"'));
+  assert.ok(html.includes("عهدة نقدية مفتوحة #8"));
+  assert.ok(html.includes("2 جلسة"));
+  assert.ok(html.includes("بانتظار تغيير كلمة المرور المؤقتة"));
+  assert.ok(html.includes("إغلاق"));
+  assert.ok(html.includes("إدارة مركزية (كل الفروع)"));
+  const accountant = render("ACCOUNTANT", false);
+  assert.ok(accountant.includes("إدارة"));
+  assert.ok(accountant.includes("صلاحية المدير"));
+  assert.ok(!accountant.includes('href="/finance/accounts"'));
+  assert.ok(accountant.includes("عهدة نقدية مفتوحة #8"));
+});
+
+test("branch directory metadata gates finance and management while preserving staff navigation", () => {
+  const branch: AdminBranchDirectoryRow = {
+    id: "1", code: "CAI", nameAr: "القاهرة", city: "القاهرة", phone: "0200000000",
+    invoicePrefix: "CAI-", isActive: true, userCount: 4, activeUserCount: 3,
+    warehouseCount: 2, hasOpenVault: false, openCustodyCount: 2,
+  };
+  const render = (showFinanceSummary: boolean, canManageBranches: boolean) => renderToStaticMarkup(React.createElement(DataTable<AdminBranchDirectoryRow>, {
+    rows: [branch], columns: createBranchDirectoryColumns({
+      showFinanceSummary, canManageBranches, editingBranchId: canManageBranches ? "1" : null,
+      onToggleBranch: () => undefined, onShowBranchStaff: () => undefined,
+    }), rowKey: (row) => row.id, regionLabel: "جدول الفروع", tableClassName: "dashboard-table",
+  }));
+  const manager = render(true, true);
+  assert.equal((manager.match(/<th /g) ?? []).length, 7);
+  assert.ok(manager.includes('href="/finance/accounts"'));
+  assert.ok(manager.includes("بلا خزنة — افتح الآن"));
+  assert.ok(manager.includes("عرض موظفي الفرع"));
+  assert.ok(manager.includes("إغلاق"));
+  for (const text of ["CAI-", "2 مستودع مرتبط", "3 نشط", "من 4", "2 عهدة موظف مفتوحة"]) assert.ok(manager.includes(text));
+  const accountant = render(false, false);
+  assert.equal((accountant.match(/<th /g) ?? []).length, 6);
+  assert.ok(!accountant.includes("الجاهزية المالية"));
+  assert.ok(!accountant.includes("بلا خزنة"));
+  assert.ok(accountant.includes("للمدير العام"));
+});
+
+test("catalog cart metadata preserves editable inputs, custom details, totals, and line actions", () => {
+  const row: CatalogCartTableRow = {
+    key: "line-1", categoryName: "موبايلات", typeName: "آيفون 15", quantity: "2", unitPrice: "50000",
+    totalFormatted: "100000.00", details: [{ key: "color", label: "اللون", value: "أسود" }],
+  };
+  const render = (pending: boolean) => renderToStaticMarkup(React.createElement(DataTable<CatalogCartTableRow>, {
+    rows: [row], columns: createCatalogCartColumns({
+      pending, onUpdateLine: () => undefined, onEditLine: () => undefined, onRemoveLine: () => undefined,
+    }), rowKey: (item) => item.key, regionLabel: "بنود سلة البيع", regionClassName: "inv-table-wrap table-wrap", tableClassName: "inv-table",
+  }));
+  const html = render(false);
+  assert.equal((html.match(/<th /g) ?? []).length, 6);
+  assert.ok(html.includes('aria-label="كمية آيفون 15"'));
+  assert.ok(html.includes('aria-label="سعر آيفون 15"'));
+  assert.ok(html.includes('aria-label="إجراءات البند"'));
+  assert.ok(html.includes('value="2"'));
+  assert.ok(html.includes('value="50000"'));
+  assert.ok(html.includes("100000.00"));
+  assert.ok(html.includes("اللون"));
+  assert.ok(html.includes("أسود"));
+  assert.ok(html.includes("تعديل"));
+  assert.ok(html.includes("إزالة"));
+  assert.ok(!html.includes("disabled="));
+  const pending = render(true);
+  assert.ok(pending.includes("disabled="));
+});
+
+test("finance help metadata preserves static guidance and the limited-scope colSpan", () => {
+  assert.equal(financePillarRows.length, 3);
+  assert.equal(financeAccessHelpRows.length, 8);
+  assert.equal(financeErrorHelpRows.length, 8);
+  const pillars = renderToStaticMarkup(React.createElement(DataTable<FinancePillarRow>, {
+    rows: financePillarRows, columns: financePillarColumns, rowKey: (row) => row.id,
+    regionLabel: "جدول مالي قابل للتمرير", regionClassName: "fin-table-wrap", tableClassName: "fin-table", caption: "أركان التشغيل النقدي في وحدة المالية",
+  }));
+  assert.ok(pillars.includes("/finance/counts"));
+  assert.ok(pillars.includes("/finance/transfers"));
+  assert.ok(pillars.includes("لا يغيّر الرصيد"));
+  const access = renderToStaticMarkup(React.createElement(DataTable<FinanceAccessHelpRow>, {
+    rows: financeAccessHelpRows, columns: financeAccessHelpColumns, rowKey: (row) => row.id,
+    regionLabel: "جدول مالي قابل للتمرير", tableClassName: "fin-table", caption: "مصفوفة الوصول لشاشات وحدة المالية",
+  }));
+  assert.ok(access.includes('colSpan="2"'));
+  assert.ok(access.includes("نطاق «مختصر»"));
+  const limitedRowStart = access.lastIndexOf("<tr>", access.indexOf("نطاق «مختصر»"));
+  const limitedHtml = access.slice(limitedRowStart);
+  assert.ok(limitedHtml.indexOf("</tr>") < limitedHtml.indexOf("يصلون إلى لوحة القيادة") + 400);
+  assert.equal((limitedHtml.slice(0, limitedHtml.indexOf("</tr>")).match(/<td/g) ?? []).length, 2);
+  const expenseInfo = renderToStaticMarkup(React.createElement(DataTable<ExpenseInformationRow>, {
+    rows: [{ id: "branch", label: "الفرع", value: "القاهرة" }], columns: expenseInformationColumns,
+    rowKey: (row) => row.id, regionLabel: "جدول مالي قابل للتمرير",
+    tableClassName: "fin-table", caption: "بيانات المصروف", showColumnHeaders: false,
+  }));
+  assert.ok(!expenseInfo.includes("<thead>"));
+  assert.ok(expenseInfo.includes('<th scope="row">الفرع</th>'));
+  assert.ok(expenseInfo.includes("<td>القاهرة</td>"));
+  const settlements = renderToStaticMarkup(React.createElement(DataTable<ReportSettlementRow>, {
+    rows: [{ id: "deviation", label: "الانحراف", value: "50.00", money: true }],
+    columns: reportSettlementColumns, rowKey: (row) => row.id, regionLabel: "جدول مالي قابل للتمرير",
+    tableClassName: "fin-table", caption: "تسويات الشهر الحالي",
+  }));
+  assert.equal((settlements.match(/<th scope="col">/g) ?? []).length, 2);
+  assert.ok(settlements.includes('<th scope="row">الانحراف</th>'));
+  assert.ok(settlements.includes('<bdi dir="ltr">50.00</bdi> ج.م'));
+  const errors = renderToStaticMarkup(React.createElement(DataTable<FinanceErrorHelpRow>, {
+    rows: financeErrorHelpRows, columns: financeErrorHelpColumns, rowKey: (row) => row.id,
+    regionLabel: "جدول مالي قابل للتمرير", tableClassName: "fin-table", caption: "أخطاء التشغيل النقدي المعتادة ومعالجتها",
+  }));
+  assert.equal((errors.match(/<th /g) ?? []).length, 3);
+  assert.ok(errors.includes("لا تسوية صامتة"));
+  assert.ok(errors.includes("اسمح بالمنبثقة"));
 });

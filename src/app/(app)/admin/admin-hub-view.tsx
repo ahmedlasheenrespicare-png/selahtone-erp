@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { AppIcon } from "@/components/app-icon";
 import DataTable from "@/components/data-driven/data-table";
 import {
@@ -22,6 +22,8 @@ import {
   type UserRow,
 } from "./admin-forms";
 import { securityAttemptColumns, type SecurityAttemptRow } from "./security-audit-table-metadata";
+import { createUserDirectoryColumns } from "./user-directory-table-metadata";
+import { createBranchDirectoryColumns } from "./branch-directory-table-metadata";
 export type { SecurityAttemptRow } from "./security-audit-table-metadata";
 
 type HubTab = "users" | "branches" | "security";
@@ -78,6 +80,13 @@ export default function AdminHubView({
   // حالة تبويب الأمان
   const [secQuery, setSecQuery] = useState("");
   const [secFilter, setSecFilter] = useState<SecurityFilter>("ALL");
+
+  const userDirectoryColumns = useMemo(() => createUserDirectoryColumns({
+    actorRole,
+    financeOn,
+    editingUserId,
+    onToggleUser: (userId) => setEditingUserId((previous) => previous === userId ? null : userId),
+  }), [actorRole, financeOn, editingUserId]);
 
   const existingEmails = useMemo(() => users.map((u) => u.email), [users]);
   const existingCodes = useMemo(() => branches.map((b) => b.code), [branches]);
@@ -146,6 +155,13 @@ export default function AdminHubView({
   }, [branches, financeOn]);
 
   const showFinanceSummary = financeOn && financeAccountsKnown;
+  const branchDirectoryColumns = useMemo(() => createBranchDirectoryColumns({
+    canManageBranches,
+    showFinanceSummary,
+    editingBranchId,
+    onToggleBranch: (branchId) => setEditingBranchId((previous) => previous === branchId ? null : branchId),
+    onShowBranchStaff: jumpToBranchStaff,
+  }), [canManageBranches, showFinanceSummary, editingBranchId]);
 
   const filteredBranches = useMemo(() => {
     const q = branchQuery.trim().toLowerCase();
@@ -292,12 +308,6 @@ export default function AdminHubView({
         r.timestampFormatted,
       ]),
     );
-  }
-
-  function roleBadgeClass(role: AdminRole): string {
-    if (role === "MANAGER") return "admin-pill admin-pill--manager";
-    if (role === "ACCOUNTANT") return "admin-pill admin-pill--accountant";
-    return "admin-pill admin-pill--staff";
   }
 
   return (
@@ -461,147 +471,16 @@ export default function AdminHubView({
             </div>
           </div>
 
-          <div className="dashboard-table-wrap" role="region" aria-label="جدول المستخدمين" tabIndex={0}>
-            <table className="dashboard-table">
-              <thead>
-                <tr>
-                  <th scope="col">المستخدم والتواصل</th>
-                  <th scope="col">الدور والصلاحيات</th>
-                  <th scope="col">الفرع والذمّة المالية</th>
-                  <th scope="col">الحالة والجلسات</th>
-                  <th scope="col" className="no-print">إجراء</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredUsers.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} style={{ textAlign: "center", padding: "24px 12px" }}>
-                      لا يوجد مستخدمون يطابقون معايير البحث أو التصفية المحددة.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredUsers.map((user) => {
-                    const editable = canManageTargetUser(actorRole, user.role);
-                    const isEditing = editingUserId === user.id;
-                    return (
-                      <Fragment key={user.id}>
-                        <tr className={isEditing ? "admin-row--editing" : undefined}>
-                          <td>
-                            <div className="admin-cell-stack">
-                              <div className="admin-inline-line">
-                                <strong>{user.fullName}</strong>
-                                {user.isSelf ? (
-                                  <span className="admin-pill admin-pill--self">أنت</span>
-                                ) : null}
-                              </div>
-                              <small dir="ltr" className="admin-subtext">
-                                {user.email}
-                                {user.phone ? ` · ${user.phone}` : ""}
-                              </small>
-                              <small className="admin-subtext">
-                                {user.lastLoginLabel ? (
-                                  <>
-                                    آخر دخول: <bdi dir="ltr">{user.lastLoginLabel}</bdi>
-                                  </>
-                                ) : (
-                                  "لم يسجّل دخولًا بعد"
-                                )}
-                              </small>
-                            </div>
-                          </td>
-
-                          <td>
-                            <div className="admin-cell-stack">
-                              <span className={roleBadgeClass(user.role)}>
-                                {ROLE_LABELS[user.role]}
-                              </span>
-                              <small className="admin-subtext">
-                                {user.role === "CS_AGENT"
-                                  ? "شاشات عمليات الفرع"
-                                  : "صلاحيات مخصصة لكل حساب"}
-                              </small>
-                            </div>
-                          </td>
-
-                          <td>
-                            <div className="admin-cell-stack">
-                              <strong>{user.branchName ?? "إدارة مركزية (كل الفروع)"}</strong>
-                              {user.openCustodyId ? (financeOn ? (
-                                <Link href="/finance/accounts" className="admin-pill admin-pill--warn" title="استعراض العهدة المفتوحة في الحسابات النقدية">عهدة نقدية مفتوحة #{user.openCustodyId}</Link>
-                              ) : (
-                                <span className="admin-pill admin-pill--warn">عهدة نقدية مفتوحة #{user.openCustodyId}</span>
-                              )) : null}
-                            </div>
-                          </td>
-
-                          <td>
-                            <div className="admin-cell-stack">
-                              <div className="admin-inline-line">
-                                <span
-                                  className={
-                                    user.isActive
-                                      ? "admin-pill admin-pill--ok"
-                                      : "admin-pill admin-pill--err"
-                                  }
-                                >
-                                  {user.isActive ? "نشط" : "موقوف"}
-                                </span>
-                                {user.activeSessionCount > 0 ? (
-                                  <span className="admin-pill admin-pill--accountant">
-                                    {user.activeSessionCount} جلسة
-                                  </span>
-                                ) : null}
-                              </div>
-                              {user.mustChangePassword ? (
-                                <small className="admin-warn-note">
-                                  بانتظار تغيير كلمة المرور المؤقتة
-                                </small>
-                              ) : null}
-                            </div>
-                          </td>
-
-                          <td className="no-print">
-                            {editable ? (
-                              <button
-                                type="button"
-                                className={`admin-ghost-btn${isEditing ? " is-active" : ""}`}
-                                onClick={() =>
-                                  setEditingUserId((prev) =>
-                                    prev === user.id ? null : user.id,
-                                  )
-                                }
-                              >
-                                <span>{isEditing ? "إغلاق" : "إدارة"}</span>
-                              </button>
-                            ) : (
-                              <span className="admin-subtext" title="تعديل حسابات الإدارة متاح للمدير العام فقط">
-                                صلاحية المدير
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-
-                        {isEditing && editable ? (
-                          <tr className="admin-drawer-row no-print">
-                            <td colSpan={5}>
-                              <UserManageDrawer
-                                user={user}
-                                branches={activeBranches}
-                                actorRole={actorRole}
-                                financeOn={financeOn}
-                                existingEmails={existingEmails}
-                                onClose={() => setEditingUserId(null)}
-                              />
-                            </td>
-                          </tr>
-                        ) : null}
-                      </Fragment>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+          <DataTable rows={filteredUsers} columns={userDirectoryColumns} rowKey={(row) => row.id}
+            rowClassName={(row) => editingUserId === row.id ? "admin-row--editing" : undefined}
+            renderAfterRow={(user) => editingUserId === user.id && canManageTargetUser(actorRole, user.role) ? (
+              <tr className="admin-drawer-row no-print"><td colSpan={5}>
+                <UserManageDrawer user={user} branches={activeBranches} actorRole={actorRole} financeOn={financeOn}
+                  existingEmails={existingEmails} onClose={() => setEditingUserId(null)} />
+              </td></tr>
+            ) : null}
+            regionLabel="جدول المستخدمين" regionClassName="dashboard-table-wrap" tableClassName="dashboard-table"
+            emptyState={<span style={{ display: "block", textAlign: "center", padding: "24px 12px" }}>لا يوجد مستخدمون يطابقون معايير البحث أو التصفية المحددة.</span>} />
           <div className="dashboard-panel__footer">
             <span>
               تُشفَّر كلمات المرور بـ bcrypt، ويمنع النظام نقل موظف أو إيقافه قبل تصفية عهدته النقدية المفتوحة.
@@ -702,160 +581,15 @@ export default function AdminHubView({
             </div>
           </div>
 
-          <div className="dashboard-table-wrap" role="region" aria-label="جدول الفروع" tabIndex={0}>
-            <table className="dashboard-table">
-              <thead>
-                <tr>
-                  <th scope="col">الفرع والكود</th>
-                  <th scope="col">المدينة والهاتف</th>
-                  <th scope="col">الفوترة والمستودعات</th>
-                  {showFinanceSummary ? <th scope="col">الجاهزية المالية</th> : null}
-                  <th scope="col">فريق الفرع</th>
-                  <th scope="col">الحالة</th>
-                  <th scope="col" className="no-print">إجراء</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredBranches.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={showFinanceSummary ? 7 : 6}
-                      style={{ textAlign: "center", padding: "24px 12px" }}
-                    >
-                      لا توجد فروع تطابق البحث أو التصفية الحالية.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredBranches.map((branch) => {
-                    const isEditing = editingBranchId === branch.id;
-                    return (
-                      <Fragment key={branch.id}>
-                        <tr className={isEditing ? "admin-row--editing" : undefined}>
-                          <td>
-                            <div className="dashboard-branch-name">
-                              <span className="dashboard-branch-name__icon">
-                                <AppIcon name="branch" />
-                              </span>
-                              <span>
-                                <strong>{branch.nameAr}</strong>
-                                <small dir="ltr">{branch.code}</small>
-                              </span>
-                            </div>
-                          </td>
-
-                          <td>
-                            <div className="admin-cell-stack">
-                              <span>{branch.city ?? "—"}</span>
-                              {branch.phone ? (
-                                <small dir="ltr" className="admin-subtext">
-                                  {branch.phone}
-                                </small>
-                              ) : null}
-                            </div>
-                          </td>
-
-                          <td>
-                            <div className="admin-cell-stack">
-                              <span>
-                                البادئة: <strong dir="ltr">{branch.invoicePrefix}</strong>
-                              </span>
-                              <small className="admin-subtext">
-                                {branch.warehouseCount} مستودع مرتبط
-                              </small>
-                            </div>
-                          </td>
-
-                          {showFinanceSummary ? (
-                            <td>
-                              <div className="admin-cell-stack">
-                                {branch.hasOpenVault ? (
-                                  <span className="admin-pill admin-pill--ok">
-                                    خزنة مفتوحة
-                                  </span>
-                                ) : (
-                                  <Link
-                                    href="/finance/accounts"
-                                    className="admin-pill admin-pill--warn"
-                                  >
-                                    بلا خزنة — افتح الآن
-                                  </Link>
-                                )}
-                                <small className="admin-subtext">
-                                  {branch.openCustodyCount} عهدة موظف مفتوحة
-                                </small>
-                              </div>
-                            </td>
-                          ) : null}
-
-                          <td>
-                            <div className="admin-cell-stack">
-                              <strong>
-                                {branch.activeUserCount} نشط{" "}
-                                <small className="admin-subtext">
-                                  من {branch.userCount}
-                                </small>
-                              </strong>
-                              {branch.userCount > 0 ? (
-                                <button
-                                  type="button"
-                                  className="admin-link-btn no-print"
-                                  onClick={() => jumpToBranchStaff(branch.nameAr)}
-                                >
-                                  عرض موظفي الفرع ←
-                                </button>
-                              ) : null}
-                            </div>
-                          </td>
-
-                          <td>
-                            <span
-                              className={
-                                branch.isActive
-                                  ? "admin-pill admin-pill--ok"
-                                  : "admin-pill admin-pill--err"
-                              }
-                            >
-                              {branch.isActive ? "نشط" : "موقوف"}
-                            </span>
-                          </td>
-
-                          <td className="no-print">
-                            {canManageBranches ? (
-                              <button
-                                type="button"
-                                className={`admin-ghost-btn${isEditing ? " is-active" : ""}`}
-                                onClick={() =>
-                                  setEditingBranchId((prev) =>
-                                    prev === branch.id ? null : branch.id,
-                                  )
-                                }
-                              >
-                                <span>{isEditing ? "إغلاق" : "تعديل"}</span>
-                              </button>
-                            ) : (
-                              <span className="admin-subtext">للمدير العام</span>
-                            )}
-                          </td>
-                        </tr>
-
-                        {isEditing && canManageBranches ? (
-                          <tr className="admin-drawer-row no-print">
-                            <td colSpan={showFinanceSummary ? 7 : 6}>
-                              <BranchManageDrawer
-                                branch={branch}
-                                financeOn={financeOn}
-                                onClose={() => setEditingBranchId(null)}
-                              />
-                            </td>
-                          </tr>
-                        ) : null}
-                      </Fragment>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+          <DataTable rows={filteredBranches} columns={branchDirectoryColumns} rowKey={(row) => row.id}
+            rowClassName={(row) => editingBranchId === row.id ? "admin-row--editing" : undefined}
+            renderAfterRow={(branch) => editingBranchId === branch.id && canManageBranches ? (
+              <tr className="admin-drawer-row no-print"><td colSpan={showFinanceSummary ? 7 : 6}>
+                <BranchManageDrawer branch={branch} financeOn={financeOn} onClose={() => setEditingBranchId(null)} />
+              </td></tr>
+            ) : null}
+            regionLabel="جدول الفروع" regionClassName="dashboard-table-wrap" tableClassName="dashboard-table"
+            emptyState={<span style={{ display: "block", textAlign: "center", padding: "24px 12px" }}>لا توجد فروع تطابق البحث أو التصفية الحالية.</span>} />
 
           <div className="dashboard-panel__footer">
             <span>
