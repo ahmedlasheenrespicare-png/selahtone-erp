@@ -21,6 +21,10 @@ export default function OpeningForm({ requestId, initialProductId, products, war
   const selectedProduct = products.find((product) => product.id === values.productId);
 
   useEffect(() => {
+    if (state.status === "success") {
+      document.getElementById("opening-success-title")?.focus();
+      return;
+    }
     if (state.status !== "error" || state === dismissedError) return;
     const first = Object.keys(state.fieldErrors ?? {}).find((key) => key !== "form");
     if (first) document.getElementById(`opening-${first}`)?.focus();
@@ -49,7 +53,7 @@ export default function OpeningForm({ requestId, initialProductId, products, war
 
   if (state.status === "success") {
     return <div className="inv-panel inv-success" role="status">
-      <h2>تم تسجيل الرصيد</h2><p>{state.message}</p>
+      <h2 id="opening-success-title" tabIndex={-1}>تم تسجيل الرصيد</h2><p>{state.message}</p>
       <div className="inv-actions"><a className="inv-button" href="/inventory/opening">تسجيل رصيد آخر</a><Link className="inv-button inv-button--secondary" href="/inventory/serials">عرض السيريالات</Link><Link className="inv-button inv-button--text" href="/inventory">العودة إلى المخزون</Link></div>
     </div>;
   }

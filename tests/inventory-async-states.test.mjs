@@ -47,6 +47,19 @@ test("inventory review transitions preserve keyboard focus", () => {
   }
 });
 
+test("inventory success replaces the form with a focused confirmation", () => {
+  for (const [path, prefix] of [
+    ["../src/app/(app)/inventory/new/product-form.tsx", "product"],
+    ["../src/app/(app)/inventory/opening/opening-form.tsx", "opening"],
+    ["../src/app/(app)/inventory/receipts/new/receipt-form.tsx", "receipt"],
+  ]) {
+    const source = read(path);
+    assert.ok(source.includes(`id="${prefix}-success-title" tabIndex={-1}`), path);
+    assert.ok(source.includes(`document.getElementById("${prefix}-success-title")?.focus()`), path);
+    assert.ok(source.includes('className="inv-panel inv-success" role="status"'), path);
+  }
+});
+
 test("inventory prerequisite and empty states are announced", () => {
   for (const path of [
     "../src/app/(app)/inventory/serials/page.tsx",

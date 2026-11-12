@@ -22,6 +22,10 @@ export default function ProductForm({ requestId, taxRates }: Props) {
   const [dismissedError, setDismissedError] = useState<InventoryActionState | null>(null);
 
   useEffect(() => {
+    if (state.status === "success") {
+      document.getElementById("product-success-title")?.focus();
+      return;
+    }
     if (state.status !== "error" || state === dismissedError) return;
     const first = Object.keys(state.fieldErrors ?? {}).find((key) => key !== "form");
     if (first) document.getElementById(`product-${first}`)?.focus();
@@ -50,7 +54,7 @@ export default function ProductForm({ requestId, taxRates }: Props) {
 
   if (state.status === "success") {
     return <div className="inv-panel inv-success" role="status">
-      <h2>تم حفظ الصنف</h2><p>{state.message}</p>
+      <h2 id="product-success-title" tabIndex={-1}>تم حفظ الصنف</h2><p>{state.message}</p>
       <div className="inv-actions">
         {state.id && <Link className="inv-button" href={`/inventory/opening?productId=${encodeURIComponent(state.id)}`}>تسجيل رصيد لهذا الصنف</Link>}
         <a className="inv-button inv-button--secondary" href="/inventory/new">إضافة صنف آخر</a>

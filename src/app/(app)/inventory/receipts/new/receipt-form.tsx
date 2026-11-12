@@ -21,6 +21,10 @@ export default function ReceiptForm({ requestId, products, warehouses }: Props) 
   const selectedProduct = products.find((product) => product.id === values.productId);
 
   useEffect(() => {
+    if (state.status === "success") {
+      document.getElementById("receipt-success-title")?.focus();
+      return;
+    }
     if (state.status !== "error" || state === dismissedError) return;
     const first = Object.keys(state.fieldErrors ?? {}).find((key) => key !== "form");
     if (first) document.getElementById(`receipt-${first}`)?.focus();
@@ -48,7 +52,7 @@ export default function ReceiptForm({ requestId, products, warehouses }: Props) 
   }
 
   if (state.status === "success") return <div className="inv-panel inv-success" role="status">
-    <h2>تم تسجيل التوريد</h2><p>{state.message}</p>
+    <h2 id="receipt-success-title" tabIndex={-1}>تم تسجيل التوريد</h2><p>{state.message}</p>
     {state.id && <p>رقم الحركة: <bdi dir="ltr">{state.id}</bdi></p>}
     <div className="inv-actions"><a className="inv-button" href="/inventory/receipts/new">تسجيل توريد آخر</a><Link className="inv-button inv-button--secondary" href="/inventory/receipts">عرض سجل التوريدات</Link><Link className="inv-button inv-button--text" href="/inventory">العودة إلى المخزون</Link></div>
   </div>;
