@@ -2,6 +2,8 @@ import { writeAllowedForKeys } from "@/lib/access-control";
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { AppIcon } from "@/components/app-icon";
+import DataTable from "@/components/data-driven/data-table";
+import { csvRows } from "@/lib/data-driven-ui";
 import { listAccounts, listCashCounts, settlementOverview } from "@/lib/finance/engine";
 import { prisma } from "@/lib/prisma";
 import { accountLabel, formatMoney } from "../format";
@@ -11,6 +13,7 @@ import { CountRequestForm, CountResolveForm, type CountAccountOption } from "./c
 import { FinCsvButton } from "@/components/finance/fin-csv-button";
 import { OlderCorrectionNotice } from "../older-correction-notice";
 import { RequestCountFromHolderForm } from "./holder-count-request";
+import { cashCountHistoryColumns, cashCountHistoryCsvColumns, type CashCountHistoryRow } from "./count-history-metadata";
 
 export const dynamic = "force-dynamic";
 const STATUS_LABEL: Record<string, string> = { OPEN: "معلق", CONFIRMED: "مؤكد", CANCELLED: "ملغى" };
@@ -63,6 +66,16 @@ export default async function CountsPage() {
   const accountLabelById = new Map(allAccountOptions.map((account) => [account.id, `${account.branchName} · ${accountLabel(account.kind)}${account.holderName ? ` · ${account.holderName}` : ""}`]));
   const open = counts.filter((count) => count.status === "OPEN");
   const history = counts.filter((count) => count.status !== "OPEN").reverse();
+  const historyRows: CashCountHistoryRow[] = history.map((count) => ({
+    id: count.id,
+    accountLabel: accountLabelById.get(count.accountId) ?? "الحساب",
+    countedOn: count.countedOn,
+    observedBalanceFormatted: formatMoney(count.observedBalance),
+    countedAmountFormatted: formatMoney(count.countedAmount),
+    differenceFormatted: formatMoney(count.difference),
+    statusLabel: STATUS_LABEL[count.status] ?? count.status,
+    reason: count.resolutionReason ?? count.reason,
+  }));
 
   return (
     <div className="fin-page">
@@ -144,53 +157,16 @@ export default async function CountsPage() {
           <FinCsvButton
             filename={`selahtone-cash-counts-${new Date().toISOString().slice(0, 10)}.csv`}
             label="تصدير سجل الجرد"
-            headers={["الجرد", "الحساب", "التاريخ", "الدفتري", "المعدود", "الفرق عن المرجع", "الحالة", "السبب"]}
-            rows={history.map((count) => [
-              `#${count.id}`,
-              accountLabelById.get(count.accountId) ?? "الحساب",
-              count.countedOn,
-              formatMoney(count.observedBalance),
-              formatMoney(count.countedAmount),
-              formatMoney(count.difference),
-              STATUS_LABEL[count.status] ?? count.status,
-              count.resolutionReason ?? count.reason,
-            ])}
+            headers={cashCountHistoryCsvColumns.map((column) => column.header)}
+            rows={csvRows(historyRows, cashCountHistoryCsvColumns)}
           />
         </div>
         {history.length === 0 ? (
           <div className="fin-panel__body"><p>لا يوجد جرد مُسوًّى بعد.</p></div>
         ) : (
-          <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
-            <table className="fin-table">
-              <caption>سجل الجرد بحالته ومن أكّده وسببه</caption>
-              <thead>
-                <tr>
-                  <th scope="col">الجرد</th>
-                  <th scope="col">الحساب</th>
-                  <th scope="col">التاريخ</th>
-                  <th scope="col">الدفتري</th>
-                  <th scope="col">المعدود</th>
-                  <th scope="col">الفرق عن المرجع</th>
-                  <th scope="col">الحالة</th>
-                  <th scope="col">السبب</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.map((count) => (
-                  <tr key={count.id}>
-                    <td>{count.id}</td>
-                    <td>{accountLabelById.get(count.accountId) ?? "الحساب"}</td>
-                    <td>{count.countedOn}</td>
-                    <td>{formatMoney(count.observedBalance)}</td>
-                    <td>{formatMoney(count.countedAmount)}</td>
-                    <td>{formatMoney(count.difference)}</td>
-                    <td>{STATUS_LABEL[count.status] ?? count.status}</td>
-                    <td>{count.resolutionReason ?? count.reason}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+<DataTable rows={historyRows} columns={cashCountHistoryColumns} rowKey={(row) => row.id}
+            regionLabel="جدول مالي قابل للتمرير" regionClassName="fin-table-wrap" tableClassName="fin-table"
+            caption="سجل الجرد بحالته ومن أكّده وسببه" />
         )}
       </div>
     </div>

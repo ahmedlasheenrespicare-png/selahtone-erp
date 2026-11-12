@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppIcon } from "@/components/app-icon";
+import DataTable from "@/components/data-driven/data-table";
 import { FinKpiStrip } from "@/components/finance/fin-kpi-strip";
 import { getSession } from "@/lib/auth";
 import { assertFinanceActor, financeDb, financeEnabled } from "@/lib/finance/db";
@@ -15,6 +16,7 @@ import { prisma } from "@/lib/prisma";
 import { formatMoney } from "../format";
 import AccountForm, { type BranchOption, type StaffOption } from "./account-form";
 import { CustodyRequestDecision } from "./custody-request-decision";
+import { openAccountSummaryColumns, type OpenAccountSummaryRow } from "./open-account-summary-metadata";
 import "./accounts.css";
 
 export const dynamic = "force-dynamic";
@@ -130,6 +132,16 @@ export default async function FinanceAccountsPage({
   });
 
   const openAccounts = accounts.filter((acc) => !acc.closedAt);
+  const openAccountRows: OpenAccountSummaryRow[] = openAccounts.slice(0, 12).map((acc) => ({
+    id: acc.id,
+    kind: acc.kind,
+    kindLabel: acc.kind === "VAULT" ? "خزنة فرع" : "عهدة موظف",
+    branchName: branchNameById.get(acc.branchId) ?? "الفرع",
+    holderName: acc.holderId ? staffMap.get(acc.holderId)?.name ?? `موظف #${acc.holderId}` : "—",
+    openingDate: acc.openingDate,
+    openingBalanceFormatted: formatMoney(acc.currentOpening),
+    balanceFormatted: formatMoney(acc.balance),
+  }));
 
   return (
     <div className="fin-page">
@@ -293,52 +305,9 @@ export default async function FinanceAccountsPage({
               <h2>الخزائن والعُهَد المفتوحة حاليًا ({openAccounts.length})</h2>
               <p>مراجعة سريعة للحسابات النشطة وأرصدتها الحالية لتفادي تكرار الفتح.</p>
             </div>
-            <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
-              <table className="fin-table">
-                <caption>الخزائن والعُهَد المفتوحة وأرصدتها الدفترية الحالية</caption>
-                <thead>
-                  <tr>
-                    <th scope="col">#</th>
-                    <th scope="col">النوع</th>
-                    <th scope="col">الفرع</th>
-                    <th scope="col">صاحب العهدة</th>
-                    <th scope="col">تاريخ الافتتاح</th>
-                    <th scope="col">رصيد البداية</th>
-                    <th scope="col">الرصيد الدفتري الحالي</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {openAccounts.slice(0, 12).map((acc) => {
-                    const holderName = acc.holderId
-                      ? staffMap.get(acc.holderId)?.name ?? `موظف #${acc.holderId}`
-                      : "—";
-                    return (
-                      <tr key={acc.id}>
-                        <td dir="ltr">
-                          <strong>#{acc.id}</strong>
-                        </td>
-                        <td>
-                          <span
-                            className={`fin-badge ${
-                              acc.kind === "VAULT" ? "fin-badge--approved" : "fin-badge--paid"
-                            }`}
-                          >
-                            {acc.kind === "VAULT" ? "خزنة فرع" : "عهدة موظف"}
-                          </span>
-                        </td>
-                        <td>{branchNameById.get(acc.branchId) ?? "الفرع"}</td>
-                        <td>{holderName}</td>
-                        <td dir="ltr">{acc.openingDate}</td>
-                        <td dir="ltr">{formatMoney(acc.currentOpening)}</td>
-                        <td dir="ltr">
-                          <strong>{formatMoney(acc.balance)}</strong>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <DataTable rows={openAccountRows} columns={openAccountSummaryColumns} rowKey={(row) => row.id}
+              regionLabel="جدول مالي قابل للتمرير" regionClassName="fin-table-wrap" tableClassName="fin-table"
+              caption="الخزائن والعُهَد المفتوحة وأرصدتها الدفترية الحالية" />
           </div>
         </section>
       ) : null}

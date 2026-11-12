@@ -89,6 +89,30 @@ import {
   parseFormattedMoney,
   type FinanceAccountRow,
 } from "../src/app/(app)/finance/finance-accounts-metadata";
+import {
+  expenseCorrectionColumns,
+  expenseCorrectionMovementColumns,
+  expensePaymentColumns,
+  expenseReviewHistoryColumns,
+  openExpenseReviewColumns,
+  type ExpenseCorrectionMovementRow,
+  type ExpenseCorrectionRow,
+  type ExpensePaymentDetailRow,
+  type ExpenseReviewHistoryRow,
+  type OpenExpenseReviewRow,
+} from "../src/app/(app)/finance/expenses/[expenseId]/expense-detail-tables-metadata";
+import { cashCountHistoryColumns, cashCountHistoryCsvColumns, type CashCountHistoryRow } from "../src/app/(app)/finance/counts/count-history-metadata";
+import { reportBranchColumns, reportCategoryColumns, type ReportBranchRow, type ReportCategoryRow } from "../src/app/(app)/finance/reports/report-tables-metadata";
+import { createEmployeeSettlementColumns, type EmployeeSettlementRow } from "../src/app/(app)/finance/settlements/settlement-history-metadata";
+import { openAccountSummaryColumns, type OpenAccountSummaryRow } from "../src/app/(app)/finance/accounts/open-account-summary-metadata";
+import { createRecentExpenseColumns, type RecentExpenseRow } from "../src/app/(app)/finance/expenses/new/recent-expenses-metadata";
+import {
+  createBranchReadinessColumns,
+  readinessCheckColumns,
+  type BranchReadinessRow,
+  type ReadinessCheckItem,
+} from "../src/app/(app)/setup/setup-readiness-tables-metadata";
+import { securityAttemptColumns, type SecurityAttemptRow } from "../src/app/(app)/admin/security-audit-table-metadata";
 import { expenseReviewQueueColumns, type ExpenseReviewQueueRow } from "../src/app/(app)/finance/expenses/reviews/expense-reviews-metadata";
 import { saleDetailLineColumns, type SaleDetailLineRow } from "../src/app/(app)/sales/[saleId]/sale-lines-metadata";
 import { csvHeaders, csvRows, filterRowsBySearch } from "../src/lib/data-driven-ui";
@@ -685,4 +709,198 @@ test("expense review queue metadata preserves review evidence and expense links"
   assert.ok(html.includes("إصدار الطلب لا يطابق المصروف الحالي"));
   assert.ok(html.includes("مراجعة الدفع"));
   assert.ok(html.includes("يتضمن مصدر نقد الموظف"));
+});
+
+test("expense detail metadata defines all five evidence table contracts", () => {
+  assert.deepEqual(expensePaymentColumns.map((column) => column.id), ["amount", "source", "account", "method", "date", "actor"]);
+  assert.equal(openExpenseReviewColumns.length, 5);
+  assert.equal(expenseReviewHistoryColumns.length, 5);
+  assert.equal(expenseCorrectionColumns.length, 5);
+  assert.equal(expenseCorrectionMovementColumns.length, 5);
+});
+
+test("expense detail tables preserve payment, revision, correction, and movement evidence", () => {
+  const payment: ExpensePaymentDetailRow = { id: "1", amountFormatted: "750.00", sourceLabel: "نقد الموظف", accountLabel: "عهدة أحمد", methodLabel: "نقدًا", paymentDate: "2026-11-12", recordedByLabel: "منى" };
+  const open: OpenExpenseReviewRow = { id: "2", reason: "مراجعة", proposedAmountLabel: "700.00", createdByLabel: "أحمد", createdAt: "اليوم", revisionMismatch: true };
+  const history: ExpenseReviewHistoryRow = { id: "3", statusLabel: "صُحّح", reasonAndAmount: "سبب · 700.00", createdLabel: "أحمد · اليوم", decisionLabel: "تم الفحص · منى · اليوم" };
+  const correction: ExpenseCorrectionRow = { id: "4", reviewId: "3", paymentId: "1", beforeAmountFormatted: "750.00", afterAmountFormatted: "700.00", accountAndDifferenceLabel: "حساب #8 · -50.00", reasonAndCreatedLabel: "تصحيح · منى · اليوم" };
+  const movement: ExpenseCorrectionMovementRow = { id: "5", correctionId: "4", kind: "EXPENSE_CORRECTION", branchId: "1", sourceAndDestinationLabel: "من حساب #8 · بلا وجهة حساب مسجلة", amountFormatted: "50.00", actorAndCreatedLabel: "منى · اليوم" };
+  const cases = [
+    { rows: [payment], columns: expensePaymentColumns, expected: ["نقد الموظف", "عهدة أحمد", "750.00"], caption: "بيانات الصرف المسجّلة — المصدر والطريقة والمسجّل", count: 6 },
+    { rows: [open], columns: openExpenseReviewColumns, expected: ["إصدار المصروف اختلف", "700.00"], caption: "طلبات المراجعة المفتوحة للمصروف", count: 5 },
+    { rows: [history], columns: expenseReviewHistoryColumns, expected: ["صُحّح", "تم الفحص"], caption: "المراجعات غير المفتوحة المسجلة للمصروف", count: 5 },
+    { rows: [correction], columns: expenseCorrectionColumns, expected: ["مراجعة #3", "-50.00"], caption: "تصحيحات المبلغ المسجلة للمصروف", count: 5 },
+    { rows: [movement], columns: expenseCorrectionMovementColumns, expected: ["EXPENSE_CORRECTION", "بلا وجهة حساب مسجلة"], caption: "الحركات المسجّلة المرتبطة بتصحيحات هذا المصروف", count: 5 },
+  ];
+  for (const item of cases) {
+    const html = renderToStaticMarkup(React.createElement(DataTable<any>, {
+      rows: item.rows, columns: item.columns, rowKey: (row: { id: string }) => row.id,
+      regionLabel: "جدول مالي قابل للتمرير", regionClassName: "fin-table-wrap", tableClassName: "fin-table", caption: item.caption,
+    }));
+    assert.equal((html.match(/<th /g) ?? []).length, item.count);
+    assert.ok(html.includes(`<caption>${item.caption}`));
+    for (const text of item.expected) assert.ok(html.includes(text), text);
+  }
+});
+
+test("cash count history shares its eight columns with CSV and preserves resolution evidence", () => {
+  const row: CashCountHistoryRow = {
+    id: "18", accountLabel: "القاهرة · عهدة · أحمد", countedOn: "2026-11-12",
+    observedBalanceFormatted: "1000.00", countedAmountFormatted: "950.00",
+    differenceFormatted: "-50.00", statusLabel: "مؤكد", reason: "تسوية فرق الجرد",
+  };
+  assert.deepEqual(cashCountHistoryColumns.map((column) => column.id), ["count", "account", "date", "observed", "counted", "difference", "status", "reason"]);
+  assert.deepEqual(cashCountHistoryColumns.map((column) => column.header), cashCountHistoryCsvColumns.map((column) => column.header));
+  assert.deepEqual(csvRows([row], cashCountHistoryCsvColumns), [["#18", "القاهرة · عهدة · أحمد", "2026-11-12", "1000.00", "950.00", "-50.00", "مؤكد", "تسوية فرق الجرد"]]);
+  const html = renderToStaticMarkup(React.createElement(DataTable<CashCountHistoryRow>, {
+    rows: [row], columns: cashCountHistoryColumns, rowKey: (item) => item.id,
+    regionLabel: "جدول مالي قابل للتمرير", regionClassName: "fin-table-wrap", tableClassName: "fin-table",
+    caption: "سجل الجرد بحالته ومن أكّده وسببه",
+  }));
+  assert.equal((html.match(/<th /g) ?? []).length, 8);
+  assert.ok(html.includes("<td>18</td>"));
+  assert.ok(!html.includes("<td>#18</td>"));
+  for (const text of ["1000.00", "950.00", "-50.00", "مؤكد", "تسوية فرق الجرد"]) assert.ok(html.includes(text));
+});
+
+test("finance report metadata preserves category bars, branch shares, and money formatting", () => {
+  const category: ReportCategoryRow = { id: "كهرباء", name: "كهرباء", count: 3, totalFormatted: "1200.00", sharePct: 2.5 };
+  const branch: ReportBranchRow = { id: "1", name: "القاهرة", count: 4, totalFormatted: "1500.00", shareLabel: "62.5%" };
+  assert.deepEqual(reportCategoryColumns.map((column) => column.id), ["category", "count", "total", "share"]);
+  assert.deepEqual(reportBranchColumns.map((column) => column.id), ["branch", "count", "total", "share"]);
+  const categoryHtml = renderToStaticMarkup(React.createElement(DataTable<ReportCategoryRow>, {
+    rows: [category], columns: reportCategoryColumns, rowKey: (row) => row.id,
+    regionLabel: "جدول مالي قابل للتمرير", regionClassName: "fin-table-wrap", tableClassName: "fin-table",
+    caption: "أعلى ستة بنود صرفًا في الفترة مع حصتها من إجمالي المدفوع",
+  }));
+  assert.ok(categoryHtml.includes('style="width:4%"'));
+  assert.ok(categoryHtml.includes("2.5%"));
+  assert.ok(categoryHtml.includes('dir="ltr"'));
+  assert.ok(categoryHtml.includes("1200.00"));
+  const branchHtml = renderToStaticMarkup(React.createElement(DataTable<ReportBranchRow>, {
+    rows: [branch], columns: reportBranchColumns, rowKey: (row) => row.id,
+    regionLabel: "جدول مالي قابل للتمرير", regionClassName: "fin-table-wrap", tableClassName: "fin-table",
+    caption: "مقارنة مصروفات الفروع في الفترة المختارة",
+  }));
+  assert.equal((branchHtml.match(/<th /g) ?? []).length, 4);
+  for (const text of ["القاهرة", "1500.00", "62.5%"]) assert.ok(branchHtml.includes(text));
+});
+
+test("employee settlement metadata guards cancellation and preserves all period amounts", () => {
+  const rows: EmployeeSettlementRow[] = [
+    { id: "8", createdOn: "2026-11-12", systemBalanceFormatted: "100.00", salesFormatted: "900.00", expensesFormatted: "50.00", expectedFormatted: "950.00", countedFormatted: "930.00", deviationFormatted: "-20.00", statusLabel: "معلق", statusTone: "pending", isOpen: true },
+    { id: "7", createdOn: "2026-11-10", systemBalanceFormatted: "100.00", salesFormatted: "800.00", expensesFormatted: "40.00", expectedFormatted: "860.00", countedFormatted: "860.00", deviationFormatted: "0.00", statusLabel: "مؤكد", statusTone: "paid", isOpen: false },
+  ];
+  const render = (canCancel: boolean) => renderToStaticMarkup(React.createElement(DataTable<EmployeeSettlementRow>, {
+    rows, columns: createEmployeeSettlementColumns({ canCancel, renderCancelAction: (row) => React.createElement("button", { type: "button" }, `إلغاء ${row.id}`) }), rowKey: (row) => row.id,
+    regionLabel: "جدول مالي قابل للتمرير", regionClassName: "fin-table-wrap", tableClassName: "fin-table",
+    caption: "تسويات العهد — مؤشر الفترة مقابل المعدود والفرق عنه",
+  }));
+  const allowed = render(true);
+  assert.equal((allowed.match(/<th /g) ?? []).length, 9);
+  assert.ok(allowed.includes("إلغاء 8"));
+  assert.ok(!allowed.includes("إلغاء 7"));
+  assert.ok(allowed.includes("fin-badge fin-badge--pending"));
+  assert.ok(allowed.includes("fin-badge fin-badge--paid"));
+  for (const text of ["100.00", "900.00", "50.00", "950.00", "930.00", "-20.00"]) assert.ok(allowed.includes(text));
+  const denied = render(false);
+  assert.ok(!denied.includes("إلغاء 8"));
+  assert.ok(denied.includes("fin-field__hint"));
+});
+
+test("open account summary metadata preserves badges, LTR values, and current balances", () => {
+  const rows: OpenAccountSummaryRow[] = [
+    { id: "1", kind: "VAULT", kindLabel: "خزنة فرع", branchName: "القاهرة", holderName: "—", openingDate: "2026-11-01", openingBalanceFormatted: "100.00", balanceFormatted: "900.00" },
+    { id: "2", kind: "CUSTODY", kindLabel: "عهدة موظف", branchName: "الجيزة", holderName: "أحمد", openingDate: "2026-11-02", openingBalanceFormatted: "50.00", balanceFormatted: "750.00" },
+  ];
+  const html = renderToStaticMarkup(React.createElement(DataTable<OpenAccountSummaryRow>, {
+    rows, columns: openAccountSummaryColumns, rowKey: (row) => row.id,
+    regionLabel: "جدول مالي قابل للتمرير", regionClassName: "fin-table-wrap", tableClassName: "fin-table",
+    caption: "الخزائن والعُهَد المفتوحة وأرصدتها الدفترية الحالية",
+  }));
+  assert.equal((html.match(/<th /g) ?? []).length, 7);
+  assert.ok(!html.includes("<td><td"));
+  assert.ok(html.includes("fin-badge fin-badge--approved"));
+  assert.ok(html.includes("fin-badge fin-badge--paid"));
+  assert.ok(html.includes("<strong>#1</strong>"));
+  assert.ok(html.includes("<strong>900.00</strong>"));
+  for (const text of ["القاهرة", "الجيزة", "أحمد", "2026-11-02", "50.00"]) assert.ok(html.includes(text));
+});
+
+test("recent expense metadata guards branch and detail link by management role", () => {
+  const row: RecentExpenseRow = {
+    id: "19", expenseDate: "2026-11-12", branchName: "القاهرة", categoryName: "كهرباء",
+    description: "فاتورة تشغيل", beneficiary: "شركة الكهرباء", documentNumber: "INV-9",
+    amountFormatted: "1250.00", statusLabel: "بانتظار الاعتماد", statusTone: "pending",
+  };
+  const render = (canManage: boolean) => renderToStaticMarkup(React.createElement(DataTable<RecentExpenseRow>, {
+    rows: [row], columns: createRecentExpenseColumns(canManage), rowKey: (item) => item.id,
+    regionLabel: "جدول مالي قابل للتمرير", regionClassName: "fin-table-wrap", tableClassName: "fin-table",
+    caption: "آخر خمسة مصروفات مسجّلة لتفادي التكرار ومتابعة الحال",
+  }));
+  const manager = render(true);
+  assert.equal((manager.match(/<th /g) ?? []).length, 7);
+  assert.ok(manager.includes('href="/finance/expenses/19"'));
+  assert.ok(manager.includes("شركة الكهرباء · مستند: INV-9"));
+  assert.ok(manager.includes("fin-badge fin-badge--pending"));
+  for (const text of ["القاهرة", "كهرباء", "1250.00", "2026-11-12"]) assert.ok(manager.includes(text));
+  const staff = render(false);
+  assert.equal((staff.match(/<th /g) ?? []).length, 6);
+  assert.ok(!staff.includes("href="));
+  assert.ok(!staff.includes(">الفرع</th>"));
+  assert.ok(!staff.includes("القاهرة"));
+});
+
+test("setup readiness metadata preserves check diagnostics and branch finance gating", () => {
+  const check: ReadinessCheckItem = {
+    id: "finance-vault", axis: "FINANCE", axisLabel: "المالية", label: "خزنة الفرع",
+    severity: "warn", statusLabel: "تحذير", detail: "فرع بلا خزنة مفتوحة",
+    actionHref: "/finance/accounts", actionLabel: "فتح حساب",
+  };
+  const checkHtml = renderToStaticMarkup(React.createElement(DataTable<ReadinessCheckItem>, {
+    rows: [check], columns: readinessCheckColumns, rowKey: (row) => row.id,
+    regionLabel: "جدول فحوصات الجاهزية", tableClassName: "dashboard-table",
+  }));
+  assert.equal((checkHtml.match(/<th /g) ?? []).length, 6);
+  assert.ok(checkHtml.includes('href="/finance/accounts"'));
+  assert.ok(checkHtml.includes("setup-pill setup-pill--warn"));
+  for (const text of ["خزنة الفرع", "فرع بلا خزنة مفتوحة", "المالية"]) assert.ok(checkHtml.includes(text));
+  const branch: BranchReadinessRow = {
+    id: "1", nameAr: "القاهرة", code: "CAI", city: "القاهرة", invoicePrefix: "CAI-",
+    isActive: true, warehouseCodes: "MAIN", hasDefaultWarehouse: true,
+    activeStaffCount: 3, totalStaffCount: 4, hasOpenVault: false, openCustodyCount: 2,
+    ready: false, verdictLabel: "ينقصه خزنة", remediationHref: "/admin", remediationLabel: "معالجة الفرع",
+  };
+  const renderBranches = (financeOn: boolean) => renderToStaticMarkup(React.createElement(DataTable<BranchReadinessRow>, {
+    rows: [branch], columns: createBranchReadinessColumns(financeOn), rowKey: (row) => row.id,
+    regionLabel: "جدول مصفوفة الفروع", tableClassName: "dashboard-table",
+  }));
+  const finance = renderBranches(true);
+  assert.equal((finance.match(/<th /g) ?? []).length, 7);
+  assert.ok(finance.includes("بلا خزنة مفتوحة"));
+  assert.ok(finance.includes("2 عهدة موظف مفتوحة"));
+  assert.ok(finance.includes("مستودع افتراضي مربوط"));
+  assert.ok(finance.includes('href="/admin"'));
+  const withoutFinance = renderBranches(false);
+  assert.equal((withoutFinance.match(/<th /g) ?? []).length, 6);
+  assert.ok(!withoutFinance.includes("بلا خزنة مفتوحة"));
+  assert.ok(!withoutFinance.includes("عهدة موظف مفتوحة"));
+});
+
+test("security audit metadata preserves hashed identity, role, result tone, and timestamp", () => {
+  const rows: SecurityAttemptRow[] = [
+    { id: "91", userFullName: null, userRoleLabel: null, branchName: null, shortIdentifierHash: "ab12cd34", resultCode: "THROTTLED", resultLabel: "تقييد مؤقت", tone: "warn", timestampFormatted: "2026-11-12 10:30" },
+    { id: "90", userFullName: "أحمد", userRoleLabel: "موظف فرع", branchName: "القاهرة", shortIdentifierHash: "ef56gh78", resultCode: "SUCCESS", resultLabel: "دخول ناجح", tone: "ok", timestampFormatted: "2026-11-12 10:00" },
+  ];
+  const html = renderToStaticMarkup(React.createElement(DataTable<SecurityAttemptRow>, {
+    rows, columns: securityAttemptColumns, rowKey: (row) => row.id,
+    regionLabel: "جدول سجل الدخول", regionClassName: "dashboard-table-wrap", tableClassName: "dashboard-table",
+  }));
+  assert.equal((html.match(/<th /g) ?? []).length, 5);
+  assert.ok(html.includes("معرّف غير مرتبط بحساب"));
+  assert.ok(html.includes("SHA: ab12cd34"));
+  assert.ok(html.includes("admin-pill admin-pill--warn"));
+  assert.ok(html.includes("admin-pill admin-pill--ok"));
+  assert.ok(html.includes("2026-11-12 10:30"));
+  for (const text of ["أحمد", "موظف فرع", "القاهرة", "دخول ناجح"]) assert.ok(html.includes(text));
 });

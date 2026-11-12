@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppIcon } from "@/components/app-icon";
+import DataTable from "@/components/data-driven/data-table";
 import { prisma } from "@/lib/prisma";
 import { listAccounts, listSettlements } from "@/lib/finance/engine";
 import {
@@ -24,6 +25,7 @@ import { FinKpiStrip } from "@/components/finance/fin-kpi-strip";
 import { FinEmptyState } from "@/components/finance/fin-empty-state";
 import { FinSectionTitle } from "@/components/finance/fin-section-title";
 import { FinCsvButton } from "@/components/finance/fin-csv-button";
+import { reportBranchColumns, reportCategoryColumns, type ReportBranchRow, type ReportCategoryRow } from "./report-tables-metadata";
 
 export const dynamic = "force-dynamic";
 
@@ -77,6 +79,20 @@ export default async function FinanceReportsPage({ searchParams }: Props) {
   const custodyTotal = sumCents(custodyAccounts.map((a) => a.balance));
   const periodTotal = report.current.totalCents;
   const hasActivity = report.current.count > 0 || report.awaiting.pendingCount > 0 || report.awaiting.approvedCount > 0;
+  const categoryRows: ReportCategoryRow[] = report.topCategories.map((category) => ({
+    id: category.name,
+    name: category.name,
+    count: category.count,
+    totalFormatted: formatReportCents(category.totalCents),
+    sharePct: category.sharePct,
+  }));
+  const branchRows: ReportBranchRow[] = report.branchSums.map((branch) => ({
+    id: branch.branchId,
+    name: branchNames.get(branch.branchId) ?? "الفرع",
+    count: branch.count,
+    totalFormatted: formatReportCents(branch.totalCents),
+    shareLabel: periodTotal > 0n ? `${Math.round(Number((branch.totalCents * 1000n) / periodTotal)) / 10}%` : "0%",
+  }));
 
   const csvRows = buildCsvRows(report, {
     branchNameFor: (id: string) => branchNames.get(id) ?? "الفرع",
@@ -208,40 +224,9 @@ export default async function FinanceReportsPage({ searchParams }: Props) {
             <p className="fin-field__hint">لا مصروفات في الفترة المجموعة بعد.</p>
           </div>
         ) : (
-          <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
-            <table className="fin-table">
-              <caption>أعلى ستة بنود صرفًا في الفترة مع حصتها من إجمالي المدفوع</caption>
-              <thead>
-                <tr>
-                  <th scope="col">البند</th>
-                  <th scope="col">العمليات</th>
-                  <th scope="col">المدفوع الفعال</th>
-                  <th scope="col">الحصة من الفترة</th>
-                </tr>
-              </thead>
-              <tbody>
-                {report.topCategories.map((category) => (
-                  <tr key={category.name}>
-                    <td>{category.name}</td>
-                    <td>{category.count}</td>
-                    <td>
-                      <span className="fin-money">
-                        <bdi dir="ltr">{formatReportCents(category.totalCents)}</bdi> ج.م
-                      </span>
-                    </td>
-                    <td>
-                      <div className="fin-cat-spend__line">
-                        <strong className="fin-money">{category.sharePct}%</strong>
-                        <span className="fin-cat-share-bar" role="presentation" aria-hidden="true">
-                          <span style={{ width: `${Math.max(category.sharePct, 4)}%` }} />
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable rows={categoryRows} columns={reportCategoryColumns} rowKey={(row) => row.id}
+            regionLabel="جدول مالي قابل للتمرير" regionClassName="fin-table-wrap" tableClassName="fin-table"
+            caption="أعلى ستة بنود صرفًا في الفترة مع حصتها من إجمالي المدفوع" />
         )}
       </section>
 
@@ -259,33 +244,9 @@ export default async function FinanceReportsPage({ searchParams }: Props) {
             <p className="fin-field__hint">لا توجد فروع لها مصروفات في هذه الفترة.</p>
           </div>
         ) : (
-          <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
-            <table className="fin-table">
-              <caption>مقارنة مصروفات الفروع في الفترة المختارة</caption>
-              <thead>
-                <tr>
-                  <th scope="col">الفرع</th>
-                  <th scope="col">العمليات</th>
-                  <th scope="col">المدفوع الفعال</th>
-                  <th scope="col">الحصة من الفترة</th>
-                </tr>
-              </thead>
-              <tbody>
-                {report.branchSums.map((branch) => (
-                  <tr key={branch.branchId}>
-                    <td>{branchNames.get(branch.branchId) ?? "الفرع"}</td>
-                    <td>{branch.count}</td>
-                    <td>
-                      <span className="fin-money">
-                        <bdi dir="ltr">{formatReportCents(branch.totalCents)}</bdi> ج.م
-                      </span>
-                    </td>
-                    <td>{periodTotal > 0n ? `${Math.round(Number((branch.totalCents * 1000n) / periodTotal)) / 10}%` : "0%"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable rows={branchRows} columns={reportBranchColumns} rowKey={(row) => row.id}
+            regionLabel="جدول مالي قابل للتمرير" regionClassName="fin-table-wrap" tableClassName="fin-table"
+            caption="مقارنة مصروفات الفروع في الفترة المختارة" />
         )}
       </section>
 
