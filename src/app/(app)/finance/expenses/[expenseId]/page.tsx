@@ -17,6 +17,8 @@ import { ApproveForm, PayForm, ReviewForm, CloseReviewForm, type AccountOption }
 import { paymentAccountLabel, paymentSourceLabel } from "./payment-presentation";
 import {
   expenseCorrectionColumns,
+  expenseInformationColumns,
+  type ExpenseInformationRow,
   expenseCorrectionMovementColumns,
   expensePaymentColumns,
   expenseReviewHistoryColumns,
@@ -149,6 +151,20 @@ export default async function ExpenseDetailPage({ params }: Props) {
     actorAndCreatedLabel: `${userNames.get(movement.actorId) ?? movement.actorId} · ${movement.createdAt}`,
   }));
 
+  const expenseInformationRows: ExpenseInformationRow[] = [
+    { id: "branch", label: "الفرع", value: branchNames.get(expense.branchId) ?? "الفرع" },
+    { id: "category", label: "البند", value: expense.categorySnapshot },
+    { id: "amount", label: "المبلغ الفعال", value: formatMoney(expense.amount) },
+    ...(expense.amount !== expense.originalAmount ? [{ id: "original", label: "المبلغ الأصلي", value: formatMoney(expense.originalAmount) }] : []),
+    { id: "tax", label: "الضريبة", value: expense.taxAmount === null ? "غير مُدخلة" : formatMoney(expense.taxAmount) },
+    { id: "date", label: "تاريخ المصروف", value: expense.expenseDate },
+    { id: "created", label: "وقت التسجيل", value: expense.createdAt },
+    { id: "beneficiary", label: "المستفيد", value: expense.beneficiary ?? "—" },
+    { id: "document", label: "رقم المستند", value: expense.documentNumber ?? "—" },
+    { id: "requester", label: "المُدخل", value: userNames.get(expense.requestedBy) ?? expense.requestedBy },
+    { id: "approver", label: "المعتمد", value: expense.approvedBy ? userNames.get(expense.approvedBy) ?? expense.approvedBy : "لم يُعتمد بعد" },
+  ];
+
   return (
     <div className="fin-page">
       <Link href="/finance/expenses" className="fin-back no-print">
@@ -246,24 +262,9 @@ export default async function ExpenseDetailPage({ params }: Props) {
           <h2>بيانات المصروف</h2>
           <p>المبلغ الفعال يظهر بعد أي تصحيح مؤكد؛ الأصل محفوظ دائمًا.</p>
         </div>
-        <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
-          <table className="fin-table">
-            <caption>بيانات المصروف الموثّقة بعد أي تصحيح مؤكد</caption>
-            <tbody>
-              <tr><th scope="row">الفرع</th><td>{branchNames.get(expense.branchId) ?? "الفرع"}</td></tr>
-              <tr><th scope="row">البند</th><td>{expense.categorySnapshot}</td></tr>
-              <tr><th scope="row">المبلغ الفعال</th><td>{formatMoney(expense.amount)}</td></tr>
-              {expense.amount !== expense.originalAmount ? <tr><th scope="row">المبلغ الأصلي</th><td>{formatMoney(expense.originalAmount)}</td></tr> : null}
-              <tr><th scope="row">الضريبة</th><td>{expense.taxAmount === null ? "غير مُدخلة" : formatMoney(expense.taxAmount)}</td></tr>
-              <tr><th scope="row">تاريخ المصروف</th><td>{expense.expenseDate}</td></tr>
-              <tr><th scope="row">وقت التسجيل</th><td>{expense.createdAt}</td></tr>
-              <tr><th scope="row">المستفيد</th><td>{expense.beneficiary ?? "—"}</td></tr>
-              <tr><th scope="row">رقم المستند</th><td>{expense.documentNumber ?? "—"}</td></tr>
-              <tr><th scope="row">المُدخل</th><td>{userNames.get(expense.requestedBy) ?? expense.requestedBy}</td></tr>
-              <tr><th scope="row">المعتمد</th><td>{expense.approvedBy ? userNames.get(expense.approvedBy) ?? expense.approvedBy : "لم يُعتمد بعد"}</td></tr>
-            </tbody>
-          </table>
-        </div>
+        <DataTable rows={expenseInformationRows} columns={expenseInformationColumns} rowKey={(row) => row.id}
+          regionLabel="جدول مالي قابل للتمرير" regionClassName="fin-table-wrap" tableClassName="fin-table"
+          caption="بيانات المصروف الموثّقة بعد أي تصحيح مؤكد" showColumnHeaders={false} />
       </div>
 
       {expense.status === "PENDING" && canApprove ? (

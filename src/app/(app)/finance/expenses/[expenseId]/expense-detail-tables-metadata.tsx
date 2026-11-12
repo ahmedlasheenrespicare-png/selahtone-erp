@@ -1,5 +1,11 @@
 import type { DataColumn } from "@/components/data-driven/data-table";
 
+export type ExpenseInformationRow = { id: string; label: string; value: string };
+export const expenseInformationColumns: DataColumn<ExpenseInformationRow>[] = [
+  { id: "label", header: "البيان", renderCell: (row) => row.label, cellAsRowHeader: true },
+  { id: "value", header: "القيمة", renderCell: (row) => row.value },
+];
+
 export type ExpensePaymentDetailRow = {
   id: string;
   amountFormatted: string;

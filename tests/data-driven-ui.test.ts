@@ -92,17 +92,19 @@ import {
 import {
   expenseCorrectionColumns,
   expenseCorrectionMovementColumns,
+  expenseInformationColumns,
   expensePaymentColumns,
   expenseReviewHistoryColumns,
   openExpenseReviewColumns,
   type ExpenseCorrectionMovementRow,
   type ExpenseCorrectionRow,
+  type ExpenseInformationRow,
   type ExpensePaymentDetailRow,
   type ExpenseReviewHistoryRow,
   type OpenExpenseReviewRow,
 } from "../src/app/(app)/finance/expenses/[expenseId]/expense-detail-tables-metadata";
 import { cashCountHistoryColumns, cashCountHistoryCsvColumns, type CashCountHistoryRow } from "../src/app/(app)/finance/counts/count-history-metadata";
-import { reportBranchColumns, reportCategoryColumns, type ReportBranchRow, type ReportCategoryRow } from "../src/app/(app)/finance/reports/report-tables-metadata";
+import { reportBranchColumns, reportCategoryColumns, reportSettlementColumns, type ReportBranchRow, type ReportCategoryRow, type ReportSettlementRow } from "../src/app/(app)/finance/reports/report-tables-metadata";
 import { createEmployeeSettlementColumns, type EmployeeSettlementRow } from "../src/app/(app)/finance/settlements/settlement-history-metadata";
 import { openAccountSummaryColumns, type OpenAccountSummaryRow } from "../src/app/(app)/finance/accounts/open-account-summary-metadata";
 import { createRecentExpenseColumns, type RecentExpenseRow } from "../src/app/(app)/finance/expenses/new/recent-expenses-metadata";
@@ -1020,6 +1022,22 @@ test("finance help metadata preserves static guidance and the limited-scope colS
   const limitedHtml = access.slice(limitedRowStart);
   assert.ok(limitedHtml.indexOf("</tr>") < limitedHtml.indexOf("يصلون إلى لوحة القيادة") + 400);
   assert.equal((limitedHtml.slice(0, limitedHtml.indexOf("</tr>")).match(/<td/g) ?? []).length, 2);
+  const expenseInfo = renderToStaticMarkup(React.createElement(DataTable<ExpenseInformationRow>, {
+    rows: [{ id: "branch", label: "الفرع", value: "القاهرة" }], columns: expenseInformationColumns,
+    rowKey: (row) => row.id, regionLabel: "جدول مالي قابل للتمرير",
+    tableClassName: "fin-table", caption: "بيانات المصروف", showColumnHeaders: false,
+  }));
+  assert.ok(!expenseInfo.includes("<thead>"));
+  assert.ok(expenseInfo.includes('<th scope="row">الفرع</th>'));
+  assert.ok(expenseInfo.includes("<td>القاهرة</td>"));
+  const settlements = renderToStaticMarkup(React.createElement(DataTable<ReportSettlementRow>, {
+    rows: [{ id: "deviation", label: "الانحراف", value: "50.00", money: true }],
+    columns: reportSettlementColumns, rowKey: (row) => row.id, regionLabel: "جدول مالي قابل للتمرير",
+    tableClassName: "fin-table", caption: "تسويات الشهر الحالي",
+  }));
+  assert.equal((settlements.match(/<th scope="col">/g) ?? []).length, 2);
+  assert.ok(settlements.includes('<th scope="row">الانحراف</th>'));
+  assert.ok(settlements.includes('<bdi dir="ltr">50.00</bdi> ج.م'));
   const errors = renderToStaticMarkup(React.createElement(DataTable<FinanceErrorHelpRow>, {
     rows: financeErrorHelpRows, columns: financeErrorHelpColumns, rowKey: (row) => row.id,
     regionLabel: "جدول مالي قابل للتمرير", tableClassName: "fin-table", caption: "أخطاء التشغيل النقدي المعتادة ومعالجتها",

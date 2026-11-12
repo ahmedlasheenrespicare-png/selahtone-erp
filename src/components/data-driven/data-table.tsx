@@ -9,6 +9,7 @@ export type DataColumn<Row> = {
   cellClassName?: string | ((row: Row) => string | undefined);
   cellColSpan?: (row: Row) => number | undefined;
   cellHidden?: (row: Row) => boolean;
+  cellAsRowHeader?: boolean;
 };
 
 type DataTableProps<Row> = {
@@ -22,6 +23,7 @@ type DataTableProps<Row> = {
   tableClassName?: string;
   caption?: ReactNode;
   emptyState?: ReactNode;
+  showColumnHeaders?: boolean;
 };
 
 /** A small, typed renderer: resources own metadata, not table markup. */
@@ -36,12 +38,13 @@ export default function DataTable<Row>({
   tableClassName,
   caption,
   emptyState,
+  showColumnHeaders = true,
 }: DataTableProps<Row>) {
   return (
     <div className={regionClassName} role="region" aria-label={regionLabel} tabIndex={0}>
       <table className={tableClassName}>
         {caption ? <caption>{caption}</caption> : null}
-        <thead>
+        {showColumnHeaders ? <thead>
           <tr>
             {columns.map((column) => (
               <th key={column.id} scope="col" aria-label={column.headerAriaLabel} className={column.headerClassName}>
@@ -49,24 +52,26 @@ export default function DataTable<Row>({
               </th>
             ))}
           </tr>
-        </thead>
+        </thead> : null}
         <tbody>
           {rows.length === 0 && emptyState ? (
             <tr><td colSpan={columns.length} className="muted">{emptyState}</td></tr>
           ) : rows.map((row, index) => (
             <Fragment key={rowKey(row)}>
               <tr className={rowClassName?.(row)}>
-                {columns.filter((column) => !column.cellHidden?.(row)).map((column) => (
-                  <td
+                {columns.filter((column) => !column.cellHidden?.(row)).map((column) => {
+                  const Cell = column.cellAsRowHeader ? "th" : "td";
+                  return <Cell
                     key={column.id}
+                    scope={column.cellAsRowHeader ? "row" : undefined}
                     colSpan={column.cellColSpan?.(row)}
                     className={typeof column.cellClassName === "function"
                       ? column.cellClassName(row)
                       : column.cellClassName}
                   >
                     {column.renderCell(row, index)}
-                  </td>
-                ))}
+                  </Cell>;
+                })}
               </tr>
               {renderAfterRow?.(row)}
             </Fragment>
