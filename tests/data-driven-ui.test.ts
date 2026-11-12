@@ -101,6 +101,7 @@ import {
   type ExpenseReviewHistoryRow,
   type OpenExpenseReviewRow,
 } from "../src/app/(app)/finance/expenses/[expenseId]/expense-detail-tables-metadata";
+import { cashCountHistoryColumns, cashCountHistoryCsvColumns, type CashCountHistoryRow } from "../src/app/(app)/finance/counts/count-history-metadata";
 import { expenseReviewQueueColumns, type ExpenseReviewQueueRow } from "../src/app/(app)/finance/expenses/reviews/expense-reviews-metadata";
 import { saleDetailLineColumns, type SaleDetailLineRow } from "../src/app/(app)/sales/[saleId]/sale-lines-metadata";
 import { csvHeaders, csvRows, filterRowsBySearch } from "../src/lib/data-driven-ui";
@@ -729,4 +730,24 @@ test("expense detail tables preserve payment, revision, correction, and movement
     assert.ok(html.includes(`<caption>${item.caption}`));
     for (const text of item.expected) assert.ok(html.includes(text), text);
   }
+});
+
+test("cash count history shares its eight columns with CSV and preserves resolution evidence", () => {
+  const row: CashCountHistoryRow = {
+    id: "18", accountLabel: "القاهرة · عهدة · أحمد", countedOn: "2026-11-12",
+    observedBalanceFormatted: "1000.00", countedAmountFormatted: "950.00",
+    differenceFormatted: "-50.00", statusLabel: "مؤكد", reason: "تسوية فرق الجرد",
+  };
+  assert.deepEqual(cashCountHistoryColumns.map((column) => column.id), ["count", "account", "date", "observed", "counted", "difference", "status", "reason"]);
+  assert.deepEqual(cashCountHistoryColumns.map((column) => column.header), cashCountHistoryCsvColumns.map((column) => column.header));
+  assert.deepEqual(csvRows([row], cashCountHistoryCsvColumns), [["#18", "القاهرة · عهدة · أحمد", "2026-11-12", "1000.00", "950.00", "-50.00", "مؤكد", "تسوية فرق الجرد"]]);
+  const html = renderToStaticMarkup(React.createElement(DataTable<CashCountHistoryRow>, {
+    rows: [row], columns: cashCountHistoryColumns, rowKey: (item) => item.id,
+    regionLabel: "جدول مالي قابل للتمرير", regionClassName: "fin-table-wrap", tableClassName: "fin-table",
+    caption: "سجل الجرد بحالته ومن أكّده وسببه",
+  }));
+  assert.equal((html.match(/<th /g) ?? []).length, 8);
+  assert.ok(html.includes("<td>18</td>"));
+  assert.ok(!html.includes("<td>#18</td>"));
+  for (const text of ["1000.00", "950.00", "-50.00", "مؤكد", "تسوية فرق الجرد"]) assert.ok(html.includes(text));
 });
