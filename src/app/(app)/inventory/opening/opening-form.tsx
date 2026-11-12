@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { MAX_SERIALS_PER_OPENING, parseOpeningInput, type FieldErrors, type OpeningInput, type OpeningInputRaw } from "@/lib/inventory-validation";
 import { createOpeningAction } from "../actions";
 import { initialInventoryActionState, type InventoryActionState } from "../inventory-state";
@@ -19,6 +19,12 @@ export default function OpeningForm({ requestId, initialProductId, products, war
   const [state, formAction, pending] = useActionState(createOpeningAction, initialInventoryActionState);
   const [dismissedError, setDismissedError] = useState<InventoryActionState | null>(null);
   const selectedProduct = products.find((product) => product.id === values.productId);
+
+  useEffect(() => {
+    if (state.status !== "error" || state === dismissedError) return;
+    const first = Object.keys(state.fieldErrors ?? {}).find((key) => key !== "form");
+    if (first) document.getElementById(`opening-${first}`)?.focus();
+  }, [state, dismissedError]);
 
   function update<K extends keyof OpeningInputRaw>(key: K, value: OpeningInputRaw[K]) {
     setDismissedError(state);
@@ -49,7 +55,7 @@ export default function OpeningForm({ requestId, initialProductId, products, war
 
   const reviewProduct = review && products.find((product) => product.id === review.productId);
   const reviewWarehouse = review && warehouses.find((warehouse) => warehouse.id === review.warehouseId);
-  const fieldError = (key: string) => errors[key];
+  const fieldError = (key: string) => errors[key] ?? (state.status === "error" && state !== dismissedError ? state.fieldErrors?.[key] : undefined);
   const errorId = (key: string) => fieldError(key) ? `opening-${key}-error` : undefined;
   const enteredSerials = values.serialNumbers.split(/\r?\n/).filter((line) => line.trim()).length;
 

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { CATEGORY_LABELS, PRODUCT_CATEGORIES, parseProductInput, productSku, type FieldErrors, type ProductInput, type ProductInputRaw } from "@/lib/inventory-validation";
 import { createProductAction } from "../actions";
 import { initialInventoryActionState, type InventoryActionState } from "../inventory-state";
@@ -20,6 +20,12 @@ export default function ProductForm({ requestId, taxRates }: Props) {
   const [review, setReview] = useState<ProductInput | null>(null);
   const [state, formAction, pending] = useActionState(createProductAction, initialInventoryActionState);
   const [dismissedError, setDismissedError] = useState<InventoryActionState | null>(null);
+
+  useEffect(() => {
+    if (state.status !== "error" || state === dismissedError) return;
+    const first = Object.keys(state.fieldErrors ?? {}).find((key) => key !== "form");
+    if (first) document.getElementById(`product-${first}`)?.focus();
+  }, [state, dismissedError]);
 
   function update<K extends keyof ProductInputRaw>(key: K, value: ProductInputRaw[K]) {
     setDismissedError(state);
@@ -53,7 +59,7 @@ export default function ProductForm({ requestId, taxRates }: Props) {
   }
 
   const taxName = review?.taxRateId ? taxRates.find((tax) => Number(tax.id) === review.taxRateId) : null;
-  const fieldError = (key: string) => errors[key];
+  const fieldError = (key: string) => errors[key] ?? (state.status === "error" && state !== dismissedError ? state.fieldErrors?.[key] : undefined);
   const errorId = (key: string) => fieldError(key) ? `product-${key}-error` : undefined;
 
   return (

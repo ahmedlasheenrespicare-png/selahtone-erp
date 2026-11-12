@@ -19,6 +19,20 @@ test("inventory submission announces pending in product, opening and receipt for
   }
 });
 
+test("inventory server field errors are linked and focus the first invalid field", () => {
+  for (const [path, prefix] of [
+    ["../src/app/(app)/inventory/new/product-form.tsx", "product"],
+    ["../src/app/(app)/inventory/opening/opening-form.tsx", "opening"],
+    ["../src/app/(app)/inventory/receipts/new/receipt-form.tsx", "receipt"],
+  ]) {
+    const source = read(path);
+    assert.ok(source.includes('import { useActionState, useEffect, useState } from "react"'), path);
+    assert.ok(source.includes('Object.keys(state.fieldErrors ?? {}).find((key) => key !== "form")'), path);
+    assert.ok(source.includes("document.getElementById(`" + prefix + "-${first}`)?.focus()"), path);
+    assert.ok(source.includes('errors[key] ?? (state.status === "error" && state !== dismissedError ? state.fieldErrors?.[key] : undefined)'), path);
+  }
+});
+
 test("inventory prerequisite and empty states are announced", () => {
   for (const path of [
     "../src/app/(app)/inventory/serials/page.tsx",

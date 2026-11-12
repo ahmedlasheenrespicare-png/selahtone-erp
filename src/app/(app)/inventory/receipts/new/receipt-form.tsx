@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { MAX_SERIALS_PER_OPENING, type FieldErrors } from "@/lib/inventory-validation";
 import { parseReceiptInput, type ReceiptInput, type ReceiptInputRaw } from "@/lib/receiving-validation";
 import { createReceiptAction } from "../../actions";
@@ -19,6 +19,12 @@ export default function ReceiptForm({ requestId, products, warehouses }: Props) 
   const [state, formAction, pending] = useActionState(createReceiptAction, initialInventoryActionState);
   const [dismissedError, setDismissedError] = useState<InventoryActionState | null>(null);
   const selectedProduct = products.find((product) => product.id === values.productId);
+
+  useEffect(() => {
+    if (state.status !== "error" || state === dismissedError) return;
+    const first = Object.keys(state.fieldErrors ?? {}).find((key) => key !== "form");
+    if (first) document.getElementById(`receipt-${first}`)?.focus();
+  }, [state, dismissedError]);
 
   function update<K extends keyof ReceiptInputRaw>(key: K, value: ReceiptInputRaw[K]) {
     setDismissedError(state);
@@ -48,7 +54,7 @@ export default function ReceiptForm({ requestId, products, warehouses }: Props) 
 
   const reviewProduct = review && products.find((product) => product.id === review.productId);
   const reviewWarehouse = review && warehouses.find((warehouse) => warehouse.id === review.warehouseId);
-  const fieldError = (key: string) => errors[key];
+  const fieldError = (key: string) => errors[key] ?? (state.status === "error" && state !== dismissedError ? state.fieldErrors?.[key] : undefined);
   const errorId = (key: string) => fieldError(key) ? `receipt-${key}-error` : undefined;
   const enteredSerials = values.serialNumbers.split(/\r?\n/).filter((line) => line.trim()).length;
 
