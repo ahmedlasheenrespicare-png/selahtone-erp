@@ -89,6 +89,18 @@ import {
   parseFormattedMoney,
   type FinanceAccountRow,
 } from "../src/app/(app)/finance/finance-accounts-metadata";
+import {
+  expenseCorrectionColumns,
+  expenseCorrectionMovementColumns,
+  expensePaymentColumns,
+  expenseReviewHistoryColumns,
+  openExpenseReviewColumns,
+  type ExpenseCorrectionMovementRow,
+  type ExpenseCorrectionRow,
+  type ExpensePaymentDetailRow,
+  type ExpenseReviewHistoryRow,
+  type OpenExpenseReviewRow,
+} from "../src/app/(app)/finance/expenses/[expenseId]/expense-detail-tables-metadata";
 import { expenseReviewQueueColumns, type ExpenseReviewQueueRow } from "../src/app/(app)/finance/expenses/reviews/expense-reviews-metadata";
 import { saleDetailLineColumns, type SaleDetailLineRow } from "../src/app/(app)/sales/[saleId]/sale-lines-metadata";
 import { csvHeaders, csvRows, filterRowsBySearch } from "../src/lib/data-driven-ui";
@@ -685,4 +697,36 @@ test("expense review queue metadata preserves review evidence and expense links"
   assert.ok(html.includes("إصدار الطلب لا يطابق المصروف الحالي"));
   assert.ok(html.includes("مراجعة الدفع"));
   assert.ok(html.includes("يتضمن مصدر نقد الموظف"));
+});
+
+test("expense detail metadata defines all five evidence table contracts", () => {
+  assert.deepEqual(expensePaymentColumns.map((column) => column.id), ["amount", "source", "account", "method", "date", "actor"]);
+  assert.equal(openExpenseReviewColumns.length, 5);
+  assert.equal(expenseReviewHistoryColumns.length, 5);
+  assert.equal(expenseCorrectionColumns.length, 5);
+  assert.equal(expenseCorrectionMovementColumns.length, 5);
+});
+
+test("expense detail tables preserve payment, revision, correction, and movement evidence", () => {
+  const payment: ExpensePaymentDetailRow = { id: "1", amountFormatted: "750.00", sourceLabel: "نقد الموظف", accountLabel: "عهدة أحمد", methodLabel: "نقدًا", paymentDate: "2026-11-12", recordedByLabel: "منى" };
+  const open: OpenExpenseReviewRow = { id: "2", reason: "مراجعة", proposedAmountLabel: "700.00", createdByLabel: "أحمد", createdAt: "اليوم", revisionMismatch: true };
+  const history: ExpenseReviewHistoryRow = { id: "3", statusLabel: "صُحّح", reasonAndAmount: "سبب · 700.00", createdLabel: "أحمد · اليوم", decisionLabel: "تم الفحص · منى · اليوم" };
+  const correction: ExpenseCorrectionRow = { id: "4", reviewId: "3", paymentId: "1", beforeAmountFormatted: "750.00", afterAmountFormatted: "700.00", accountAndDifferenceLabel: "حساب #8 · -50.00", reasonAndCreatedLabel: "تصحيح · منى · اليوم" };
+  const movement: ExpenseCorrectionMovementRow = { id: "5", correctionId: "4", kind: "EXPENSE_CORRECTION", branchId: "1", sourceAndDestinationLabel: "من حساب #8 · بلا وجهة حساب مسجلة", amountFormatted: "50.00", actorAndCreatedLabel: "منى · اليوم" };
+  const cases = [
+    { rows: [payment], columns: expensePaymentColumns, expected: ["نقد الموظف", "عهدة أحمد", "750.00"], caption: "بيانات الصرف المسجّلة — المصدر والطريقة والمسجّل", count: 6 },
+    { rows: [open], columns: openExpenseReviewColumns, expected: ["إصدار المصروف اختلف", "700.00"], caption: "طلبات المراجعة المفتوحة للمصروف", count: 5 },
+    { rows: [history], columns: expenseReviewHistoryColumns, expected: ["صُحّح", "تم الفحص"], caption: "المراجعات غير المفتوحة المسجلة للمصروف", count: 5 },
+    { rows: [correction], columns: expenseCorrectionColumns, expected: ["مراجعة #3", "-50.00"], caption: "تصحيحات المبلغ المسجلة للمصروف", count: 5 },
+    { rows: [movement], columns: expenseCorrectionMovementColumns, expected: ["EXPENSE_CORRECTION", "بلا وجهة حساب مسجلة"], caption: "الحركات المسجّلة المرتبطة بتصحيحات هذا المصروف", count: 5 },
+  ];
+  for (const item of cases) {
+    const html = renderToStaticMarkup(React.createElement(DataTable<any>, {
+      rows: item.rows, columns: item.columns, rowKey: (row: { id: string }) => row.id,
+      regionLabel: "جدول مالي قابل للتمرير", regionClassName: "fin-table-wrap", tableClassName: "fin-table", caption: item.caption,
+    }));
+    assert.equal((html.match(/<th /g) ?? []).length, item.count);
+    assert.ok(html.includes(`<caption>${item.caption}`));
+    for (const text of item.expected) assert.ok(html.includes(text), text);
+  }
 });
