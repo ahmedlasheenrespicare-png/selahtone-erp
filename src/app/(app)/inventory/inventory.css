@@ -80,3 +80,12 @@
   .inv-form-actions .inv-button { flex: 1; }
   .inv-search { flex-wrap: wrap; }
 }
+
+@media screen and (max-width: 620px) {
+  .inv-page .inv-button,
+  .inv-page .inv-back,
+  .inv-page .inv-search input,
+  .inv-page .inv-check {
+    min-height: 44px;
+  }
+}
