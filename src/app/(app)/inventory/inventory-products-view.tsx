@@ -56,6 +56,12 @@ export default function InventoryProductsView({
     });
   }, [rows, query, categoryFilter, stockFilter]);
 
+  function resetFilters(): void {
+    setQuery("");
+    setCategoryFilter("ALL");
+    setStockFilter("ALL");
+  }
+
   function handleExportCsv(): void {
     const headers = canSeeCost
       ? ["SKU", "الصنف", "التصنيف", "الضريبة", "سعر الشراء", "سعر البيع", "سيريال", "الأرصدة"]
@@ -165,6 +171,7 @@ export default function InventoryProductsView({
               <tr>
                 <td colSpan={canSeeCost ? 8 : 7} className="muted">
                   <p role="status">لا توجد أصناف تطابق البحث أو التصفية المختارة.</p>
+                  <button type="button" className="inv-button inv-button--secondary" onClick={resetFilters}>مسح البحث والفلاتر</button>
                 </td>
               </tr>
             ) : (
