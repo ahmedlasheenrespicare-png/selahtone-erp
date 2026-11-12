@@ -4,6 +4,7 @@ import { writeAllowedForKeys } from "@/lib/access-control";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppIcon } from "@/components/app-icon";
+import DataTable from "@/components/data-driven/data-table";
 import { FinEmptyState } from "@/components/finance/fin-empty-state";
 import PrintPageButton from "@/components/print-page-button";
 
@@ -14,6 +15,7 @@ import { getAccessContext, requirePageAccess } from "@/lib/access-control-server
 import { formatMoney } from "../format";
 import { financePage, financeRead } from "../page-context";
 import { SETTLEMENT_STATUS_LABEL, SettlementCancelForm } from "./settlement-forms";
+import { createEmployeeSettlementColumns, type EmployeeSettlementRow } from "./settlement-history-metadata";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +37,23 @@ export default async function SettlementsPage() {
   ]);
   const branches = await prisma.branch.findMany({ select: { id: true, nameAr: true } });
   const branchName = new Map(branches.map((branch) => [branch.id.toString(), branch.nameAr]));
+  const settlementRows: EmployeeSettlementRow[] = settlements.map((settlement) => ({
+    id: String(settlement.id),
+    createdOn: String(settlement.createdAt).slice(0, 10),
+    systemBalanceFormatted: formatMoney(String(settlement.systemBalance)),
+    salesFormatted: formatMoney(String(settlement.salesTotal)),
+    expensesFormatted: formatMoney(String(settlement.expensesTotal)),
+    expectedFormatted: formatMoney(String(settlement.expectedAmount)),
+    countedFormatted: formatMoney(String(settlement.countedAmount)),
+    deviationFormatted: formatMoney(String(settlement.deviation)),
+    statusLabel: SETTLEMENT_STATUS_LABEL[String(settlement.status)] ?? String(settlement.status),
+    statusTone: String(settlement.status) === "OPEN" ? "pending" : String(settlement.status) === "CONFIRMED" ? "paid" : "closed",
+    isOpen: settlement.status === "OPEN",
+  }));
+  const settlementColumns = createEmployeeSettlementColumns({
+    canCancel,
+    renderCancelAction: (row) => <SettlementCancelForm settlementId={row.id} />,
+  });
 
   return (
     <div className="fin-page">
@@ -124,57 +143,9 @@ export default async function SettlementsPage() {
               {settlements.length === 0 ? (
                 <p className="fin-empty">لا توجد طلبات بعد.</p>
               ) : (
-                <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
-                  <table className="fin-table">
-                    <caption>تسويات العهد — مؤشر الفترة مقابل المعدود والفرق عنه</caption>
-                    <thead>
-                      <tr>
-                        <th scope="col">التاريخ</th>
-                        <th scope="col">الرصيد النظامي</th>
-                        <th scope="col">المبيعات</th>
-                        <th scope="col">المصروفات</th>
-                        <th scope="col">مؤشر الفترة</th>
-                        <th scope="col">المعدود</th>
-                        <th scope="col">الفرق عن المؤشر</th>
-                        <th scope="col">الحالة</th>
-                        <th scope="col">إجراء</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {settlements.map((settlement) => (
-                        <tr key={settlement.id}>
-                          <td>{String(settlement.createdAt).slice(0, 10)}</td>
-                          <td>{formatMoney(String(settlement.systemBalance))}</td>
-                          <td>{formatMoney(String(settlement.salesTotal))}</td>
-                          <td>{formatMoney(String(settlement.expensesTotal))}</td>
-                          <td>{formatMoney(String(settlement.expectedAmount))}</td>
-                          <td>{formatMoney(String(settlement.countedAmount))}</td>
-                          <td>{formatMoney(String(settlement.deviation))}</td>
-                          <td>
-                            <span
-                              className={`fin-badge ${
-                                String(settlement.status) === "OPEN"
-                                  ? "fin-badge--pending"
-                                  : String(settlement.status) === "CONFIRMED"
-                                    ? "fin-badge--paid"
-                                    : "fin-badge--closed"
-                              }`}
-                            >
-                              {SETTLEMENT_STATUS_LABEL[String(settlement.status)] ?? String(settlement.status)}
-                            </span>
-                          </td>
-                          <td>
-                            {settlement.status === "OPEN" && canCancel ? (
-                              <SettlementCancelForm settlementId={String(settlement.id)} />
-                            ) : (
-                              <span className="fin-field__hint">—</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <DataTable rows={settlementRows} columns={settlementColumns} rowKey={(row) => row.id}
+                  regionLabel="جدول مالي قابل للتمرير" regionClassName="fin-table-wrap" tableClassName="fin-table"
+                  caption="تسويات العهد — مؤشر الفترة مقابل المعدود والفرق عنه" />
               )}
             </div>
           </div>

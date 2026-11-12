@@ -103,6 +103,7 @@ import {
 } from "../src/app/(app)/finance/expenses/[expenseId]/expense-detail-tables-metadata";
 import { cashCountHistoryColumns, cashCountHistoryCsvColumns, type CashCountHistoryRow } from "../src/app/(app)/finance/counts/count-history-metadata";
 import { reportBranchColumns, reportCategoryColumns, type ReportBranchRow, type ReportCategoryRow } from "../src/app/(app)/finance/reports/report-tables-metadata";
+import { createEmployeeSettlementColumns, type EmployeeSettlementRow } from "../src/app/(app)/finance/settlements/settlement-history-metadata";
 import { expenseReviewQueueColumns, type ExpenseReviewQueueRow } from "../src/app/(app)/finance/expenses/reviews/expense-reviews-metadata";
 import { saleDetailLineColumns, type SaleDetailLineRow } from "../src/app/(app)/sales/[saleId]/sale-lines-metadata";
 import { csvHeaders, csvRows, filterRowsBySearch } from "../src/lib/data-driven-ui";
@@ -774,4 +775,26 @@ test("finance report metadata preserves category bars, branch shares, and money 
   }));
   assert.equal((branchHtml.match(/<th /g) ?? []).length, 4);
   for (const text of ["القاهرة", "1500.00", "62.5%"]) assert.ok(branchHtml.includes(text));
+});
+
+test("employee settlement metadata guards cancellation and preserves all period amounts", () => {
+  const rows: EmployeeSettlementRow[] = [
+    { id: "8", createdOn: "2026-11-12", systemBalanceFormatted: "100.00", salesFormatted: "900.00", expensesFormatted: "50.00", expectedFormatted: "950.00", countedFormatted: "930.00", deviationFormatted: "-20.00", statusLabel: "معلق", statusTone: "pending", isOpen: true },
+    { id: "7", createdOn: "2026-11-10", systemBalanceFormatted: "100.00", salesFormatted: "800.00", expensesFormatted: "40.00", expectedFormatted: "860.00", countedFormatted: "860.00", deviationFormatted: "0.00", statusLabel: "مؤكد", statusTone: "paid", isOpen: false },
+  ];
+  const render = (canCancel: boolean) => renderToStaticMarkup(React.createElement(DataTable<EmployeeSettlementRow>, {
+    rows, columns: createEmployeeSettlementColumns({ canCancel, renderCancelAction: (row) => React.createElement("button", { type: "button" }, `إلغاء ${row.id}`) }), rowKey: (row) => row.id,
+    regionLabel: "جدول مالي قابل للتمرير", regionClassName: "fin-table-wrap", tableClassName: "fin-table",
+    caption: "تسويات العهد — مؤشر الفترة مقابل المعدود والفرق عنه",
+  }));
+  const allowed = render(true);
+  assert.equal((allowed.match(/<th /g) ?? []).length, 9);
+  assert.ok(allowed.includes("إلغاء 8"));
+  assert.ok(!allowed.includes("إلغاء 7"));
+  assert.ok(allowed.includes("fin-badge fin-badge--pending"));
+  assert.ok(allowed.includes("fin-badge fin-badge--paid"));
+  for (const text of ["100.00", "900.00", "50.00", "950.00", "930.00", "-20.00"]) assert.ok(allowed.includes(text));
+  const denied = render(false);
+  assert.ok(!denied.includes("إلغاء 8"));
+  assert.ok(denied.includes("fin-field__hint"));
 });
