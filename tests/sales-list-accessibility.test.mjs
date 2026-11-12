@@ -32,6 +32,10 @@ test("sales statistics empty states are announced", () => {
   const source = read("../src/app/(app)/sales/stats/sales-stats-interactive.tsx");
   assert.ok(source.includes('className="inv-field__hint" role="status">لا توجد مبيعات مسجلة في هذه الفترة أو النطاق المختار.</p>'));
   assert.ok(source.includes('className="inv-field__hint" role="status">لا توجد أصناف مطابقة للفلتر أو عبارة البحث الحالية.</p>'));
+  assert.ok(source.includes('function resetItemFilters(): void'));
+  assert.ok(source.includes('setKindFilter("all")'));
+  assert.ok(source.includes('setSortBy("revenue")'));
+  assert.ok(source.includes('onClick={resetItemFilters}>مسح البحث والفلاتر</button>'));
 });
 
 test("catalog initial and filtered empty states are announced", () => {

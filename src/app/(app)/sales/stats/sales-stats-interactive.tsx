@@ -227,6 +227,12 @@ export function SalesStatsTopItemsPanel({ items, showProfitability }: { items: S
       });
   }, [items, kindFilter, query, sortBy]);
 
+  function resetItemFilters(): void {
+    setQuery("");
+    setKindFilter("all");
+    setSortBy("revenue");
+  }
+
   return (
     <div id="top-items-section" className="inv-panel sales-stats-items-panel">
       <div className="inv-panel__heading sales-stats-items-head">
@@ -305,6 +311,7 @@ export function SalesStatsTopItemsPanel({ items, showProfitability }: { items: S
       ) : filteredAndSorted.length === 0 ? (
         <div className="inv-panel__body">
           <p className="inv-field__hint" role="status">لا توجد أصناف مطابقة للفلتر أو عبارة البحث الحالية.</p>
+          <button type="button" className="inv-button inv-button--secondary no-print" onClick={resetItemFilters}>مسح البحث والفلاتر</button>
         </div>
       ) : (
         <div
