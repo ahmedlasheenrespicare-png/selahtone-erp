@@ -558,8 +558,8 @@ export default function TransferForm({
             مراجعة سند التسليم
           </button>
         ) : (
-          <button type="submit" className="fin-button" disabled={pending}>
-            {pending ? "جارٍ الحفظ…" : "تأكيد التسليم وإصدار السند"}
+          <button type="submit" className="fin-button" disabled={pending} aria-busy={pending}>
+            <span aria-live="polite">{pending ? "جارٍ الحفظ…" : "تأكيد التسليم وإصدار السند"}</span>
           </button>
         )}
         {review ? (

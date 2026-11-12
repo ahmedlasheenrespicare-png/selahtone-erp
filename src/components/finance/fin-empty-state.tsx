@@ -17,7 +17,7 @@ export function FinEmptyState({
   style?: CSSProperties;
 }) {
   return (
-    <div className={`fin-panel fin-empty fin-empty-state${className ? ` ${className}` : ""}`} style={style}>
+    <div className={`fin-panel fin-empty fin-empty-state${className ? ` ${className}` : ""}`} style={style} role="status">
       <span className="fin-empty-state__icon" aria-hidden="true">
         <AppIcon name={icon} />
       </span>

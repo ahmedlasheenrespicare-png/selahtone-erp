@@ -448,7 +448,7 @@ export default function TransfersLedgerView({
         <div role="tabpanel" id="fin-ledger-panel" aria-labelledby={activeTab === "transfers" ? "fin-ledger-tab-transfers" : "fin-ledger-tab-settlements"}>
         {activeTab === "transfers" ? (
           filteredTransfers.length === 0 ? (
-            <div className="fin-empty">
+            <div className="fin-empty" role="status">
               {transfers.length === 0
                 ? "لم تُسجَّل حركات تسليم نقدي بعد ضمن الحسابات المتاحة."
                 : "لا توجد حركات تسليم تطابق معايير البحث أو التصفية الحالية."}
@@ -517,7 +517,7 @@ export default function TransfersLedgerView({
             </div>
           )
         ) : filteredArchive.length === 0 ? (
-          <div className="fin-empty">
+          <div className="fin-empty" role="status">
             {archivedSettlements.length === 0
               ? "لا توجد تسويات مؤرشفة (معتمدة أو مرفوضة أو ملغاة) بعد."
               : "لا توجد تسويات مؤرشفة تطابق البحث الحالي."}

@@ -242,7 +242,7 @@ export default function FinanceExpensesView({
         </div>
 
         {filtered.length === 0 ? (
-          <div className="fin-empty">لا توجد مصروفات تطابق معايير البحث أو التصفية الحالية.</div>
+          <div className="fin-empty" role="status">لا توجد مصروفات تطابق معايير البحث أو التصفية الحالية.</div>
         ) : (
           <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
             <table className="fin-table">
