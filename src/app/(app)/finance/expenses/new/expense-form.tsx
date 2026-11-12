@@ -862,9 +862,10 @@ export default function ExpenseForm({
                 type="submit"
                 className="fin-button"
                 disabled={pending || !ready}
+                aria-busy={pending}
               >
                 <AppIcon name="check" />
-                <span>{pending ? "جارٍ الحفظ…" : "تأكيد تسجيل المصروف"}</span>
+                <span aria-live="polite">{pending ? "جارٍ الحفظ…" : "تأكيد تسجيل المصروف"}</span>
               </button>
               <button
                 type="button"
@@ -951,9 +952,10 @@ export default function ExpenseForm({
               type="submit"
               className="fin-button"
               disabled={pending || !ready}
+              aria-busy={pending}
             >
               <AppIcon name="check" />
-              <span>{pending ? "جارٍ الحفظ…" : "تأكيد التسجيل الآن"}</span>
+              <span aria-live="polite">{pending ? "جارٍ الحفظ…" : "تأكيد التسجيل الآن"}</span>
             </button>
           )}
         </div>
