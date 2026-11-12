@@ -1210,4 +1210,16 @@
   .dash-switcher-bar--header .dash-dropdown-wrap { gap: 2px; }
   .dash-switcher-bar--header .dashboard-heading__selector-controls { gap: 1px; }
   .dashboard-heading__selector-controls .dash-step-group { gap: 0; padding: 1px; }
+  .dashboard-heading__selector-controls .dash-step-btn,
+  .dashboard-heading__selector-controls .dash-mode-toggle,
+  .dashboard-heading__selector-controls .dashboard-design-menu > summary {
+    width: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    height: 44px;
+  }
+  .dash-switcher-bar--header .dash-dropdown-trigger,
+  .dashboard-design-menu__option {
+    min-height: 44px;
+  }
 }
