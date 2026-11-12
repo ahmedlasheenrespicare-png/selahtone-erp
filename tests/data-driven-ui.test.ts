@@ -102,6 +102,7 @@ import {
   type OpenExpenseReviewRow,
 } from "../src/app/(app)/finance/expenses/[expenseId]/expense-detail-tables-metadata";
 import { cashCountHistoryColumns, cashCountHistoryCsvColumns, type CashCountHistoryRow } from "../src/app/(app)/finance/counts/count-history-metadata";
+import { reportBranchColumns, reportCategoryColumns, type ReportBranchRow, type ReportCategoryRow } from "../src/app/(app)/finance/reports/report-tables-metadata";
 import { expenseReviewQueueColumns, type ExpenseReviewQueueRow } from "../src/app/(app)/finance/expenses/reviews/expense-reviews-metadata";
 import { saleDetailLineColumns, type SaleDetailLineRow } from "../src/app/(app)/sales/[saleId]/sale-lines-metadata";
 import { csvHeaders, csvRows, filterRowsBySearch } from "../src/lib/data-driven-ui";
@@ -750,4 +751,27 @@ test("cash count history shares its eight columns with CSV and preserves resolut
   assert.ok(html.includes("<td>18</td>"));
   assert.ok(!html.includes("<td>#18</td>"));
   for (const text of ["1000.00", "950.00", "-50.00", "مؤكد", "تسوية فرق الجرد"]) assert.ok(html.includes(text));
+});
+
+test("finance report metadata preserves category bars, branch shares, and money formatting", () => {
+  const category: ReportCategoryRow = { id: "كهرباء", name: "كهرباء", count: 3, totalFormatted: "1200.00", sharePct: 2.5 };
+  const branch: ReportBranchRow = { id: "1", name: "القاهرة", count: 4, totalFormatted: "1500.00", shareLabel: "62.5%" };
+  assert.deepEqual(reportCategoryColumns.map((column) => column.id), ["category", "count", "total", "share"]);
+  assert.deepEqual(reportBranchColumns.map((column) => column.id), ["branch", "count", "total", "share"]);
+  const categoryHtml = renderToStaticMarkup(React.createElement(DataTable<ReportCategoryRow>, {
+    rows: [category], columns: reportCategoryColumns, rowKey: (row) => row.id,
+    regionLabel: "جدول مالي قابل للتمرير", regionClassName: "fin-table-wrap", tableClassName: "fin-table",
+    caption: "أعلى ستة بنود صرفًا في الفترة مع حصتها من إجمالي المدفوع",
+  }));
+  assert.ok(categoryHtml.includes('style="width:4%"'));
+  assert.ok(categoryHtml.includes("2.5%"));
+  assert.ok(categoryHtml.includes('dir="ltr"'));
+  assert.ok(categoryHtml.includes("1200.00"));
+  const branchHtml = renderToStaticMarkup(React.createElement(DataTable<ReportBranchRow>, {
+    rows: [branch], columns: reportBranchColumns, rowKey: (row) => row.id,
+    regionLabel: "جدول مالي قابل للتمرير", regionClassName: "fin-table-wrap", tableClassName: "fin-table",
+    caption: "مقارنة مصروفات الفروع في الفترة المختارة",
+  }));
+  assert.equal((branchHtml.match(/<th /g) ?? []).length, 4);
+  for (const text of ["القاهرة", "1500.00", "62.5%"]) assert.ok(branchHtml.includes(text));
 });
