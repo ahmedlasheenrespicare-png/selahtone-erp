@@ -1,9 +1,18 @@
 import Link from "next/link";
 import { AppIcon } from "@/components/app-icon";
+import DataTable from "@/components/data-driven/data-table";
 import PrintPageButton from "@/components/print-page-button";
 
 import { financePage } from "../page-context";
 import { requirePageAccess } from "@/lib/access-control-server";
+import {
+  financeAccessHelpColumns,
+  financeAccessHelpRows,
+  financeErrorHelpColumns,
+  financeErrorHelpRows,
+  financePillarColumns,
+  financePillarRows,
+} from "./finance-help-tables-metadata";
 
 export const dynamic = "force-dynamic";
 
@@ -52,19 +61,8 @@ export default async function FinanceHelpPage() {
           <h2>١. الأركان الثلاثة</h2>
           <p>العهدة وعاء، الجرد عد، والتسليم حركة موقّعة. أي خلل في ركن يخصّك يبدأ من هنا.</p>
         </div>
-        <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
-          <table className="fin-table">
-            <caption>أركان التشغيل النقدي في وحدة المالية</caption>
-            <thead>
-              <tr><th scope="col">الركن</th><th scope="col">أين تجده؟</th><th scope="col">من ينفّذ؟</th><th scope="col">ماذا يعني في سطر</th></tr>
-            </thead>
-            <tbody>
-              <tr><td>العهدة</td><td>«عهدتي النقدية» / «الحسابات»</td><td>الإدارة تفتح، الموظف يستخدم</td><td>مبلغ فعلي يسلّمه المدير أو المحاسب للموظف يدًا بيد لتغطية مصروفات الفرع</td></tr>
-              <tr><td>الجرد</td><td><bdi dir="ltr">/finance/counts</bdi> (للإدارة)</td><td>الإدارة تسجّل وتعتمد/تلغي</td><td>عدّ فعلي ومطابقته للدفتري؛ تسجيل الجرد ملاحظة فقط ولا يغيّر الرصيد</td></tr>
-              <tr><td>تسليم النقد</td><td><bdi dir="ltr">/finance/transfers</bdi> + «طباعة سند»</td><td>الإدارة تسلّم وتعتمد، بتوقيع الطرفين</td><td>أي انتقال للنقد (افتتاح عهدة، توريد خزنة…) يُنتج سند استلام وتسليم نقدي مطبوع</td></tr>
-            </tbody>
-          </table>
-        </div>
+        <DataTable rows={financePillarRows} columns={financePillarColumns} rowKey={(row) => row.id}
+          regionLabel="جدول مالي قابل للتمرير" regionClassName="fin-table-wrap" tableClassName="fin-table" caption="أركان التشغيل النقدي في وحدة المالية" />
         <p className="fin-field__hint" style={{ margin: "0 0 4px" }}>
           مؤشر الفترة = رصيد العهدة الدفتري + التحصيلات المحسوبة − مصروفات نقد الموظف المحسوبة. يعتمد الحساب الحالي على منشئ الفاتورة وطالب المصروف، وليس إسنادًا مؤكدًا لكل بند. الانحراف = المعدود المُقر به − المؤشر؛ لا يثبت المؤشر أو الإقرار حيازة النقد أو اكتمال الفترة.
         </p>
@@ -75,24 +73,8 @@ export default async function FinanceHelpPage() {
           <h2>٢. من يفتح ماذا؟</h2>
           <p>حسب الدور. بيانات غير دورك لا تُعرض، وجرد/تسليم/تقارير محصورة بالإدارة.</p>
         </div>
-        <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
-          <table className="fin-table">
-            <caption>مصفوفة الوصول لشاشات وحدة المالية</caption>
-            <thead>
-              <tr><th scope="col">الشاشة</th><th scope="col">المدير/المحاسب</th><th scope="col">الكاونتر (CS_AGENT)</th></tr>
-            </thead>
-            <tbody>
-              <tr><td>«الحسابات النقدية» (جدار المالية)</td><td>الكل حسب الدور</td><td>أزراره فقط</td></tr>
-              <tr><td>«مصروفاتي» / «سجل المصروفات»</td><td>سجل كامل + اعتماد وصرف</td><td>مسوّدات طلباته وحالتها فقط</td></tr>
-              <tr><td>«عهدتي النقدية» (كشف العهدة)</td><td>✓</td><td>✓</td></tr>
-              <tr><td>«طلبات التسوية» (/finance/settlements)</td><td>تُحوّل تلقائيًا إلى «التسليم»</td><td>✓ (طلب مفتوح واحد لكل عهدة)</td></tr>
-              <tr><td>«جرد النقد وتسوية الفرق»</td><td>✓</td><td>لا — تظهر رسالة «الجرد وتأكيد التسوية متاحان للمدير والمحاسب فقط.»</td></tr>
-              <tr><td>«تسليم وتحويل النقد» + السجل وسنداته</td><td>✓</td><td>لا</td></tr>
-              <tr><td>«التقارير» (اليوم/الأسبوع/الشهر)</td><td>✓</td><td>لا</td></tr>
-              <tr><td>نطاق «مختصر» لبعض الحسابات الإدارية</td><td colSpan={2}>يصلون إلى لوحة القيادة + المبيعات + المصروفات والدليل فقط — أي شاشة أخرى تحوّلهم إلى لوحة القيادة</td></tr>
-            </tbody>
-          </table>
-        </div>
+        <DataTable rows={financeAccessHelpRows} columns={financeAccessHelpColumns} rowKey={(row) => row.id}
+          regionLabel="جدول مالي قابل للتمرير" regionClassName="fin-table-wrap" tableClassName="fin-table" caption="مصفوفة الوصول لشاشات وحدة المالية" />
       </div>
 
       <div className="fin-panel">
@@ -180,24 +162,8 @@ export default async function FinanceHelpPage() {
           <h2>٥. أخطاء شائعة وتصرفاتها</h2>
           <p>التشخيص أولًا بأول قبل أي إجراء تصحيحي.</p>
         </div>
-        <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
-          <table className="fin-table">
-            <caption>أخطاء التشغيل النقدي المعتادة ومعالجتها</caption>
-            <thead>
-              <tr><th scope="col">ما تراه</th><th scope="col">السبب المعتاد</th><th scope="col">التصرف</th></tr>
-            </thead>
-            <tbody>
-              <tr><td>فرق كبير عن مؤشر الفترة</td><td>سجلات ناقصة أو إسناد مختلف أو عدّ غير مكتمل</td><td>لا تعتمد أولًا — راجع السجلات والنقد فعلًا مع المسؤول؛ لا يثبت تسجيل البيع وحده المؤشر، وألغِ الطلب وأعده بعد المراجعة</td></tr>
-              <tr><td>رسالة عن عدم وجود خزنة مفتوحة للفرع</td><td>حسابات الفرع المتعطلة أو الموقوفة</td><td>فعّل/أنشئ خزنة الفرع من «الحسابات» ثم أعد المحاولة</td></tr>
-              <tr><td>«لديك طلب تسوية مفتوح»</td><td>طلب سابق لم يُعتمد أو يُلغَ</td><td>ألغِه بسبب واضح أو انتظر قرار الإدارة؛ طلب واحد فقط لكل عهدة</td></tr>
-              <tr><td>الجرد لا يتأكد («تتطلّب اعتمادًا…»)</td><td>تغيّر نسخة العهدة أو مصدر نقدي مسجّل بعد الجرد أو فترة ملتبسة</td><td>ألغِ الطلب بسبب، راجع الحالة مع المسؤول، ثم أعد الجرد بحضور الطرفين بوثيقة سبب واضحة</td></tr>
-              <tr><td>فرق جرد يتكرر لفرع بعينه</td><td>تقدير خاطئ / تعجّل / شبهة</td><td>«جرد موجَّه» بشهادة صاحب اليد + قرار موثّق؛ لا تسوية صامتة</td></tr>
-              <tr><td>نظام يرفض التسوية كلها</td><td>ترقية قاعدة البيانات لم تُطبّق، أو صلاحية أو حالة تمنع العملية</td><td>أبلغ مسؤول النظام؛ لا تُطبّق ترقية أو تُفعّل المالية قبل المراجعة والموافقة المنفصلة وخطة انتقال آمنة</td></tr>
-              <tr><td>«لا مصروفات في هذه الفترة» / «لا يوجد جرد مُسوًى بعد»</td><td>فترة جديدة بلا حركات</td><td>سلوك طبيعي — ليست مشكلة</td></tr>
-              <tr><td>نافذة الطباعة لا تُظهر السند</td><td>المنع/طابعة غير معرّفة</td><td>اسمح بالمنبثقة وأعد الضغط على «طباعة سند»</td></tr>
-            </tbody>
-          </table>
-        </div>
+        <DataTable rows={financeErrorHelpRows} columns={financeErrorHelpColumns} rowKey={(row) => row.id}
+          regionLabel="جدول مالي قابل للتمرير" regionClassName="fin-table-wrap" tableClassName="fin-table" caption="أخطاء التشغيل النقدي المعتادة ومعالجتها" />
       </div>
 
       <div className="fin-panel">

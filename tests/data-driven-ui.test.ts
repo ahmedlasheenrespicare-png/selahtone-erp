@@ -116,6 +116,17 @@ import { securityAttemptColumns, type SecurityAttemptRow } from "../src/app/(app
 import { createUserDirectoryColumns, type AdminUserDirectoryRow } from "../src/app/(app)/admin/user-directory-table-metadata";
 import { createBranchDirectoryColumns, type AdminBranchDirectoryRow } from "../src/app/(app)/admin/branch-directory-table-metadata";
 import { createCatalogCartColumns, type CatalogCartTableRow } from "../src/app/(app)/sales/new/cart-table-metadata";
+import {
+  financeAccessHelpColumns,
+  financeAccessHelpRows,
+  financeErrorHelpColumns,
+  financeErrorHelpRows,
+  financePillarColumns,
+  financePillarRows,
+  type FinanceAccessHelpRow,
+  type FinanceErrorHelpRow,
+  type FinancePillarRow,
+} from "../src/app/(app)/finance/help/finance-help-tables-metadata";
 import { expenseReviewQueueColumns, type ExpenseReviewQueueRow } from "../src/app/(app)/finance/expenses/reviews/expense-reviews-metadata";
 import { saleDetailLineColumns, type SaleDetailLineRow } from "../src/app/(app)/sales/[saleId]/sale-lines-metadata";
 import { csvHeaders, csvRows, filterRowsBySearch } from "../src/lib/data-driven-ui";
@@ -986,4 +997,34 @@ test("catalog cart metadata preserves editable inputs, custom details, totals, a
   assert.ok(!html.includes("disabled="));
   const pending = render(true);
   assert.ok(pending.includes("disabled="));
+});
+
+test("finance help metadata preserves static guidance and the limited-scope colSpan", () => {
+  assert.equal(financePillarRows.length, 3);
+  assert.equal(financeAccessHelpRows.length, 8);
+  assert.equal(financeErrorHelpRows.length, 8);
+  const pillars = renderToStaticMarkup(React.createElement(DataTable<FinancePillarRow>, {
+    rows: financePillarRows, columns: financePillarColumns, rowKey: (row) => row.id,
+    regionLabel: "جدول مالي قابل للتمرير", regionClassName: "fin-table-wrap", tableClassName: "fin-table", caption: "أركان التشغيل النقدي في وحدة المالية",
+  }));
+  assert.ok(pillars.includes("/finance/counts"));
+  assert.ok(pillars.includes("/finance/transfers"));
+  assert.ok(pillars.includes("لا يغيّر الرصيد"));
+  const access = renderToStaticMarkup(React.createElement(DataTable<FinanceAccessHelpRow>, {
+    rows: financeAccessHelpRows, columns: financeAccessHelpColumns, rowKey: (row) => row.id,
+    regionLabel: "جدول مالي قابل للتمرير", tableClassName: "fin-table", caption: "مصفوفة الوصول لشاشات وحدة المالية",
+  }));
+  assert.ok(access.includes('colSpan="2"'));
+  assert.ok(access.includes("نطاق «مختصر»"));
+  const limitedRowStart = access.lastIndexOf("<tr>", access.indexOf("نطاق «مختصر»"));
+  const limitedHtml = access.slice(limitedRowStart);
+  assert.ok(limitedHtml.indexOf("</tr>") < limitedHtml.indexOf("يصلون إلى لوحة القيادة") + 400);
+  assert.equal((limitedHtml.slice(0, limitedHtml.indexOf("</tr>")).match(/<td/g) ?? []).length, 2);
+  const errors = renderToStaticMarkup(React.createElement(DataTable<FinanceErrorHelpRow>, {
+    rows: financeErrorHelpRows, columns: financeErrorHelpColumns, rowKey: (row) => row.id,
+    regionLabel: "جدول مالي قابل للتمرير", tableClassName: "fin-table", caption: "أخطاء التشغيل النقدي المعتادة ومعالجتها",
+  }));
+  assert.equal((errors.match(/<th /g) ?? []).length, 3);
+  assert.ok(errors.includes("لا تسوية صامتة"));
+  assert.ok(errors.includes("اسمح بالمنبثقة"));
 });

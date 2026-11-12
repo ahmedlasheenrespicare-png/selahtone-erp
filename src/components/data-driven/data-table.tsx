@@ -7,6 +7,8 @@ export type DataColumn<Row> = {
   headerClassName?: string;
   renderCell: (row: Row, index: number) => ReactNode;
   cellClassName?: string | ((row: Row) => string | undefined);
+  cellColSpan?: (row: Row) => number | undefined;
+  cellHidden?: (row: Row) => boolean;
 };
 
 type DataTableProps<Row> = {
@@ -54,9 +56,10 @@ export default function DataTable<Row>({
           ) : rows.map((row, index) => (
             <Fragment key={rowKey(row)}>
               <tr className={rowClassName?.(row)}>
-                {columns.map((column) => (
+                {columns.filter((column) => !column.cellHidden?.(row)).map((column) => (
                   <td
                     key={column.id}
+                    colSpan={column.cellColSpan?.(row)}
                     className={typeof column.cellClassName === "function"
                       ? column.cellClassName(row)
                       : column.cellClassName}
