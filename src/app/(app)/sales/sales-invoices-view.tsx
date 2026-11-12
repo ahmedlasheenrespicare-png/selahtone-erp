@@ -42,6 +42,7 @@ export default function SalesInvoicesView({
   const [branchFilter, setBranchFilter] = useState("ALL");
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("ALL");
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
+  const [exportMessage, setExportMessage] = useState("");
 
   const counts = useMemo(() => {
     return {
@@ -123,6 +124,7 @@ export default function SalesInvoicesView({
         r.createdAtFormatted,
       ]),
     );
+    setExportMessage(`تم بدء تنزيل ملف CSV ويضم ${filtered.length} فاتورة.`);
   }
 
   const tabs: Array<{ id: FilterTab; label: string; count: number }> = [
@@ -216,6 +218,7 @@ export default function SalesInvoicesView({
         </div>
       </div>
       <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">عدد الفواتير المطابقة: {filtered.length}</p>
+      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{exportMessage}</p>
 
       {filtered.length === 0 ? (
         <div className="inv-panel sales-empty-filter" role="status">

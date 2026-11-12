@@ -11,6 +11,14 @@ test("invoice filtering announces the result count", () => {
   assert.ok(source.includes('role="region" aria-label="جدول فواتير البيع" tabIndex={0}'));
 });
 
+test("invoice CSV export announces the filtered download", () => {
+  const source = read("../src/app/(app)/sales/sales-invoices-view.tsx");
+  assert.ok(source.includes('const [exportMessage, setExportMessage] = useState("")'));
+  assert.ok(source.includes('setExportMessage(`تم بدء تنزيل ملف CSV ويضم ${filtered.length} فاتورة.`)'));
+  assert.ok(source.includes('className="sr-only" role="status" aria-live="polite" aria-atomic="true">{exportMessage}</p>'));
+  assert.ok(source.includes('disabled={filtered.length === 0}'));
+});
+
 test("invoice list and detail tables expose column headers", () => {
   const list = read("../src/app/(app)/sales/sales-invoices-view.tsx");
   const detail = read("../src/app/(app)/sales/[saleId]/page.tsx");
