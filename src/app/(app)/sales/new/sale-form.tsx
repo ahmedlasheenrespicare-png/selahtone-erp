@@ -452,7 +452,7 @@ export default function SaleForm({
           </div>
         )}
         {Object.keys(errors).length > 0 && (
-          <div className="inv-alert inv-alert--error" role="alert">
+          <div id="sale-form-errors" className="inv-alert inv-alert--error" role="alert">
             <strong>راجع البيانات:</strong>
             <ul>
               {Object.entries(errors).map(([key, value]) => (
@@ -481,6 +481,7 @@ export default function SaleForm({
                 dir="ltr"
                 inputMode="tel"
                 aria-invalid={!!errors.customerPhone}
+                aria-describedby={errors.customerPhone ? "sale-form-errors" : undefined}
               />
               {matchedCustomers.length > 0 ? (
                 <div
@@ -525,6 +526,7 @@ export default function SaleForm({
                 }}
                 maxLength={180}
                 aria-invalid={!!errors.customerName}
+                aria-describedby={errors.customerName ? "sale-form-errors" : undefined}
               />
             </div>
             {exactCustomer?.hasUnpaid ? (
@@ -938,8 +940,8 @@ export default function SaleForm({
             </button>
           ) : (
             <>
-              <button type="submit" className="inv-button" disabled={pending}>
-                {pending ? "جارٍ الحفظ…" : "تأكيد البيع"}
+              <button type="submit" className="inv-button" disabled={pending} aria-busy={pending}>
+                <span aria-live="polite">{pending ? "جارٍ الحفظ…" : "تأكيد البيع"}</span>
               </button>
               <button
                 type="button"
