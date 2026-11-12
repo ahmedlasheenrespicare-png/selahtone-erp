@@ -80,6 +80,15 @@ import {
   type CategoryAuditItem,
   type CategoryDirectoryItem,
 } from "../src/app/(app)/finance/categories/categories-directory-metadata";
+import {
+  createAccountFilters,
+  createFinanceAccountColumns,
+  createFinanceAccountCsvColumns,
+  financeAccountSearch,
+  findOverCeilingIds,
+  parseFormattedMoney,
+  type FinanceAccountRow,
+} from "../src/app/(app)/finance/finance-accounts-metadata";
 import { saleDetailLineColumns, type SaleDetailLineRow } from "../src/app/(app)/sales/[saleId]/sale-lines-metadata";
 import { csvHeaders, csvRows, filterRowsBySearch } from "../src/lib/data-driven-ui";
 
@@ -611,4 +620,47 @@ test("sale detail line metadata preserves tax, custom details, serials, and all 
   }));
   assert.ok(untaxedHtml.includes("الضريبة غير محددة"));
   assert.ok(untaxedHtml.includes("غير محددة"));
+});
+
+const financeAccount: FinanceAccountRow = {
+  id: "61", title: "عهدة أحمد", subtitle: "القاهرة · أحمد", branchId: "1", branchName: "القاهرة",
+  kind: "CUSTODY", kindLabel: "عهدة موظف", openingDate: "2026-11-01", recordedOpeningFormatted: "100.00",
+  balanceFormatted: "16000.00", isNegative: false, isClosed: false, canClose: true,
+  closeRequestId: "request-61", holderName: "أحمد",
+};
+
+test("finance account metadata shares ceiling, filters, search, and CSV status", () => {
+  const closedVault = { ...financeAccount, id: "62", title: "خزنة القاهرة", subtitle: "خزنة", kind: "VAULT" as const, balanceFormatted: "-20.00", isNegative: true, isClosed: true };
+  const rows = [financeAccount, closedVault];
+  const over = findOverCeilingIds(rows, 15000);
+  assert.equal(parseFormattedMoney("16000.00"), 16000);
+  assert.deepEqual([...over], ["61"]);
+  const filters = createAccountFilters(over);
+  assert.deepEqual(filters.map((filter) => rows.filter(filter.matches).length), [2, 1, 1, 1, 1]);
+  assert.equal(filters.find((filter) => filter.id === "closed")?.isVisible?.(rows), true);
+  assert.deepEqual(filterRowsBySearch(rows, "أحمد", financeAccountSearch.text), [financeAccount]);
+  const csv = createFinanceAccountCsvColumns(over);
+  assert.deepEqual(csvHeaders(csv), ["الحساب", "الفرع", "النوع", "تاريخ الجرد", "رصيد الجرد (ج.م)", "الرصيد الحالي (ج.م)", "الحالة"]);
+  assert.deepEqual(csvRows(rows, csv).map((row) => row[6]), ["تجاوز سقف العهدة", "مقفلة"]);
+});
+
+test("finance account table guards management actions and preserves balance states", () => {
+  const staffColumns = createFinanceAccountColumns({ overCeilingIds: new Set(), canManage: false, canCloseCustody: true, renderCloseAction: () => "إقفال" });
+  assert.equal(staffColumns.length, 5);
+  const columns = createFinanceAccountColumns({ overCeilingIds: new Set(["61"]), canManage: true, canCloseCustody: true, renderCloseAction: () => "إقفال" });
+  const html = renderToStaticMarkup(React.createElement(DataTable<FinanceAccountRow>, {
+    rows: [financeAccount], columns, rowKey: (row) => row.id,
+    regionLabel: "جدول مالي قابل للتمرير", regionClassName: "fin-table-wrap", tableClassName: "fin-table",
+    caption: "الحسابات النقدية — الجرد والرصيد الحالي لكل خزنة وعهدة",
+  }));
+  assert.equal((html.match(/<th /g) ?? []).length, 6);
+  assert.ok(html.includes("<caption>الحسابات النقدية"));
+  assert.ok(html.includes("فوق السقف"));
+  assert.ok(html.includes('href="/finance/transfers"'));
+  assert.ok(html.includes("إقفال"));
+  assert.ok(html.includes("16000.00"));
+  const readOnlyHtml = renderToStaticMarkup(React.createElement(DataTable<FinanceAccountRow>, {
+    rows: [financeAccount], columns: staffColumns, rowKey: (row) => row.id, regionLabel: "جدول مالي قابل للتمرير",
+  }));
+  assert.ok(!readOnlyHtml.includes("إقفال"));
 });

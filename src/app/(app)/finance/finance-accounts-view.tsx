@@ -3,34 +3,23 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AppIcon } from "@/components/app-icon";
+import DataTable from "@/components/data-driven/data-table";
 import { downloadCsvFile } from "@/lib/csv-export";
+import { csvHeaders, csvRows, filterRowsBySearch } from "@/lib/data-driven-ui";
 import { CustodyCloseForm } from "./custody-close-form";
 
-export type FinanceAccountRow = {
-  id: string;
-  title: string;
-  subtitle: string;
-  branchId: string;
-  branchName: string;
-  kind: "VAULT" | "CUSTODY";
-  kindLabel: string;
-  openingDate: string;
-  recordedOpeningFormatted: string;
-  balanceFormatted: string;
-  isNegative: boolean;
-  isClosed: boolean;
-  canClose: boolean;
-  closeRequestId: string;
-  holderName: string;
-};
+import {
+  createAccountFilters,
+  createFinanceAccountColumns,
+  createFinanceAccountCsvColumns,
+  custodyCeilingOptions,
+  financeAccountSearch,
+  findOverCeilingIds,
+  type AccountFilter,
+  type FinanceAccountRow,
+} from "./finance-accounts-metadata";
 
-type AccountFilter = "all" | "vault" | "custody" | "over_ceiling" | "closed";
-
-function parseFormattedMoney(raw: string): number {
-  const cleaned = raw.replace(/[^0-9.\-]/g, "");
-  const n = Number(cleaned);
-  return Number.isFinite(n) ? n : 0;
-}
+export type { FinanceAccountRow } from "./finance-accounts-metadata";
 
 export default function FinanceAccountsView({
   rows,
@@ -48,57 +37,22 @@ export default function FinanceAccountsView({
   const [branchFilter, setBranchFilter] = useState("all");
   const [custodyCeiling, setCustodyCeiling] = useState<number>(15000);
 
-  const overCeilingIds = useMemo(() => {
-    const set = new Set<string>();
-    for (const r of rows) {
-      if (r.kind === "CUSTODY" && !r.isClosed && parseFormattedMoney(r.balanceFormatted) >= custodyCeiling) {
-        set.add(r.id);
-      }
-    }
-    return set;
-  }, [rows, custodyCeiling]);
-
-  const counts = useMemo(() => {
-    let vault = 0;
-    let custody = 0;
-    let closed = 0;
-    for (const r of rows) {
-      if (r.isClosed) closed += 1;
-      if (r.kind === "VAULT") vault += 1;
-      else custody += 1;
-    }
-    return { all: rows.length, vault, custody, overCeiling: overCeilingIds.size, closed };
-  }, [rows, overCeilingIds]);
+  const overCeilingIds = useMemo(() => findOverCeilingIds(rows, custodyCeiling), [rows, custodyCeiling]);
+  const accountFilters = useMemo(() => createAccountFilters(overCeilingIds), [overCeilingIds]);
+  const visibleFilters = accountFilters.filter((item) => item.id !== "over_ceiling" || canManage).filter((item) => item.isVisible?.(rows) ?? true);
+  const counts = Object.fromEntries(accountFilters.map((item) => [item.id, rows.filter(item.matches).length])) as Record<AccountFilter, number>;
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return rows.filter((r) => {
-      if (filter === "vault" && r.kind !== "VAULT") return false;
-      if (filter === "custody" && r.kind !== "CUSTODY") return false;
-      if (filter === "over_ceiling" && !overCeilingIds.has(r.id)) return false;
-      if (filter === "closed" && !r.isClosed) return false;
-      if (branchFilter !== "all" && r.branchId !== branchFilter) return false;
-      if (q) {
-        const hay = `${r.title} ${r.subtitle} ${r.branchName} ${r.kindLabel} ${r.openingDate}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    });
-  }, [rows, query, filter, branchFilter, overCeilingIds]);
+    const activeFilter = accountFilters.find((item) => item.id === filter) ?? accountFilters[0];
+    const selected = rows.filter((row) => activeFilter.matches(row) && (branchFilter === "all" || row.branchId === branchFilter));
+    return filterRowsBySearch(selected, query, financeAccountSearch.text);
+  }, [rows, query, filter, branchFilter, accountFilters]);
 
   function handleExportCsv(): void {
+    const columns = createFinanceAccountCsvColumns(overCeilingIds);
     downloadCsvFile(
       `selahtone-cash-accounts-${new Date().toISOString().slice(0, 10)}.csv`,
-      ["الحساب", "الفرع", "النوع", "تاريخ الجرد", "رصيد الجرد (ج.م)", "الرصيد الحالي (ج.م)", "الحالة"],
-      filtered.map((r) => [
-        r.title,
-        r.branchName,
-        r.kindLabel,
-        r.openingDate,
-        r.recordedOpeningFormatted,
-        r.balanceFormatted,
-        r.isClosed ? "مقفلة" : r.isNegative ? "سالب" : overCeilingIds.has(r.id) ? "تجاوز سقف العهدة" : "نشط",
-      ]),
+      csvHeaders(columns), csvRows(filtered, columns),
     );
   }
 
@@ -125,7 +79,7 @@ export default function FinanceAccountsView({
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="ابحث باسم الفرع أو الموظف أو تاريخ الجرد…"
+              placeholder={financeAccountSearch.placeholder}
               aria-label="بحث في الحسابات النقدية"
             />
             {query ? (
@@ -163,10 +117,7 @@ export default function FinanceAccountsView({
               onChange={(e) => setCustodyCeiling(Number(e.target.value))}
               aria-label="سقف تنبيه العهدة"
             >
-              <option value={10000}>سقف عهدة: 10,000 ج.م</option>
-              <option value={15000}>سقف عهدة: 15,000 ج.م</option>
-              <option value={25000}>سقف عهدة: 25,000 ج.م</option>
-              <option value={50000}>سقف عهدة: 50,000 ج.م</option>
+              {custodyCeilingOptions.map((option) => <option key={option.value} value={Number(option.value)}>{option.label}</option>)}
             </select>
           ) : null}
 
@@ -183,60 +134,11 @@ export default function FinanceAccountsView({
 
         <div className="fin-toolbar__row">
           <div className="fin-filter-pills" role="tablist" aria-label="تصنيف الحسابات">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={filter === "all"}
-              className={`fin-filter-pill${filter === "all" ? " is-active" : ""}`}
-              onClick={() => setFilter("all")}
-            >
-              <span>كل الحسابات</span>
-              <span className="fin-filter-pill__count">{counts.all}</span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={filter === "vault"}
-              className={`fin-filter-pill${filter === "vault" ? " is-active" : ""}`}
-              onClick={() => setFilter("vault")}
-            >
-              <span>خزائن الفروع</span>
-              <span className="fin-filter-pill__count">{counts.vault}</span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={filter === "custody"}
-              className={`fin-filter-pill${filter === "custody" ? " is-active" : ""}`}
-              onClick={() => setFilter("custody")}
-            >
-              <span>عُهَد الموظفين</span>
-              <span className="fin-filter-pill__count">{counts.custody}</span>
-            </button>
-            {canManage && counts.overCeiling > 0 ? (
-              <button
-                type="button"
-                role="tab"
-                aria-selected={filter === "over_ceiling"}
-                className={`fin-filter-pill${filter === "over_ceiling" ? " is-active" : ""}`}
-                onClick={() => setFilter("over_ceiling")}
-              >
-                <span>تجاوزت السقف</span>
-                <span className="fin-filter-pill__count">{counts.overCeiling}</span>
+            {visibleFilters.map((item) => (
+              <button key={item.id} type="button" role="tab" aria-selected={filter === item.id} className={`fin-filter-pill${filter === item.id ? " is-active" : ""}`} onClick={() => setFilter(item.id)}>
+                <span>{item.label}</span><span className="fin-filter-pill__count">{counts[item.id]}</span>
               </button>
-            ) : null}
-            {counts.closed > 0 ? (
-              <button
-                type="button"
-                role="tab"
-                aria-selected={filter === "closed"}
-                className={`fin-filter-pill${filter === "closed" ? " is-active" : ""}`}
-                onClick={() => setFilter("closed")}
-              >
-                <span>مقفلة</span>
-                <span className="fin-filter-pill__count">{counts.closed}</span>
-              </button>
-            ) : null}
+            ))}
           </div>
         </div>
       </div>
@@ -253,91 +155,18 @@ export default function FinanceAccountsView({
         {filtered.length === 0 ? (
           <div className="fin-empty">لا توجد حسابات تطابق معايير البحث أو التصفية الحالية.</div>
         ) : (
-          <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
-            <table className="fin-table">
-              <caption>الحسابات النقدية — الجرد والرصيد الحالي لكل خزنة وعهدة</caption>
-              <thead>
-                <tr>
-                  <th scope="col">الحساب</th>
-                  <th scope="col">النوع</th>
-                  <th scope="col">تاريخ الجرد</th>
-                  <th scope="col">رصيد الجرد</th>
-                  <th scope="col">الرصيد الحالي</th>
-                  {canManage ? <th scope="col">إجراء</th> : null}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((account) => {
-                  const isOverCeiling = overCeilingIds.has(account.id);
-                  return (
-                    <tr key={account.id}>
-                      <td>
-                        <div className="fin-account-cell">
-                          <strong>{account.title}</strong>
-                          <small>{account.subtitle}</small>
-                        </div>
-                      </td>
-                      <td>
-                        <span className={`fin-badge ${account.kind === "VAULT" ? "fin-badge--vault" : "fin-badge--custody"}`}>
-                          {account.kindLabel}
-                        </span>
-                      </td>
-                      <td>
-                        <bdi dir="ltr">{account.openingDate}</bdi>
-                      </td>
-                      <td>
-                        <bdi dir="ltr">{account.recordedOpeningFormatted}</bdi>
-                      </td>
-                      <td>
-                        <span className={`fin-money${account.isNegative ? " fin-money--negative" : ""}`}>
-                          <bdi dir="ltr">{account.balanceFormatted}</bdi>
-                        </span>
-                        {account.isClosed ? (
-                          <>
-                            {" "}
-                            <span className="fin-badge fin-badge--closed">مقفلة</span>
-                          </>
-                        ) : account.isNegative ? (
-                          <>
-                            {" "}
-                            <span className="fin-badge fin-badge--negative">سالب</span>
-                          </>
-                        ) : isOverCeiling ? (
-                          <>
-                            {" "}
-                            <span className="fin-badge b-warn">فوق السقف</span>
-                          </>
-                        ) : null}
-                      </td>
-                      {canManage ? (
-                        <td>
-                          <div className="fin-row-actions">
-                            {isOverCeiling ? (
-                              <Link
-                                href="/finance/transfers"
-                                className="fin-button fin-button--secondary"
-                              >
-                                توريد للخزنة
-                              </Link>
-                            ) : null}
-                            {account.canClose && canCloseCustody ? (
-                              <CustodyCloseForm
-                                requestId={account.closeRequestId}
-                                accountId={account.id}
-                                holderName={account.holderName}
-                              />
-                            ) : !isOverCeiling ? (
-                              <span className="fin-field__hint">—</span>
-                            ) : null}
-                          </div>
-                        </td>
-                      ) : null}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            rows={filtered}
+            columns={createFinanceAccountColumns({
+              overCeilingIds, canManage, canCloseCustody,
+              renderCloseAction: (account) => <CustodyCloseForm requestId={account.closeRequestId} accountId={account.id} holderName={account.holderName} />,
+            })}
+            rowKey={(account) => account.id}
+            regionLabel="جدول مالي قابل للتمرير"
+            regionClassName="fin-table-wrap"
+            tableClassName="fin-table"
+            caption="الحسابات النقدية — الجرد والرصيد الحالي لكل خزنة وعهدة"
+          />
         )}
       </div>
     </>
