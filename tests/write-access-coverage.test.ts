@@ -151,7 +151,8 @@ test("inventory cost visibility does not change branch scope or operation role",
 test("inventory receipt cost and product hints are removed before serialization", () => {
   const receipts = read("inventory/receipts/page.tsx");
   assert.ok(receipts.includes('access.isAllowed("/inventory/receipts#unit-cost")'));
-  assert.ok(receipts.includes('{showUnitCost && <td>'));
+  assert.ok(receipts.includes("unitCostFormatted: showUnitCost ? receipt.unitCost.toFixed(4) : null"));
+  assert.ok(receipts.includes("columns={createInventoryReceiptColumns(showUnitCost)}"));
   for (const [page, form, key] of [
     ["inventory/opening/page.tsx", "inventory/opening/opening-form.tsx", "/inventory/opening#purchase-cost-hint"],
     ["inventory/receipts/new/page.tsx", "inventory/receipts/new/receipt-form.tsx", "/inventory/receipts/new#purchase-cost-hint"],

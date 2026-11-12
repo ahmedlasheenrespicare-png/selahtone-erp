@@ -36,15 +36,22 @@ test("product and receipt tables expose all column headers", () => {
   const metadata = read("../src/app/(app)/inventory/inventory-products-metadata.tsx");
   const table = read("../src/components/data-driven/data-table.tsx");
   const receipts = read("../src/app/(app)/inventory/receipts/page.tsx");
+  const serials = read("../src/app/(app)/inventory/serials/page.tsx");
+  const registers = read("../src/app/(app)/inventory/inventory-registers-metadata.tsx");
   assert.ok(products.includes("<DataTable"));
   for (const id of ["sku", "name", "category", "tax", "purchase-cost", "sale-price", "serial", "stock"]) {
     assert.ok(metadata.includes(`id: "${id}"`), id);
   }
   assert.ok(metadata.includes('...(canSeeCost ? [{'));
   assert.ok(table.includes('<th key={column.id} scope="col" aria-label={column.headerAriaLabel} className={column.headerClassName}>'));
-  assert.equal((receipts.match(/<th(?: scope="col")?>/g) ?? []).length, 9);
-  assert.equal((receipts.match(/<th scope="col">/g) ?? []).length, 9);
-  assert.ok(receipts.includes('{showUnitCost && <th scope="col">تكلفة الوحدة (ج.م)</th>}'));
+  assert.ok(receipts.includes("columns={createInventoryReceiptColumns(showUnitCost)}"));
+  assert.ok(receipts.includes('regionLabel="جدول التوريدات"'));
+  assert.ok(registers.includes('...(showUnitCost ? [{'));
+  assert.equal((registers.match(/^    \{ id: /gm) ?? []).length, 7);
+  assert.ok(serials.includes("columns={inventorySerialColumns}"));
+  assert.ok(serials.includes('regionLabel="جدول الأرقام التسلسلية"'));
+  const serialMetadata = registers.split("export const inventorySerialColumns")[1];
+  assert.deepEqual([...serialMetadata.matchAll(/\bid: "([^"]+)"/g)].map((match) => match[1]), ["serial", "product", "branch", "warehouse", "status", "created-at"]);
 });
 
 test("inventory filter touch targets remain scoped to mobile screens", () => {

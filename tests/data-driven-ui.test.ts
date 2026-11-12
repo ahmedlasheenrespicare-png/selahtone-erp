@@ -54,6 +54,12 @@ import {
   type ArchivedSettlementRow,
   type TransferLedgerRow,
 } from "../src/app/(app)/finance/transfers/transfers-ledger-metadata";
+import {
+  createInventoryReceiptColumns,
+  inventorySerialColumns,
+  type InventoryReceiptRow,
+  type InventorySerialRow,
+} from "../src/app/(app)/inventory/inventory-registers-metadata";
 import { csvHeaders, csvRows, filterRowsBySearch } from "../src/lib/data-driven-ui";
 
 Object.assign(globalThis, { React });
@@ -432,4 +438,41 @@ test("transfer and settlement tables preserve captions, amounts, and no-print vo
   assert.ok(archiveHtml.includes("مرفوضة"));
   assert.ok(archiveHtml.includes("-100.00 ج.م"));
   assert.ok(archiveHtml.includes("فرق يحتاج مراجعة"));
+});
+
+test("inventory register metadata guards receipt cost and preserves every serial column", () => {
+  assert.equal(createInventoryReceiptColumns(false).length, 8);
+  assert.equal(createInventoryReceiptColumns(true).length, 9);
+  assert.ok(!createInventoryReceiptColumns(false).some((column) => column.id === "unit-cost"));
+  assert.deepEqual(inventorySerialColumns.map((column) => column.id), ["serial", "product", "branch", "warehouse", "status", "created-at"]);
+});
+
+test("inventory receipt and serial tables render accessible regions and source fallbacks", () => {
+  const receipt: InventoryReceiptRow = {
+    id: "31", productName: "سماعة", sku: "SKU-31", branchName: "القاهرة", warehouseName: "الرئيسي",
+    quantityFormatted: "2.00", unitCostFormatted: "500.0000", serialCount: 2,
+    sourceReference: null, createdByName: "أحمد", createdAtFormatted: "١٢ نوفمبر ٢٠٢٦",
+  };
+  const serial: InventorySerialRow = {
+    id: "41", serialNumber: "SN-41", productName: null, sku: null, branchName: null,
+    warehouseName: null, isSold: true, createdAtFormatted: "١٢ نوفمبر ٢٠٢٦",
+  };
+  const receiptHtml = renderToStaticMarkup(React.createElement(DataTable<InventoryReceiptRow>, {
+    rows: [receipt], columns: createInventoryReceiptColumns(true), rowKey: (row) => row.id,
+    regionLabel: "جدول التوريدات", regionClassName: "inv-table-wrap table-wrap", tableClassName: "inv-table",
+  }));
+  assert.equal((receiptHtml.match(/<th /g) ?? []).length, 9);
+  assert.ok(receiptHtml.includes('aria-label="جدول التوريدات"'));
+  assert.ok(receiptHtml.includes("500.0000"));
+  assert.ok(receiptHtml.includes("SKU-31"));
+  assert.ok(receiptHtml.includes("—"));
+  const serialHtml = renderToStaticMarkup(React.createElement(DataTable<InventorySerialRow>, {
+    rows: [serial], columns: inventorySerialColumns, rowKey: (row) => row.id,
+    regionLabel: "جدول الأرقام التسلسلية", regionClassName: "inv-table-wrap", tableClassName: "inv-table",
+  }));
+  assert.equal((serialHtml.match(/<th /g) ?? []).length, 6);
+  assert.ok(serialHtml.includes('aria-label="جدول الأرقام التسلسلية"'));
+  assert.ok(serialHtml.includes("SN-41"));
+  assert.ok(serialHtml.includes("مصدر غير معروف"));
+  assert.ok(serialHtml.includes("مباع"));
 });
