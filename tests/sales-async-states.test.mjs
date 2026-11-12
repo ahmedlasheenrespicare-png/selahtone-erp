@@ -33,6 +33,20 @@ test("serial lookup exposes loading, error and empty results through an associat
   assert.ok(source.includes('"لا توجد أرقام مطابقة متاحة."'));
 });
 
+test("invoice movements, returns and discount settings announce pending", () => {
+  for (const path of [
+    "../src/app/(app)/sales/[saleId]/movement-form.tsx",
+    "../src/app/(app)/sales/[saleId]/return-form.tsx",
+    "../src/app/(app)/sales/settings/setting-form.tsx",
+  ]) {
+    const source = read(path);
+    assert.ok(source.includes('disabled={pending') && source.includes('aria-busy={pending}'), path);
+    assert.ok(source.includes('<span aria-live="polite">{pending ? "جارٍ الحفظ…"'), path);
+  }
+  const movement = read("../src/app/(app)/sales/[saleId]/movement-form.tsx");
+  assert.ok(movement.includes('disabled={pending || (needsWarning && !negativeAcknowledged)}'));
+});
+
 test("invoice empty states are announced without changing their recovery actions", () => {
   for (const path of [
     "../src/app/(app)/sales/page.tsx",

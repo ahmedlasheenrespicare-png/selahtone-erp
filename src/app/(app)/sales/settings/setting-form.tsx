@@ -188,8 +188,8 @@ export default function SettingForm({
         <div className="inv-form-actions">
           {review ? (
             <>
-              <button className="inv-button" type="submit" disabled={pending}>
-                {pending ? "جارٍ الحفظ…" : "تأكيد التغيير"}
+              <button className="inv-button" type="submit" disabled={pending} aria-busy={pending}>
+                <span aria-live="polite">{pending ? "جارٍ الحفظ…" : "تأكيد التغيير"}</span>
               </button>
               <button
                 className="inv-button inv-button--secondary"
