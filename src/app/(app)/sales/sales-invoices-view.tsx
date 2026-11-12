@@ -217,7 +217,7 @@ export default function SalesInvoicesView({
       </div>
 
       {filtered.length === 0 ? (
-        <div className="inv-panel sales-empty-filter">
+        <div className="inv-panel sales-empty-filter" role="status">
           <p>لا توجد فواتير مطابقة لخيارات البحث أو التصفية الحالية.</p>
           <button
             type="button"

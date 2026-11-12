@@ -893,7 +893,7 @@ export default function CatalogSaleForm({
         )}
 
         {Object.keys(errors).length > 0 && (
-          <div className="inv-alert inv-alert--error" role="alert">
+          <div id="sale-form-errors" className="inv-alert inv-alert--error" role="alert">
             <strong>راجع البيانات:</strong>
             <ul>
               {Object.entries(errors).map(([key, value]) => (
@@ -949,6 +949,7 @@ export default function CatalogSaleForm({
                 inputMode="tel"
                 placeholder="01xxxxxxxxx"
                 aria-invalid={!!errors.customerPhone}
+                aria-describedby={errors.customerPhone ? "sale-form-errors" : undefined}
               />
             </div>
 
@@ -965,6 +966,7 @@ export default function CatalogSaleForm({
                 maxLength={180}
                 placeholder="الاسم الثلاثي أو التجاري"
                 aria-invalid={!!errors.customerName}
+                aria-describedby={errors.customerName ? "sale-form-errors" : undefined}
               />
             </div>
 
@@ -1568,9 +1570,9 @@ export default function CatalogSaleForm({
             </button>
           ) : (
             <>
-              <button type="submit" className="inv-button" disabled={pending}>
+              <button type="submit" className="inv-button" disabled={pending} aria-busy={pending}>
                 <AppIcon name="check" />
-                <span>{pending ? "جارٍ حفظ الفاتورة…" : "تأكيد البيع وإصدار الإيصال"}</span>
+                <span aria-live="polite">{pending ? "جارٍ حفظ الفاتورة…" : "تأكيد البيع وإصدار الإيصال"}</span>
               </button>
               <button
                 type="button"
