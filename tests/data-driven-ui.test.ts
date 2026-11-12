@@ -11,6 +11,14 @@ import {
   salesInvoiceTabs,
   type SalesInvoiceRow,
 } from "../src/app/(app)/sales/sales-invoices-metadata";
+import {
+  createInventoryProductColumns,
+  createInventoryProductCsvColumns,
+  inventoryProductSearch,
+  inventoryStockCount,
+  inventoryStockOptions,
+  type InventoryProductRow,
+} from "../src/app/(app)/inventory/inventory-products-metadata";
 import { csvHeaders, csvRows, filterRowsBySearch } from "../src/lib/data-driven-ui";
 
 const invoice: SalesInvoiceRow = {
@@ -30,6 +38,21 @@ const invoice: SalesInvoiceRow = {
   createdAtIso: "2026-11-11T10:00:00.000Z",
   ageDays: 0,
   linesCount: 2,
+};
+
+const product: InventoryProductRow = {
+  id: "9",
+  sku: "HA-9",
+  nameAr: "سماعة طبية",
+  category: "HEARING_AID",
+  categoryLabel: "سماعة طبية",
+  taxCode: "VAT14",
+  purchaseCostFormatted: "4,000.00",
+  salePriceFormatted: "6,000.00",
+  requiresSerial: true,
+  isService: false,
+  qtyUnits: 1,
+  whereSummary: "CAI: 1",
 };
 
 test("resource metadata defines the complete invoice table and action header", () => {
@@ -61,6 +84,18 @@ test("the shared renderer produces an accessible table from resource metadata", 
   assert.ok(markup.includes("ST-42"));
   assert.ok(!markup.includes("sales-open-link"));
   assert.ok(!markup.includes("<a "));
+
+  const emptyMarkup = renderToStaticMarkup(React.createElement(DataTable<SalesInvoiceRow>, {
+    rows: [],
+    columns,
+    rowKey: (row: SalesInvoiceRow) => row.id,
+    regionLabel: "جدول الأصناف وأرصدة المستودعات",
+    regionClassName: "table-wrap",
+    emptyState: React.createElement("p", { role: "status" }, "لا توجد نتائج"),
+  }));
+  assert.ok(emptyMarkup.includes('class="table-wrap"'));
+  assert.ok(emptyMarkup.includes('colSpan="2"'));
+  assert.ok(emptyMarkup.includes("لا توجد نتائج"));
 });
 
 test("search metadata matches any indexed field without changing the source rows", () => {
@@ -105,4 +140,37 @@ test("CSV metadata is the single source for headers and cell order", () => {
     "ST-42", "أحمد علي", "01000000000", "القاهرة", 2,
     "1,000.00", "250.00", "0.00", "مؤكدة", "١١ نوفمبر ٢٠٢٦",
   ]);
+});
+
+test("inventory table and CSV metadata remove purchase cost without permission", () => {
+  const visibleColumns = createInventoryProductColumns(false);
+  const visibleCsv = createInventoryProductCsvColumns(false);
+  assert.equal(visibleColumns.length, 7);
+  assert.ok(!visibleColumns.some((column) => column.id === "purchase-cost"));
+  assert.ok(!csvHeaders(visibleCsv).includes("سعر الشراء"));
+  assert.ok(!csvRows([product], visibleCsv).flat().includes("4,000.00"));
+
+  const authorizedCsv = createInventoryProductCsvColumns(true);
+  assert.equal(createInventoryProductColumns(true).length, 8);
+  assert.ok(csvHeaders(authorizedCsv).includes("سعر الشراء"));
+  assert.ok(csvRows([product], authorizedCsv).flat().includes("4,000.00"));
+});
+
+test("inventory stock metadata excludes services and shares counts with predicates", () => {
+  const service = { ...product, id: "10", isService: true, qtyUnits: 0, whereSummary: "" };
+  const zero = { ...product, id: "11", qtyUnits: 0, whereSummary: "" };
+  const full = { ...product, id: "12", qtyUnits: 8 };
+  const rows = [product, service, zero, full];
+  assert.equal(inventoryStockCount(rows, "LOW"), 1);
+  assert.equal(inventoryStockCount(rows, "ZERO"), 1);
+  assert.equal(inventoryStockCount(rows, "IN_STOCK"), 2);
+  const zeroFilter = inventoryStockOptions.find((option) => option.value === "ZERO");
+  assert.deepEqual(rows.filter(zeroFilter?.matches ?? (() => false)), [zero]);
+});
+
+test("inventory search metadata includes category and warehouse summaries", () => {
+  assert.deepEqual(filterRowsBySearch([product], "cai", inventoryProductSearch.text), [product]);
+  assert.deepEqual(filterRowsBySearch([product], "سماعة", inventoryProductSearch.text), [product]);
+  assert.deepEqual(filterRowsBySearch([product], "ha-9 سماعة", inventoryProductSearch.text), [product]);
+  assert.deepEqual(filterRowsBySearch([product], "غير موجود", inventoryProductSearch.text), []);
 });

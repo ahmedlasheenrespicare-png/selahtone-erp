@@ -14,7 +14,9 @@ type DataTableProps<Row> = {
   rowKey: (row: Row) => string;
   rowClassName?: (row: Row) => string | undefined;
   regionLabel: string;
+  regionClassName?: string;
   tableClassName?: string;
+  emptyState?: ReactNode;
 };
 
 /** A small, typed renderer: resources own metadata, not table markup. */
@@ -24,10 +26,12 @@ export default function DataTable<Row>({
   rowKey,
   rowClassName,
   regionLabel,
+  regionClassName = "inv-table-wrap table-wrap",
   tableClassName,
+  emptyState,
 }: DataTableProps<Row>) {
   return (
-    <div className="inv-table-wrap table-wrap" role="region" aria-label={regionLabel} tabIndex={0}>
+    <div className={regionClassName} role="region" aria-label={regionLabel} tabIndex={0}>
       <table className={tableClassName}>
         <thead>
           <tr>
@@ -39,7 +43,9 @@ export default function DataTable<Row>({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
+          {rows.length === 0 && emptyState ? (
+            <tr><td colSpan={columns.length} className="muted">{emptyState}</td></tr>
+          ) : rows.map((row) => (
             <tr key={rowKey(row)} className={rowClassName?.(row)}>
               {columns.map((column) => (
                 <td
