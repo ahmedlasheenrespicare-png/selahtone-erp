@@ -60,6 +60,12 @@ import {
   type InventoryReceiptRow,
   type InventorySerialRow,
 } from "../src/app/(app)/inventory/inventory-registers-metadata";
+import {
+  custodyMovementColumns,
+  custodyMovementFilters,
+  custodyMovementSearch,
+  type CustodyMovementItem,
+} from "../src/app/(app)/finance/mine/custody-activity-metadata";
 import { csvHeaders, csvRows, filterRowsBySearch } from "../src/lib/data-driven-ui";
 
 Object.assign(globalThis, { React });
@@ -475,4 +481,29 @@ test("inventory receipt and serial tables render accessible regions and source f
   assert.ok(serialHtml.includes("SN-41"));
   assert.ok(serialHtml.includes("مصدر غير معروف"));
   assert.ok(serialHtml.includes("مباع"));
+});
+
+test("custody movement metadata shares direction predicates and combined search", () => {
+  const incoming: CustodyMovementItem = { id: "1", recordedAt: "١٢ نوفمبر", kindLabel: "تغذية عهدة", direction: "IN", formattedAmount: "1,000.00" };
+  const outgoing: CustodyMovementItem = { id: "2", recordedAt: "١٣ نوفمبر", kindLabel: "مصروف", direction: "OUT", formattedAmount: "250.00" };
+  const rows = [incoming, outgoing];
+  assert.deepEqual(custodyMovementFilters.map((filter) => rows.filter(filter.matches).length), [2, 1, 1]);
+  assert.deepEqual(filterRowsBySearch(rows, "مصروف 250.00", custodyMovementSearch.text), [outgoing]);
+  assert.deepEqual(filterRowsBySearch(rows, "غير موجود", custodyMovementSearch.text), []);
+  assert.equal(custodyMovementColumns.length, 4);
+});
+
+test("custody movement table preserves caption and signed financial amounts", () => {
+  const outgoing: CustodyMovementItem = { id: "2", recordedAt: "١٣ نوفمبر", kindLabel: "مصروف", direction: "OUT", formattedAmount: "250.00" };
+  const html = renderToStaticMarkup(React.createElement(DataTable<CustodyMovementItem>, {
+    rows: [outgoing], columns: custodyMovementColumns, rowKey: (row) => row.id,
+    regionLabel: "جدول مالي قابل للتمرير", regionClassName: "fin-table-wrap", tableClassName: "fin-table",
+    caption: "حركة عهدتي — الوارد والصادر بالتاريخ والمبلغ",
+  }));
+  assert.equal((html.match(/<th /g) ?? []).length, 4);
+  assert.ok(html.includes("<caption>حركة عهدتي"));
+  assert.ok(html.includes("fin-badge fin-badge--out"));
+  assert.ok(html.includes("fin-money fin-money--negative"));
+  assert.ok(html.includes("-250.00"));
+  assert.ok(html.includes('aria-label="جدول مالي قابل للتمرير"'));
 });
