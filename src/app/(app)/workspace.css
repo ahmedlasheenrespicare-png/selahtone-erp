@@ -66,6 +66,7 @@
   display: grid;
   grid-template-columns: 256px minmax(0, 1fr);
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--ws-canvas);
   color: var(--ws-ink);
 }
@@ -1006,6 +1007,7 @@
     box-sizing: border-box;
     height: auto;
     padding: 13px 18px;
+    padding-top: calc(13px + env(safe-area-inset-top, 0px));
     overflow: visible;
     border-inline-end: 0;
     border-bottom: 1px solid var(--ws-sidebar-border);
@@ -1289,7 +1291,15 @@
     padding: 14px 0 6px;
     border-top: var(--ws-stitch-rule);
   }
-  .workspace-navigation.is-open { display: block; }
+  .workspace-navigation.is-open {
+    display: block;
+    max-height: calc(100vh - 150px);
+    max-height: calc(100dvh - 150px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    padding-inline-end: 4px;
+  }
   .workspace-nav-group + .workspace-nav-group { margin-top: 16px; padding-top: 14px; }
   .workspace-sidebar__foot { display: none; }
   .workspace-content {
