@@ -50,8 +50,10 @@ test("finance table scrolling remains touch friendly and keyboard focused", () =
 
 test("catalog sale cart is keyboard accessible", () => {
   const source = readFileSync(new URL("../src/app/(app)/sales/new/catalog-sale-form.tsx", import.meta.url), "utf8");
-  const cart = source.match(/<div\b[^>]*className="inv-table-wrap table-wrap"[^>]*>/)?.[0] ?? "";
-  assert.match(cart, /role="region"/);
-  assert.match(cart, /aria-label="بنود سلة البيع"/);
-  assert.match(cart, /tabIndex=\{0\}/);
+  const cart = source.match(/<DataTable\b[^>]*rows=\{cartRows\}[^>]*>/)?.[0] ?? "";
+  assert.match(cart, /regionLabel="بنود سلة البيع"/);
+  assert.match(cart, /regionClassName="inv-table-wrap table-wrap"/);
+  const shared = readFileSync(new URL("../src/components/data-driven/data-table.tsx", import.meta.url), "utf8");
+  assert.match(shared, /role="region"/);
+  assert.match(shared, /tabIndex=\{0\}/);
 });

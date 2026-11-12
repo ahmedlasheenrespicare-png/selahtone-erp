@@ -115,6 +115,7 @@ import {
 import { securityAttemptColumns, type SecurityAttemptRow } from "../src/app/(app)/admin/security-audit-table-metadata";
 import { createUserDirectoryColumns, type AdminUserDirectoryRow } from "../src/app/(app)/admin/user-directory-table-metadata";
 import { createBranchDirectoryColumns, type AdminBranchDirectoryRow } from "../src/app/(app)/admin/branch-directory-table-metadata";
+import { createCatalogCartColumns, type CatalogCartTableRow } from "../src/app/(app)/sales/new/cart-table-metadata";
 import { expenseReviewQueueColumns, type ExpenseReviewQueueRow } from "../src/app/(app)/finance/expenses/reviews/expense-reviews-metadata";
 import { saleDetailLineColumns, type SaleDetailLineRow } from "../src/app/(app)/sales/[saleId]/sale-lines-metadata";
 import { csvHeaders, csvRows, filterRowsBySearch } from "../src/lib/data-driven-ui";
@@ -958,4 +959,31 @@ test("branch directory metadata gates finance and management while preserving st
   assert.ok(!accountant.includes("الجاهزية المالية"));
   assert.ok(!accountant.includes("بلا خزنة"));
   assert.ok(accountant.includes("للمدير العام"));
+});
+
+test("catalog cart metadata preserves editable inputs, custom details, totals, and line actions", () => {
+  const row: CatalogCartTableRow = {
+    key: "line-1", categoryName: "موبايلات", typeName: "آيفون 15", quantity: "2", unitPrice: "50000",
+    totalFormatted: "100000.00", details: [{ key: "color", label: "اللون", value: "أسود" }],
+  };
+  const render = (pending: boolean) => renderToStaticMarkup(React.createElement(DataTable<CatalogCartTableRow>, {
+    rows: [row], columns: createCatalogCartColumns({
+      pending, onUpdateLine: () => undefined, onEditLine: () => undefined, onRemoveLine: () => undefined,
+    }), rowKey: (item) => item.key, regionLabel: "بنود سلة البيع", regionClassName: "inv-table-wrap table-wrap", tableClassName: "inv-table",
+  }));
+  const html = render(false);
+  assert.equal((html.match(/<th /g) ?? []).length, 6);
+  assert.ok(html.includes('aria-label="كمية آيفون 15"'));
+  assert.ok(html.includes('aria-label="سعر آيفون 15"'));
+  assert.ok(html.includes('aria-label="إجراءات البند"'));
+  assert.ok(html.includes('value="2"'));
+  assert.ok(html.includes('value="50000"'));
+  assert.ok(html.includes("100000.00"));
+  assert.ok(html.includes("اللون"));
+  assert.ok(html.includes("أسود"));
+  assert.ok(html.includes("تعديل"));
+  assert.ok(html.includes("إزالة"));
+  assert.ok(!html.includes("disabled="));
+  const pending = render(true);
+  assert.ok(pending.includes("disabled="));
 });
