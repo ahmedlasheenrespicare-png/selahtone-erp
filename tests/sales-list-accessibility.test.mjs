@@ -38,6 +38,13 @@ test("sales statistics empty states are announced", () => {
   assert.ok(source.includes('onClick={resetItemFilters}>مسح البحث والفلاتر</button>'));
 });
 
+test("sales statistics CSV export announces the report download", () => {
+  const source = read("../src/app/(app)/sales/stats/sales-stats-interactive.tsx");
+  assert.ok(source.includes('const [exportMessage, setExportMessage] = useState("")'));
+  assert.ok(source.includes('setExportMessage(`تم بدء تنزيل تقرير CSV ويضم ${exportPayload.invoiceCount} فاتورة نشطة.`)'));
+  assert.ok(source.includes('className="sr-only" role="status" aria-live="polite" aria-atomic="true">{exportMessage}</p>'));
+});
+
 test("catalog initial and filtered empty states are announced", () => {
   const source = read("../src/app/(app)/sales/catalog/page.tsx");
   assert.ok(source.includes('className="inv-panel inv-empty" role="status">لا توجد أصناف بعد.</div>'));

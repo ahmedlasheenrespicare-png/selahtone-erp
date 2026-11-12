@@ -145,6 +145,7 @@ export function SalesStatsActionToolbar({
   exportPayload: CsvExportPayload;
   fileSlug: string;
 }) {
+  const [exportMessage, setExportMessage] = useState("");
   const handleExportCsv = () => {
     const csvText = buildSalesStatsCsv(exportPayload);
     const blob = new Blob([csvText], { type: "text/csv;charset=utf-8;" });
@@ -156,6 +157,7 @@ export function SalesStatsActionToolbar({
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+    setExportMessage(`تم بدء تنزيل تقرير CSV ويضم ${exportPayload.invoiceCount} فاتورة نشطة.`);
   };
 
   const handlePrint = () => {
@@ -164,6 +166,7 @@ export function SalesStatsActionToolbar({
 
   return (
     <div className="sales-stats-export-bar no-print">
+      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{exportMessage}</p>
       <button
         type="button"
         className="inv-button inv-button--secondary sales-stats-export-btn"
