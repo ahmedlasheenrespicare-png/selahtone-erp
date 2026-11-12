@@ -19,6 +19,13 @@ import {
   inventoryStockOptions,
   type InventoryProductRow,
 } from "../src/app/(app)/inventory/inventory-products-metadata";
+import {
+  createSalesStatsItemColumns,
+  createSalesStatsSortOptions,
+  salesStatsItemKinds,
+  salesStatsItemSearch,
+  type SafeTopItem,
+} from "../src/app/(app)/sales/stats/sales-stats-items-metadata";
 import { csvHeaders, csvRows, filterRowsBySearch } from "../src/lib/data-driven-ui";
 
 const invoice: SalesInvoiceRow = {
@@ -55,14 +62,31 @@ const product: InventoryProductRow = {
   whereSummary: "CAI: 1",
 };
 
+const topItem: SafeTopItem = {
+  key: "stock-1",
+  name: "سماعة متقدمة",
+  category: "سماعات",
+  isStock: true,
+  quantityFormatted: "2",
+  quantityNum: 2,
+  lines: 1,
+  revenueFormatted: "12,000",
+  revenueNum: 12000,
+  sharePct: 80,
+  costFormatted: "8,000",
+  profitFormatted: "4,000",
+  profitNum: 4000,
+  marginPct: 33.3,
+};
+
 test("resource metadata defines the complete invoice table and action header", () => {
   const columns = createSalesInvoiceColumns(true);
   assert.deepEqual(columns.map((column) => column.id), [
     "invoice", "customer", "branch", "original", "due-from", "due-to", "status", "created-at", "details",
   ]);
   assert.equal(columns.at(-1)?.headerAriaLabel, "تفاصيل");
-  assert.notEqual(columns.at(-1)?.renderCell(invoice), false);
-  assert.equal(createSalesInvoiceColumns(false).at(-1)?.renderCell(invoice), false);
+  assert.notEqual(columns.at(-1)?.renderCell(invoice, 0), false);
+  assert.equal(createSalesInvoiceColumns(false).at(-1)?.renderCell(invoice, 0), false);
 });
 
 test("the shared renderer produces an accessible table from resource metadata", () => {
@@ -173,4 +197,32 @@ test("inventory search metadata includes category and warehouse summaries", () =
   assert.deepEqual(filterRowsBySearch([product], "سماعة", inventoryProductSearch.text), [product]);
   assert.deepEqual(filterRowsBySearch([product], "ha-9 سماعة", inventoryProductSearch.text), [product]);
   assert.deepEqual(filterRowsBySearch([product], "غير موجود", inventoryProductSearch.text), []);
+});
+
+test("sales stats metadata removes profitability columns and sorting without permission", () => {
+  assert.equal(createSalesStatsItemColumns(false).length, 6);
+  assert.deepEqual(createSalesStatsSortOptions(false).map((option) => option.value), ["revenue", "quantity"]);
+  const authorizedColumns = createSalesStatsItemColumns(true);
+  assert.equal(authorizedColumns.length, 8);
+  assert.ok(authorizedColumns.some((column) => column.id === "cost"));
+  assert.ok(authorizedColumns.some((column) => column.id === "profit"));
+  assert.deepEqual(createSalesStatsSortOptions(true).map((option) => option.value), ["revenue", "quantity", "profit"]);
+  assert.equal(authorizedColumns[0].renderCell(topItem, 4), 5);
+});
+
+test("sales stats sorting metadata preserves revenue, quantity, and stock-profit rules", () => {
+  const catalog = { ...topItem, key: "catalog-1", name: "ضبط سماعة", isStock: false,
+    quantityNum: 5, revenueNum: 1000, profitNum: 9000, costFormatted: undefined, profitFormatted: undefined };
+  const options = createSalesStatsSortOptions(true);
+  assert.deepEqual([topItem, catalog].sort(options[0].compare).map((item) => item.key), ["stock-1", "catalog-1"]);
+  assert.deepEqual([topItem, catalog].sort(options[1].compare).map((item) => item.key), ["catalog-1", "stock-1"]);
+  assert.deepEqual([catalog, topItem].sort(options[2].compare).map((item) => item.key), ["stock-1", "catalog-1"]);
+});
+
+test("sales stats kind filters and search share the same item metadata", () => {
+  const catalog = { ...topItem, key: "catalog-1", name: "ضبط سماعة", category: "خدمات", isStock: false };
+  const rows = [topItem, catalog];
+  assert.deepEqual(salesStatsItemKinds.map((kind) => rows.filter(kind.matches).length), [2, 1, 1]);
+  assert.deepEqual(filterRowsBySearch(rows, "خدمات", salesStatsItemSearch.text), [catalog]);
+  assert.deepEqual(filterRowsBySearch(rows, "متقدمة", salesStatsItemSearch.text), [topItem]);
 });

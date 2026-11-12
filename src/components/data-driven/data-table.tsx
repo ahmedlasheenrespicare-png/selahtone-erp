@@ -4,7 +4,7 @@ export type DataColumn<Row> = {
   id: string;
   header: ReactNode;
   headerAriaLabel?: string;
-  renderCell: (row: Row) => ReactNode;
+  renderCell: (row: Row, index: number) => ReactNode;
   cellClassName?: string | ((row: Row) => string | undefined);
 };
 
@@ -45,7 +45,7 @@ export default function DataTable<Row>({
         <tbody>
           {rows.length === 0 && emptyState ? (
             <tr><td colSpan={columns.length} className="muted">{emptyState}</td></tr>
-          ) : rows.map((row) => (
+          ) : rows.map((row, index) => (
             <tr key={rowKey(row)} className={rowClassName?.(row)}>
               {columns.map((column) => (
                 <td
@@ -54,7 +54,7 @@ export default function DataTable<Row>({
                     ? column.cellClassName(row)
                     : column.cellClassName}
                 >
-                  {column.renderCell(row)}
+                  {column.renderCell(row, index)}
                 </td>
               ))}
             </tr>
