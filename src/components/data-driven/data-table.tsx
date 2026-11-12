@@ -16,6 +16,7 @@ type DataTableProps<Row> = {
   regionLabel: string;
   regionClassName?: string;
   tableClassName?: string;
+  caption?: ReactNode;
   emptyState?: ReactNode;
 };
 
@@ -28,11 +29,13 @@ export default function DataTable<Row>({
   regionLabel,
   regionClassName = "inv-table-wrap table-wrap",
   tableClassName,
+  caption,
   emptyState,
 }: DataTableProps<Row>) {
   return (
     <div className={regionClassName} role="region" aria-label={regionLabel} tabIndex={0}>
       <table className={tableClassName}>
+        {caption ? <caption>{caption}</caption> : null}
         <thead>
           <tr>
             {columns.map((column) => (

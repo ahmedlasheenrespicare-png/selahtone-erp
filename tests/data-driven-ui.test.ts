@@ -34,6 +34,13 @@ import {
   type SalesStatsCategoryRow,
   type SalesStatsStaffRow,
 } from "../src/app/(app)/sales/stats/sales-stats-tables-metadata";
+import {
+  createFinanceExpenseColumns,
+  financeExpenseCsvColumns,
+  financeExpenseSearch,
+  financeExpenseTabs,
+  type FinanceExpenseRow,
+} from "../src/app/(app)/finance/expenses/finance-expenses-metadata";
 import { csvHeaders, csvRows, filterRowsBySearch } from "../src/lib/data-driven-ui";
 
 const invoice: SalesInvoiceRow = {
@@ -85,6 +92,18 @@ const topItem: SafeTopItem = {
   profitFormatted: "4,000",
   profitNum: 4000,
   marginPct: 33.3,
+};
+
+const expense: FinanceExpenseRow = {
+  id: "17",
+  expenseDate: "2026-11-12",
+  branchId: "1",
+  branchName: "القاهرة · CAI",
+  categorySnapshot: "صيانة",
+  description: "إصلاح جهاز",
+  amountFormatted: "750.00",
+  status: "PENDING",
+  statusLabel: "بانتظار الاعتماد",
 };
 
 test("resource metadata defines the complete invoice table and action header", () => {
@@ -274,4 +293,41 @@ test("sales stats comparison tables render their values and accessible regions",
   assert.ok(categoryHtml.includes("سماعات"));
   assert.ok(categoryHtml.includes("60%"));
   assert.equal((categoryHtml.match(/<th /g) ?? []).length, 5);
+});
+
+test("finance expense metadata guards detail actions and preserves CSV order", () => {
+  assert.equal(createFinanceExpenseColumns(false).length, 6);
+  assert.equal(createFinanceExpenseColumns(true).length, 7);
+  assert.ok(!createFinanceExpenseColumns(false).some((column) => column.id === "action"));
+  assert.deepEqual(csvHeaders(financeExpenseCsvColumns), [
+    "رقم المصروف", "التاريخ", "الفرع", "البند", "الوصف", "المبلغ (ج.م)", "الحالة",
+  ]);
+  assert.deepEqual(csvRows([expense], financeExpenseCsvColumns)[0], [
+    "17", "2026-11-12", "القاهرة · CAI", "صيانة", "إصلاح جهاز", "750.00", "بانتظار الاعتماد",
+  ]);
+});
+
+test("finance expense tabs and combined search use shared metadata", () => {
+  const paid = { ...expense, id: "18", status: "PAID" };
+  const rows = [expense, paid];
+  assert.deepEqual(financeExpenseTabs.map((tab) => rows.filter(tab.matches).length), [2, 1, 0, 1]);
+  assert.deepEqual(filterRowsBySearch(rows, "صيانة القاهرة", financeExpenseSearch.text), rows);
+  assert.deepEqual(filterRowsBySearch(rows, "18", financeExpenseSearch.text), [paid]);
+});
+
+test("finance expense table keeps its caption and management-only action column", () => {
+  const render = (canManage: boolean) => renderToStaticMarkup(React.createElement(DataTable<FinanceExpenseRow>, {
+    rows: [expense], columns: createFinanceExpenseColumns(canManage), rowKey: (row) => row.id,
+    regionLabel: "جدول مالي قابل للتمرير", regionClassName: "fin-table-wrap", tableClassName: "fin-table",
+    caption: "سجل المصروفات المعروض حسب حالة التصفية — المبلغ الفعّال بعد أي تصحيح",
+  }));
+  const staffHtml = render(false);
+  assert.ok(staffHtml.includes('class="fin-table-wrap"'));
+  assert.ok(staffHtml.includes("<caption>سجل المصروفات"));
+  assert.equal((staffHtml.match(/<th /g) ?? []).length, 6);
+  assert.ok(!staffHtml.includes("تفاصيل"));
+  const managerHtml = render(true);
+  assert.equal((managerHtml.match(/<th /g) ?? []).length, 7);
+  assert.ok(managerHtml.includes('href="/finance/expenses/17"'));
+  assert.ok(managerHtml.includes("تفاصيل"));
 });
