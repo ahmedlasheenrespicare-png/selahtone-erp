@@ -4,43 +4,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { AppIcon } from "@/components/app-icon";
+import DataTable from "@/components/data-driven/data-table";
 import { downloadCsvFile } from "@/lib/csv-export";
 import { purgeInactiveSessionsAction } from "../admin/actions";
 import { initialAdminActionState } from "../admin/admin-state";
-
-export type CheckAxis = "INFRA" | "SECURITY" | "COMMERCE" | "FINANCE";
-export type CheckSeverity = "ok" | "warn" | "fail";
-
-export type ReadinessCheckItem = {
-  id: string;
-  axis: CheckAxis;
-  axisLabel: string;
-  label: string;
-  severity: CheckSeverity;
-  statusLabel: string;
-  detail: string;
-  actionHref?: string;
-  actionLabel?: string;
-};
-
-export type BranchReadinessRow = {
-  id: string;
-  nameAr: string;
-  code: string;
-  city: string | null;
-  invoicePrefix: string;
-  isActive: boolean;
-  warehouseCodes: string;
-  hasDefaultWarehouse: boolean;
-  activeStaffCount: number;
-  totalStaffCount: number;
-  hasOpenVault: boolean;
-  openCustodyCount: number;
-  ready: boolean;
-  verdictLabel: string;
-  remediationHref: string | null;
-  remediationLabel: string | null;
-};
+import { createBranchReadinessColumns, readinessCheckColumns } from "./setup-readiness-tables-metadata";
+import type { BranchReadinessRow, CheckAxis, CheckSeverity, ReadinessCheckItem } from "./setup-readiness-tables-metadata";
+export type { BranchReadinessRow, CheckAxis, CheckSeverity, ReadinessCheckItem } from "./setup-readiness-tables-metadata";
 
 export type SafeEnvFlagItem = {
   key: string;
@@ -82,6 +52,8 @@ export default function SetupReadinessView({
   const [refreshPending, startRefresh] = useTransition();
   const [purgePending, startPurge] = useTransition();
   const [purgeMsg, setPurgeMsg] = useState<string | null>(null);
+
+  const branchReadinessColumns = useMemo(() => createBranchReadinessColumns(financeOn), [financeOn]);
 
   const [probeState, setProbeState] = useState<{
     loading: boolean;
@@ -361,60 +333,9 @@ export default function SetupReadinessView({
             </div>
           </div>
 
-          <div className="dashboard-table-wrap" role="region" aria-label="جدول فحوصات الجاهزية" tabIndex={0}>
-            <table className="dashboard-table">
-              <thead>
-                <tr>
-                  <th scope="col" style={{ width: 44 }}>#</th>
-                  <th scope="col">المحور</th>
-                  <th scope="col">بند الفحص</th>
-                  <th scope="col">الحالة</th>
-                  <th scope="col">التفصيل والتشخيص الفعلي</th>
-                  <th scope="col" className="no-print">الإجراء السريع</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredChecks.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} style={{ textAlign: "center", padding: "24px 12px" }}>
-                      لا توجد بنود فحص تطابق التصفية الحالية.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredChecks.map((item, idx) => (
-                    <tr key={item.id}>
-                      <td dir="ltr">{idx + 1}</td>
-                      <td>
-                        <span className="setup-pill setup-pill--axis">
-                          {item.axisLabel}
-                        </span>
-                      </td>
-                      <td>
-                        <strong>{item.label}</strong>
-                      </td>
-                      <td>
-                        <span className={pillClass(item.severity)}>
-                          {item.statusLabel}
-                        </span>
-                      </td>
-                      <td>
-                        <span className="setup-subtext">{item.detail}</span>
-                      </td>
-                      <td className="no-print">
-                        {item.actionHref && item.actionLabel ? (
-                          <Link className="setup-btn" href={item.actionHref}>
-                            <span>{item.actionLabel}</span>
-                          </Link>
-                        ) : (
-                          <span className="setup-subtext">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+          <DataTable rows={filteredChecks} columns={readinessCheckColumns} rowKey={(row) => row.id}
+            regionLabel="جدول فحوصات الجاهزية" regionClassName="dashboard-table-wrap" tableClassName="dashboard-table"
+            emptyState={<span style={{ display: "block", textAlign: "center", padding: "24px 12px" }}>لا توجد بنود فحص تطابق التصفية الحالية.</span>} />
         </div>
       ) : null}
 
@@ -446,97 +367,8 @@ export default function SetupReadinessView({
             </div>
           </div>
 
-          <div className="dashboard-table-wrap" role="region" aria-label="جدول مصفوفة الفروع" tabIndex={0}>
-            <table className="dashboard-table">
-              <thead>
-                <tr>
-                  <th scope="col">الفرع والكود</th>
-                  <th scope="col">المدينة والبادئة</th>
-                  <th scope="col">المستودعات</th>
-                  {financeOn ? <th scope="col">الخزنة والعُهَد</th> : null}
-                  <th scope="col">الموظفون النشطون</th>
-                  <th scope="col">حكم الجاهزية</th>
-                  <th scope="col" className="no-print">معالجة</th>
-                </tr>
-              </thead>
-              <tbody>
-                {branches.map((b) => (
-                  <tr key={b.id}>
-                    <td>
-                      <div className="setup-cell-stack">
-                        <strong>{b.nameAr}</strong>
-                        <small dir="ltr" className="setup-subtext">
-                          {b.code} · {b.isActive ? "نشط" : "موقوف"}
-                        </small>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="setup-cell-stack">
-                        <span>{b.city ?? "—"}</span>
-                        <small dir="ltr" className="setup-subtext">
-                          بادئة: {b.invoicePrefix}
-                        </small>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="setup-cell-stack">
-                        <span dir="ltr">{b.warehouseCodes || "لا يوجد"}</span>
-                        <small className="setup-subtext">
-                          {b.hasDefaultWarehouse ? "مستودع افتراضي مربوط" : "ينقصه مستودع افتراضي"}
-                        </small>
-                      </div>
-                    </td>
-                    {financeOn ? (
-                      <td>
-                        <div className="setup-cell-stack">
-                          <span
-                            className={
-                              b.hasOpenVault
-                                ? "setup-pill setup-pill--ok"
-                                : "setup-pill setup-pill--warn"
-                            }
-                          >
-                            {b.hasOpenVault ? "خزنة مفتوحة ✓" : "بلا خزنة مفتوحة"}
-                          </span>
-                          <small className="setup-subtext">
-                            {b.openCustodyCount} عهدة موظف مفتوحة
-                          </small>
-                        </div>
-                      </td>
-                    ) : null}
-                    <td>
-                      <strong>
-                        {b.activeStaffCount}{" "}
-                        <small className="setup-subtext">من {b.totalStaffCount}</small>
-                      </strong>
-                    </td>
-                    <td>
-                      <span
-                        className={
-                          !b.isActive
-                            ? "setup-pill setup-pill--axis"
-                            : b.ready
-                              ? "setup-pill setup-pill--ok"
-                              : "setup-pill setup-pill--warn"
-                        }
-                      >
-                        {b.verdictLabel}
-                      </span>
-                    </td>
-                    <td className="no-print">
-                      {b.remediationHref && b.remediationLabel ? (
-                        <Link className="setup-btn" href={b.remediationHref}>
-                          <span>{b.remediationLabel}</span>
-                        </Link>
-                      ) : (
-                        <span className="setup-subtext">مكتمل ✓</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable rows={branches} columns={branchReadinessColumns} rowKey={(row) => row.id}
+            regionLabel="جدول مصفوفة الفروع" regionClassName="dashboard-table-wrap" tableClassName="dashboard-table" />
         </div>
       ) : null}
 

@@ -106,6 +106,12 @@ import { reportBranchColumns, reportCategoryColumns, type ReportBranchRow, type 
 import { createEmployeeSettlementColumns, type EmployeeSettlementRow } from "../src/app/(app)/finance/settlements/settlement-history-metadata";
 import { openAccountSummaryColumns, type OpenAccountSummaryRow } from "../src/app/(app)/finance/accounts/open-account-summary-metadata";
 import { createRecentExpenseColumns, type RecentExpenseRow } from "../src/app/(app)/finance/expenses/new/recent-expenses-metadata";
+import {
+  createBranchReadinessColumns,
+  readinessCheckColumns,
+  type BranchReadinessRow,
+  type ReadinessCheckItem,
+} from "../src/app/(app)/setup/setup-readiness-tables-metadata";
 import { expenseReviewQueueColumns, type ExpenseReviewQueueRow } from "../src/app/(app)/finance/expenses/reviews/expense-reviews-metadata";
 import { saleDetailLineColumns, type SaleDetailLineRow } from "../src/app/(app)/sales/[saleId]/sale-lines-metadata";
 import { csvHeaders, csvRows, filterRowsBySearch } from "../src/lib/data-driven-ui";
@@ -842,4 +848,40 @@ test("recent expense metadata guards branch and detail link by management role",
   assert.ok(!staff.includes("href="));
   assert.ok(!staff.includes(">الفرع</th>"));
   assert.ok(!staff.includes("القاهرة"));
+});
+
+test("setup readiness metadata preserves check diagnostics and branch finance gating", () => {
+  const check: ReadinessCheckItem = {
+    id: "finance-vault", axis: "FINANCE", axisLabel: "المالية", label: "خزنة الفرع",
+    severity: "warn", statusLabel: "تحذير", detail: "فرع بلا خزنة مفتوحة",
+    actionHref: "/finance/accounts", actionLabel: "فتح حساب",
+  };
+  const checkHtml = renderToStaticMarkup(React.createElement(DataTable<ReadinessCheckItem>, {
+    rows: [check], columns: readinessCheckColumns, rowKey: (row) => row.id,
+    regionLabel: "جدول فحوصات الجاهزية", tableClassName: "dashboard-table",
+  }));
+  assert.equal((checkHtml.match(/<th /g) ?? []).length, 6);
+  assert.ok(checkHtml.includes('href="/finance/accounts"'));
+  assert.ok(checkHtml.includes("setup-pill setup-pill--warn"));
+  for (const text of ["خزنة الفرع", "فرع بلا خزنة مفتوحة", "المالية"]) assert.ok(checkHtml.includes(text));
+  const branch: BranchReadinessRow = {
+    id: "1", nameAr: "القاهرة", code: "CAI", city: "القاهرة", invoicePrefix: "CAI-",
+    isActive: true, warehouseCodes: "MAIN", hasDefaultWarehouse: true,
+    activeStaffCount: 3, totalStaffCount: 4, hasOpenVault: false, openCustodyCount: 2,
+    ready: false, verdictLabel: "ينقصه خزنة", remediationHref: "/admin", remediationLabel: "معالجة الفرع",
+  };
+  const renderBranches = (financeOn: boolean) => renderToStaticMarkup(React.createElement(DataTable<BranchReadinessRow>, {
+    rows: [branch], columns: createBranchReadinessColumns(financeOn), rowKey: (row) => row.id,
+    regionLabel: "جدول مصفوفة الفروع", tableClassName: "dashboard-table",
+  }));
+  const finance = renderBranches(true);
+  assert.equal((finance.match(/<th /g) ?? []).length, 7);
+  assert.ok(finance.includes("بلا خزنة مفتوحة"));
+  assert.ok(finance.includes("2 عهدة موظف مفتوحة"));
+  assert.ok(finance.includes("مستودع افتراضي مربوط"));
+  assert.ok(finance.includes('href="/admin"'));
+  const withoutFinance = renderBranches(false);
+  assert.equal((withoutFinance.match(/<th /g) ?? []).length, 6);
+  assert.ok(!withoutFinance.includes("بلا خزنة مفتوحة"));
+  assert.ok(!withoutFinance.includes("عهدة موظف مفتوحة"));
 });
