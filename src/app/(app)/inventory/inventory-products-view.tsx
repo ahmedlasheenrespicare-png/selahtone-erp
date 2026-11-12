@@ -92,7 +92,7 @@ export default function InventoryProductsView({
     <div className="card">
       <div className="inv-card-head">
         <h2>
-          الأصناف ومعدل الضريبة <span className="pill">{filtered.length} / {rows.length} صنف</span>
+          الأصناف ومعدل الضريبة <span className="pill" role="status" aria-live="polite" aria-atomic="true">{filtered.length} / {rows.length} صنف</span>
         </h2>
         <button
           type="button"
@@ -150,21 +150,21 @@ export default function InventoryProductsView({
         <table>
           <thead>
             <tr>
-              <th>SKU</th>
-              <th>الصنف</th>
-              <th>التصنيف</th>
-              <th>ضريبة</th>
-              {canSeeCost ? <th>سعر الشراء</th> : null}
-              <th>سعر البيع</th>
-              <th>سيريال</th>
-              <th>الأرصدة (فرع: كمية)</th>
+              <th scope="col">SKU</th>
+              <th scope="col">الصنف</th>
+              <th scope="col">التصنيف</th>
+              <th scope="col">ضريبة</th>
+              {canSeeCost ? <th scope="col">سعر الشراء</th> : null}
+              <th scope="col">سعر البيع</th>
+              <th scope="col">سيريال</th>
+              <th scope="col">الأرصدة (فرع: كمية)</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr>
                 <td colSpan={canSeeCost ? 8 : 7} className="muted">
-                  لا توجد أصناف تطابق البحث أو التصفية المختارة.
+                  <p role="status">لا توجد أصناف تطابق البحث أو التصفية المختارة.</p>
                 </td>
               </tr>
             ) : (
