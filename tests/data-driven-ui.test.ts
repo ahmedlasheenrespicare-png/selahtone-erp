@@ -105,6 +105,7 @@ import { cashCountHistoryColumns, cashCountHistoryCsvColumns, type CashCountHist
 import { reportBranchColumns, reportCategoryColumns, type ReportBranchRow, type ReportCategoryRow } from "../src/app/(app)/finance/reports/report-tables-metadata";
 import { createEmployeeSettlementColumns, type EmployeeSettlementRow } from "../src/app/(app)/finance/settlements/settlement-history-metadata";
 import { openAccountSummaryColumns, type OpenAccountSummaryRow } from "../src/app/(app)/finance/accounts/open-account-summary-metadata";
+import { createRecentExpenseColumns, type RecentExpenseRow } from "../src/app/(app)/finance/expenses/new/recent-expenses-metadata";
 import { expenseReviewQueueColumns, type ExpenseReviewQueueRow } from "../src/app/(app)/finance/expenses/reviews/expense-reviews-metadata";
 import { saleDetailLineColumns, type SaleDetailLineRow } from "../src/app/(app)/sales/[saleId]/sale-lines-metadata";
 import { csvHeaders, csvRows, filterRowsBySearch } from "../src/lib/data-driven-ui";
@@ -817,4 +818,28 @@ test("open account summary metadata preserves badges, LTR values, and current ba
   assert.ok(html.includes("<strong>#1</strong>"));
   assert.ok(html.includes("<strong>900.00</strong>"));
   for (const text of ["القاهرة", "الجيزة", "أحمد", "2026-11-02", "50.00"]) assert.ok(html.includes(text));
+});
+
+test("recent expense metadata guards branch and detail link by management role", () => {
+  const row: RecentExpenseRow = {
+    id: "19", expenseDate: "2026-11-12", branchName: "القاهرة", categoryName: "كهرباء",
+    description: "فاتورة تشغيل", beneficiary: "شركة الكهرباء", documentNumber: "INV-9",
+    amountFormatted: "1250.00", statusLabel: "بانتظار الاعتماد", statusTone: "pending",
+  };
+  const render = (canManage: boolean) => renderToStaticMarkup(React.createElement(DataTable<RecentExpenseRow>, {
+    rows: [row], columns: createRecentExpenseColumns(canManage), rowKey: (item) => item.id,
+    regionLabel: "جدول مالي قابل للتمرير", regionClassName: "fin-table-wrap", tableClassName: "fin-table",
+    caption: "آخر خمسة مصروفات مسجّلة لتفادي التكرار ومتابعة الحال",
+  }));
+  const manager = render(true);
+  assert.equal((manager.match(/<th /g) ?? []).length, 7);
+  assert.ok(manager.includes('href="/finance/expenses/19"'));
+  assert.ok(manager.includes("شركة الكهرباء · مستند: INV-9"));
+  assert.ok(manager.includes("fin-badge fin-badge--pending"));
+  for (const text of ["القاهرة", "كهرباء", "1250.00", "2026-11-12"]) assert.ok(manager.includes(text));
+  const staff = render(false);
+  assert.equal((staff.match(/<th /g) ?? []).length, 6);
+  assert.ok(!staff.includes("href="));
+  assert.ok(!staff.includes(">الفرع</th>"));
+  assert.ok(!staff.includes("القاهرة"));
 });
