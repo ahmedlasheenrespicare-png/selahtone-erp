@@ -89,6 +89,7 @@ import {
   parseFormattedMoney,
   type FinanceAccountRow,
 } from "../src/app/(app)/finance/finance-accounts-metadata";
+import { expenseReviewQueueColumns, type ExpenseReviewQueueRow } from "../src/app/(app)/finance/expenses/reviews/expense-reviews-metadata";
 import { saleDetailLineColumns, type SaleDetailLineRow } from "../src/app/(app)/sales/[saleId]/sale-lines-metadata";
 import { csvHeaders, csvRows, filterRowsBySearch } from "../src/lib/data-driven-ui";
 
@@ -663,4 +664,25 @@ test("finance account table guards management actions and preserves balance stat
     rows: [financeAccount], columns: staffColumns, rowKey: (row) => row.id, regionLabel: "جدول مالي قابل للتمرير",
   }));
   assert.ok(!readOnlyHtml.includes("إقفال"));
+});
+
+test("expense review queue metadata preserves review evidence and expense links", () => {
+  const row: ExpenseReviewQueueRow = {
+    id: "71", expenseId: "17", branchLabel: "القاهرة · CAI", expenseStatusLabel: "مدفوع",
+    revisionMismatch: true, reason: "مراجعة الدفع", proposedAmountLabel: "750.00",
+    paymentEvidenceLabel: "يتضمن مصدر نقد الموظف — يحتاج مراجعة", createdBy: "4", createdAt: "١٢ نوفمبر",
+  };
+  assert.deepEqual(expenseReviewQueueColumns.map((column) => column.id), ["review", "branch-status", "reason", "payment", "created"]);
+  const html = renderToStaticMarkup(React.createElement(DataTable<ExpenseReviewQueueRow>, {
+    rows: [row], columns: expenseReviewQueueColumns, rowKey: (item) => item.id,
+    regionLabel: "جدول مالي قابل للتمرير", regionClassName: "fin-table-wrap", tableClassName: "fin-table",
+    caption: "طلبات المراجعة المفتوحة، أحدث معرّف أولًا",
+  }));
+  assert.equal((html.match(/<th /g) ?? []).length, 5);
+  assert.ok(html.includes("<caption>طلبات المراجعة المفتوحة"));
+  assert.ok(html.includes('href="/finance/expenses/17"'));
+  assert.ok(html.includes("طلب #71"));
+  assert.ok(html.includes("إصدار الطلب لا يطابق المصروف الحالي"));
+  assert.ok(html.includes("مراجعة الدفع"));
+  assert.ok(html.includes("يتضمن مصدر نقد الموظف"));
 });
