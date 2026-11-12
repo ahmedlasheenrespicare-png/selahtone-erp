@@ -300,11 +300,11 @@ export function SalesStatsTopItemsPanel({ items, showProfitability }: { items: S
 
       {items.length === 0 ? (
         <div className="inv-panel__body">
-          <p className="inv-field__hint">لا توجد مبيعات مسجلة في هذه الفترة أو النطاق المختار.</p>
+          <p className="inv-field__hint" role="status">لا توجد مبيعات مسجلة في هذه الفترة أو النطاق المختار.</p>
         </div>
       ) : filteredAndSorted.length === 0 ? (
         <div className="inv-panel__body">
-          <p className="inv-field__hint">لا توجد أصناف مطابقة للفلتر أو عبارة البحث الحالية.</p>
+          <p className="inv-field__hint" role="status">لا توجد أصناف مطابقة للفلتر أو عبارة البحث الحالية.</p>
         </div>
       ) : (
         <div

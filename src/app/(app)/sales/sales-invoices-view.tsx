@@ -215,6 +215,7 @@ export default function SalesInvoicesView({
           </button>
         </div>
       </div>
+      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">عدد الفواتير المطابقة: {filtered.length}</p>
 
       {filtered.length === 0 ? (
         <div className="inv-panel sales-empty-filter" role="status">
@@ -238,15 +239,15 @@ export default function SalesInvoicesView({
             <table className="inv-table sales-invoices-table">
               <thead>
                 <tr>
-                  <th>الفاتورة</th>
-                  <th>العميل</th>
-                  <th>الفرع</th>
-                  <th>الإجمالي الأصلي</th>
-                  <th>المتبقي على العميل</th>
-                  <th>مستحق للعميل</th>
-                  <th>الحالة</th>
-                  <th>التاريخ</th>
-                  <th aria-label="تفاصيل" />
+                  <th scope="col">الفاتورة</th>
+                  <th scope="col">العميل</th>
+                  <th scope="col">الفرع</th>
+                  <th scope="col">الإجمالي الأصلي</th>
+                  <th scope="col">المتبقي على العميل</th>
+                  <th scope="col">مستحق للعميل</th>
+                  <th scope="col">الحالة</th>
+                  <th scope="col">التاريخ</th>
+                  <th scope="col" aria-label="تفاصيل" />
                 </tr>
               </thead>
               <tbody>
