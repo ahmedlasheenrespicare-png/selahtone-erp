@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import DashboardWallet, { type WalletPocketItem } from "@/app/(app)/dashboard/dashboard-wallet";
 import { AppIcon } from "@/components/app-icon";
+import DataTable from "@/components/data-driven/data-table";
 import PantherSpotlightCard from "@/components/panther-spotlight-card";
 import { branchScope, requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -16,6 +17,11 @@ import {
   SalesStatsTopItemsPanel,
 } from "./sales-stats-interactive";
 import { getAccessContext, requirePageAccess } from "@/lib/access-control-server";
+import {
+  salesStatsBranchColumns,
+  salesStatsCategoryColumns,
+  salesStatsStaffColumns,
+} from "./sales-stats-tables-metadata";
 
 export const dynamic = "force-dynamic";
 
@@ -515,55 +521,13 @@ export default async function SalesStatsPage({
               <p className="inv-field__hint">لا توجد فروع نشطة متاحة في هذا النطاق.</p>
             </div>
           ) : (
-            <div className="inv-table-wrap table-wrap" role="region" aria-label="جدول مقارنة الفروع" tabIndex={0}>
-              <table className="inv-table sales-stats-table">
-                <thead>
-                  <tr>
-                    <th scope="col">الفرع</th>
-                    <th scope="col">الفواتير</th>
-                    <th scope="col">صافي المبيعات</th>
-                    <th scope="col">التحصيل</th>
-                    <th scope="col">المتبقي</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {exec.branchPerformance.map((b) => (
-                    <tr key={b.branchId}>
-                      <td>
-                        <div className="sales-stats-branch-cell">
-                          <strong>{b.branchName}</strong>
-                          <small dir="ltr">{b.branchCode}</small>
-                        </div>
-                      </td>
-                      <td>{nf.format(b.invoiceCount)}</td>
-                      <td>
-                        <strong>
-                          <bdi dir="ltr">{b.netSalesFormatted}</bdi> ج.م
-                        </strong>
-                        <small className="sales-stats-cell-sub">
-                          حصة <bdi dir="ltr">{nf.format(b.sharePct)}%</bdi>
-                        </small>
-                      </td>
-                      <td>
-                        <div className="sales-stats-share">
-                          <span>
-                            <bdi dir="ltr">{nf.format(b.collectionRatePct)}%</bdi>
-                          </span>
-                          <div className="sales-stats-bar" aria-hidden="true">
-                            <span style={{ width: `${Math.min(100, Math.max(4, b.collectionRatePct))}%` }} />
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        <span className={b.outstandingNum > 0 ? "sales-stats-due" : ""}>
-                          <bdi dir="ltr">{b.outstandingFormatted}</bdi> ج.م
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              rows={exec.branchPerformance}
+              columns={salesStatsBranchColumns}
+              rowKey={(branch) => branch.branchId}
+              regionLabel="جدول مقارنة الفروع"
+              tableClassName="inv-table sales-stats-table"
+            />
           )}
         </div>
 
@@ -577,41 +541,13 @@ export default async function SalesStatsPage({
               <p className="inv-field__hint">لم تُسجّل فواتير نشطة بواسطة الموظفين في هذه الفترة.</p>
             </div>
           ) : (
-            <div className="inv-table-wrap table-wrap" role="region" aria-label="جدول أداء الموظفين" tabIndex={0}>
-              <table className="inv-table sales-stats-table">
-                <thead>
-                  <tr>
-                    <th scope="col">الموظف</th>
-                    <th scope="col">الفرع</th>
-                    <th scope="col">الفواتير</th>
-                    <th scope="col">صافي المبيعات</th>
-                    <th scope="col">متوسط الفاتورة</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {exec.staffPerformance.map((s) => (
-                    <tr key={s.userId}>
-                      <td>
-                        <strong>{s.staffName}</strong>
-                      </td>
-                      <td>{s.branchName}</td>
-                      <td>{nf.format(s.invoiceCount)}</td>
-                      <td>
-                        <strong>
-                          <bdi dir="ltr">{s.netSalesFormatted}</bdi> ج.م
-                        </strong>
-                        <small className="sales-stats-cell-sub">
-                          تحصيل <bdi dir="ltr">{nf.format(s.collectionRatePct)}%</bdi>
-                        </small>
-                      </td>
-                      <td>
-                        <bdi dir="ltr">{s.averageInvoiceFormatted}</bdi> ج.م
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              rows={exec.staffPerformance}
+              columns={salesStatsStaffColumns}
+              rowKey={(staff) => staff.userId}
+              regionLabel="جدول أداء الموظفين"
+              tableClassName="inv-table sales-stats-table"
+            />
           )}
         </div>
       </section>
@@ -623,45 +559,13 @@ export default async function SalesStatsPage({
             <h2>تحليل المبيعات حسب التصنيف</h2>
             <p>توزيع صافي إيراد الفترة والكميات المباعة عبر تصنيفات الخدمات السمعية والأصناف.</p>
           </div>
-          <div className="inv-table-wrap table-wrap" role="region" aria-label="جدول تحليل التصنيفات" tabIndex={0}>
-            <table className="inv-table sales-stats-table">
-              <thead>
-                <tr>
-                  <th scope="col">التصنيف</th>
-                  <th scope="col">عدد البنود</th>
-                  <th scope="col">إجمالي الكمية</th>
-                  <th scope="col">صافي الإيراد</th>
-                  <th scope="col">الحصة من الإيراد</th>
-                </tr>
-              </thead>
-              <tbody>
-                {categoryBreakdown.map((cat) => (
-                  <tr key={cat.category}>
-                    <td>
-                      <strong>{cat.category}</strong>
-                    </td>
-                    <td>{nf.format(cat.lines)}</td>
-                    <td>{nf.format(cat.qty)}</td>
-                    <td>
-                      <strong>
-                        <bdi dir="ltr">{nf.format(cat.revenue)}</bdi> ج.م
-                      </strong>
-                    </td>
-                    <td>
-                      <div className="sales-stats-share">
-                        <span>
-                          <bdi dir="ltr">{nf.format(cat.sharePct)}%</bdi>
-                        </span>
-                        <div className="sales-stats-bar" aria-hidden="true">
-                          <span style={{ width: `${Math.min(100, Math.max(4, cat.sharePct))}%` }} />
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            rows={categoryBreakdown}
+            columns={salesStatsCategoryColumns}
+            rowKey={(category) => category.category}
+            regionLabel="جدول تحليل التصنيفات"
+            tableClassName="inv-table sales-stats-table"
+          />
         </section>
       ) : null}
 

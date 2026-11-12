@@ -11,20 +11,31 @@ function tsxFiles(directory) {
 }
 
 const financeRoot = new URL("../src/app/(app)/finance/", import.meta.url).pathname;
-const wrappers = tsxFiles(financeRoot).flatMap((path) => {
+const financeFiles = tsxFiles(financeRoot);
+const wrappers = financeFiles.flatMap((path) => {
   const source = readFileSync(path, "utf8");
   return [...source.matchAll(/<div\b[^>]*className="fin-table-wrap"[^>]*>/g)].map((match) => ({
     path,
     tag: match[0],
   }));
 });
+const sharedTables = financeFiles.flatMap((path) => {
+  const source = readFileSync(path, "utf8");
+  if (!source.includes('regionClassName="fin-table-wrap"')) return [];
+  return Array.from({ length: (source.match(/<DataTable\b/g) ?? []).length }, () => path);
+});
 
 test("every finance table scroller is a named keyboard-accessible region", () => {
-  assert.ok(wrappers.length >= 24, `expected the existing finance tables, found ${wrappers.length}`);
+  assert.ok(wrappers.length + sharedTables.length >= 24, `expected the existing finance tables, found ${wrappers.length + sharedTables.length}`);
   for (const { path, tag } of wrappers) {
     assert.match(tag, /role="region"/, path);
     assert.match(tag, /aria-label="[^"]+"/, path);
     assert.match(tag, /tabIndex=\{0\}/, path);
+  }
+  const shared = readFileSync(new URL("../src/components/data-driven/data-table.tsx", import.meta.url), "utf8");
+  assert.ok(shared.includes('className={regionClassName} role="region" aria-label={regionLabel} tabIndex={0}'));
+  for (const path of sharedTables) {
+    assert.ok(readFileSync(path, "utf8").includes("regionLabel="), path);
   }
 });
 

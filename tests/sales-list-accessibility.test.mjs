@@ -26,12 +26,14 @@ test("invoice list and detail tables expose column headers", () => {
   const table = read("../src/components/data-driven/data-table.tsx");
   const metadata = read("../src/app/(app)/sales/sales-invoices-metadata.tsx");
   const detail = read("../src/app/(app)/sales/[saleId]/page.tsx");
+  const detailMetadata = read("../src/app/(app)/sales/[saleId]/sale-lines-metadata.tsx");
   assert.ok(list.includes("<DataTable"));
-  assert.ok(table.includes('<th key={column.id} scope="col" aria-label={column.headerAriaLabel}>'));
+  assert.ok(table.includes('<th key={column.id} scope="col" aria-label={column.headerAriaLabel} className={column.headerClassName}>'));
   assert.equal((metadata.match(/^      id: "/gm) ?? []).length, 9);
   assert.ok(metadata.includes('headerAriaLabel: "تفاصيل"'));
-  assert.equal((detail.match(/<th scope="col">/g) ?? []).length, 6);
-  assert.ok(detail.includes('role="region" aria-label="بنود الفاتورة" tabIndex={0}'));
+  assert.equal((detailMetadata.match(/header: /g) ?? []).length, 6);
+  assert.ok(detail.includes("columns={saleDetailLineColumns}"));
+  assert.ok(detail.includes('regionLabel="بنود الفاتورة"'));
 });
 
 test("sales statistics empty states are announced", () => {
