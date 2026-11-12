@@ -29,7 +29,7 @@ export default async function NewReceiptPage() {
   return <div className="inv-page">
     <Link href="/inventory/receipts" className="inv-back"><AppIcon name="arrow" /> العودة إلى سجل التوريدات</Link>
     <div className="inv-heading"><div><p className="inv-heading__eyebrow">حركة مخزون</p><h1>تسجيل توريد بضاعة</h1><p>أضف كمية صنف إلى مستودع واحد بعد مراجعة التكلفة والسيريالات.</p></div></div>
-    {!products.length || !warehouses.length ? <div className="inv-panel inv-empty">لا يمكن تسجيل توريد قبل توفر صنف مخزني نشط ومستودع نشط في نطاق حسابك.</div> : <ReceiptForm
+    {!products.length || !warehouses.length ? <div className="inv-panel inv-empty" role="status">لا يمكن تسجيل توريد قبل توفر صنف مخزني نشط ومستودع نشط في نطاق حسابك.</div> : <ReceiptForm
       requestId={randomUUID()}
       products={products.map((product) => ({ id: product.id.toString(), name: product.nameAr, sku: product.sku, needsSerials: product.isSerialized || product.category === "HEARING_AID", purchaseCost: showPurchaseCostHint ? product.purchaseCost.toString() : null }))}
       warehouses={warehouses.map((warehouse) => ({ id: warehouse.id.toString(), name: warehouse.nameAr, code: warehouse.code, branch: warehouse.branch.nameAr }))}

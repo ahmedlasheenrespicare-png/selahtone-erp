@@ -67,7 +67,7 @@ export default async function SerialsPage({ searchParams }: Props) {
               </tr>;
             })}</tbody>
           </table>
-        </div> : <div className="inv-empty">لا توجد أرقام مسجّلة مطابقة في نطاق حسابك.</div>}
+        </div> : <div className="inv-empty" role="status">لا توجد أرقام مسجّلة مطابقة في نطاق حسابك.</div>}
         {hasMore && <div className="inv-actions" style={{ marginTop: 16 }}><Link className="inv-button inv-button--secondary" href={`/inventory/serials?${nextParams.toString()}`}>عرض الأرقام التالية</Link></div>}
       </div>
     </section>
