@@ -113,6 +113,7 @@ import {
   type ReadinessCheckItem,
 } from "../src/app/(app)/setup/setup-readiness-tables-metadata";
 import { securityAttemptColumns, type SecurityAttemptRow } from "../src/app/(app)/admin/security-audit-table-metadata";
+import { createUserDirectoryColumns, type AdminUserDirectoryRow } from "../src/app/(app)/admin/user-directory-table-metadata";
 import { expenseReviewQueueColumns, type ExpenseReviewQueueRow } from "../src/app/(app)/finance/expenses/reviews/expense-reviews-metadata";
 import { saleDetailLineColumns, type SaleDetailLineRow } from "../src/app/(app)/sales/[saleId]/sale-lines-metadata";
 import { csvHeaders, csvRows, filterRowsBySearch } from "../src/lib/data-driven-ui";
@@ -903,4 +904,31 @@ test("security audit metadata preserves hashed identity, role, result tone, and 
   assert.ok(html.includes("admin-pill admin-pill--ok"));
   assert.ok(html.includes("2026-11-12 10:30"));
   for (const text of ["أحمد", "موظف فرع", "القاهرة", "دخول ناجح"]) assert.ok(html.includes(text));
+});
+
+test("user directory metadata preserves role hierarchy, custody, sessions, and editing state", () => {
+  const user: AdminUserDirectoryRow = {
+    id: "4", fullName: "أحمد", email: "ahmed@example.com", phone: "01000000000", role: "CS_AGENT",
+    branchId: "1", branchName: "القاهرة", isActive: true, mustChangePassword: true, isSelf: false,
+    activeSessionCount: 2, lastLoginLabel: "2026-11-12 10:00", openCustodyId: "8",
+  };
+  const manager: AdminUserDirectoryRow = { ...user, id: "1", fullName: "المدير", role: "MANAGER", branchId: null, branchName: null, openCustodyId: null, activeSessionCount: 0, mustChangePassword: false };
+  const render = (actorRole: "MANAGER" | "ACCOUNTANT", financeOn: boolean) => renderToStaticMarkup(React.createElement(DataTable<AdminUserDirectoryRow>, {
+    rows: [user, manager],
+    columns: createUserDirectoryColumns({ actorRole, financeOn, editingUserId: actorRole === "MANAGER" ? "4" : null, onToggleUser: () => undefined }),
+    rowKey: (row) => row.id, regionLabel: "جدول المستخدمين", tableClassName: "dashboard-table",
+  }));
+  const html = render("MANAGER", true);
+  assert.equal((html.match(/<th /g) ?? []).length, 5);
+  assert.ok(html.includes('href="/finance/accounts"'));
+  assert.ok(html.includes("عهدة نقدية مفتوحة #8"));
+  assert.ok(html.includes("2 جلسة"));
+  assert.ok(html.includes("بانتظار تغيير كلمة المرور المؤقتة"));
+  assert.ok(html.includes("إغلاق"));
+  assert.ok(html.includes("إدارة مركزية (كل الفروع)"));
+  const accountant = render("ACCOUNTANT", false);
+  assert.ok(accountant.includes("إدارة"));
+  assert.ok(accountant.includes("صلاحية المدير"));
+  assert.ok(!accountant.includes('href="/finance/accounts"'));
+  assert.ok(accountant.includes("عهدة نقدية مفتوحة #8"));
 });
