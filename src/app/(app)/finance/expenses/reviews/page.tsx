@@ -34,7 +34,7 @@ export default async function OpenExpenseReviewsPage({ searchParams }: Props) {
     <Link href="/finance/expenses" className="fin-back">العودة إلى المصروفات</Link>
     <div className="fin-heading"><div><h1>طلبات مراجعة المصروفات المفتوحة</h1><p>للمدير والمحاسب المصرّح لهما؛ تشمل القائمة جميع الفروع المتاحة للإدارة، وليست مرتبطة بمرشحات سجل المصروفات.</p></div></div>
     <div className="fin-alert fin-alert--warning">هذه طلبات للفحص فقط: المبلغ المقترح ليس تصحيحًا، ووجود نقد الموظف لا يثبت حامل النقد أو الفترة أو أثر التسوية. افتح المصروف لمراجعة الطلب؛ يمكن لمدير أو محاسب مخوّل غير منشئه إغلاقه دون تغيير بعد الفحص وبسبب إلزامي. الإغلاق لا يثبت الدفع أو التسوية ولا يرفع حراسة التصحيح، ولا يؤكد تصحيحًا.</div>
-    {queue.rows.length ? <div className="fin-table-wrap"><table className="fin-table">
+    {queue.rows.length ? <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}><table className="fin-table">
       <caption>طلبات المراجعة المفتوحة، أحدث معرّف أولًا</caption>
       <thead><tr><th scope="col">الطلب والمصروف</th><th scope="col">الفرع والحالة</th><th scope="col">السبب والمقترح</th><th scope="col">بيانات الدفع المسجلة</th><th scope="col">التسجيل</th></tr></thead>
       <tbody>{queue.rows.map(row => <tr key={row.id}>

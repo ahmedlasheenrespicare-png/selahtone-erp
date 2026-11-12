@@ -454,7 +454,7 @@ export default function TransfersLedgerView({
                 : "لا توجد حركات تسليم تطابق معايير البحث أو التصفية الحالية."}
             </div>
           ) : (
-            <div className="fin-table-wrap">
+            <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
               <table className="fin-table">
                 <caption>سجل الحركات النقدية — مسار الأموال والسندات المرافقة</caption>
                 <thead>
@@ -523,7 +523,7 @@ export default function TransfersLedgerView({
               : "لا توجد تسويات مؤرشفة تطابق البحث الحالي."}
           </div>
         ) : (
-          <div className="fin-table-wrap">
+          <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
             <table className="fin-table">
               <caption>طلبات التسوية — مؤشر الفترة والمعدود والفرق عنه والقرار النهائي</caption>
               <thead>

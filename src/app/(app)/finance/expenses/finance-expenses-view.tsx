@@ -244,7 +244,7 @@ export default function FinanceExpensesView({
         {filtered.length === 0 ? (
           <div className="fin-empty">لا توجد مصروفات تطابق معايير البحث أو التصفية الحالية.</div>
         ) : (
-          <div className="fin-table-wrap">
+          <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
             <table className="fin-table">
               <caption>سجل المصروفات المعروض حسب حالة التصفية — المبلغ الفعّال بعد أي تصحيح</caption>
               <thead>

@@ -199,7 +199,7 @@ export default async function ExpenseDetailPage({ params }: Props) {
           <h2>بيانات المصروف</h2>
           <p>المبلغ الفعال يظهر بعد أي تصحيح مؤكد؛ الأصل محفوظ دائمًا.</p>
         </div>
-        <div className="fin-table-wrap">
+        <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
           <table className="fin-table">
             <caption>بيانات المصروف الموثّقة بعد أي تصحيح مؤكد</caption>
             <tbody>
@@ -263,7 +263,7 @@ export default async function ExpenseDetailPage({ params }: Props) {
             <h2>بيانات الصرف</h2>
             <p>بيانات الدفع المسجّلة؛ المصدر والتاريخ لا يثبتان وحدهما وقوع الدفع أو شمول تسوية سابقة.</p>
           </div>
-          <div className="fin-table-wrap">
+          <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
             <table className="fin-table">
               <caption>بيانات الصرف المسجّلة — المصدر والطريقة والمسجّل</caption>
               <thead>
@@ -300,7 +300,7 @@ export default async function ExpenseDetailPage({ params }: Props) {
             {openReviews.length > 0 ? (
               <>
                 <div className="fin-alert fin-alert--warning" role="status">يوجد طلب مراجعة مفتوح؛ لا يمكن إرسال طلب آخر حتى يُعالج. لا يثبت ذلك شمول الفرق في أي تسوية.</div>
-                <div className="fin-table-wrap">
+                <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
                   <table className="fin-table">
                     <caption>طلبات المراجعة المفتوحة للمصروف</caption>
                     <thead><tr><th scope="col">الطلب</th><th scope="col">السبب</th><th scope="col">المبلغ المقترح</th><th scope="col">المسجّل</th><th scope="col">وقت التسجيل</th></tr></thead>
@@ -322,7 +322,7 @@ export default async function ExpenseDetailPage({ params }: Props) {
               <ReviewForm requestId={randomUUID()} expenseId={expense.id} revision={String(expense.revision)} />
             )}
             {reviewData.history.length > 0 ? (
-              <div className="fin-table-wrap">
+              <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
                 <table className="fin-table">
                   <caption>المراجعات غير المفتوحة المسجلة للمصروف</caption>
                   <thead><tr><th scope="col">الطلب</th><th scope="col">الحالة</th><th scope="col">سبب الطلب والمبلغ المقترح</th><th scope="col">التسجيل</th><th scope="col">قرار المراجعة المسجل</th></tr></thead>
@@ -339,7 +339,7 @@ export default async function ExpenseDetailPage({ params }: Props) {
               </div>
             ) : null}
             {reviewData.corrections.length > 0 ? (
-              <div className="fin-table-wrap">
+              <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
                 <table className="fin-table">
                   <caption>تصحيحات المبلغ المسجلة للمصروف</caption>
                   <thead><tr><th scope="col">التصحيح والمراجعة والدفع</th><th scope="col">المبلغ السابق</th><th scope="col">المبلغ المسجل بعد التصحيح</th><th scope="col">الحساب والفرق الدفتري المسجل</th><th scope="col">السبب والتسجيل</th></tr></thead>
@@ -357,7 +357,7 @@ export default async function ExpenseDetailPage({ params }: Props) {
               </div>
             ) : null}
             {reviewData.movements.length > 0 ? (
-              <div className="fin-table-wrap">
+              <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
                 <table className="fin-table">
                   <caption>الحركات المسجّلة المرتبطة بتصحيحات هذا المصروف</caption>
                   <thead><tr><th scope="col">الحركة والتصحيح</th><th scope="col">النوع والفرع</th><th scope="col">المصدر والوجهة المسجلان</th><th scope="col">المبلغ</th><th scope="col">المسجّل والوقت</th></tr></thead>

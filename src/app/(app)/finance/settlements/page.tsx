@@ -124,7 +124,7 @@ export default async function SettlementsPage() {
               {settlements.length === 0 ? (
                 <p className="fin-empty">لا توجد طلبات بعد.</p>
               ) : (
-                <div className="fin-table-wrap">
+                <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
                   <table className="fin-table">
                     <caption>تسويات العهد — مؤشر الفترة مقابل المعدود والفرق عنه</caption>
                     <thead>

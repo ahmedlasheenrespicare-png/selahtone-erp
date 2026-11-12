@@ -208,7 +208,7 @@ export default async function FinanceReportsPage({ searchParams }: Props) {
             <p className="fin-field__hint">لا مصروفات في الفترة المجموعة بعد.</p>
           </div>
         ) : (
-          <div className="fin-table-wrap">
+          <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
             <table className="fin-table">
               <caption>أعلى ستة بنود صرفًا في الفترة مع حصتها من إجمالي المدفوع</caption>
               <thead>
@@ -259,7 +259,7 @@ export default async function FinanceReportsPage({ searchParams }: Props) {
             <p className="fin-field__hint">لا توجد فروع لها مصروفات في هذه الفترة.</p>
           </div>
         ) : (
-          <div className="fin-table-wrap">
+          <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
             <table className="fin-table">
               <caption>مقارنة مصروفات الفروع في الفترة المختارة</caption>
               <thead>
@@ -357,7 +357,7 @@ export default async function FinanceReportsPage({ searchParams }: Props) {
           />
         </div>
         <div className="fin-panel__body">
-          <div className="fin-table-wrap">
+          <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
             <table className="fin-table">
               <caption>تسويات الشهر الحالي: العدد والفرق المطلق عن المؤشر والمعلّق المتقادم</caption>
               <thead>

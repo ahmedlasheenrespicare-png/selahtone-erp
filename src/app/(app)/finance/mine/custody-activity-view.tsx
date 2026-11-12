@@ -96,7 +96,7 @@ export default function CustodyActivityView({ items }: { items: CustodyMovementI
       {filtered.length === 0 ? (
         <div className="fin-empty">لا توجد حركات تطابق التصفية المختارة.</div>
       ) : (
-        <div className="fin-table-wrap">
+        <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
           <table className="fin-table">
             <caption>حركة عهدتي — الوارد والصادر بالتاريخ والمبلغ</caption>
             <thead>

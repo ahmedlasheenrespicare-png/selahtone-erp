@@ -253,7 +253,7 @@ export default function FinanceAccountsView({
         {filtered.length === 0 ? (
           <div className="fin-empty">لا توجد حسابات تطابق معايير البحث أو التصفية الحالية.</div>
         ) : (
-          <div className="fin-table-wrap">
+          <div className="fin-table-wrap" role="region" aria-label="جدول مالي قابل للتمرير" tabIndex={0}>
             <table className="fin-table">
               <caption>الحسابات النقدية — الجرد والرصيد الحالي لكل خزنة وعهدة</caption>
               <thead>
