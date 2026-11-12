@@ -114,6 +114,7 @@ import {
 } from "../src/app/(app)/setup/setup-readiness-tables-metadata";
 import { securityAttemptColumns, type SecurityAttemptRow } from "../src/app/(app)/admin/security-audit-table-metadata";
 import { createUserDirectoryColumns, type AdminUserDirectoryRow } from "../src/app/(app)/admin/user-directory-table-metadata";
+import { createBranchDirectoryColumns, type AdminBranchDirectoryRow } from "../src/app/(app)/admin/branch-directory-table-metadata";
 import { expenseReviewQueueColumns, type ExpenseReviewQueueRow } from "../src/app/(app)/finance/expenses/reviews/expense-reviews-metadata";
 import { saleDetailLineColumns, type SaleDetailLineRow } from "../src/app/(app)/sales/[saleId]/sale-lines-metadata";
 import { csvHeaders, csvRows, filterRowsBySearch } from "../src/lib/data-driven-ui";
@@ -931,4 +932,30 @@ test("user directory metadata preserves role hierarchy, custody, sessions, and e
   assert.ok(accountant.includes("صلاحية المدير"));
   assert.ok(!accountant.includes('href="/finance/accounts"'));
   assert.ok(accountant.includes("عهدة نقدية مفتوحة #8"));
+});
+
+test("branch directory metadata gates finance and management while preserving staff navigation", () => {
+  const branch: AdminBranchDirectoryRow = {
+    id: "1", code: "CAI", nameAr: "القاهرة", city: "القاهرة", phone: "0200000000",
+    invoicePrefix: "CAI-", isActive: true, userCount: 4, activeUserCount: 3,
+    warehouseCount: 2, hasOpenVault: false, openCustodyCount: 2,
+  };
+  const render = (showFinanceSummary: boolean, canManageBranches: boolean) => renderToStaticMarkup(React.createElement(DataTable<AdminBranchDirectoryRow>, {
+    rows: [branch], columns: createBranchDirectoryColumns({
+      showFinanceSummary, canManageBranches, editingBranchId: canManageBranches ? "1" : null,
+      onToggleBranch: () => undefined, onShowBranchStaff: () => undefined,
+    }), rowKey: (row) => row.id, regionLabel: "جدول الفروع", tableClassName: "dashboard-table",
+  }));
+  const manager = render(true, true);
+  assert.equal((manager.match(/<th /g) ?? []).length, 7);
+  assert.ok(manager.includes('href="/finance/accounts"'));
+  assert.ok(manager.includes("بلا خزنة — افتح الآن"));
+  assert.ok(manager.includes("عرض موظفي الفرع"));
+  assert.ok(manager.includes("إغلاق"));
+  for (const text of ["CAI-", "2 مستودع مرتبط", "3 نشط", "من 4", "2 عهدة موظف مفتوحة"]) assert.ok(manager.includes(text));
+  const accountant = render(false, false);
+  assert.equal((accountant.match(/<th /g) ?? []).length, 6);
+  assert.ok(!accountant.includes("الجاهزية المالية"));
+  assert.ok(!accountant.includes("بلا خزنة"));
+  assert.ok(accountant.includes("للمدير العام"));
 });
