@@ -380,14 +380,13 @@ test("الحزمة التنفيذية الخماسية للوحة القيادة
   assert.ok(!execSrc.includes("-infinity"), "يجب عدم استخدام -infinity في استعلامات لوحة القيادة");
 });
 
-test("المؤشرات المركّبة الثلاثة (الكفاءة الشاملة · التحوّل النقدي الصافي · تقييم وكفاءة الفروع) موصولة في لوحة القيادة", () => {
+test("مؤشرا الكفاءة الشاملة وتقييم الفروع موصولان في لوحة القيادة", () => {
   const dashSrc = readFileSync(
     new URL("../src/app/(app)/dashboard/page.tsx", import.meta.url),
     "utf8",
   );
   for (const token of [
     "compositeEfficiencySpotlight",
-    "cashConversionSpotlight",
     "branchEfficiencySpotlight",
     "branchScoresById",
   ]) {
@@ -430,7 +429,6 @@ test("كل بطاقة مؤشر تملك أيقونة مخصّصة ومختلفة
   for (const iconName of [
     'icon="efficiencyGauge"',
     'icon="customerCollection"',
-    'icon="cashConversion"',
     'icon="balanceScale"',
     'icon="expenseReceipt"',
     'icon="branchScorecard"',
@@ -534,7 +532,8 @@ test("الشريط السفلي المثبّت للجوال والشاشات ا�
   assert.ok(workspaceCss.includes("@media print {\n  .workspace-bottom-dock {\n    display: none !important;\n  }\n}"));
 
   // التحقق من الصفحات الخمس والأيقونات المستقلة وصلاحيات كل دور
-  const managerDock = mobileBottomDockItems("MANAGER", true, "FULL", false);
+  const fullAccess = { isPageAllowed: () => true, showAdministration: true };
+  const managerDock = mobileBottomDockItems("MANAGER", true, fullAccess, false);
   assert.equal(managerDock.length, 5);
   assert.deepEqual(managerDock.map((i) => i.href), [
     "/dashboard",
@@ -545,7 +544,7 @@ test("الشريط السفلي المثبّت للجوال والشاشات ا�
   ]);
   assert.equal(new Set(managerDock.map((i) => i.icon)).size, 5);
 
-  const accountantDock = mobileBottomDockItems("ACCOUNTANT", true, "FULL", false);
+  const accountantDock = mobileBottomDockItems("ACCOUNTANT", true, fullAccess, false);
   assert.equal(accountantDock.length, 5);
   assert.deepEqual(accountantDock.map((i) => i.href), [
     "/dashboard",
@@ -558,7 +557,7 @@ test("الشريط السفلي المثبّت للجوال والشاشات ا�
   assert.equal(accountantDock.some((i) => i.href === "/sales/stats"), false);
   assert.equal(new Set(accountantDock.map((i) => i.icon)).size, 5);
 
-  const staffDock = mobileBottomDockItems("CS_AGENT", true, "FULL", false);
+  const staffDock = mobileBottomDockItems("CS_AGENT", true, fullAccess, false);
   assert.equal(staffDock.length, 5);
   assert.deepEqual(staffDock.map((i) => i.href), [
     "/dashboard",
@@ -569,8 +568,17 @@ test("الشريط السفلي المثبّت للجوال والشاشات ا�
   ]);
   assert.equal(new Set(staffDock.map((i) => i.icon)).size, 5);
 
-  const limitedManager = mobileBottomDockItems("MANAGER", true, "LIMITED", false);
-  assert.equal(limitedManager.length, 5);
+  const limitedManager = mobileBottomDockItems("MANAGER", true, {
+    isPageAllowed: (href) => href.startsWith("/dashboard") || href.startsWith("/sales") || href.startsWith("/finance/expenses"),
+    showAdministration: false,
+  }, false);
+  assert.equal(limitedManager.length, 4, "تُحذف الوجهات المرفوضة دون إضافة بدائل غير مصرّح بها");
+  assert.deepEqual(limitedManager.map((item) => item.href), [
+    "/dashboard",
+    "/sales",
+    "/sales/new",
+    "/finance/expenses",
+  ]);
   for (const item of limitedManager) {
     if (item.href) {
       assert.ok(
@@ -767,7 +775,6 @@ test("الأنماط البصرية الستة للمؤشرات التفاعلي
   for (const expected of [
     'chartVariant="gauge"',
     'chartVariant="donut"',
-    'chartVariant="waterfall"',
     'chartVariant="area"',
     'chartVariant="bars"',
     'chartVariant={isEmployee ? "columns" : "waterfall"}',
@@ -928,6 +935,10 @@ test("صفحة الفروع والمستخدمون تحمي تراتبية ال�
     new URL("../src/app/(app)/admin/actions.ts", import.meta.url),
     "utf8",
   );
+  const adminDirectoryOperationsSrc = readFileSync(
+    new URL("../src/lib/admin-directory-operations.ts", import.meta.url),
+    "utf8",
+  );
   const adminHubSrc = readFileSync(
     new URL("../src/app/(app)/admin/admin-hub-view.tsx", import.meta.url),
     "utf8",
@@ -940,7 +951,9 @@ test("صفحة الفروع والمستخدمون تحمي تراتبية ال�
   // ١) حوكمة الصلاحيات وفحص العهدة المفتوحة قبل النقل أو الإيقاف
   assert.ok(adminActionsSrc.includes("requireManagerOnly"));
   assert.ok(adminActionsSrc.includes("canManageTargetUser"));
-  assert.ok(adminActionsSrc.includes("findOpenCustodyForUser"));
+  assert.ok(adminDirectoryOperationsSrc.includes("openCustodies"));
+  assert.ok(adminDirectoryOperationsSrc.includes("kind='CUSTODY'"));
+  assert.ok(adminDirectoryOperationsSrc.includes("closed_at IS NULL"));
 
   // ٢) المؤشر التفاعلي + ٣ تبويبات (مستخدمون / فروع / أمان) + مولّد كلمات مرور وتصدير CSV
   assert.ok(adminPageSrc.includes("PantherSpotlightCard"));
@@ -1328,5 +1341,5 @@ test("ترويسة لوحة القيادة تحتوي محدد نطاق الفر
   const menuPosition = sectionSwitcher.indexOf("{open ? (");
   assert.ok(sectionPickerPosition < dropdownButtonPosition && dropdownButtonPosition < controlsPosition && controlsPosition < menuPosition, "الأزرار بجوار نص محتوى لوحة القيادة داخل محدد القسم");
   assert.ok(!sectionSwitcher.includes("{renderSwitcherControls()}\n        </div>"), "نسخة الأزرار ليست أسفل محدد القسم");
-  assert.ok(switcherCss.includes(".dashboard-switcher-bar--header .dashboard-heading__selector-controls") && switcherCss.includes("width: 30px;") && switcherCss.includes("@media (max-width: 820px)"), "أزرار محدد القسم مضغوطة ومناسبة للشاشات الصغيرة");
+  assert.ok(switcherCss.includes(".dash-switcher-bar--header .dashboard-heading__selector-controls") && switcherCss.includes("width: 30px;") && switcherCss.includes("@media (max-width: 820px)"), "أزرار محدد القسم مضغوطة ومناسبة للشاشات الصغيرة");
 });
