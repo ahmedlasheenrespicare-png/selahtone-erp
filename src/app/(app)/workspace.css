@@ -1274,15 +1274,21 @@
   }
   .workspace-mobile-popover__actions .workspace-account-link {
     width: auto;
-    min-height: 36px;
+    min-height: 44px;
     padding: 6px 12px;
   }
   .workspace-mobile-popover__actions .workspace-account-link span {
     display: inline;
   }
   .workspace-mobile-popover__actions .workspace-logout {
-    min-height: 36px;
+    min-height: 44px;
     padding: 6px 12px;
+  }
+
+  .workspace-nav-item,
+  .workspace-nav-subitem,
+  .workspace-theme-row {
+    min-height: 44px;
   }
 
   .workspace-navigation {
