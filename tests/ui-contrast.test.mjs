@@ -480,15 +480,13 @@ test("دمج عناصر الشريط العلوي داخل شريط صلة تو�
     assert.ok(navSrc.includes(snippet), `شريط الجوال الموحّد يفتقد ${snippet}`);
   }
 
-  // ثبات أبعاد شريط صلة تون على الشاشات الضيقة والجوال (height: 42px / 48px, width: 100%, padding: 13px 18px) وإخفاء الشريط العلوي المنفصل
+  // ثبات شريط صلة تون بارتفاع يتسع لأهداف اللمس 44px وإخفاء الشريط العلوي المنفصل
   assert.ok(workspaceCss.includes(".workspace-mobile-strip,\n.workspace-mobile-popover {\n  display: none;\n}"));
   const mobileBlock = workspaceCss.slice(workspaceCss.indexOf("@media (max-width: 820px)"));
   assert.ok(mobileBlock.includes("padding: 13px 18px;"));
   assert.ok(mobileBlock.includes("width: 100%;"));
-  assert.ok(mobileBlock.includes("height: 42px;"));
-  assert.ok(mobileBlock.includes("max-height: 42px;"));
-  assert.ok(mobileBlock.includes("height: 48px;"));
-  assert.ok(mobileBlock.includes("max-height: 48px;"));
+  assert.ok(mobileBlock.includes("height: 52px;"));
+  assert.ok(mobileBlock.includes("max-height: 52px;"));
   assert.ok(mobileBlock.includes("flex-wrap: nowrap;"));
   assert.ok(mobileBlock.includes(".workspace-topbar {\n    display: none !important;\n  }"));
   assert.match(mobileBlock, /\.workspace-mobile-popover \{[\s\S]*?position: fixed;/);
