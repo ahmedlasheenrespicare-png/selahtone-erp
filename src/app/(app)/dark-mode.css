@@ -507,7 +507,7 @@
 .workspace-topbar__skydate.is-compact .sky-cycle-card:hover,
 .workspace-topbar__skydate.is-compact .sky-cycle-card:focus-visible {
   width: 92px;
-  height: 34px;
+  height: 44px;
   padding: 3px 7px;
   border-radius: 11px;
   transform: none;
@@ -522,7 +522,7 @@
 }
 
 .workspace-topbar__skydate.is-compact .sky-cycle-card__orbit {
-  top: 14px;
+  top: 19px;
   width: 132px;
   height: 132px;
 }
@@ -561,8 +561,8 @@
 }
 
 .workspace-topbar__skydate.is-compact .sky-cycle-reset {
-  min-height: 28px;
-  height: 28px;
+  min-height: 44px;
+  height: 44px;
   padding: 2px 6px;
   font-size: 9.5px;
   border-radius: 8px;

@@ -1014,9 +1014,9 @@
   }
   .workspace-sidebar__brand-row {
     position: relative;
-    height: 42px;
-    min-height: 42px;
-    max-height: 42px;
+    height: 52px;
+    min-height: 52px;
+    max-height: 52px;
     justify-content: space-between;
     align-items: center;
     flex-wrap: nowrap;
@@ -1026,9 +1026,9 @@
     border-bottom: 0;
   }
   .workspace-sidebar__brand-row.is-selahtone-brand {
-    height: 48px;
-    min-height: 48px;
-    max-height: 48px;
+    height: 52px;
+    min-height: 52px;
+    max-height: 52px;
     justify-content: space-between;
     padding: 0;
     margin-bottom: 0;
@@ -1053,8 +1053,8 @@
   .workspace-brand__text strong { font-size: 18px; }
   .workspace-nav-toggle {
     flex-shrink: 0;
-    width: 42px;
-    height: 42px;
+    width: 44px;
+    height: 44px;
     display: grid;
     place-items: center;
     border: 1px solid var(--ws-action-border);
@@ -1164,9 +1164,9 @@
     line-height: 1.2;
   }
   .workspace-account-link--compact {
-    width: 34px;
-    min-height: 34px;
-    height: 34px;
+    width: 44px;
+    min-height: 44px;
+    height: 44px;
     padding: 0;
     flex-shrink: 0;
   }
@@ -1174,9 +1174,9 @@
     display: none;
   }
   .workspace-mobile-strip__inline-actions .workspace-logout {
-    width: 34px;
-    min-height: 34px;
-    height: 34px;
+    width: 44px;
+    min-height: 44px;
+    height: 44px;
     padding: 0;
     flex-shrink: 0;
   }
@@ -1437,8 +1437,8 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    height: 34px;
-    min-width: 34px;
+    height: 44px;
+    min-width: 44px;
     max-width: 132px;
     padding: 3px 7px 3px 6px;
     border: 1px solid var(--ws-action-border);
