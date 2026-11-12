@@ -44,6 +44,7 @@ export default function OpeningForm({ requestId, initialProductId, products, war
     }
     setErrors({});
     setReview(parsed.value);
+    requestAnimationFrame(() => document.getElementById("opening-review-title")?.focus());
   }
 
   if (state.status === "success") {
@@ -105,7 +106,7 @@ export default function OpeningForm({ requestId, initialProductId, products, war
           </div></div>
         </section>}
         {review && <section className="inv-review" aria-labelledby="opening-review-title" aria-live="polite">
-          <h2 id="opening-review-title">راجع الرصيد قبل الحفظ</h2><p>لن يُحفظ شيء حتى تؤكد. لا يمكن تعديل هذا الرصيد من هنا بعد الحفظ.</p>
+          <h2 id="opening-review-title" tabIndex={-1}>راجع الرصيد قبل الحفظ</h2><p>لن يُحفظ شيء حتى تؤكد. لا يمكن تعديل هذا الرصيد من هنا بعد الحفظ.</p>
           <dl>
             <div><dt>الصنف</dt><dd>{reviewProduct?.name} ({reviewProduct?.sku})</dd></div>
             <div><dt>الفرع والمستودع</dt><dd>{reviewWarehouse?.branch} — {reviewWarehouse?.name}</dd></div>
@@ -115,7 +116,7 @@ export default function OpeningForm({ requestId, initialProductId, products, war
           {review.serials.length > 0 && <div className="inv-review__serials" dir="ltr" role="region" aria-label="الأرقام التسلسلية للمراجعة" tabIndex={0}>{review.serials.map((serial) => serial.number).join("\n")}</div>}
         </section>}
         <div className="inv-form-actions">
-          {!review ? <button type="button" className="inv-button" onClick={(event) => { event.preventDefault(); reviewValues(); }} disabled={pending}>مراجعة الرصيد</button> : <><button type="submit" className="inv-button" disabled={pending} aria-busy={pending}><span aria-live="polite">{pending ? "جارٍ الحفظ…" : "تأكيد وحفظ الرصيد"}</span></button><button type="button" className="inv-button inv-button--secondary" onClick={() => setReview(null)} disabled={pending}>تعديل البيانات</button></>}
+          {!review ? <button id="opening-review-button" type="button" className="inv-button" onClick={(event) => { event.preventDefault(); reviewValues(); }} disabled={pending}>مراجعة الرصيد</button> : <><button type="submit" className="inv-button" disabled={pending} aria-busy={pending}><span aria-live="polite">{pending ? "جارٍ الحفظ…" : "تأكيد وحفظ الرصيد"}</span></button><button type="button" className="inv-button inv-button--secondary" onClick={() => { setReview(null); requestAnimationFrame(() => document.getElementById("opening-review-button")?.focus()); }} disabled={pending}>تعديل البيانات</button></>}
           {pending ? <span className="inv-button inv-button--text" aria-disabled="true">انتظر انتهاء الحفظ</span> : <Link className="inv-button inv-button--text" href="/inventory">إلغاء</Link>}
         </div>
       </div>

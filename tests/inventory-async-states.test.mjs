@@ -33,6 +33,20 @@ test("inventory server field errors are linked and focus the first invalid field
   }
 });
 
+test("inventory review transitions preserve keyboard focus", () => {
+  for (const [path, prefix] of [
+    ["../src/app/(app)/inventory/new/product-form.tsx", "product"],
+    ["../src/app/(app)/inventory/opening/opening-form.tsx", "opening"],
+    ["../src/app/(app)/inventory/receipts/new/receipt-form.tsx", "receipt"],
+  ]) {
+    const source = read(path);
+    assert.ok(source.includes(`id="${prefix}-review-title" tabIndex={-1}`), path);
+    assert.ok(source.includes(`id="${prefix}-review-button" type="button"`), path);
+    assert.ok(source.includes(`requestAnimationFrame(() => document.getElementById("${prefix}-review-title")?.focus())`), path);
+    assert.ok(source.includes(`requestAnimationFrame(() => document.getElementById("${prefix}-review-button")?.focus())`), path);
+  }
+});
+
 test("inventory prerequisite and empty states are announced", () => {
   for (const path of [
     "../src/app/(app)/inventory/serials/page.tsx",
