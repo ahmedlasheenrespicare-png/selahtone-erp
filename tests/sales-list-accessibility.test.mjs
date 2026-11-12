@@ -27,7 +27,7 @@ test("invoice list and detail tables expose column headers", () => {
   const metadata = read("../src/app/(app)/sales/sales-invoices-metadata.tsx");
   const detail = read("../src/app/(app)/sales/[saleId]/page.tsx");
   assert.ok(list.includes("<DataTable"));
-  assert.ok(table.includes('<th key={column.id} scope="col" aria-label={column.headerAriaLabel}>'));
+  assert.ok(table.includes('<th key={column.id} scope="col" aria-label={column.headerAriaLabel} className={column.headerClassName}>'));
   assert.equal((metadata.match(/^      id: "/gm) ?? []).length, 9);
   assert.ok(metadata.includes('headerAriaLabel: "تفاصيل"'));
   assert.equal((detail.match(/<th scope="col">/g) ?? []).length, 6);

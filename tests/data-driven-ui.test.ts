@@ -41,7 +41,22 @@ import {
   financeExpenseTabs,
   type FinanceExpenseRow,
 } from "../src/app/(app)/finance/expenses/finance-expenses-metadata";
+import {
+  createTransferLedgerColumns,
+  settlementArchiveColumns,
+  settlementArchiveCsvColumns,
+  settlementArchiveFilters,
+  settlementArchiveSearch,
+  transferLedgerCsvColumns,
+  transferLedgerFilters,
+  transferLedgerSearch,
+  visibleTransferLedgerFilters,
+  type ArchivedSettlementRow,
+  type TransferLedgerRow,
+} from "../src/app/(app)/finance/transfers/transfers-ledger-metadata";
 import { csvHeaders, csvRows, filterRowsBySearch } from "../src/lib/data-driven-ui";
+
+Object.assign(globalThis, { React });
 
 const invoice: SalesInvoiceRow = {
   id: "42",
@@ -104,6 +119,38 @@ const expense: FinanceExpenseRow = {
   amountFormatted: "750.00",
   status: "PENDING",
   statusLabel: "بانتظار الاعتماد",
+};
+
+const transfer: TransferLedgerRow = {
+  id: "21",
+  branchId: "1",
+  branchName: "القاهرة · CAI",
+  fromLabel: "عهدة أحمد",
+  toLabel: "خزنة الفرع",
+  direction: "TO_VAULT",
+  amount: "1000.00",
+  amountFormatted: "1,000.00",
+  settlementId: "8",
+  actorName: "منى",
+  timestampFormatted: "١٢ نوفمبر ٢٠٢٦",
+  dateKey: "2026-11-12",
+};
+
+const settlement: ArchivedSettlementRow = {
+  id: "8",
+  branchId: "1",
+  branchName: "القاهرة · CAI",
+  holderName: "أحمد",
+  createdAtDate: "2026-11-12",
+  resolvedAtFormatted: "١٢ نوفمبر ٢٠٢٦",
+  expectedAmountFormatted: "1,000.00 ج.م",
+  countedAmountFormatted: "900.00 ج.م",
+  adjustmentFormatted: "-100.00 ج.م",
+  transferSummary: "بلا أثر مالي",
+  status: "REJECTED",
+  statusLabel: "مرفوضة",
+  resolvedByName: "منى",
+  reasonText: "فرق يحتاج مراجعة",
 };
 
 test("resource metadata defines the complete invoice table and action header", () => {
@@ -330,4 +377,59 @@ test("finance expense table keeps its caption and management-only action column"
   assert.equal((managerHtml.match(/<th /g) ?? []).length, 7);
   assert.ok(managerHtml.includes('href="/finance/expenses/17"'));
   assert.ok(managerHtml.includes("تفاصيل"));
+});
+
+test("transfer ledger metadata preserves movement and settlement filters and permissions", () => {
+  assert.equal(transferLedgerFilters[0].matches(transfer), true);
+  assert.equal(transferLedgerFilters[1].matches(transfer), true);
+  assert.equal(transferLedgerFilters[2].matches(transfer), false);
+  assert.equal(transferLedgerFilters[3].matches(transfer), false);
+  assert.equal(transferLedgerFilters[4].matches(transfer), true);
+  assert.equal(visibleTransferLedgerFilters(true).length, 5);
+  assert.equal(visibleTransferLedgerFilters(false).some((filter) => filter.id === "TO_CUSTODY"), false);
+  assert.equal(settlementArchiveFilters[1].matches(settlement), false);
+  assert.equal(settlementArchiveFilters[2].matches(settlement), true);
+  assert.equal(settlementArchiveFilters[3].matches(settlement), false);
+  assert.equal(settlementArchiveColumns.length, 9);
+  assert.equal(createTransferLedgerColumns(() => {}).length, 9);
+});
+
+test("transfer ledger search and CSV keep movement references and voucher details", () => {
+  assert.equal(filterRowsBySearch([transfer], "21", transferLedgerSearch.text).length, 1);
+  assert.equal(filterRowsBySearch([transfer], "خزنة", transferLedgerSearch.text).length, 1);
+  assert.equal(filterRowsBySearch([transfer], "لا يوجد", transferLedgerSearch.text).length, 0);
+  assert.deepEqual(csvHeaders(transferLedgerCsvColumns), ["رقم السند", "التوقيت", "الفرع", "الاتجاه", "من (المسلِّم)", "إلى (المستلِم)", "أصل الحركة", "المنفِّذ", "المبلغ (ج.م)"]);
+  assert.deepEqual(csvRows([transfer], transferLedgerCsvColumns), [["#21", "١٢ نوفمبر ٢٠٢٦", "القاهرة · CAI", "توريد للخزنة", "عهدة أحمد", "خزنة الفرع", "تسوية عهدة #8", "منى", "1,000.00"]]);
+});
+
+test("settlement archive search and CSV preserve decisions and custody totals", () => {
+  assert.equal(filterRowsBySearch([settlement], "8", settlementArchiveSearch.text).length, 1);
+  assert.equal(filterRowsBySearch([settlement], "فرق يحتاج", settlementArchiveSearch.text).length, 1);
+  assert.equal(filterRowsBySearch([settlement], "معتمدة", settlementArchiveSearch.text).length, 0);
+  assert.deepEqual(csvHeaders(settlementArchiveCsvColumns), ["رقم التسوية", "تاريخ الطلب", "الفرع", "الموظف", "المتوقع (ج.م)", "المعدود (ج.م)", "الفرق عن المؤشر (ج.م)", "التحويل المنفذ", "القرار", "متخذ القرار", "السبب / البيان"]);
+  assert.deepEqual(csvRows([settlement], settlementArchiveCsvColumns), [["#8", "2026-11-12", "القاهرة · CAI", "أحمد", "1,000.00 ج.م", "900.00 ج.م", "-100.00 ج.م", "بلا أثر مالي", "مرفوضة", "منى", "فرق يحتاج مراجعة"]]);
+});
+
+test("transfer and settlement tables preserve captions, amounts, and no-print voucher action", () => {
+  const transferHtml = renderToStaticMarkup(React.createElement(DataTable<TransferLedgerRow>, {
+    rows: [transfer], columns: createTransferLedgerColumns(() => {}), rowKey: (row) => row.id,
+    regionLabel: "جدول مالي قابل للتمرير", regionClassName: "fin-table-wrap", tableClassName: "fin-table",
+    caption: "سجل الحركات النقدية — مسار الأموال والسندات المرافقة",
+  }));
+  assert.equal((transferHtml.match(/<th /g) ?? []).length, 9);
+  assert.ok(transferHtml.includes("<caption>سجل الحركات النقدية"));
+  assert.ok(transferHtml.includes('<th scope="col" class="no-print">سند</th>'));
+  assert.ok(transferHtml.includes('title="طباعة سند التسليم الرسمي رقم #21"'));
+  assert.ok(transferHtml.includes('<bdi dir="ltr">#8</bdi>'));
+  assert.ok(transferHtml.includes("1,000.00"));
+  const archiveHtml = renderToStaticMarkup(React.createElement(DataTable<ArchivedSettlementRow>, {
+    rows: [settlement], columns: settlementArchiveColumns, rowKey: (row) => row.id,
+    regionLabel: "جدول مالي قابل للتمرير", regionClassName: "fin-table-wrap", tableClassName: "fin-table",
+    caption: "طلبات التسوية — مؤشر الفترة والمعدود والفرق عنه والقرار النهائي",
+  }));
+  assert.equal((archiveHtml.match(/<th /g) ?? []).length, 9);
+  assert.ok(archiveHtml.includes("<caption>طلبات التسوية"));
+  assert.ok(archiveHtml.includes("مرفوضة"));
+  assert.ok(archiveHtml.includes("-100.00 ج.م"));
+  assert.ok(archiveHtml.includes("فرق يحتاج مراجعة"));
 });

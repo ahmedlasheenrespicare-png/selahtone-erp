@@ -41,7 +41,7 @@ test("product and receipt tables expose all column headers", () => {
     assert.ok(metadata.includes(`id: "${id}"`), id);
   }
   assert.ok(metadata.includes('...(canSeeCost ? [{'));
-  assert.ok(table.includes('<th key={column.id} scope="col" aria-label={column.headerAriaLabel}>'));
+  assert.ok(table.includes('<th key={column.id} scope="col" aria-label={column.headerAriaLabel} className={column.headerClassName}>'));
   assert.equal((receipts.match(/<th(?: scope="col")?>/g) ?? []).length, 9);
   assert.equal((receipts.match(/<th scope="col">/g) ?? []).length, 9);
   assert.ok(receipts.includes('{showUnitCost && <th scope="col">تكلفة الوحدة (ج.م)</th>}'));

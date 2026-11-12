@@ -4,6 +4,7 @@ export type DataColumn<Row> = {
   id: string;
   header: ReactNode;
   headerAriaLabel?: string;
+  headerClassName?: string;
   renderCell: (row: Row, index: number) => ReactNode;
   cellClassName?: string | ((row: Row) => string | undefined);
 };
@@ -39,7 +40,7 @@ export default function DataTable<Row>({
         <thead>
           <tr>
             {columns.map((column) => (
-              <th key={column.id} scope="col" aria-label={column.headerAriaLabel}>
+              <th key={column.id} scope="col" aria-label={column.headerAriaLabel} className={column.headerClassName}>
                 {column.header}
               </th>
             ))}
