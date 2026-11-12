@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Fragment, useMemo, useState } from "react";
 import { AppIcon } from "@/components/app-icon";
+import DataTable from "@/components/data-driven/data-table";
 import {
   canManageBranchStructure,
   canManageTargetUser,
@@ -20,24 +21,8 @@ import {
   type BranchRow,
   type UserRow,
 } from "./admin-forms";
-
-export type SecurityAttemptRow = {
-  id: string;
-  userFullName: string | null;
-  userRoleLabel: string | null;
-  branchName: string | null;
-  shortIdentifierHash: string;
-  resultCode:
-    | "SUCCESS"
-    | "FAILED"
-    | "THROTTLED"
-    | "PASSWORD_CHANGE_SUCCESS"
-    | "PASSWORD_CHANGE_FAILED"
-    | "PASSWORD_RESET";
-  resultLabel: string;
-  tone: "ok" | "err" | "warn" | "info";
-  timestampFormatted: string;
-};
+import { securityAttemptColumns, type SecurityAttemptRow } from "./security-audit-table-metadata";
+export type { SecurityAttemptRow } from "./security-audit-table-metadata";
 
 type HubTab = "users" | "branches" | "security";
 type UserStatusFilter =
@@ -313,13 +298,6 @@ export default function AdminHubView({
     if (role === "MANAGER") return "admin-pill admin-pill--manager";
     if (role === "ACCOUNTANT") return "admin-pill admin-pill--accountant";
     return "admin-pill admin-pill--staff";
-  }
-
-  function secBadgeClass(tone: SecurityAttemptRow["tone"]): string {
-    if (tone === "ok") return "admin-pill admin-pill--ok";
-    if (tone === "err") return "admin-pill admin-pill--err";
-    if (tone === "warn") return "admin-pill admin-pill--warn";
-    return "admin-pill admin-pill--accountant";
   }
 
   return (
@@ -971,56 +949,9 @@ export default function AdminHubView({
             </div>
           </div>
 
-          <div className="dashboard-table-wrap" role="region" aria-label="جدول سجل الدخول" tabIndex={0}>
-            <table className="dashboard-table">
-              <thead>
-                <tr>
-                  <th scope="col">قيد #</th>
-                  <th scope="col">المستخدم / البصمة</th>
-                  <th scope="col">الدور والفرع</th>
-                  <th scope="col">نتيجة الحدث</th>
-                  <th scope="col">التاريخ والوقت</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredSecurity.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} style={{ textAlign: "center", padding: "24px 12px" }}>
-                      لا توجد أحداث أمنية مطابقة لمعايير البحث الحالية.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredSecurity.map((row) => (
-                    <tr key={row.id}>
-                      <td dir="ltr">#{row.id}</td>
-                      <td>
-                        <div className="admin-cell-stack">
-                          <strong>{row.userFullName ?? "معرّف غير مرتبط بحساب"}</strong>
-                          <small dir="ltr" className="admin-subtext">
-                            SHA: {row.shortIdentifierHash}
-                          </small>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="admin-cell-stack">
-                          <span>{row.userRoleLabel ?? "—"}</span>
-                          <small className="admin-subtext">
-                            {row.branchName ?? "—"}
-                          </small>
-                        </div>
-                      </td>
-                      <td>
-                        <span className={secBadgeClass(row.tone)}>
-                          {row.resultLabel}
-                        </span>
-                      </td>
-                      <td dir="ltr">{row.timestampFormatted}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+          <DataTable rows={filteredSecurity} columns={securityAttemptColumns} rowKey={(row) => row.id}
+            regionLabel="جدول سجل الدخول" regionClassName="dashboard-table-wrap" tableClassName="dashboard-table"
+            emptyState={<span style={{ display: "block", textAlign: "center", padding: "24px 12px" }}>لا توجد أحداث أمنية مطابقة لمعايير البحث الحالية.</span>} />
 
           <div className="dashboard-panel__footer">
             <span>

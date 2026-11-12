@@ -112,6 +112,7 @@ import {
   type BranchReadinessRow,
   type ReadinessCheckItem,
 } from "../src/app/(app)/setup/setup-readiness-tables-metadata";
+import { securityAttemptColumns, type SecurityAttemptRow } from "../src/app/(app)/admin/security-audit-table-metadata";
 import { expenseReviewQueueColumns, type ExpenseReviewQueueRow } from "../src/app/(app)/finance/expenses/reviews/expense-reviews-metadata";
 import { saleDetailLineColumns, type SaleDetailLineRow } from "../src/app/(app)/sales/[saleId]/sale-lines-metadata";
 import { csvHeaders, csvRows, filterRowsBySearch } from "../src/lib/data-driven-ui";
@@ -884,4 +885,22 @@ test("setup readiness metadata preserves check diagnostics and branch finance ga
   assert.equal((withoutFinance.match(/<th /g) ?? []).length, 6);
   assert.ok(!withoutFinance.includes("بلا خزنة مفتوحة"));
   assert.ok(!withoutFinance.includes("عهدة موظف مفتوحة"));
+});
+
+test("security audit metadata preserves hashed identity, role, result tone, and timestamp", () => {
+  const rows: SecurityAttemptRow[] = [
+    { id: "91", userFullName: null, userRoleLabel: null, branchName: null, shortIdentifierHash: "ab12cd34", resultCode: "THROTTLED", resultLabel: "تقييد مؤقت", tone: "warn", timestampFormatted: "2026-11-12 10:30" },
+    { id: "90", userFullName: "أحمد", userRoleLabel: "موظف فرع", branchName: "القاهرة", shortIdentifierHash: "ef56gh78", resultCode: "SUCCESS", resultLabel: "دخول ناجح", tone: "ok", timestampFormatted: "2026-11-12 10:00" },
+  ];
+  const html = renderToStaticMarkup(React.createElement(DataTable<SecurityAttemptRow>, {
+    rows, columns: securityAttemptColumns, rowKey: (row) => row.id,
+    regionLabel: "جدول سجل الدخول", regionClassName: "dashboard-table-wrap", tableClassName: "dashboard-table",
+  }));
+  assert.equal((html.match(/<th /g) ?? []).length, 5);
+  assert.ok(html.includes("معرّف غير مرتبط بحساب"));
+  assert.ok(html.includes("SHA: ab12cd34"));
+  assert.ok(html.includes("admin-pill admin-pill--warn"));
+  assert.ok(html.includes("admin-pill admin-pill--ok"));
+  assert.ok(html.includes("2026-11-12 10:30"));
+  for (const text of ["أحمد", "موظف فرع", "القاهرة", "دخول ناجح"]) assert.ok(html.includes(text));
 });
