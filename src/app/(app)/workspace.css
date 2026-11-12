@@ -6786,3 +6786,16 @@ a.dash-receipt:focus-visible {
 .dash-today-section__icon--old svg { width: 15px; height: 15px; }
 .dash-today-section__sum.is-old { color: #b45309; }
 .dash-today-invoice__meta--sub { display: block; margin-top: 2px; font-size: 11px; color: var(--mp-muted, #6b7280); }
+
+/* نماذج الجوال: خط 16px يمنع التكبير التلقائي في iOS، وارتفاع 44px يسهّل اللمس. */
+@media screen and (max-width: 820px) {
+  .workspace-content input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]),
+  .workspace-content select,
+  .workspace-content textarea {
+    font-size: 16px !important;
+  }
+  .workspace-content input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]),
+  .workspace-content select {
+    min-height: 44px !important;
+  }
+}
