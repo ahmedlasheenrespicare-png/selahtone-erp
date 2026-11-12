@@ -31,6 +31,7 @@ export default function InventoryProductsView({
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [stockFilter, setStockFilter] = useState<StockFilter>("ALL");
+  const [exportMessage, setExportMessage] = useState("");
 
   const lowCount = useMemo(
     () => rows.filter((r) => !r.isService && r.qtyUnits > 0 && r.qtyUnits <= 2).length,
@@ -92,6 +93,7 @@ export default function InventoryProductsView({
             ],
       ),
     );
+    setExportMessage(`تم بدء تنزيل ملف CSV ويضم ${filtered.length} صنف.`);
   }
 
   return (
@@ -110,6 +112,7 @@ export default function InventoryProductsView({
           <span>تصدير CSV</span>
         </button>
       </div>
+      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{exportMessage}</p>
 
       {(zeroCount > 0 || lowCount > 0) ? (
         <div className="alert alert-warn" role="status">

@@ -21,6 +21,14 @@ test("invalid serial search is linked to its input and alert", () => {
   assert.ok(source.includes('id="serial-search-error" className="inv-alert inv-alert--error" role="alert"'));
 });
 
+test("inventory CSV export announces the filtered download", () => {
+  const source = read("../src/app/(app)/inventory/inventory-products-view.tsx");
+  assert.ok(source.includes('const [exportMessage, setExportMessage] = useState("")'));
+  assert.ok(source.includes('setExportMessage(`تم بدء تنزيل ملف CSV ويضم ${filtered.length} صنف.`)'));
+  assert.ok(source.includes('className="sr-only" role="status" aria-live="polite" aria-atomic="true">{exportMessage}</p>'));
+  assert.ok(source.includes('disabled={filtered.length === 0}'));
+});
+
 test("product and receipt tables expose all column headers", () => {
   const products = read("../src/app/(app)/inventory/inventory-products-view.tsx");
   const receipts = read("../src/app/(app)/inventory/receipts/page.tsx");
