@@ -40,6 +40,15 @@ test("mobile navigation, account, theme and logout controls have 44px touch targ
   assertMinimumTarget(darkModeCss, ".workspace-topbar__skydate.is-compact .sky-cycle-reset", { width: false });
 });
 
+test("mobile account actions and navigation links have 44px touch targets", () => {
+  assertMinimumTarget(mobileCss, ".workspace-mobile-popover__actions .workspace-account-link", { width: false });
+  assertMinimumTarget(mobileCss, ".workspace-mobile-popover__actions .workspace-logout", { width: false });
+  assertMinimumTarget(mobileCss, ".workspace-nav-item", { width: false });
+  assertMinimumTarget(mobileCss, ".workspace-nav-subitem", { width: false });
+  assertMinimumTarget(mobileCss, ".workspace-theme-row", { width: false });
+  assertMinimumTarget(mobileCss, ".workspace-bottom-dock__item", { width: false });
+});
+
 test("the mobile brand row contains its enlarged controls without wrapping", () => {
   for (const selector of [
     ".workspace-sidebar__brand-row",
