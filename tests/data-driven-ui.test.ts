@@ -80,6 +80,7 @@ import {
   type CategoryAuditItem,
   type CategoryDirectoryItem,
 } from "../src/app/(app)/finance/categories/categories-directory-metadata";
+import { saleDetailLineColumns, type SaleDetailLineRow } from "../src/app/(app)/sales/[saleId]/sale-lines-metadata";
 import { csvHeaders, csvRows, filterRowsBySearch } from "../src/lib/data-driven-ui";
 
 Object.assign(globalThis, { React });
@@ -584,4 +585,30 @@ test("category tables preserve actions, audit badges, captions, and optional edi
   assert.ok(auditHtml.includes("fin-badge fin-badge--vault"));
   assert.ok(auditHtml.includes("توحيد المسمى"));
   assert.ok(auditHtml.includes("<caption>سجل تدقيق"));
+});
+
+test("sale detail line metadata preserves tax, custom details, serials, and all amounts", () => {
+  const line: SaleDetailLineRow = {
+    id: "51", name: "سماعة", sku: "SKU-51", taxCode: "VAT", taxRateFormatted: "14.000",
+    detailNotes: ["النوع: خلف الأذن"], serialNotes: ["SN-51 (مرتجع)"], quantityFormatted: "1.00",
+    unitPriceFormatted: "1,000.00", discountFormatted: "50.00", taxFormatted: "116.28", totalFormatted: "950.00",
+  };
+  assert.deepEqual(saleDetailLineColumns.map((column) => column.id), ["product", "quantity", "unit-price", "discount", "tax", "total"]);
+  const html = renderToStaticMarkup(React.createElement(DataTable<SaleDetailLineRow>, {
+    rows: [line], columns: saleDetailLineColumns, rowKey: (row) => row.id,
+    regionLabel: "بنود الفاتورة", regionClassName: "inv-table-wrap table-wrap", tableClassName: "inv-table",
+  }));
+  assert.equal((html.match(/<th /g) ?? []).length, 6);
+  assert.ok(html.includes('aria-label="بنود الفاتورة"'));
+  assert.ok(html.includes("SKU-51"));
+  assert.ok(html.includes("14.000"));
+  assert.ok(html.includes("النوع: خلف الأذن"));
+  assert.ok(html.includes("SN-51 (مرتجع)"));
+  assert.ok(html.includes("116.28"));
+  const untaxed = { ...line, taxCode: null, taxFormatted: null };
+  const untaxedHtml = renderToStaticMarkup(React.createElement(DataTable<SaleDetailLineRow>, {
+    rows: [untaxed], columns: saleDetailLineColumns, rowKey: (row) => row.id, regionLabel: "بنود الفاتورة",
+  }));
+  assert.ok(untaxedHtml.includes("الضريبة غير محددة"));
+  assert.ok(untaxedHtml.includes("غير محددة"));
 });
