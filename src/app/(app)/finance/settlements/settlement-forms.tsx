@@ -7,6 +7,8 @@ import { cancelSettlementAction, requestSettlementAction } from "../actions";
 import { initialFinanceActionState } from "../finance-state";
 import { formatMoney } from "../format";
 import { PeriodEstimateNotice } from "../period-estimate-notice";
+import { FinStepper } from "@/components/finance/fin-stepper";
+import { settlementRequestSteps } from "@/components/finance/fin-stepper-model";
 
 export const SETTLEMENT_STATUS_LABEL: Record<string, string> = {
   OPEN: "بانتظار الاعتماد",
@@ -43,14 +45,21 @@ export function SettlementRequestForm({ requestId, accountId, systemBalance, sal
 
   if (state.status === "success") {
     return (
-      <div className="fin-panel fin-success" role="status">
-        <h2>سُجّل طلب التسوية</h2>
-        <p>{state.message}</p>
-        <div className="fin-actions">
-          <Link className="fin-button" href="/finance/settlements">طلباتي</Link>
-          <Link className="fin-button fin-button--secondary" href="/finance/mine">عهدة الموظف</Link>
+      <>
+        <FinStepper
+          className="no-print fin-stepper--page"
+          label="مسار طلب التسوية بعد الحفظ"
+          steps={settlementRequestSteps({ submitted: true, ready: true, reviewing: true, saving: false, hasError: false })}
+        />
+        <div className="fin-panel fin-success" role="status">
+          <h2>سُجّل طلب التسوية</h2>
+          <p>{state.message}</p>
+          <div className="fin-actions">
+            <Link className="fin-button" href="/finance/settlements">طلباتي</Link>
+            <Link className="fin-button fin-button--secondary" href="/finance/mine">عهدة الموظف</Link>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
@@ -59,6 +68,17 @@ export function SettlementRequestForm({ requestId, accountId, systemBalance, sal
       <input type="hidden" name="requestId" value={requestId} />
       <input type="hidden" name="accountId" value={accountId} />
       <input type="hidden" name="expectedBalance" value={systemBalance} />
+
+      <FinStepper
+        label="مسار طلب التسوية"
+        steps={settlementRequestSteps({
+          submitted: false,
+          ready: valid && reason.trim().length >= 3,
+          reviewing: review,
+          saving: pending,
+          hasError: state.status === "error",
+        })}
+      />
 
       <div className="fin-panel">
         <div className="fin-panel__heading">

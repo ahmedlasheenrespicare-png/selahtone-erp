@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 import { AppIcon } from "@/components/app-icon";
 import DataTable from "@/components/data-driven/data-table";
 import { FinEmptyState } from "@/components/finance/fin-empty-state";
+import { FinStepper } from "@/components/finance/fin-stepper";
+import { settlementLifecycleSteps } from "@/components/finance/fin-stepper-model";
 import PrintPageButton from "@/components/print-page-button";
 
 import { prisma } from "@/lib/prisma";
@@ -140,6 +142,17 @@ export default async function SettlementsPage() {
               <p>الطلب لا يغيّر الرصيد؛ عند الاعتماد قد يُسجّل تعديل دفتري أو تحويل غير صفري. السجل لا يثبت انتقال النقد فعليًا.</p>
             </div>
             <div className="fin-panel__body">
+              {settlements.length > 0 ? (
+                <FinStepper
+                  className="fin-stepper--panel"
+                  label={`مسار طلب التسوية #${settlements[0].id}`}
+                  steps={settlementLifecycleSteps({
+                    status: String(settlements[0].status),
+                    transferAmount: settlements[0].transferAmount,
+                    resolutionReason: settlements[0].resolutionReason,
+                  })}
+                />
+              ) : null}
               {settlements.length === 0 ? (
                 <p className="fin-empty">لا توجد طلبات بعد.</p>
               ) : (

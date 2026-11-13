@@ -13,6 +13,11 @@ export type MonthlySalesPantherProps = {
   hasOutstanding: boolean;
   collectedPercent: number;
   outstandingPercent: number;
+  /**
+   * نسبة المتبقي على العملاء ÷ صافي المبيعات، محسوبة في الصفحة من مجاميع القرش.
+   * null = لا فواتير أو لا صافي موجب ⇒ حالة فارغة بلا 0% أو 100% مضللة.
+   */
+  outstandingRingPercent: number | null;
   hasSales: boolean;
   series: PantherChartSeries[];
   reportHref?: string;
@@ -32,6 +37,7 @@ export default function MonthlySalesPanther({
   hasOutstanding,
   collectedPercent,
   outstandingPercent,
+  outstandingRingPercent,
   hasSales,
   series,
   reportHref,
@@ -64,6 +70,11 @@ export default function MonthlySalesPanther({
           ? `${outstandingPercent}% آجل · ${outstandingCount} فاتورة عليها باقٍ`
           : "0% متأخرات · مسدّدة بالكامل",
         tone: hasOutstanding ? "negative" : "positive",
+        ring: {
+          percent: outstandingRingPercent,
+          percentLabel: "نسبة المتبقي على العملاء من صافي مبيعات الشهر",
+          emptyLabel: hasSales ? "غير متاح" : "لا مبيعات",
+        },
       }}
       series={series}
       actionHref={reportHref}

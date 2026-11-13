@@ -21,7 +21,8 @@ const wrappers = financeFiles.flatMap((path) => {
 });
 const sharedTables = financeFiles.flatMap((path) => {
   const source = readFileSync(path, "utf8");
-  if (!source.includes('regionClassName="fin-table-wrap"')) return [];
+  // طبقة الفرز تمرّر التسمية عبر wrapClassName/ariaLabel إلى المُصيّر نفسه.
+  if (!source.includes('regionClassName="fin-table-wrap"') && !source.includes('wrapClassName="fin-table-wrap"')) return [];
   return Array.from({ length: (source.match(/<DataTable\b/g) ?? []).length }, () => path);
 });
 
@@ -34,8 +35,12 @@ test("every finance table scroller is a named keyboard-accessible region", () =>
   }
   const shared = readFileSync(new URL("../src/components/data-driven/data-table.tsx", import.meta.url), "utf8");
   assert.ok(shared.includes('className={regionClassName} role="region" aria-label={regionLabel} tabIndex={0}'));
+  const sortingLayer = readFileSync(new URL("../src/components/data-table/data-table.tsx", import.meta.url), "utf8");
+  assert.ok(sortingLayer.includes("regionLabel={ariaLabel}"));
+  assert.ok(sortingLayer.includes("data-table__wrap ${wrapClassName}"));
   for (const path of sharedTables) {
-    assert.ok(readFileSync(path, "utf8").includes("regionLabel="), path);
+    const source = readFileSync(path, "utf8");
+    assert.ok(source.includes("regionLabel=") || source.includes("ariaLabel="), path);
   }
 });
 

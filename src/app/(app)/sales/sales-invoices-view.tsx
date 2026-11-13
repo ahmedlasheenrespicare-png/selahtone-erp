@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { AppIcon } from "@/components/app-icon";
-import DataTable from "@/components/data-driven/data-table";
+import DataTable from "@/components/data-table/data-table";
+import { useDataTable } from "@/components/data-table/use-data-table";
 import { downloadCsvFile } from "@/lib/csv-export";
 import { csvHeaders, csvRows, filterRowsBySearch } from "@/lib/data-driven-ui";
 import {
@@ -53,13 +54,17 @@ export default function SalesInvoicesView({
     return filterRowsBySearch(selected, query, salesInvoiceSearch.text);
   }, [rows, query, branchFilter, periodFilter, activeTab]);
 
+  // الفرز والترقيم فوق نفس أعمدة الـMetadata؛ تغيير أي مرشّح يعيد الصفحة الأولى.
+  const table = useDataTable({ rows: filtered, columns, initialPageSize: 25, resetKey: [query, branchFilter, periodFilter, activeTab].join("\u0000") });
+
   function handleExportCsv(): void {
     downloadCsvFile(
       `selahtone-invoices-${new Date().toISOString().slice(0, 10)}.csv`,
       csvHeaders(salesInvoiceCsvColumns),
-      csvRows(filtered, salesInvoiceCsvColumns),
+      // التصدير يشمل كل النتائج المطابقة للتصفية بترتيب الفرز الظاهر، لا الصفحة المعروضة وحدها.
+      csvRows(table.sortedRows, salesInvoiceCsvColumns),
     );
-    setExportMessage(`تم بدء تنزيل ملف CSV ويضم ${filtered.length} فاتورة.`);
+    setExportMessage(`تم بدء تنزيل ملف CSV ويضم ${table.sortedRows.length} فاتورة.`);
   }
 
   return (
@@ -163,11 +168,12 @@ export default function SalesInvoicesView({
       ) : (
         <div className="sales-table-card">
           <DataTable
-            rows={filtered}
+            state={table}
             columns={columns}
             rowKey={(sale) => sale.id}
-            rowClassName={(sale) => sale.statusKind === "cancelled" ? "is-cancelled-row" : undefined}
-            regionLabel="جدول فواتير البيع"
+            rowClassName={(sale) => (sale.statusKind === "cancelled" ? "is-cancelled-row" : undefined)}
+            ariaLabel="جدول فواتير البيع"
+            wrapClassName="inv-table-wrap table-wrap"
             tableClassName="inv-table sales-invoices-table"
           />
         </div>

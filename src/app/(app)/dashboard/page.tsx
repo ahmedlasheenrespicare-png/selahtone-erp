@@ -5,12 +5,16 @@ import { writeAllowedForKeys } from "@/lib/access-control";
 import type { ReactNode } from "react";
 import { AppIcon, type AppIconName } from "@/components/app-icon";
 import PantherSpotlightCard, { type PantherChartPoint } from "@/components/panther-spotlight-card";
+import { StatRing } from "@/components/stat-ring-pill";
+import { cashCollectionRingPercent, expenseWaitingRingPercent, outstandingShareRingPercent } from "@/components/stat-ring-pill-model";
 import { displayMoney } from "@/lib/commerce-display";
 import TodayInvoiceRail from "./today-invoice-rail";
 import PrintPageButton from "@/components/print-page-button";
 // عميلٌ لا خادم: فإنّ التمريرَ تفاعل، والصفحةُ نفسها تُبنى على الخادم.
 import DashboardSectionSwitcher from "./dashboard-section-switcher";
+import DashboardTaskBoard from "./dashboard-task-board";
 import DashboardWallet, { type WalletPocketItem } from "./dashboard-wallet";
+import "./dashboard-task-board.css";
 import MonthlySalesPanther from "./monthly-sales-panther";
 import "./dashboard-switcher.css";
 import { prisma } from "@/lib/prisma";
@@ -40,7 +44,7 @@ import {
   loadTodayExpenses,
   type TodayExpensesSummary,
 } from "@/lib/finance/today-expenses";
-import { formatInventoryDecimal, stockValueScaled } from "@/lib/inventory-math";
+import { formatInventoryDecimal, scaledInteger, stockValueScaled } from "@/lib/inventory-math";
 import { getAccessContext } from "@/lib/access-control-server";
 import { hiddenAccessCss } from "@/lib/access-control";
 import {
@@ -317,6 +321,50 @@ export default async function DashboardPage({
       : 0;
   const monthCollectedPct =
     monthTotalNum > 0 ? Math.max(0, Math.round((100 - monthOutstandingPct) * 10) / 10) : 0;
+  // للعرض فقط: المتبقي على العملاء ÷ صافي مبيعات الشهر، من مجاميع القرش لا من النسبة المقرّبة أعلاه.
+  const monthOutstandingRingPercent = monthSales
+    ? outstandingShareRingPercent({
+        invoiceCount: monthSales.invoiceCount,
+        netSalesCents: scaledInteger(monthSales.total, 2),
+        outstandingCents: scaledInteger(monthSales.outstandingTotal, 2),
+      })
+    : null;
+  // للعرض فقط: حصة النقدي من صافي تحصيلات اليوم. لا نستخدم نسبة النمو عن الأمس كحلقة.
+  const todayCashRingPercent = pulseData
+    ? cashCollectionRingPercent({
+        cashCents: BigInt(pulseData.todayCashCollectedCents),
+        netCollectedCents: BigInt(pulseData.todayNetCollectedCents),
+      })
+    : null;
+  const todayCashRingEmptyLabel = !pulseData
+    ? "غير متاح"
+    : BigInt(pulseData.todayNetCollectedCents) === 0n
+      ? "لا تحصيلات"
+      : "غير متاح";
+  // للعرض فقط: المعلق للاعتماد أو الصرف ÷ إجمالي مصروفات اليوم، من مجاميع القرش.
+  const todayExpensesWaitingRingPercent = expenseWaitingRingPercent({
+    expenseCount: todayExpenses?.count ?? 0,
+    totalCents: todayExpenses?.totalCents ?? 0n,
+    waitingCents: todayExpenses?.waitingCents ?? 0n,
+  });
+  const todayExpensesWaitingRingEmptyLabel = !todayExpenses
+    ? "غير متاح"
+    : todayExpenses.count === 0
+      ? "لا مصروفات"
+      : "غير متاح";
+  // للعرض فقط: المتبقي على فواتير اليوم ÷ صافي مبيعات اليوم، من مجاميع القرش الخام.
+  const todayOutstandingRingPercent = pulseData
+    ? outstandingShareRingPercent({
+        invoiceCount: pulseData.todayInvoicesCount,
+        netSalesCents: BigInt(pulseData.todayNetSalesCents),
+        outstandingCents: BigInt(pulseData.todayRemainingCents),
+      })
+    : null;
+  const todayOutstandingRingEmptyLabel = !pulseData
+    ? "غير متاح"
+    : pulseData.todayInvoicesCount === 0
+      ? "لا مبيعات"
+      : "غير متاح";
 
   const expectedBalanceValue = !canViewCustody ? "—" : cash
     ? `${nf.format(Number(cash.expected))} ج.م`
@@ -827,10 +875,13 @@ export default async function DashboardPage({
           </div>
         </PageLink>
 
-        <PageLink allowed={canOpen("/sales")} href="/sales" className="dashboard-pulse-card">
-          <span className="dashboard-pulse-card__icon" aria-hidden="true">
-            <AppIcon name="cash" />
-          </span>
+        <PageLink allowed={canOpen("/sales")} href="/sales" className="dashboard-pulse-card dashboard-pulse-card--ring">
+          <StatRing
+            className="dashboard-pulse-card__ring"
+            percent={todayCashRingPercent}
+            percentLabel="حصة النقدي من صافي تحصيلات اليوم"
+            emptyLabel={todayCashRingEmptyLabel}
+          />
           <div className="dashboard-pulse-card__body">
             <span className="dashboard-pulse-card__label">تحصيلات اليوم الفعلية</span>
             <strong className="dashboard-pulse-card__value">
@@ -1075,19 +1126,27 @@ export default async function DashboardPage({
                   </span>
                 </PageLink>
 
-                <PageLink allowed={canOpen("/sales")} href="/sales" className="stat-grid__item is-link pulse-cell pulse-cell--collections">
-                  <span className="stat-grid__label">
-                    <span className="stat-grid__icon is-cyan" aria-hidden="true">
-                      <AppIcon name="cash" />
+                <PageLink allowed={canOpen("/sales")} href="/sales" className="stat-grid__item is-link pulse-cell pulse-cell--collections pulse-cell--ring">
+                  <StatRing
+                    className="pulse-cell__ring"
+                    percent={todayCashRingPercent}
+                    percentLabel="حصة النقدي من صافي تحصيلات اليوم"
+                    emptyLabel={todayCashRingEmptyLabel}
+                  />
+                  <span className="pulse-cell__body">
+                    <span className="stat-grid__label">
+                      <span className="stat-grid__icon is-cyan" aria-hidden="true">
+                        <AppIcon name="cash" />
+                      </span>
+                      تحصيلات اليوم الفعلية
                     </span>
-                    تحصيلات اليوم الفعلية
-                  </span>
-                  <span className="stat-grid__value">
-                    <bdi dir="ltr">{pulseData?.todayNetCollectedFormatted ?? "0.00"}</bdi> <small>ج.م</small>
-                  </span>
-                  <span className="stat-grid__detail pulse-cell__sub">
-                    نقدي <bdi dir="ltr">{pulseData?.todayCashCollectedFormatted ?? "0.00"}</bdi> · بطاقة/تحويل{" "}
-                    <bdi dir="ltr">{pulseData?.todayElectronicCollectedFormatted ?? "0.00"}</bdi>
+                    <span className="stat-grid__value">
+                      <bdi dir="ltr">{pulseData?.todayNetCollectedFormatted ?? "0.00"}</bdi> <small>ج.م</small>
+                    </span>
+                    <span className="stat-grid__detail pulse-cell__sub">
+                      نقدي <bdi dir="ltr">{pulseData?.todayCashCollectedFormatted ?? "0.00"}</bdi> · بطاقة/تحويل{" "}
+                      <bdi dir="ltr">{pulseData?.todayElectronicCollectedFormatted ?? "0.00"}</bdi>
+                    </span>
                   </span>
                 </PageLink>
 
@@ -1421,33 +1480,16 @@ export default async function DashboardPage({
                 <span className="stat-card__badge">{taskSummaryAvailable ? `${nf.format(unifiedActions.length)} عنصر` : "—"}</span>
               </div>
               <div className="stat-card__body">
-                <div className="stat-grid">
-                  {!taskSummaryAvailable && unifiedActions.length > 0 ? (
-                    <div className="stat-grid__item is-note"><span className="stat-grid__label">{urgentTaskSub} الإجراءات أدناه ليست قائمة كاملة.</span></div>
-                  ) : null}
-                  {unifiedActions.length > 0 ? (
-                    unifiedActions.map((item) => (
-                      <Link className="stat-grid__item is-link" key={item.key} href={item.href}>
-                        <span className="stat-grid__label">
-                          <span
-                            className={`stat-grid__icon ${item.tone === "warning" ? "is-cyan" : "is-blue"}`}
-                            aria-hidden="true"
-                          >
-                            <AppIcon name={item.icon} />
-                          </span>
-                          {item.text}
-                        </span>
-                        <AppIcon className="stat-grid__arrow" name="arrow" />
-                      </Link>
-                    ))
-                  ) : (
-                    <div className="stat-grid__item is-note">
-                      <span className="stat-grid__label">
-                        {taskSummaryAvailable ? "لا توجد إجراءات متاحة للعرض هنا حاليًا؛ راجع السجلات المصرّح بها." : urgentTaskSub}
-                      </span>
-                    </div>
-                  )}
-                </div>
+                {!taskSummaryAvailable && unifiedActions.length > 0 ? (
+                  <p className="dashboard-task-board__notice">{urgentTaskSub} الإجراءات أدناه ليست قائمة كاملة.</p>
+                ) : null}
+                {unifiedActions.length > 0 ? (
+                  <DashboardTaskBoard actions={unifiedActions} />
+                ) : (
+                  <p className="dashboard-task-board__notice">
+                    {taskSummaryAvailable ? "لا توجد إجراءات متاحة للعرض هنا حاليًا؛ راجع السجلات المصرّح بها." : urgentTaskSub}
+                  </p>
+                )}
               </div>
             </article>
 
@@ -1537,6 +1579,7 @@ export default async function DashboardPage({
             hasOutstanding={monthOutstandingNum > 0}
             collectedPercent={monthCollectedPct}
             outstandingPercent={monthOutstandingPct}
+            outstandingRingPercent={monthOutstandingRingPercent}
             hasSales={monthSales.invoiceCount > 0}
             series={monthSalesPinnedSeries}
             reportHref={
@@ -2361,6 +2404,11 @@ export default async function DashboardPage({
                   ? `${nf.format(todayExpenses.pendingCount)} بانتظار · ${nf.format(todayExpenses.approvedCount)} معتمدة`
                   : "كل البنود مصروفة",
               tone: todayExpenses && todayExpenses.waitingCents > 0n ? "negative" : "positive",
+              ring: {
+                percent: todayExpensesWaitingRingPercent,
+                percentLabel: "نسبة المعلق للاعتماد أو الصرف من إجمالي مصروفات اليوم",
+                emptyLabel: todayExpensesWaitingRingEmptyLabel,
+              },
             }}
             series={[
               {
@@ -2473,13 +2521,20 @@ export default async function DashboardPage({
                 tone: pulseData.todayRefundsMovesCount > 0 ? "negative" : "positive",
               }}
               secondary={{
-                label: "إجمالي المتبقي",
+                label: "المتبقي على فواتير اليوم",
                 value: pulseData.todayRemainingFormatted,
                 unit: "ج.م",
-                delta: pulseData.todayRemainingCount > 0
-                  ? `${nf.format(pulseData.todayRemainingCount)} فاتورة آجلة`
-                  : "كل فواتير اليوم مسددة",
+                delta: pulseData.todayInvoicesCount === 0
+                  ? "لا مبيعات اليوم"
+                  : pulseData.todayRemainingCount > 0
+                    ? `${nf.format(pulseData.todayRemainingCount)} فاتورة آجلة · النسبة من صافي مبيعات اليوم`
+                    : "كل فواتير اليوم مسددة · النسبة من صافي مبيعات اليوم",
                 tone: pulseData.todayRemainingCount > 0 ? "negative" : "positive",
+                ring: {
+                  percent: todayOutstandingRingPercent,
+                  percentLabel: "نسبة المتبقي على فواتير اليوم من صافي مبيعات اليوم",
+                  emptyLabel: todayOutstandingRingEmptyLabel,
+                },
               }}
               series={[
                 {

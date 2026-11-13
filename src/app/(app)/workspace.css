@@ -3062,6 +3062,93 @@
   color: var(--mp-danger);
 }
 
+/* حلقة نسبة اختيارية بجانب الرقم الثاني (المتبقي على العملاء ÷ صافي المبيعات).
+   المؤشرات التي لا تحمل حلقة تبقى كما هي: جسمٌ عادي بلا أعمدة. */
+.monthly-panther__metric-body {
+  min-width: 0;
+}
+
+.monthly-panther__metric--ring {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  perspective: 900px;
+}
+
+.monthly-panther__metric--ring .monthly-panther__metric-body {
+  transform: translateZ(3px);
+}
+
+.monthly-panther__metric-ring {
+  align-self: center;
+}
+
+/* توكنز المؤشر نفسها (--mp-*): تتبدّل مع الثيم والوضع دون ألوان مثبّتة.
+  Specificity أعلى من قاعدة الوضع الليلي العامة للحلقة حتى لا ترث ألوان المبيعات. */
+.monthly-panther .monthly-panther__metric--ring .stat-ring-pill__ring-wrap,
+.workspace-shell[data-color-mode="dark"] .monthly-panther .monthly-panther__metric--ring .stat-ring-pill__ring-wrap {
+  --stat-ring-progress: var(--mp-accent);
+  --stat-ring-track: var(--mp-track);
+  --stat-ring-border: var(--mp-card-border);
+  --stat-ring-core: var(--mp-node-bg, var(--mp-bg));
+  --stat-ring-ink: var(--mp-value);
+  --stat-ring-muted: var(--mp-muted);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .monthly-panther__metric--ring:hover .stat-ring-pill__ring-wrap {
+    transform: translateZ(6px) rotateX(2deg) rotateY(-2deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .monthly-panther__metric--ring,
+  .monthly-panther__metric--ring .monthly-panther__metric-body,
+  .monthly-panther__metric--ring .stat-ring-pill__ring-wrap {
+    perspective: none;
+    transform: none !important;
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+@media print {
+  .monthly-panther__metric--ring,
+  .monthly-panther__metric--ring .monthly-panther__metric-body,
+  .monthly-panther__metric--ring .stat-ring-pill__ring-wrap {
+    perspective: none;
+    transform: none !important;
+    transition: none !important;
+    animation: none !important;
+    box-shadow: none !important;
+  }
+
+  .monthly-panther__metric--ring .monthly-panther__metric-label,
+  .monthly-panther__metric--ring .monthly-panther__metric-value,
+  .monthly-panther__metric--ring .monthly-panther__metric-value small,
+  .monthly-panther__metric--ring .monthly-panther__metric-delta {
+    color: #000 !important;
+  }
+}
+
+/* العمود الضيق: الحلقة تحت الرقم بدل مزاحمته، ويبقى رقما المؤشر كما هما. */
+@container (max-width: 410px) {
+  .monthly-panther__metric--ring {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 8px;
+  }
+  .monthly-panther__metric--ring .monthly-panther__metric-body {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .monthly-panther__metric--ring .monthly-panther__metric-ring {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: start;
+  }
+}
+
 .monthly-panther__chart-block {
   display: flex;
   flex-direction: column;
@@ -3861,6 +3948,75 @@ a.dashboard-pulse-card:hover {
 .dashboard-pulse-card.is-alert {
   background: var(--db-alert-bg);
   border-color: var(--db-alert-border);
+}
+
+/* حلقة حصة النقدي في بطاقة تحصيلات اليوم وحدها؛ باقي بطاقات النبض كما هي. */
+.dashboard-pulse-card--ring {
+  align-items: center;
+  perspective: 900px;
+}
+
+.dashboard-pulse-card--ring .dashboard-pulse-card__body {
+  flex: 1;
+  transform: translateZ(3px);
+}
+
+.dashboard-pulse-card__ring {
+  align-self: center;
+  --stat-ring-progress: var(--db-primary);
+  --stat-ring-track: var(--db-border-strong);
+  --stat-ring-border: var(--db-border);
+  --stat-ring-core: var(--db-surface);
+  --stat-ring-ink: var(--db-ink);
+  --stat-ring-muted: var(--db-muted);
+}
+
+.workspace-shell[data-color-mode="dark"] .dashboard-pulse-card__ring {
+  --stat-ring-progress: var(--dm-accent);
+  --stat-ring-track: var(--dm-border-strong);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .dashboard-pulse-card--ring:hover .stat-ring-pill__ring-wrap {
+    transform: translateZ(6px) rotateX(2deg) rotateY(-2deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-pulse-card--ring,
+  .dashboard-pulse-card--ring .dashboard-pulse-card__body,
+  .dashboard-pulse-card--ring .stat-ring-pill__ring-wrap {
+    perspective: none;
+    transform: none !important;
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+@media print {
+  .dashboard-pulse-card--ring,
+  .dashboard-pulse-card--ring .dashboard-pulse-card__body,
+  .dashboard-pulse-card--ring .stat-ring-pill__ring-wrap {
+    perspective: none;
+    transform: none !important;
+    transition: none !important;
+    animation: none !important;
+    box-shadow: none !important;
+  }
+
+  /* لا يعتمد الورق على الوضع الليلي: سطح أبيض وحبر أسود حول الحلقة الثابتة. */
+  .dashboard-pulse-card--ring {
+    background: #fff !important;
+    border-color: #777 !important;
+    color: #000 !important;
+  }
+
+  .dashboard-pulse-card--ring .dashboard-pulse-card__label,
+  .dashboard-pulse-card--ring .dashboard-pulse-card__value,
+  .dashboard-pulse-card--ring .dashboard-pulse-card__value small,
+  .dashboard-pulse-card--ring .dashboard-pulse-card__sub {
+    color: #000 !important;
+  }
 }
 
 .dashboard-pulse-card__icon {
@@ -5393,79 +5549,6 @@ a.dashboard-governance__item:hover {
   gap: 8px;
 }
 
-.fin-stepper {
-  list-style: none;
-  margin: 0 0 18px;
-  padding: 14px;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-  border-radius: 15px;
-  border: 1px solid var(--db-border, #e2e8f0);
-  background: var(--db-surface, #ffffff);
-}
-
-.fin-stepper__step {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid var(--db-border, #e2e8f0);
-  background: var(--db-surface-tint, #f8fafc);
-  color: var(--db-muted, #475569);
-}
-
-.fin-stepper__num {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 999px;
-  background: #e2e8f0;
-  color: #1e293b;
-  font-size: 12px;
-  font-weight: 800;
-  flex-shrink: 0;
-}
-
-.fin-stepper__body {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.fin-stepper__body strong {
-  font-size: 12.5px;
-  color: var(--db-ink, #0f172a);
-}
-
-.fin-stepper__body small {
-  font-size: 11px;
-  color: var(--db-muted, #475569);
-}
-
-.fin-stepper__step.is-done {
-  border-color: #86efac;
-  background: #f0fdf4;
-}
-
-.fin-stepper__step.is-done .fin-stepper__num {
-  background: #15803d;
-  color: #ffffff;
-}
-
-.fin-stepper__step.is-current {
-  border-color: #f59e0b;
-  background: #fffbeb;
-}
-
-.fin-stepper__step.is-current .fin-stepper__num {
-  background: #b45309;
-  color: #ffffff;
-}
-
 .fin-denom-box {
   padding: 13px 14px;
   border-radius: 14px;
@@ -5555,18 +5638,6 @@ a.dashboard-governance__item:hover {
   margin: 0;
 }
 
-@media (max-width: 820px) {
-  .fin-stepper {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 540px) {
-  .fin-stepper {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
 /* 5. أنماط الطباعة الاحترافية (A4 + إيصال حراري 80mm) */
 @media print {
   .no-print,
@@ -5578,6 +5649,11 @@ a.dashboard-governance__item:hover {
   .admin-filter-bar,
   .catalog-filter-bar {
     display: none !important;
+  }
+
+  /* القائمة الجانبية مخفية أعلاه؛ لا تترك عمودها فارغًا فتضغط المحتوى والحلقات على الورق. */
+  .workspace-shell {
+    display: block;
   }
 
   .print-only-brief {
@@ -5718,6 +5794,106 @@ a.dashboard-governance__item:hover {
 
 .dashboard-wallet .pulse-cell .stat-grid__label {
   font-size: 11px;
+}
+
+/* حلقة حصة النقدي داخل خلية التحصيلات في الحافظة؛ نفس نسبة بطاقة النبض،
+   بألوان الشريحة الحالية (--wc-*) لا بألوان المبيعات، وتبقى مفاتيح الإخفاء كما هي. */
+.dashboard-wallet .pulse-cell--ring {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 10px;
+  perspective: 900px;
+}
+
+.dashboard-wallet .pulse-cell--ring .pulse-cell__body {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  transform: translateZ(3px);
+}
+
+.dashboard-wallet .pulse-cell__ring {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
+  --stat-ring-progress: var(--wc-ink);
+  --stat-ring-track: var(--wc-surface-hover);
+  --stat-ring-border: var(--wc-line);
+  --stat-ring-core: var(--wc-bg);
+  --stat-ring-ink: var(--wc-ink);
+  --stat-ring-muted: var(--wc-muted);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .dashboard-wallet .pulse-cell--ring:hover .stat-ring-pill__ring-wrap {
+    transform: translateZ(6px) rotateX(2deg) rotateY(-2deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-wallet .pulse-cell--ring,
+  .dashboard-wallet .pulse-cell--ring .pulse-cell__body,
+  .dashboard-wallet .pulse-cell--ring .stat-ring-pill__ring-wrap {
+    perspective: none;
+    transform: none !important;
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+@media print {
+  .dashboard-wallet .pulse-cell--ring,
+  .dashboard-wallet .pulse-cell--ring .pulse-cell__body,
+  .dashboard-wallet .pulse-cell--ring .stat-ring-pill__ring-wrap {
+    perspective: none;
+    transform: none !important;
+    transition: none !important;
+    animation: none !important;
+    box-shadow: none !important;
+  }
+
+  .dashboard-wallet .pulse-cell--ring {
+    background: #fff !important;
+    border-color: #777 !important;
+    color: #000 !important;
+  }
+}
+
+/* في العمود الضيق أو الجوال: الحلقة تحت النص بدل مزاحمته، وتبقى الشبكة ٢×٢. */
+@container (max-width: 470px) {
+  .dashboard-wallet .pulse-cell--ring {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 8px;
+  }
+  .dashboard-wallet .pulse-cell--ring .pulse-cell__body {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .dashboard-wallet .pulse-cell__ring {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: start;
+  }
+}
+
+@media (max-width: 560px) {
+  .dashboard-wallet .pulse-cell--ring {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 8px;
+  }
+  .dashboard-wallet .pulse-cell--ring .pulse-cell__body {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .dashboard-wallet .pulse-cell__ring {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: start;
+  }
 }
 
 /* شريحة وتيرة الشهر — شريط تقدم + ثلاثة مقاييس */

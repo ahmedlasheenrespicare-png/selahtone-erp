@@ -14,6 +14,7 @@ import { cairoDate } from "@/lib/finance/validation";
 import FinanceExpensesView, { type FinanceExpenseRow } from "../finance-expenses-view";
 import { FinEmptyState } from "@/components/finance/fin-empty-state";
 import { FinKpiStrip } from "@/components/finance/fin-kpi-strip";
+import { expensePaidRingPercent, expenseWaitingRingPercent } from "@/components/stat-ring-pill-model";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +62,10 @@ export default async function FinanceExpensesTodayPage() {
   const paidFormatted = today?.paidFormatted ?? "0.00";
   const waitingFormatted = today?.waitingFormatted ?? "0.00";
   const todayLabel = todayFormatter.format(new Date());
+  // للعرض فقط: نسبة مدفوع اليوم من إجمالي بنود اليوم، بنفس دلالة سجل المصروفات الكامل.
+  const paidRingPercent = expensePaidRingPercent({ expenseCount: count, totalCents, paidCents });
+  // للعرض فقط: المعلق للاعتماد أو الصرف ÷ إجمالي مصروفات اليوم، من مجاميع القرش.
+  const waitingRingPercent = expenseWaitingRingPercent({ expenseCount: count, totalCents, waitingCents });
 
   const rows: FinanceExpenseRow[] = items.map((row) => ({
     id: row.id,
@@ -70,6 +75,7 @@ export default async function FinanceExpensesTodayPage() {
     categorySnapshot: row.categorySnapshot,
     description: row.description,
     amountFormatted: row.amountFormatted,
+    amountCents: row.amount.toString(),
     status: row.status,
     statusLabel: row.statusLabel,
   }));
@@ -317,6 +323,11 @@ export default async function FinanceExpensesTodayPage() {
                         ? `${nf.format(pendingCount)} بانتظار · ${nf.format(approvedCount)} معتمدة`
                         : "كل بنود اليوم مصروفة",
                     tone: waitingCents > 0n ? "negative" : "positive",
+                    ring: {
+                      percent: waitingRingPercent,
+                      percentLabel: "نسبة المعلق للاعتماد أو الصرف من إجمالي مصروفات اليوم",
+                      emptyLabel: count === 0 ? "لا مصروفات" : "غير متاح",
+                    },
                   }}
                   series={[
                     {
@@ -422,7 +433,12 @@ export default async function FinanceExpensesTodayPage() {
                     <bdi dir="ltr">{paidFormatted}</bdi> <small>ج.م</small>
                   </>
                 ),
-                sub: `عدد بنود المدفوع: ${paidCount}`,
+                sub: `عدد بنود المدفوع: ${paidCount} · ${count === 0 ? "لا مصروفات اليوم" : "النسبة من إجمالي بنود اليوم"}`,
+                ring: {
+                  percent: paidRingPercent,
+                  percentLabel: "نسبة المدفوع فعليًا من إجمالي مصروفات اليوم",
+                  emptyLabel: count === 0 ? "لا مصروفات" : "غير متاح",
+                },
               },
             ]}
           />

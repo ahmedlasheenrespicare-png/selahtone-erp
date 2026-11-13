@@ -144,6 +144,9 @@ const invoice: SalesInvoiceRow = {
   originalFormatted: "1,000.00",
   dueFromCustomerFormatted: "250.00",
   dueToCustomerFormatted: "0.00",
+  originalCents: "100000",
+  dueFromCustomerCents: "25000",
+  dueToCustomerCents: "0",
   hasDueFromCustomer: true,
   hasDueToCustomer: false,
   statusLabel: "مؤكدة",
@@ -194,6 +197,7 @@ const expense: FinanceExpenseRow = {
   categorySnapshot: "صيانة",
   description: "إصلاح جهاز",
   amountFormatted: "750.00",
+  amountCents: "75000",
   status: "PENDING",
   statusLabel: "بانتظار الاعتماد",
 };

@@ -2,7 +2,8 @@
 
 import { useMemo, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { AppIcon } from "@/components/app-icon";
-import DataTable from "@/components/data-driven/data-table";
+import DataTable from "@/components/data-table/data-table";
+import { useDataTable } from "@/components/data-table/use-data-table";
 import { downloadCsvFile } from "@/lib/csv-export";
 import { csvHeaders, csvRows, filterRowsBySearch } from "@/lib/data-driven-ui";
 import {
@@ -51,6 +52,8 @@ export default function FinanceExpensesView({
     return filterRowsBySearch(selected, query, financeExpenseSearch.text);
   }, [rows, query, filter, branchFilter, categoryFilter]);
 
+  // الفرز والترقيم فوق نفس أعمدة الـMetadata؛ تغيير أي مرشّح يعيد الصفحة الأولى.
+  const table = useDataTable({ rows: filtered, columns, initialPageSize: 25, resetKey: [query, filter, branchFilter, categoryFilter].join("\u0000") });
   const tabOrder = financeExpenseTabs.map((tab) => tab.id);
   function handleTabListKeyDown(event: ReactKeyboardEvent<HTMLDivElement>): void {
     // قائمة العرض RTL: السهم الأيسر ينقل إلى التبويب التالي (ترتيب القراءة)، والأيمن إلى السابق.
@@ -68,7 +71,8 @@ export default function FinanceExpensesView({
     downloadCsvFile(
       `selahtone-expenses-${new Date().toISOString().slice(0, 10)}.csv`,
       csvHeaders(financeExpenseCsvColumns),
-      csvRows(filtered, financeExpenseCsvColumns),
+      // التصدير يشمل كل النتائج المطابقة للتصفية بترتيب الفرز الظاهر، لا الصفحة المعروضة وحدها.
+      csvRows(table.sortedRows, financeExpenseCsvColumns),
     );
   }
 
@@ -147,13 +151,13 @@ export default function FinanceExpensesView({
           <div className="fin-empty" role="status">لا توجد مصروفات تطابق معايير البحث أو التصفية الحالية.</div>
         ) : (
           <DataTable
-            rows={filtered}
+            state={table}
             columns={columns}
             rowKey={(expense) => expense.id}
-            regionLabel="جدول مالي قابل للتمرير"
-            regionClassName="fin-table-wrap"
-            tableClassName="fin-table"
+            ariaLabel="سجل المصروفات"
             caption="سجل المصروفات المعروض حسب حالة التصفية — المبلغ الفعّال بعد أي تصحيح"
+            wrapClassName="fin-table-wrap"
+            tableClassName="fin-table"
           />
         )}
       </div>

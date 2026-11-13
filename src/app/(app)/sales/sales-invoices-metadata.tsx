@@ -21,6 +21,10 @@ export type SalesInvoiceRow = {
   originalFormatted: string;
   dueFromCustomerFormatted: string;
   dueToCustomerFormatted: string;
+  /** قيم خام بالقرش (نصية) للفرز الرقمي الصحيح؛ العرض يبقى بالنصوص المنسّقة أعلاه. */
+  originalCents: string;
+  dueFromCustomerCents: string;
+  dueToCustomerCents: string;
   hasDueFromCustomer: boolean;
   hasDueToCustomer: boolean;
   statusLabel: string;
@@ -127,6 +131,7 @@ export function createSalesInvoiceColumns(canOpenInvoice: boolean): DataColumn<S
     {
       id: "invoice",
       header: "الفاتورة",
+      sortValue: (sale) => sale.code,
       renderCell: (sale) => (
         <>
           {canOpenInvoice ? <Link href={`/sales/${sale.id}`} className="sales-invoice-badge">
@@ -140,6 +145,7 @@ export function createSalesInvoiceColumns(canOpenInvoice: boolean): DataColumn<S
     {
       id: "customer",
       header: "العميل",
+      sortValue: (sale) => sale.customerName,
       renderCell: (sale) => (
         <div className="sales-customer-cell">
           <span className="sales-customer-cell__avatar" aria-hidden="true">
@@ -155,17 +161,24 @@ export function createSalesInvoiceColumns(canOpenInvoice: boolean): DataColumn<S
     {
       id: "branch",
       header: "الفرع",
+      sortValue: (sale) => sale.branchName,
       renderCell: (sale) => <span className="sales-branch-pill">{sale.branchName}</span>,
     },
     {
       id: "original",
       header: "الإجمالي الأصلي",
+      sortKind: "cents",
+      initialSortDirection: "desc",
+      sortValue: (sale) => sale.originalCents,
       cellClassName: "sales-money-cell is-strong",
       renderCell: (sale) => <><bdi dir="ltr">{sale.originalFormatted}</bdi> <small>ج.م</small></>,
     },
     {
       id: "due-from",
       header: "المتبقي على العميل",
+      sortKind: "cents",
+      initialSortDirection: "desc",
+      sortValue: (sale) => sale.dueFromCustomerCents,
       cellClassName: (sale) => `sales-money-cell${sale.hasDueFromCustomer ? " is-due-from" : " is-zero"}`,
       renderCell: (sale) => (
         <>
@@ -181,12 +194,16 @@ export function createSalesInvoiceColumns(canOpenInvoice: boolean): DataColumn<S
     {
       id: "due-to",
       header: "مستحق للعميل",
+      sortKind: "cents",
+      initialSortDirection: "desc",
+      sortValue: (sale) => sale.dueToCustomerCents,
       cellClassName: (sale) => `sales-money-cell${sale.hasDueToCustomer ? " is-due-to" : " is-zero"}`,
       renderCell: (sale) => <><bdi dir="ltr">{sale.dueToCustomerFormatted}</bdi> <small>ج.م</small></>,
     },
     {
       id: "status",
       header: "الحالة",
+      sortValue: (sale) => sale.statusLabel,
       renderCell: (sale) => (
         <span className={`sale-chip ${statusChipClass(sale)}`}>
           <span className="sale-chip__dot" aria-hidden="true" />
@@ -197,6 +214,9 @@ export function createSalesInvoiceColumns(canOpenInvoice: boolean): DataColumn<S
     {
       id: "created-at",
       header: "التاريخ",
+      sortKind: "date",
+      initialSortDirection: "desc",
+      sortValue: (sale) => sale.createdAtIso,
       cellClassName: "sales-date-cell",
       renderCell: (sale) => sale.createdAtFormatted,
     },

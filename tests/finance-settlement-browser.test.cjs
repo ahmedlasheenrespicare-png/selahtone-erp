@@ -24,7 +24,8 @@ test('settlement browser: partial and zero transfer review with server confirmat
   assert.ok(browserDir, 'Set SYNTHETIC_BROWSER_DIR to a separate installation containing playwright-core and @sparticuz/chromium');
   const external = createRequire(join(browserDir, 'package.json'));
   const { chromium } = external('playwright-core');
-  const chromiumBinary = external('@sparticuz/chromium');
+  const chromiumModule = external('@sparticuz/chromium');
+  const chromiumBinary = chromiumModule.default ?? chromiumModule;
   const dir = mkdtempSync(join(tmpdir(), 'selahtone-transfers-browser-'));
   const password = 'Synthetic-Browser-Test-2026!';
   let child, browser; let logs = '';
@@ -38,8 +39,10 @@ test('settlement browser: partial and zero transfer review with server confirmat
       await db.exec(`INSERT INTO finance.accounts (branch_id,kind,holder_id,opening_amount,opening_date,opened_by,opened_at) VALUES
         (1,'VAULT',NULL,10000,CURRENT_DATE-1,1,now()-interval '1 day'),
         (1,'CUSTODY',3,1000,CURRENT_DATE-1,1,now()-interval '1 day');
-        INSERT INTO finance.settlements (account_id,branch_id,requested_by,system_balance,counted_amount,sales_total,expenses_total,expected_amount,deviation,adjustment,reason,account_revision)
-        VALUES (2,1,3,1000,1500,0,0,1000,500,500,'تسوية اصطناعية',0);`);
+        -- The request follows the seeded cash collections later in the day.
+        -- An earlier request is genuinely stale and must remain blocked.
+        INSERT INTO finance.settlements (account_id,branch_id,requested_by,created_at,system_balance,counted_amount,sales_total,expenses_total,expected_amount,deviation,adjustment,reason,account_revision)
+        VALUES (2,1,3,date_trunc('day',now()) + interval '21 hours 30 minutes',1000,1500,0,0,1000,500,500,'تسوية اصطناعية',0);`);
     } finally { await db.close(); }
     const port = await freePort(), base = `http://127.0.0.1:${port}`;
     child = spawn(process.execPath, [join(root, 'node_modules/next/dist/bin/next'), 'dev', '--hostname', '127.0.0.1', '--port', String(port)], {
@@ -57,7 +60,7 @@ test('settlement browser: partial and zero transfer review with server confirmat
     assert.ok(ready, 'synthetic Next server did not start');
     // Lambda's bundled NSS libraries are required on minimal Linux images.
     // Extract only into this disposable test directory, not the repository.
-    const browserPackage = dirname(external.resolve('@sparticuz/chromium/package.json'));
+    const browserPackage = dirname(dirname(external.resolve('@sparticuz/chromium')));
     const archive = join(dir, 'browser-libs.tar');
     writeFileSync(archive, brotliDecompressSync(readFileSync(join(browserPackage, 'bin/al2023.tar.br'))));
     execFileSync('tar', ['-xf', archive, '-C', dir]);
@@ -75,6 +78,7 @@ test('settlement browser: partial and zero transfer review with server confirmat
     const card = page.locator('.fin-panel').filter({ has: page.getByText('سبب الموظف: تسوية اصطناعية') });
     await card.waitFor();
     const amount = card.getByLabel('مبلغ التحويل المُدخل');
+    assert.equal(await amount.count(), 1, `confirm form missing; section text: ${await page.locator('#pending-settlements').innerText()}`);
     assert.equal(await amount.inputValue(), '500.00');
     await amount.fill('0');
     assert.match(await card.innerText(), /مبلغ التحويل يختلف عن القيمة الافتراضية/);

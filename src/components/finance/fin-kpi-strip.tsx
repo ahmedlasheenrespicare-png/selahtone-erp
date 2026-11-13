@@ -4,6 +4,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { AppIcon, type AppIconName } from "@/components/app-icon";
+import { StatRing } from "@/components/stat-ring-pill";
 
 export type FinKpiItem = {
   icon: AppIconName;
@@ -14,10 +15,16 @@ export type FinKpiItem = {
   tone?: "default" | "accent" | "alert";
   /** عند التمرير تصبح البطاقة رابطًا كاملًا (مثال: «مصروفات بانتظار إجراء» → /finance/expenses). */
   href?: string;
+  /** حلقة نسبة اختيارية تحل محل الأيقونة في هذه البطاقة فقط. null = مقام غير صالح. */
+  ring?: {
+    percent: number | null;
+    percentLabel: string;
+    emptyLabel?: string;
+  };
 };
 
-function kpiClass(tone?: FinKpiItem["tone"]): string {
-  return `fin-kpi-card${tone === "accent" ? " is-accent" : ""}${tone === "alert" ? " is-alert" : ""}`;
+function kpiClass(tone?: FinKpiItem["tone"], ring?: boolean): string {
+  return `fin-kpi-card${tone === "accent" ? " is-accent" : ""}${tone === "alert" ? " is-alert" : ""}${ring ? " fin-kpi-card--ring" : ""}`;
 }
 
 export function FinKpiStrip({
@@ -35,9 +42,18 @@ export function FinKpiStrip({
       {items.map((item, index) => {
         const inner = (
           <>
-            <span className="fin-kpi-card__icon" aria-hidden="true">
-              <AppIcon name={item.icon} />
-            </span>
+            {item.ring ? (
+              <StatRing
+                percent={item.ring.percent}
+                percentLabel={item.ring.percentLabel}
+                emptyLabel={item.ring.emptyLabel}
+                className="fin-kpi-card__ring"
+              />
+            ) : (
+              <span className="fin-kpi-card__icon" aria-hidden="true">
+                <AppIcon name={item.icon} />
+              </span>
+            )}
             <div className="fin-kpi-card__body">
               <span className="fin-kpi-card__label">{item.label}</span>
               <strong className="fin-kpi-card__value">{item.value}</strong>
@@ -46,11 +62,11 @@ export function FinKpiStrip({
           </>
         );
         return item.href ? (
-          <Link key={index} href={item.href} className={kpiClass(item.tone)}>
+          <Link key={index} href={item.href} className={kpiClass(item.tone, Boolean(item.ring))}>
             {inner}
           </Link>
         ) : (
-          <article key={index} className={kpiClass(item.tone)}>
+          <article key={index} className={kpiClass(item.tone, Boolean(item.ring))}>
             {inner}
           </article>
         );

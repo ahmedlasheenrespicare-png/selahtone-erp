@@ -24,7 +24,8 @@ test('finance expenses browser: duplicate branch names totals, filters and expor
   assert.ok(browserDir, 'Set SYNTHETIC_BROWSER_DIR to a separate installation containing playwright-core and @sparticuz/chromium');
   const external = createRequire(join(browserDir, 'package.json'));
   const { chromium } = external('playwright-core');
-  const chromiumBinary = external('@sparticuz/chromium');
+  const chromiumModule = external('@sparticuz/chromium');
+  const chromiumBinary = chromiumModule.default ?? chromiumModule;
   const dir = mkdtempSync(join(tmpdir(), 'selahtone-expenses-browser-'));
   const password = 'Synthetic-Browser-Test-2026!';
   let child, browser; let logs = '';
@@ -56,17 +57,24 @@ test('finance expenses browser: duplicate branch names totals, filters and expor
     assert.ok(ready, 'synthetic Next server did not start');
     // Lambda's bundled NSS libraries are required on minimal Linux images.
     // Extract only into this disposable test directory, not the repository.
-    const browserPackage = dirname(external.resolve('@sparticuz/chromium/package.json'));
+    const browserPackage = dirname(dirname(external.resolve('@sparticuz/chromium')));
     const archive = join(dir, 'browser-libs.tar');
     writeFileSync(archive, brotliDecompressSync(readFileSync(join(browserPackage, 'bin/al2023.tar.br'))));
     execFileSync('tar', ['-xf', archive, '-C', dir]);
     browser = await chromium.launch({ executablePath: await chromiumBinary.executablePath(), args: chromiumBinary.args, headless: true,
       env: { ...process.env, LD_LIBRARY_PATH: `${join(dir, 'lib')}:${process.env.LD_LIBRARY_PATH || ''}` } });
     const page = await browser.newPage();
+    page.setDefaultTimeout(60000);
     await page.goto(`${base}/login?next=%2Ffinance%2Fexpenses`);
     await page.locator('#email').fill('manager@selahtone.local');
     await page.locator('#password').fill(password);
-    await Promise.all([page.waitForURL('**/finance/expenses', { timeout: 30000 }), page.locator('button[type=submit]').click()]);
+    await Promise.all([page.waitForURL('**/finance/expenses', { timeout: 60000 }), page.locator('button[type=submit]').click()]);
+    const paidCard = page.locator('.fin-kpi-card--ring');
+    await paidCard.waitFor();
+    assert.equal(await page.locator('.fin-kpi-card--ring').count(), 1);
+    assert.equal(await paidCard.locator('.stat-ring-pill__ring-wrap').getAttribute('data-empty'), 'false');
+    assert.equal((await paidCard.locator('.stat-ring-pill__core').innerText()).trim(), '0%');
+    assert.match(await paidCard.locator('.fin-kpi-card__value').innerText(), /0\.00/);
     await page.getByRole('tab', { name: 'حسب الفرع', exact: true }).click();
     const chartBlock = page.getByRole('tablist', {name: /طريقة عرض مؤشر مراحل الاعتماد/}).locator('..');
     assert.match(await chartBlock.innerText(), /فرع متطابق · SHM[\s\S]*222\.22 ج\.م/);

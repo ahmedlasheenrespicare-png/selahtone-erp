@@ -166,6 +166,9 @@ export type DashboardOperationalPulse = {
   todayNetCollectedFormatted: string;
   todayCashCollectedFormatted: string;
   todayElectronicCollectedFormatted: string;
+  /** قيم خام بالقرش (نصية) لحصة النقدي في حلقة العرض؛ لا تغيّر أي مبلغ معروض. */
+  todayNetCollectedCents: string;
+  todayCashCollectedCents: string;
   outOfStockCount: number;
   lowStockTotalCount: number;
   lowStockItems: DashboardStockAlertItem[];
@@ -176,6 +179,9 @@ export type DashboardOperationalPulse = {
   todaySplitDistinctInvoices: number;
   todayRemainingFormatted: string;
   todayRemainingCount: number;
+  /** قيم خام بالقرش (نصية) لحلقة المتبقي على فواتير اليوم ÷ صافي مبيعات اليوم؛ لا تغيّر أي مبلغ معروض. */
+  todayNetSalesCents: string;
+  todayRemainingCents: string;
   todayRefundsList: DashboardTodayRefundItem[];
   todayRefundsTotalFormatted: string;
   /** تحصيلات اليوم على فواتير آجلة قديمة (نشأت قبل اليوم وذمتها كانت مفتوحة) */
@@ -951,6 +957,8 @@ export async function loadDashboardOperationalData(
     todayNetCollectedFormatted: displayMoney(todayNetCollectedCents),
     todayCashCollectedFormatted: displayMoney(todayCashCents),
     todayElectronicCollectedFormatted: displayMoney(todayElecCents),
+    todayNetCollectedCents: todayNetCollectedCents.toString(),
+    todayCashCollectedCents: todayCashCents.toString(),
     outOfStockCount: Number(lowStockCountsRows[0]?.zeroCount ?? 0),
     lowStockTotalCount: Number(lowStockCountsRows[0]?.lowTotalCount ?? 0),
     lowStockItems,
@@ -961,6 +969,8 @@ export async function loadDashboardOperationalData(
     todaySplitDistinctInvoices,
     todayRemainingFormatted: displayMoney(todayRemainingCents),
     todayRemainingCount,
+    todayNetSalesCents: todayNetSalesCents.toString(),
+    todayRemainingCents: todayRemainingCents.toString(),
     todayRefundsTotalFormatted: displayMoney(todayRefundsCents),
     todayRefundsMovesCount,
     todayRefundsList,

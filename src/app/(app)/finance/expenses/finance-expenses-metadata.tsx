@@ -11,6 +11,8 @@ export type FinanceExpenseRow = {
   categorySnapshot: string;
   description: string;
   amountFormatted: string;
+  /** المبلغ الفعّال بالقرش (نصًا) للفرز الرقمي؛ لا يغيّر المبلغ المعروض ولا المجاميع. */
+  amountCents: string;
   status: string;
   statusLabel: string;
 };
@@ -58,23 +60,31 @@ export function createFinanceExpenseColumns(canManage: boolean): DataColumn<Fina
     {
       id: "date",
       header: "التاريخ",
+      sortKind: "date",
+      initialSortDirection: "desc",
+      sortValue: (expense) => expense.expenseDate,
       renderCell: (expense) => <bdi dir="ltr">{expense.expenseDate}</bdi>,
     },
-    { id: "branch", header: "الفرع", renderCell: (expense) => expense.branchName },
+    { id: "branch", header: "الفرع", sortValue: (expense) => expense.branchName, renderCell: (expense) => expense.branchName },
     {
       id: "category",
       header: "البند",
+      sortValue: (expense) => expense.categorySnapshot,
       renderCell: (expense) => <span className="fin-badge fin-badge--vault">{expense.categorySnapshot}</span>,
     },
-    { id: "description", header: "الوصف", renderCell: (expense) => expense.description },
+    { id: "description", header: "الوصف", sortValue: (expense) => expense.description, renderCell: (expense) => expense.description },
     {
       id: "amount",
       header: "المبلغ",
+      sortKind: "cents",
+      initialSortDirection: "desc",
+      sortValue: (expense) => expense.amountCents,
       renderCell: (expense) => <span className="fin-money"><bdi dir="ltr">{expense.amountFormatted}</bdi> ج.م</span>,
     },
     {
       id: "status",
       header: "الحالة",
+      sortValue: (expense) => expense.statusLabel,
       renderCell: (expense) => <span className={badgeClass(expense.status)}>{expense.statusLabel}</span>,
     },
     ...(canManage ? [{

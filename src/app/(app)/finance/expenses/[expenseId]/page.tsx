@@ -6,6 +6,9 @@ import { notFound } from "next/navigation";
 import { AppIcon } from "@/components/app-icon";
 import DataTable from "@/components/data-driven/data-table";
 import PrintPageButton from "@/components/print-page-button";
+import { FinStepper } from "@/components/finance/fin-stepper";
+import RecordDetailTabs from "@/components/record-detail-tabs";
+import type { FinStep } from "@/components/finance/fin-stepper-model";
 import { expenseReviewSnapshot } from "@/lib/finance/expense-review-snapshot";
 import { listAccounts, listExpenses } from "@/lib/finance/engine";
 import { cairoDate } from "@/lib/finance/validation";
@@ -200,64 +203,41 @@ export default async function ExpenseDetailPage({ params }: Props) {
         </div>
       </div>
 
-      <ol className="fin-stepper" aria-label="دورة حياة المصروف">
-        <li className="fin-stepper__step is-done">
-          <span className="fin-stepper__num">1</span>
-          <div className="fin-stepper__body">
-            <strong>تسجيل المصروف</strong>
-            <small>{userNames.get(expense.requestedBy) ?? "مُسجَّل"} · {expense.expenseDate}</small>
-          </div>
-        </li>
-        <li
-          className={`fin-stepper__step${
-            expense.status === "APPROVED" || expense.status === "PAID"
-              ? " is-done"
-              : " is-current"
-          }`}
-        >
-          <span className="fin-stepper__num">2</span>
-          <div className="fin-stepper__body">
-            <strong>اعتماد الإدارة</strong>
-            <small>
-              {expense.approvedBy
-                ? `اعتمد بواسطة ${userNames.get(expense.approvedBy) ?? expense.approvedBy}`
-                : "بانتظار الاعتماد"}
-            </small>
-          </div>
-        </li>
-        <li
-          className={`fin-stepper__step${
-            expense.status === "PAID"
-              ? " is-done"
-              : expense.status === "APPROVED"
-                ? " is-current"
-                : ""
-          }`}
-        >
-          <span className="fin-stepper__num">3</span>
-          <div className="fin-stepper__body">
-            <strong>الصرف الفعلي</strong>
-            <small>
-              {expense.status === "PAID"
-                ? `${payments.rows.length} سجل دفع`
-                : "بانتظار تسجيل الصرف"}
-            </small>
-          </div>
-        </li>
-        <li
-          className={`fin-stepper__step${
-            expense.status === "PAID" && payments.rows.length > 0 ? " is-done" : ""
-          }`}
-        >
-          <span className="fin-stepper__num">4</span>
-          <div className="fin-stepper__body">
-            <strong>التوثيق والمراجعة</strong>
-            <small>الإصدار #{expense.revision}</small>
-          </div>
-        </li>
-      </ol>
+      <FinStepper
+        className="fin-stepper--page"
+        label="دورة حياة المصروف"
+        steps={[
+          {
+            key: "register",
+            title: "تسجيل المصروف",
+            description: `${userNames.get(expense.requestedBy) ?? "مُسجَّل"} · ${expense.expenseDate}`,
+            status: "done",
+          },
+          {
+            key: "approve",
+            title: "اعتماد الإدارة",
+            description: expense.approvedBy
+              ? `اعتمد بواسطة ${userNames.get(expense.approvedBy) ?? expense.approvedBy}`
+              : "بانتظار الاعتماد",
+            status: expense.status === "APPROVED" || expense.status === "PAID" ? "done" : "current",
+          },
+          {
+            key: "pay",
+            title: "الصرف الفعلي",
+            description: expense.status === "PAID" ? `${payments.rows.length} سجل دفع` : "بانتظار تسجيل الصرف",
+            status: expense.status === "PAID" ? "done" : expense.status === "APPROVED" ? "current" : "pending",
+          },
+          {
+            key: "document",
+            title: "التوثيق والمراجعة",
+            description: `الإصدار #${expense.revision}`,
+            status: expense.status === "PAID" && payments.rows.length > 0 ? "done" : "pending",
+          },
+        ] satisfies FinStep[]}
+      />
 
-      <div className="fin-panel">
+      <RecordDetailTabs label="أقسام المصروف" tabs={[
+        { id: "information", label: "البيانات", children: <><div className="fin-panel">
         <div className="fin-panel__heading">
           <h2>بيانات المصروف</h2>
           <p>المبلغ الفعال يظهر بعد أي تصحيح مؤكد؛ الأصل محفوظ دائمًا.</p>
@@ -265,9 +245,8 @@ export default async function ExpenseDetailPage({ params }: Props) {
         <DataTable rows={expenseInformationRows} columns={expenseInformationColumns} rowKey={(row) => row.id}
           regionLabel="جدول مالي قابل للتمرير" regionClassName="fin-table-wrap" tableClassName="fin-table"
           caption="بيانات المصروف الموثّقة بعد أي تصحيح مؤكد" showColumnHeaders={false} />
-      </div>
-
-      {expense.status === "PENDING" && canApprove ? (
+      </div></> },
+        ...((expense.status === "PENDING" && canApprove) || (expense.status === "APPROVED" && canPay) || (expense.status === "PAID" && payments.rows.length > 0) ? [{ id: "payment", label: "الاعتماد والصرف", children: <>{expense.status === "PENDING" && canApprove ? (
         <div className="fin-panel">
           <div className="fin-panel__heading">
             <h2>الاعتماد</h2>
@@ -315,9 +294,8 @@ export default async function ExpenseDetailPage({ params }: Props) {
   regionLabel="جدول مالي قابل للتمرير" regionClassName="fin-table-wrap" tableClassName="fin-table"
   caption="بيانات الصرف المسجّلة — المصدر والطريقة والمسجّل" />
         </div>
-      ) : null}
-
-      {expense.status === "PAID" && canReview ? (
+      ) : null}</> }] : []),
+        ...(expense.status === "PAID" && canReview ? [{ id: "review", label: "المراجعة والتصحيحات", children: <>{expense.status === "PAID" && canReview ? (
         <div className="fin-panel">
           <div className="fin-panel__heading">
             <h2>مراجعة مبلغ مدفوع</h2>
@@ -369,7 +347,8 @@ export default async function ExpenseDetailPage({ params }: Props) {
             {reviewData.corrections.length > 0 || reviewData.movements.length > 0 ? <p>الحركات المعروضة مرتبطة بتصحيحات مسجلة لهذا المصروف فقط؛ قد تتضمن السجلات روابط غير متطابقة تحتاج مراجعة. لا يثبت وجود حركة أو غيابها دفعًا ماديًا أو شمول الفرق في جرد أو تسوية.</p> : null}
           </div>
         </div>
-      ) : null}
+      ) : null}</> }] : []),
+      ]} />
     </div>
   );
 }

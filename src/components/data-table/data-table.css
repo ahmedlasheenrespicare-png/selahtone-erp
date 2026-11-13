@@ -1,0 +1,275 @@
+/*
+ * جدول السجلات الموحّد — فرز بالنقر على الرأس + ترقيم صفحات.
+ * الألوان من توكنز القسم المضيف: المالية (--fn-*)، المبيعات (--sl-*)، ثم بديل عام.
+ * لا حركة مستمرة، ولا ألوان مثبّتة إلا في الطباعة وألوان النظام.
+ */
+
+.data-table {
+  --dt-ink: var(--fn-ink, var(--sl-ink, #182b18));
+  --dt-muted: var(--fn-muted, var(--sl-muted, #465d46));
+  --dt-surface: var(--fn-surface, var(--sl-surface, #ffffff));
+  --dt-surface-soft: var(--fn-surface-soft, var(--sl-surface-soft, #f5f9f3));
+  --dt-border: var(--fn-border, var(--sl-border, #d5e3cf));
+  --dt-border-strong: var(--fn-border-strong, var(--sl-border-strong, #b9cfaf));
+  --dt-accent: var(--fn-primary-btn, var(--sl-primary-btn, #1f3a1f));
+  min-width: 0;
+}
+
+.data-table__wrap {
+  min-width: 0;
+}
+
+.data-table__table {
+  width: 100%;
+}
+
+/* رأس العمود القابل للفرز: زر حقيقي داخل th، فيعمل بالفأرة ولوحة المفاتيح. */
+.data-table__th--sortable {
+  padding: 0 !important;
+}
+
+.data-table__sort {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 13px 16px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 800;
+  text-align: start;
+  cursor: pointer;
+  transition: background-color 0.16s ease, color 0.16s ease;
+}
+
+.data-table__sort:hover {
+  background: var(--dt-surface);
+  color: var(--dt-accent);
+}
+
+.data-table__sort:focus-visible {
+  outline: 2px solid var(--dt-accent);
+  outline-offset: -3px;
+  border-radius: 6px;
+}
+
+.data-table__sort-text {
+  min-width: 0;
+}
+
+/* سهم الفرز: باهت في الحالة المحايدة، وواضح مع الاتجاه الفعلي. */
+.data-table__sort-icon {
+  flex: none;
+  width: 0;
+  height: 0;
+  border-inline-start: 4px solid transparent;
+  border-inline-end: 4px solid transparent;
+  border-bottom: 5px solid currentColor;
+  opacity: 0.32;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.data-table__sort[data-direction="asc"] .data-table__sort-icon {
+  opacity: 1;
+}
+
+.data-table__sort[data-direction="desc"] .data-table__sort-icon {
+  opacity: 1;
+  transform: rotate(180deg);
+}
+
+.data-table__sort[data-direction="none"] .data-table__sort-icon {
+  border-bottom-color: currentColor;
+}
+
+/* specificity أعلى من قواعد th الخاصة بالقسم المضيف حتى يظهر العمود المرتّب فعلًا */
+.data-table__table .data-table__th--sortable[aria-sort="ascending"],
+.data-table__table .data-table__th--sortable[aria-sort="descending"] {
+  color: var(--dt-accent);
+  background: var(--dt-surface);
+}
+
+.data-table__cell--start { text-align: start; }
+.data-table__cell--center { text-align: center; }
+.data-table__cell--end { text-align: end; }
+
+.data-table__empty-cell {
+  padding: 22px 16px;
+  color: var(--dt-muted);
+  text-align: center;
+}
+
+/* شريط الترقيم */
+.data-table__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--dt-border);
+  background: var(--dt-surface-soft);
+  color: var(--dt-ink);
+}
+
+.data-table__range {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--dt-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.data-table__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+
+.data-table__size {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--dt-muted);
+}
+
+.data-table__size select {
+  padding: 6px 10px;
+  border: 1px solid var(--dt-border-strong);
+  border-radius: 9px;
+  background: var(--dt-surface);
+  color: var(--dt-ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.data-table__size select:focus-visible,
+.data-table__page-btn:focus-visible {
+  outline: 2px solid var(--dt-accent);
+  outline-offset: 2px;
+}
+
+.data-table__pager {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.data-table__page-status {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--dt-ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.data-table__page-btn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--dt-border-strong);
+  border-radius: 9px;
+  background: var(--dt-surface);
+  color: var(--dt-ink);
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.16s ease, border-color 0.16s ease;
+}
+
+.data-table__page-btn:hover:not(:disabled) {
+  background: var(--dt-surface-soft);
+  border-color: var(--dt-accent);
+  color: var(--dt-accent);
+}
+
+.data-table__page-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ملاحظة الطباعة مخفية على الشاشة، وتظهر على الورق بدل شريط التنقل. */
+.data-table__print-note {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .data-table__bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .data-table__controls {
+    justify-content: space-between;
+  }
+
+  .data-table__sort {
+    padding: 11px 12px;
+    gap: 6px;
+  }
+}
+
+/* الوضع الليلي: توكنز القسم نفسها، مع بديل عام عند غيابها. */
+.workspace-shell[data-color-mode="dark"] .data-table {
+  --dt-accent: var(--fn-accent, var(--sl-accent, #9bd86a));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .data-table__sort,
+  .data-table__sort-icon,
+  .data-table__page-btn {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  .data-table__sort[data-direction="desc"] .data-table__sort-icon {
+    transform: rotate(180deg);
+  }
+}
+
+@media (forced-colors: active) {
+  .data-table__sort-icon {
+    border-bottom-color: CanvasText;
+    opacity: 1;
+  }
+
+  .data-table__page-btn,
+  .data-table__size select {
+    border-color: CanvasText;
+  }
+}
+
+@media print {
+  .data-table__bar {
+    display: none !important;
+  }
+
+  .data-table__print-note {
+    display: block;
+    margin: 8px 0 0;
+    color: #000;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .data-table__sort {
+    padding: 8px 10px;
+    color: #000;
+    background: transparent;
+  }
+
+  .data-table__sort-icon {
+    transition: none !important;
+    border-bottom-color: #000;
+  }
+}

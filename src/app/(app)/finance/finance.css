@@ -494,6 +494,50 @@ a.fin-kpi-card:hover {
   font-size: 11px;
 }
 
+/* بطاقة المدفوع فعليًا وحدها تحمل حلقة نسبة؛ باقي بطاقات المالية كما هي. */
+.fin-kpi-card--ring {
+  align-items: center;
+  perspective: 900px;
+}
+
+.fin-kpi-card--ring .fin-kpi-card__body {
+  flex: 1;
+  transform: translateZ(3px);
+}
+
+.fin-kpi-card__ring {
+  align-self: center;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .fin-kpi-card--ring:hover .stat-ring-pill__ring-wrap {
+    transform: translateZ(6px) rotateX(2deg) rotateY(-2deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fin-kpi-card--ring,
+  .fin-kpi-card--ring .fin-kpi-card__body,
+  .fin-kpi-card--ring .stat-ring-pill__ring-wrap {
+    perspective: none;
+    transform: none !important;
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+@media print {
+  .fin-kpi-card--ring,
+  .fin-kpi-card--ring .fin-kpi-card__body,
+  .fin-kpi-card--ring .stat-ring-pill__ring-wrap {
+    perspective: none;
+    transform: none !important;
+    transition: none !important;
+    animation: none !important;
+    box-shadow: none !important;
+  }
+}
+
 /* ---------------- شريط البحث والتصفية السريعة ---------------- */
 .fin-directory-heading {
   display: flex;

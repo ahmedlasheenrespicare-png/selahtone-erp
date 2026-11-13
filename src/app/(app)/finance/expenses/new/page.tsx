@@ -4,6 +4,7 @@ import Link from "next/link";
 import { AppIcon } from "@/components/app-icon";
 import DataTable from "@/components/data-driven/data-table";
 import { FinKpiStrip } from "@/components/finance/fin-kpi-strip";
+import { FinStepper } from "@/components/finance/fin-stepper";
 import { displayMoney } from "@/lib/commerce-display";
 import { listExpenses, listSelectableCategories } from "@/lib/finance/engine";
 import { parsePositiveMoneyCents } from "@/lib/finance/new-expense-helpers";
@@ -249,29 +250,15 @@ export default async function NewExpensePage({
         ]}
       />
 
-      <ol className="fin-stepper no-print" aria-label="دورة الرقابة على المصروف">
-        <li className="fin-stepper__step is-current">
-          <span className="fin-stepper__num">1</span>
-          <div className="fin-stepper__body">
-            <strong>قيد المصروف والمستند</strong>
-            <small>إدخال المبلغ والبند ورقم الفاتورة الورقية</small>
-          </div>
-        </li>
-        <li className="fin-stepper__step">
-          <span className="fin-stepper__num">2</span>
-          <div className="fin-stepper__body">
-            <strong>مراجعة واعتماد الإدارة</strong>
-            <small>تدقيق المدير أو المحاسب قبل الإذن بالصرف</small>
-          </div>
-        </li>
-        <li className="fin-stepper__step">
-          <span className="fin-stepper__num">3</span>
-          <div className="fin-stepper__body">
-            <strong>الصرف الفعلي والتقييد</strong>
-            <small>خصم المبلغ من العهدة أو الخزنة وتوثيق السند</small>
-          </div>
-        </li>
-      </ol>
+      <FinStepper
+        className="no-print fin-stepper--page"
+        label="دورة الرقابة على المصروف"
+        steps={[
+          { key: "register", title: "قيد المصروف والمستند", description: "إدخال المبلغ والبند ورقم الفاتورة الورقية", status: "current" },
+          { key: "approve", title: "مراجعة واعتماد الإدارة", description: "تدقيق المدير أو المحاسب قبل الإذن بالصرف", status: "pending" },
+          { key: "pay", title: "الصرف الفعلي والتقييد", description: "خصم المبلغ من العهدة أو الخزنة وتوثيق السند", status: "pending" },
+        ]}
+      />
 
       {!canManage && (
         <div className="fin-alert fin-alert--warning">

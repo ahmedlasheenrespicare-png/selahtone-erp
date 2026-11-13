@@ -6,6 +6,8 @@ import { confirmSettlementAction, rejectSettlementAction } from "../actions";
 import { initialFinanceActionState } from "../finance-state";
 import { formatMoney } from "../format";
 import { PeriodEstimateNotice } from "../period-estimate-notice";
+import { FinStepper } from "@/components/finance/fin-stepper";
+import { settlementLifecycleSteps } from "@/components/finance/fin-stepper-model";
 
 export type SettlementDecisionItem = {
   id: string;
@@ -50,10 +52,20 @@ export function SettlementDecisionCard({ item, canConfirm, canReject, actorId }:
   const differsFromDefault = amountValid && Math.abs(amountNumber - Math.abs(adjustmentNumber)) > 0.000001;
 
   if (confirmState.status === "success" || rejectState.status === "success") {
+    const confirmed = confirmState.status === "success";
     return (
       <div className="fin-panel fin-success" role="status">
+        <FinStepper
+          className="fin-stepper--panel"
+          label={`مسار طلب التسوية #${item.id} بعد القرار`}
+          steps={settlementLifecycleSteps({
+            status: confirmed ? "CONFIRMED" : "REJECTED",
+            transferAmount: confirmed ? amount : null,
+            resolutionReason: reason,
+          })}
+        />
         <h2>سُجّل القرار</h2>
-        <p>{confirmState.status === "success" ? confirmState.message : rejectState.message}</p>
+        <p>{confirmed ? confirmState.message : rejectState.message}</p>
       </div>
     );
   }
@@ -65,6 +77,15 @@ export function SettlementDecisionCard({ item, canConfirm, canReject, actorId }:
         <p>طلب بتاريخ {item.createdAt.slice(0, 10)} — سبب الموظف: {item.reason}</p>
       </div>
       <div className="fin-panel__body">
+        <FinStepper
+          className="no-print fin-stepper--panel"
+          label={`مسار طلب التسوية #${item.id}`}
+          steps={settlementLifecycleSteps({
+            status: "OPEN",
+            reviewing: review,
+            blocked: !canConfirm,
+          })}
+        />
         <PeriodEstimateNotice />
         <div className="fin-fields">
           <div className="field fin-field fin-metric-tile">

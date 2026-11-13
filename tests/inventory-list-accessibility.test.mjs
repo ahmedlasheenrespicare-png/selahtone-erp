@@ -43,7 +43,11 @@ test("product and receipt tables expose all column headers", () => {
     assert.ok(metadata.includes(`id: "${id}"`), id);
   }
   assert.ok(metadata.includes('...(canSeeCost ? [{'));
-  assert.ok(table.includes('<th key={column.id} scope="col" aria-label={column.headerAriaLabel} className={column.headerClassName}>'));
+  // الرأس بقي معلنًا لقارئ الشاشة كما كان، مع إضافة aria-sort للعمود القابل للفرز.
+  assert.ok(table.includes('key={column.id}'));
+  assert.ok(table.includes('scope="col"'));
+  assert.ok(table.includes('aria-label={column.headerAriaLabel}'));
+  assert.ok(table.includes('aria-sort={ariaSort}'));
   assert.ok(receipts.includes("columns={createInventoryReceiptColumns(showUnitCost)}"));
   assert.ok(receipts.includes('regionLabel="جدول التوريدات"'));
   assert.ok(registers.includes('...(showUnitCost ? [{'));

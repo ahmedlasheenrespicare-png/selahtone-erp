@@ -5,6 +5,8 @@ import Link from "next/link";
 import DashboardWallet, { type WalletPocketItem } from "@/app/(app)/dashboard/dashboard-wallet";
 import { AppIcon } from "@/components/app-icon";
 import PantherSpotlightCard from "@/components/panther-spotlight-card";
+import { StatRing } from "@/components/stat-ring-pill";
+import { countShareRingPercent } from "@/components/stat-ring-pill-model";
 import { branchScope, requireSession } from "@/lib/auth";
 import { customerPosition } from "@/lib/commerce-math";
 import { displayMoney } from "@/lib/commerce-display";
@@ -181,6 +183,9 @@ export default async function SalesPage() {
       netCollectedFormatted: displayMoney(netCollected),
       dueFromCustomerFormatted: displayMoney(balance.dueFromCustomerCents),
       dueToCustomerFormatted: displayMoney(balance.dueToCustomerCents),
+      originalCents: original.toString(),
+      dueFromCustomerCents: balance.dueFromCustomerCents.toString(),
+      dueToCustomerCents: balance.dueToCustomerCents.toString(),
       hasDueFromCustomer: balance.dueFromCustomerCents > 0n,
       hasDueToCustomer: balance.dueToCustomerCents > 0n,
       statusLabel,
@@ -199,6 +204,11 @@ export default async function SalesPage() {
   );
   const walletInvoices = cards;
   const branches = Array.from(branchSet);
+  // للعرض فقط: حصة فواتير اليوم النشطة من إجمالي فواتير اليوم المعروضة.
+  const activeInvoiceRingPercent = countShareRingPercent({
+    partCount: activeInvoicesCount,
+    totalCount: sales.length,
+  });
 
   const pocketItems: WalletPocketItem[] = [
     {
@@ -419,10 +429,13 @@ export default async function SalesPage() {
       )}
 
       <section className="sales-kpi-strip" aria-label="ملخص فواتير اليوم">
-        <article className="sales-kpi-card">
-          <span className="sales-kpi-card__icon" aria-hidden="true">
-            <AppIcon name="receipt" />
-          </span>
+        <article className="sales-kpi-card sales-kpi-card--ring">
+          <StatRing
+            className="sales-kpi-card__ring"
+            percent={activeInvoiceRingPercent}
+            percentLabel="نسبة فواتير اليوم النشطة من إجمالي فواتير اليوم"
+            emptyLabel={sales.length === 0 ? "لا فواتير" : "غير متاح"}
+          />
           <div className="sales-kpi-card__body">
             <span className="sales-kpi-card__label">الفواتير النشطة</span>
             <strong className="sales-kpi-card__value">{activeInvoicesCount}</strong>

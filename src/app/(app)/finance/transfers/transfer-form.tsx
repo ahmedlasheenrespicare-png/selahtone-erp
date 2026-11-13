@@ -7,6 +7,8 @@ import { transferCashAction } from "../actions";
 import { initialFinanceActionState } from "../finance-state";
 import { accountLabel, formatMoney } from "../format";
 import HandoverVoucher, { triggerVoucherPrint } from "./handover-voucher";
+import { FinStepper } from "@/components/finance/fin-stepper";
+import { transferLifecycleSteps } from "@/components/finance/fin-stepper-model";
 
 export type AccountOption = {
   id: string;
@@ -174,6 +176,11 @@ export default function TransferForm({
     return (
       <div className="fin-panel fin-success" role="status">
         <div className="no-print">
+          <FinStepper
+            className="fin-stepper--panel"
+            label="مسار سند التسليم بعد الحفظ"
+            steps={transferLifecycleSteps({ saved: true, reviewing: true, saving: false, ready: true, hasError: false })}
+          />
           <h2>تم تسجيل التسليم الفعلي</h2>
           <p>{state.message}</p>
         </div>
@@ -229,6 +236,17 @@ export default function TransferForm({
         type="hidden"
         name="negativeAcknowledged"
         value={negativeAcknowledged ? "yes" : "no"}
+      />
+
+      <FinStepper
+        label="مسار سند التسليم"
+        steps={transferLifecycleSteps({
+          saved: false,
+          reviewing: review,
+          saving: pending,
+          ready: Boolean(source && target && amountValid && (!needsWarning || negativeAcknowledged)),
+          hasError: state.status === "error",
+        })}
       />
 
       <div className="fin-panel">

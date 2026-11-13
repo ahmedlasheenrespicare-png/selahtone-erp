@@ -9,14 +9,19 @@ test("invoice filtering announces the result count", () => {
   assert.ok(source.includes('className="sr-only" role="status" aria-live="polite" aria-atomic="true">عدد الفواتير المطابقة: {filtered.length}</p>'));
   assert.ok(source.includes('className="inv-panel sales-empty-filter" role="status"'));
   const table = read("../src/components/data-driven/data-table.tsx");
-  assert.ok(source.includes('regionLabel="جدول فواتير البيع"'));
+  const layer = read("../src/components/data-table/data-table.tsx");
+  // الشاشة تمرّر التسمية لطبقة الفرز، وهي تمرّرها للمصيّر كما هي.
+  assert.ok(source.includes('ariaLabel="جدول فواتير البيع"'));
+  assert.ok(layer.includes('regionLabel={ariaLabel}'));
   assert.ok(table.includes('role="region" aria-label={regionLabel} tabIndex={0}'));
 });
 
 test("invoice CSV export announces the filtered download", () => {
   const source = read("../src/app/(app)/sales/sales-invoices-view.tsx");
   assert.ok(source.includes('const [exportMessage, setExportMessage] = useState("")'));
-  assert.ok(source.includes('setExportMessage(`تم بدء تنزيل ملف CSV ويضم ${filtered.length} فاتورة.`)'));
+  // العدد المُعلن هو عدد صفوف التصدير فعلًا: كل النتائج المطابقة بعد الفرز.
+  assert.ok(source.includes('setExportMessage(`تم بدء تنزيل ملف CSV ويضم ${table.sortedRows.length} فاتورة.`)'));
+  assert.ok(source.includes('csvRows(table.sortedRows, salesInvoiceCsvColumns)'));
   assert.ok(source.includes('className="sr-only" role="status" aria-live="polite" aria-atomic="true">{exportMessage}</p>'));
   assert.ok(source.includes('disabled={filtered.length === 0}'));
 });
@@ -28,7 +33,11 @@ test("invoice list and detail tables expose column headers", () => {
   const detail = read("../src/app/(app)/sales/[saleId]/page.tsx");
   const detailMetadata = read("../src/app/(app)/sales/[saleId]/sale-lines-metadata.tsx");
   assert.ok(list.includes("<DataTable"));
-  assert.ok(table.includes('<th key={column.id} scope="col" aria-label={column.headerAriaLabel} className={column.headerClassName}>'));
+  // الرأس بقي معلنًا لقارئ الشاشة كما كان، مع إضافة aria-sort للعمود القابل للفرز.
+  assert.ok(table.includes('key={column.id}'));
+  assert.ok(table.includes('scope="col"'));
+  assert.ok(table.includes('aria-label={column.headerAriaLabel}'));
+  assert.ok(table.includes('aria-sort={ariaSort}'));
   assert.equal((metadata.match(/^      id: "/gm) ?? []).length, 9);
   assert.ok(metadata.includes('headerAriaLabel: "تفاصيل"'));
   assert.equal((detailMetadata.match(/header: /g) ?? []).length, 6);

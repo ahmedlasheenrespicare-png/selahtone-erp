@@ -4,6 +4,8 @@ import DashboardWallet, { type WalletPocketItem } from "@/app/(app)/dashboard/da
 import { AppIcon } from "@/components/app-icon";
 import DataTable from "@/components/data-driven/data-table";
 import PantherSpotlightCard from "@/components/panther-spotlight-card";
+import StatRingPill from "@/components/stat-ring-pill";
+import { collectionRingPercent } from "@/components/stat-ring-pill-model";
 import { branchScope, requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -92,6 +94,9 @@ export default async function SalesStatsPage({
   ]);
 
   const comp = exec.comparison;
+  // للعرض فقط: لا نعدّل النسبة المحسوبة في المحرك ولا حمولة CSV.
+  const collectionPercent = collectionRingPercent(exec);
+  const collectionEmptyLabel = exec.invoiceCount === 0 ? "لا فواتير" : "لا مبيعات";
   const growthText = comp
     ? comp.growthPct !== null
       ? `${comp.growthPct >= 0 ? "↑ +" : "↓ "}${nf.format(comp.growthPct)}% ${comp.label} (${comp.prevNetSalesFormatted} ج.م)`
@@ -461,21 +466,25 @@ export default async function SalesStatsPage({
           </div>
         </article>
 
-        <article className="sales-kpi-card">
-          <span className="sales-kpi-card__icon" aria-hidden="true">
-            <AppIcon name="cash" />
-          </span>
-          <div className="sales-kpi-card__body">
-            <span className="sales-kpi-card__label">صافي المحصّل ونسبة التحصيل</span>
-            <strong className="sales-kpi-card__value">
-              <bdi dir="ltr">{exec.netCollectedFormatted}</bdi> <small>ج.م</small>
-            </strong>
-            <small className="sales-kpi-card__sub">
-              نسبة التحصيل <bdi dir="ltr">{nf.format(exec.collectionRatePct)}%</bdi> · ملغى{" "}
-              {nf.format(exec.cancelledCount)}
-            </small>
-          </div>
-        </article>
+        <StatRingPill
+          className="sales-kpi-card sales-kpi-card--ring"
+          label="صافي المحصّل ونسبة التحصيل"
+          value={exec.netCollectedFormatted}
+          unit="ج.م"
+          percent={collectionPercent}
+          percentLabel="نسبة التحصيل من صافي فواتير الفترة"
+          emptyLabel={collectionEmptyLabel}
+          hint={
+            <>
+              {collectionPercent === null
+                ? exec.invoiceCount === 0
+                  ? "لا فواتير نشطة في هذه الفترة · "
+                  : "صافي المبيعات صفر أو سالب · "
+                : null}
+              ملغى {nf.format(exec.cancelledCount)}
+            </>
+          }
+        />
 
         {showProfitability ? <article className="sales-kpi-card">
           <span className="sales-kpi-card__icon" aria-hidden="true">
