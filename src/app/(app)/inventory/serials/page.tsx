@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { AppIcon } from "@/components/app-icon";
+import DataTable from "@/components/data-driven/data-table";
 import { branchScope, requireSession } from "@/lib/auth";
 import { escapeLikeLiteral, latinDigits, positiveDatabaseId } from "@/lib/inventory-validation";
 import { prisma } from "@/lib/prisma";
 import { requirePageAccess } from "@/lib/access-control-server";
+import { inventorySerialColumns, type InventorySerialRow } from "../inventory-registers-metadata";
 
 export const dynamic = "force-dynamic";
 type Props = { searchParams: Promise<{ q?: string | string[]; before?: string | string[] }> };
@@ -40,6 +42,19 @@ export default async function SerialsPage({ searchParams }: Props) {
   const nextParams = new URLSearchParams();
   if (search) nextParams.set("q", rawSearch);
   if (hasMore) nextParams.set("before", visible[visible.length - 1].id.toString());
+  const rows: InventorySerialRow[] = visible.map((serial) => {
+    const source = serial.opening ?? serial.receipt;
+    return {
+      id: serial.id.toString(),
+      serialNumber: serial.serialNumber,
+      productName: source?.product.nameAr ?? null,
+      sku: source?.product.sku ?? null,
+      branchName: source?.warehouse.branch.nameAr ?? null,
+      warehouseName: source?.warehouse.nameAr ?? null,
+      isSold: Boolean(serial.currentSaleLineId),
+      createdAtFormatted: dateFormatter.format(serial.createdAt),
+    };
+  });
 
   return <div className="inv-page">
     <Link href="/inventory" className="inv-back"><AppIcon name="arrow" /> العودة إلى المخزون</Link>
@@ -50,24 +65,18 @@ export default async function SerialsPage({ searchParams }: Props) {
       <div className="inv-panel__body">
         <form className="inv-search" action="/inventory/serials" method="get">
           <label className="sr-only" htmlFor="serial-search">البحث برقم السيريال</label>
-          <input id="serial-search" name="q" dir="ltr" defaultValue={rawSearch.slice(0, 80)} maxLength={80} placeholder="بحث برقم السيريال" />
+          <input id="serial-search" name="q" dir="ltr" defaultValue={rawSearch.slice(0, 80)} maxLength={80} placeholder="بحث برقم السيريال" aria-invalid={invalidSearch} aria-describedby={invalidSearch ? "serial-search-error" : undefined} />
           <button className="inv-button" type="submit">بحث</button>
           {rawSearch && <Link href="/inventory/serials" className="inv-button inv-button--secondary">مسح البحث</Link>}
         </form>
-        {invalidSearch ? <div className="inv-alert inv-alert--error" role="alert">أدخل بحثًا لا يزيد على 80 حرفًا ودون رموز تحكم.</div> : visible.length ? <div className="inv-table-wrap" role="region" aria-label="جدول الأرقام التسلسلية" tabIndex={0}>
-          <table className="inv-table"><thead><tr><th scope="col">الرقم التسلسلي</th><th scope="col">الصنف</th><th scope="col">الفرع</th><th scope="col">المستودع</th><th scope="col">الحالة</th><th scope="col">تاريخ التسجيل</th></tr></thead>
-            <tbody>{visible.map((serial) => {
-              const source = serial.opening ?? serial.receipt;
-              return <tr key={serial.id.toString()}>
-                <td><bdi dir="ltr">{serial.serialNumber}</bdi></td>
-                <td>{source ? <>{source.product.nameAr} <span className="muted">({source.product.sku})</span></> : "مصدر غير معروف"}</td>
-                <td>{source?.warehouse.branch.nameAr ?? "—"}</td><td>{source?.warehouse.nameAr ?? "—"}</td>
-                <td>{serial.currentSaleLineId ? "مباع" : "متاح"}</td>
-                <td>{dateFormatter.format(serial.createdAt)}</td>
-              </tr>;
-            })}</tbody>
-          </table>
-        </div> : <div className="inv-empty">لا توجد أرقام مسجّلة مطابقة في نطاق حسابك.</div>}
+        {invalidSearch ? <div id="serial-search-error" className="inv-alert inv-alert--error" role="alert">أدخل بحثًا لا يزيد على 80 حرفًا ودون رموز تحكم.</div> : visible.length ? <DataTable
+          rows={rows}
+          columns={inventorySerialColumns}
+          rowKey={(row) => row.id}
+          regionLabel="جدول الأرقام التسلسلية"
+          regionClassName="inv-table-wrap"
+          tableClassName="inv-table"
+        /> : <div className="inv-empty" role="status">لا توجد أرقام مسجّلة مطابقة في نطاق حسابك.</div>}
         {hasMore && <div className="inv-actions" style={{ marginTop: 16 }}><Link className="inv-button inv-button--secondary" href={`/inventory/serials?${nextParams.toString()}`}>عرض الأرقام التالية</Link></div>}
       </div>
     </section>

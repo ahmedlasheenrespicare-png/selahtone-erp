@@ -128,12 +128,13 @@ test("invoice detail permission removes audited dashboard slots and search befor
 
 test("sales today renders invoice links only when the detail page is accessible", () => {
   const today = read("sales/today/page.tsx");
-  const table = read("sales/sales-invoices-view.tsx");
+  const table = read("sales/sales-invoices-metadata.tsx");
   assert.ok(today.includes('const canOpenInvoice = canOpen("/sales/1")'));
   assert.ok(today.includes('{canOpenInvoice && <Link'));
   assert.ok(today.includes('canOpenInvoice={canOpenInvoice}'));
   assert.ok(table.includes('{canOpenInvoice ? <Link href={`/sales/${sale.id}`}'));
-  assert.ok(table.includes('{canOpenInvoice && <Link href={`/sales/${sale.id}`}'));
+  assert.ok(table.includes('renderCell: (sale) => canOpenInvoice && ('));
+  assert.ok(table.includes('href={`/sales/${sale.id}`}'));
   assert.ok(today.includes('writeAllowedForKeys(access.hidden, "/sales/new")'));
 });
 
@@ -150,7 +151,8 @@ test("inventory cost visibility does not change branch scope or operation role",
 test("inventory receipt cost and product hints are removed before serialization", () => {
   const receipts = read("inventory/receipts/page.tsx");
   assert.ok(receipts.includes('access.isAllowed("/inventory/receipts#unit-cost")'));
-  assert.ok(receipts.includes('{showUnitCost && <td>'));
+  assert.ok(receipts.includes("unitCostFormatted: showUnitCost ? receipt.unitCost.toFixed(4) : null"));
+  assert.ok(receipts.includes("columns={createInventoryReceiptColumns(showUnitCost)}"));
   for (const [page, form, key] of [
     ["inventory/opening/page.tsx", "inventory/opening/opening-form.tsx", "/inventory/opening#purchase-cost-hint"],
     ["inventory/receipts/new/page.tsx", "inventory/receipts/new/receipt-form.tsx", "/inventory/receipts/new#purchase-cost-hint"],

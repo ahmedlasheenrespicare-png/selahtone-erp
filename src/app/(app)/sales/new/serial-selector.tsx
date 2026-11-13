@@ -31,9 +31,9 @@ export default function SerialSelector({ productId, warehouseId, selected, pendi
   const chosen = new Set(selected.map((serial) => serial.id));
   const visible = [...selected, ...options.filter((serial) => !chosen.has(serial.id))];
   return <>
-    <div className="inv-field"><label htmlFor={`sale-search-${productId}`}>بحث في السيريالات المتاحة</label><input id={`sale-search-${productId}`} disabled={pending} dir="ltr" value={query} maxLength={80} onChange={(event) => setQuery(event.target.value)} placeholder="ابحث برقم السيريال" /></div>
-    <fieldset className="sale-serials"><legend>اختر سيريالًا لكل جهاز ({selected.length} مختار)</legend><div className="sale-serials__list">
+    <div className="inv-field"><label htmlFor={`sale-search-${productId}`}>بحث في السيريالات المتاحة</label><input id={`sale-search-${productId}`} disabled={pending} dir="ltr" value={query} maxLength={80} onChange={(event) => setQuery(event.target.value)} placeholder="ابحث برقم السيريال" aria-describedby={`sale-serial-status-${productId}`} /></div>
+    <fieldset className="sale-serials" aria-busy={loading}><legend>اختر سيريالًا لكل جهاز ({selected.length} مختار)</legend><div className="sale-serials__list">
       {visible.map((serial) => <label key={serial.id}><input type="checkbox" checked={chosen.has(serial.id)} disabled={pending || (!chosen.has(serial.id) && limitReached)} onChange={() => onChange(chosen.has(serial.id) ? selected.filter((item) => item.id !== serial.id) : [...selected, serial])} /><bdi dir="ltr">{serial.number}</bdi></label>)}
-    </div><p className="sale-note" aria-live="polite">{loading ? "جارٍ البحث…" : error || (more ? "تظهر أول 50 نتيجة؛ اكتب جزءًا أدق من الرقم للبحث." : !visible.length ? "لا توجد أرقام مطابقة متاحة." : "يمكن البحث برقم السيريال أو جزء منه.")}</p></fieldset>
+    </div><p id={`sale-serial-status-${productId}`} className="sale-note" role={error && !loading ? "alert" : "status"} aria-live="polite">{loading ? "جارٍ البحث…" : error || (more ? "تظهر أول 50 نتيجة؛ اكتب جزءًا أدق من الرقم للبحث." : !visible.length ? "لا توجد أرقام مطابقة متاحة." : "يمكن البحث برقم السيريال أو جزء منه.")}</p></fieldset>
   </>;
 }

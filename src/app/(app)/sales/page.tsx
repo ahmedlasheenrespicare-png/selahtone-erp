@@ -502,7 +502,7 @@ export default async function SalesPage() {
       </div>
 
       {!rows.length ? (
-        <div className="inv-panel inv-empty sales-empty-state">
+        <div className="inv-panel inv-empty sales-empty-state" role="status">
           <span className="sales-empty-state__icon" aria-hidden="true">
             <AppIcon name="receipt" />
           </span>

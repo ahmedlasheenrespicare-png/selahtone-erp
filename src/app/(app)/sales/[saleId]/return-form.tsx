@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { allocatePartialReturn, customerPosition } from "@/lib/commerce-math";
 import { displayMoney, fixedScaled } from "@/lib/commerce-display";
 import { parseReturnInput, type ReturnInput, type ReturnLineInput } from "@/lib/commerce-validation";
@@ -22,6 +22,7 @@ export default function ReturnForm({ canReturn, canCancel, requestId, saleId, li
   const [error, setError] = useState("");
   const [state, action, pending] = useActionState(returnAction, initialSalesActionState);
   const [dismissed, setDismissed] = useState<SalesActionState | null>(null);
+  useEffect(() => { if (state.status === "success") document.getElementById("return-success-title")?.focus(); }, [state.status]);
   function edited() { setReview(null); setError(""); setDismissed(state); }
   function update(id: string, fn: (old: Entry) => Entry) { edited(); setEntries((old) => ({ ...old, [id]: fn(old[id] ?? { quantity: "", serialIds: [] }) })); }
   function toggle(id: string, serialId: string) { update(id, (entry) => ({ ...entry, serialIds: entry.serialIds.includes(serialId) ? entry.serialIds.filter((x) => x !== serialId) : [...entry.serialIds, serialId] })); }
@@ -52,9 +53,10 @@ export default function ReturnForm({ canReturn, canCancel, requestId, saleId, li
       }
       const position = customerPosition({ originalTotalCents: BigInt(originalCents), returnedCents: BigInt(returnedCents) + returned, collectedCents: BigInt(collectedCents), refundedCents: BigInt(refundedCents) });
       setError(""); setReview({ input: parsed.value, returnCents: returned, dueFrom: position.dueFromCustomerCents, dueTo: position.dueToCustomerCents });
+      requestAnimationFrame(() => document.getElementById("return-review-title")?.focus());
     } catch (problem) { setReview(null); setError(problem instanceof Error ? problem.message : "راجع المرتجع."); }
   }
-  if (state.status === "success") return <div className="inv-panel inv-panel__body" role="status"><h2>تم تسجيل المرتجع</h2><p>{state.message}</p><a className="inv-button inv-button--secondary" href={`/sales/${saleId}`}>تحديث الفاتورة</a></div>;
+  if (state.status === "success") return <div className="inv-panel inv-panel__body" role="status"><h2 id="return-success-title" tabIndex={-1}>تم تسجيل المرتجع</h2><p>{state.message}</p><a className="inv-button inv-button--secondary" href={`/sales/${saleId}`}>تحديث الفاتورة</a></div>;
   if (unavailable) return null;
   return <form className="inv-panel" action={action} onSubmit={(event) => { if (!review) { event.preventDefault(); reviewValues(); } }} noValidate>
     <input type="hidden" name="reviewed" value={review ? "yes" : "no"} /><input type="hidden" name="payload" value={review ? JSON.stringify(review.input) : ""} />
@@ -73,8 +75,8 @@ export default function ReturnForm({ canReturn, canCancel, requestId, saleId, li
         </div>;
       })}
       <label className="inv-check"><input type="checkbox" checked={accepted} disabled={pending} onChange={(event) => { edited(); setAccepted(event.target.checked); }} /><span><strong>أؤكد قبول البنود المحددة للمرتجع</strong><small>تُعاد السلع المقبولة للمخزون في المستودع الأصلي.</small></span></label>
-      {review && <div className="inv-review" aria-live="polite"><h2>مراجعة {cancel ? "الإلغاء" : "المرتجع"}</h2><dl><div><dt>قيمة المرتجع</dt><dd>{displayMoney(review.returnCents)} ج.م</dd></div><div><dt>المتبقي على العميل بعده</dt><dd>{displayMoney(review.dueFrom)} ج.م</dd></div><div><dt>المستحق للعميل بعده</dt><dd>{displayMoney(review.dueTo)} ج.م</dd></div></dl><p>المستحق للعميل لا يعني ردّه. يُسجّل الرد بعد دفعه فعليًا بصورة منفصلة.</p></div>}
-      <div className="inv-form-actions">{review ? <><button type="submit" className="inv-button" disabled={pending}>{pending ? "جارٍ الحفظ…" : `تأكيد ${cancel ? "الإلغاء" : "المرتجع"}`}</button><button type="button" className="inv-button inv-button--secondary" disabled={pending} onClick={() => setReview(null)}>تعديل</button></> : <button type="button" className="inv-button" disabled={pending} onClick={(event) => { event.preventDefault(); reviewValues(); }}>مراجعة {cancel ? "الإلغاء" : "المرتجع"}</button>}</div>
+      {review && <div className="inv-review" aria-live="polite"><h2 id="return-review-title" tabIndex={-1}>مراجعة {cancel ? "الإلغاء" : "المرتجع"}</h2><dl><div><dt>قيمة المرتجع</dt><dd>{displayMoney(review.returnCents)} ج.م</dd></div><div><dt>المتبقي على العميل بعده</dt><dd>{displayMoney(review.dueFrom)} ج.م</dd></div><div><dt>المستحق للعميل بعده</dt><dd>{displayMoney(review.dueTo)} ج.م</dd></div></dl><p>المستحق للعميل لا يعني ردّه. يُسجّل الرد بعد دفعه فعليًا بصورة منفصلة.</p></div>}
+      <div className="inv-form-actions">{review ? <><button type="submit" className="inv-button" disabled={pending} aria-busy={pending}><span aria-live="polite">{pending ? "جارٍ الحفظ…" : `تأكيد ${cancel ? "الإلغاء" : "المرتجع"}`}</span></button><button type="button" className="inv-button inv-button--secondary" disabled={pending} onClick={() => { setReview(null); requestAnimationFrame(() => document.getElementById("return-review-button")?.focus()); }}>تعديل</button></> : <button id="return-review-button" type="button" className="inv-button" disabled={pending} onClick={(event) => { event.preventDefault(); reviewValues(); }}>مراجعة {cancel ? "الإلغاء" : "المرتجع"}</button>}</div>
     </div>
   </form>;
 }

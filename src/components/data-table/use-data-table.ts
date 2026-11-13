@@ -12,11 +12,12 @@ import {
   type DataTableValueKind,
 } from "./data-table-model";
 
+/** نفس وصف العمود في ملفات الـMetadata: الفرز جزء من بيانات العمود لا من الماركأب. */
 export type DataTableSortConfig<T> = {
-  key: string;
-  kind?: DataTableValueKind;
+  id: string;
+  sortKind?: DataTableValueKind;
   sortValue?: (row: T) => DataTableSortValue;
-  initialDirection?: DataTableSortDirection;
+  initialSortDirection?: DataTableSortDirection;
 };
 
 export type DataTableState<T> = {
@@ -58,7 +59,12 @@ export function useDataTable<T>({
   const [pageSize, setPageSizeState] = useState(initialPageSize);
   const resetSignature = `${resetKey}\u0000${rows.length}`;
 
-  const sortedRows = useMemo(() => sortDataTableRows(rows, sort, columns), [rows, sort, columns]);
+  // نموذج الفرز النقي يعمل بمفاتيح؛ نترجم وصف الـMetadata إليه بلا تكرار المنطق.
+  const sortColumns = useMemo(
+    () => columns.map((column) => ({ key: column.id, kind: column.sortKind, sortValue: column.sortValue })),
+    [columns],
+  );
+  const sortedRows = useMemo(() => sortDataTableRows(rows, sort, sortColumns), [rows, sort, sortColumns]);
   const { pageRows, range } = useMemo(
     () => paginateDataTableRows(sortedRows, page, pageSize),
     [sortedRows, page, pageSize],

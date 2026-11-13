@@ -12,6 +12,9 @@ import {
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const component = read("src/components/data-table/data-table.tsx");
+const renderer = read("src/components/data-driven/data-table.tsx");
+const salesMetadata = read("src/app/(app)/sales/sales-invoices-metadata.tsx");
+const expensesMetadata = read("src/app/(app)/finance/expenses/finance-expenses-metadata.tsx");
 const hook = read("src/components/data-table/use-data-table.ts");
 const css = read("src/components/data-table/data-table.css");
 const salesView = read("src/app/(app)/sales/sales-invoices-view.tsx");
@@ -94,40 +97,57 @@ test("ترقيم الصفحات يقيّد الصفحة بحدود النتائ�
   assert.deepEqual(paginateDataTableRows([], 2, 25).pageRows, []);
 });
 
-test("المكوّن يعرض رأسًا قابلًا للنقر مع aria-sort وترقيمًا بلوحة المفاتيح", () => {
-  assert.match(component, /aria-sort=\{ariaSort\}/);
-  assert.match(component, /scope="col"/);
-  assert.match(component, /className="data-table__sort"/);
-  assert.match(component, /onClick=\{\(\) => toggleSort\(column\.key, column\.initialDirection\)\}/);
-  assert.match(component, /aria-label=\{`ترتيب حسب /);
+test("المصيّر واحد: الرأس القابل للنقر مع aria-sort، وطبقة السلوك تضيف الترقيم بلوحة المفاتيح", () => {
+  // ماركأب الجدول في مكان واحد فقط: المُصيّر المدفوع بالـMetadata.
+  assert.match(renderer, /aria-sort=\{ariaSort\}/);
+  assert.match(renderer, /scope="col"/);
+  assert.match(renderer, /className="data-table__sort"/);
+  assert.match(renderer, /onClick=\{\(\) => onSort\?\.\(column\.id, column\.initialSortDirection\)\}/);
+  assert.match(renderer, /aria-label=\{`ترتيب حسب /);
+  // عمود بلا sortValue يبقى عمودًا ثابتًا (عمود الإجراءات مثلًا)، وبلا onSort لا فرز أصلًا.
+  assert.match(renderer, /const sortable = Boolean\(onSort && column\.sortValue\);/);
+  assert.doesNotMatch(renderer, /fetch\(|@\/lib\/prisma|useEffect\(|"use client"/);
+
+  // طبقة السلوك لا تكرّر الماركأب: تركّب المُصيّر وتضيف شريط الترقيم.
+  assert.match(component, /import DataDrivenDataTable, \{ type DataColumn \} from "@\/components\/data-driven\/data-table";/);
+  assert.match(component, /<DataDrivenDataTable/);
+  assert.match(component, /rows=\{pageRows\}/);
+  assert.match(component, /sort=\{sort\}/);
+  assert.match(component, /onSort=\{toggleSort\}/);
+  assert.doesNotMatch(component, /<table|<thead>|<tbody>/);
   assert.match(component, /aria-label="الصفحة السابقة"/);
   assert.match(component, /aria-label="الصفحة التالية"/);
   assert.match(component, /disabled=\{page <= 1\}/);
   assert.match(component, /disabled=\{page >= pageCount\}/);
   assert.match(component, /aria-live="polite"/);
-  // عمود بلا sortValue يبقى عمودًا ثابتًا (عمود الإجراءات مثلًا).
-  assert.match(component, /const sortable = Boolean\(column\.sortValue\);/);
   assert.doesNotMatch(component, /fetch\(|@\/lib\/prisma|useEffect\(/);
 });
 
-test("الشاشتان تستخدمان المكوّن نفسه، والفرز على قيم خام لا نصوص منسّقة", () => {
+test("الشاشتان تستخدمان الطبقة نفسها، والأعمدة والفرز ملكٌ للـMetadata على قيم خام", () => {
   for (const view of [salesView, expensesView]) {
-    assert.match(view, /import DataTable, \{ type DataTableColumn \} from "@\/components\/data-table\/data-table";/);
+    assert.match(view, /import DataTable from "@\/components\/data-table\/data-table";/);
     assert.match(view, /useDataTable\(\{ rows: filtered, columns, initialPageSize: 25, resetKey: /);
-    assert.match(view, /<DataTable/);
+    assert.match(view, /state=\{table\}/);
     assert.doesNotMatch(view, /<thead>/);
     assert.doesNotMatch(view, /<tbody>/);
-    // التصدير من كل النتائج المرتّبة، لا من صفحة العرض.
-    assert.match(view, /table\.sortedRows\.map/);
+    // التصدير من كل النتائج المرتّبة، لا من صفحة العرض ولا من النتائج قبل الفرز.
+    assert.match(view, /csvRows\(table\.sortedRows, /);
+    assert.doesNotMatch(view, /csvRows\(filtered, /);
     assert.doesNotMatch(view, /table\.pageRows\.map/);
   }
-  assert.match(salesView, /sortValue: \(sale\) => sale\.originalCents/);
-  assert.match(salesView, /sortValue: \(sale\) => sale\.dueFromCustomerCents/);
-  assert.match(salesView, /sortValue: \(sale\) => sale\.createdAtIso/);
-  assert.doesNotMatch(salesView, /sortValue: \(sale\) => sale\.originalFormatted/);
-  assert.match(expensesView, /sortValue: \(row\) => row\.amountCents/);
-  assert.doesNotMatch(expensesView, /sortValue: \(row\) => row\.amountFormatted/);
-  assert.match(expensesView, /kind: "cents"/);
+  // الأعمدة تُبنى في ملف الـMetadata لا داخل الشاشة.
+  assert.match(salesView, /createSalesInvoiceColumns\(canOpenInvoice\)/);
+  assert.match(expensesView, /createFinanceExpenseColumns\(canManage\)/);
+  assert.doesNotMatch(salesView, /sortValue:/);
+  assert.doesNotMatch(expensesView, /sortValue:/);
+
+  assert.match(salesMetadata, /sortValue: \(sale\) => sale\.originalCents/);
+  assert.match(salesMetadata, /sortValue: \(sale\) => sale\.dueFromCustomerCents/);
+  assert.match(salesMetadata, /sortValue: \(sale\) => sale\.createdAtIso/);
+  assert.doesNotMatch(salesMetadata, /sortValue: \(sale\) => sale\.originalFormatted/);
+  assert.match(expensesMetadata, /sortValue: \(expense\) => expense\.amountCents/);
+  assert.doesNotMatch(expensesMetadata, /sortValue: \(expense\) => expense\.amountFormatted/);
+  assert.match(expensesMetadata, /sortKind: "cents"/);
   assert.match(expensesView, /caption="سجل المصروفات المعروض حسب حالة التصفية/);
   // الثيمات كما هي: الجدول يرث فئات القسم المضيف.
   assert.match(salesView, /tableClassName="inv-table sales-invoices-table"/);
@@ -135,16 +155,18 @@ test("الشاشتان تستخدمان المكوّن نفسه، والفرز �
 });
 
 test("الصلاحيات وحمولة CSV تبقيان كما كانتا", () => {
-  // روابط الفواتير محكومة بنفس الشرطين السابقين حرفيًا.
-  assert.match(salesView, /\{canOpenInvoice \? <Link href=\{`\/sales\/\$\{sale\.id\}`\}/);
-  assert.match(salesView, /\{canOpenInvoice && <Link href=\{`\/sales\/\$\{sale\.id\}`\}/);
-  assert.match(expensesView, /\.\.\.\(canManage/);
-  assert.match(expensesView, /href=\{`\/finance\/expenses\/\$\{row\.id\}`\}/);
+  // روابط الفواتير محكومة بنفس الشرطين السابقين حرفيًا، والأعمدة في الـMetadata.
+  assert.match(salesMetadata, /\{canOpenInvoice \? <Link href=\{`\/sales\/\$\{sale\.id\}`\}/);
+  assert.match(salesMetadata, /renderCell: \(sale\) => canOpenInvoice && \(/);
+  assert.match(expensesMetadata, /\.\.\.\(canManage/);
+  assert.match(expensesMetadata, /href=\{`\/finance\/expenses\/\$\{expense\.id\}`\}/);
   // رؤوس CSV وقيمها لم تتغيّر.
-  assert.match(expensesView, /\["رقم المصروف", "التاريخ", "الفرع", "البند", "الوصف", "المبلغ \(ج\.م\)", "الحالة"\]/);
-  assert.match(salesView, /"الإجمالي الأصلي \(ج\.م\)"/);
-  assert.match(salesView, /r\.originalFormatted/);
-  assert.match(expensesView, /r\.amountFormatted/);
+  for (const header of ["رقم المصروف", "التاريخ", "الفرع", "البند", "الوصف", "المبلغ (ج.م)", "الحالة"]) {
+    assert.ok(expensesMetadata.includes(`header: "${header}"`), header);
+  }
+  assert.match(expensesMetadata, /value: \(expense\) => expense\.amountFormatted/);
+  assert.match(salesMetadata, /header: "الإجمالي الأصلي \(ج\.م\)"/);
+  assert.match(salesMetadata, /value: \(sale\) => sale\.originalFormatted/);
 });
 
 test("الحالة تعيد الصفحة الأولى عند تغيّر الفلاتر أو الفرز أو حجم الصفحة، لا عند كل render", () => {

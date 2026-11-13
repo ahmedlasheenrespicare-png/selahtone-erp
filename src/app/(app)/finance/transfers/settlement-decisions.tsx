@@ -182,7 +182,7 @@ export function SettlementDecisionCard({ item, canConfirm, canReject, actorId }:
             {!review ? (
               <button type="button" className="fin-button" disabled={!amountValid || reason.trim().length < 3} onClick={() => setReview(true)}>مراجعة الاعتماد</button>
             ) : (
-              <button type="submit" className="fin-button" disabled={confirming}>{confirming ? "جارٍ الحفظ…" : "تأكيد الاعتماد والتحويل"}</button>
+              <button type="submit" className="fin-button" disabled={confirming} aria-busy={confirming}><span aria-live="polite">{confirming ? "جارٍ الحفظ…" : "تأكيد الاعتماد والتحويل"}</span></button>
             )}
           </div>
         </form> : null}
@@ -191,8 +191,8 @@ export function SettlementDecisionCard({ item, canConfirm, canReject, actorId }:
           <input type="hidden" name="requestId" value={rejectRequestId} />
           <input type="hidden" name="settlementId" value={item.id} />
           <input name="reason" maxLength={300} placeholder="سبب الرفض" aria-label="سبب الرفض" required />
-          <button type="submit" className="fin-button fin-button--secondary" disabled={rejecting}>
-            {rejecting ? "جارٍ الرفض…" : "رفض الطلب"}
+          <button type="submit" className="fin-button fin-button--secondary" disabled={rejecting} aria-busy={rejecting}>
+            <span aria-live="polite">{rejecting ? "جارٍ الرفض…" : "رفض الطلب"}</span>
           </button>
         </form> : null}
         {canReject && rejectState.status === "error" ? (

@@ -66,6 +66,7 @@
   display: grid;
   grid-template-columns: 256px minmax(0, 1fr);
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--ws-canvas);
   color: var(--ws-ink);
 }
@@ -1006,15 +1007,16 @@
     box-sizing: border-box;
     height: auto;
     padding: 13px 18px;
+    padding-top: calc(13px + env(safe-area-inset-top, 0px));
     overflow: visible;
     border-inline-end: 0;
     border-bottom: 1px solid var(--ws-sidebar-border);
   }
   .workspace-sidebar__brand-row {
     position: relative;
-    height: 42px;
-    min-height: 42px;
-    max-height: 42px;
+    height: 52px;
+    min-height: 52px;
+    max-height: 52px;
     justify-content: space-between;
     align-items: center;
     flex-wrap: nowrap;
@@ -1024,9 +1026,9 @@
     border-bottom: 0;
   }
   .workspace-sidebar__brand-row.is-selahtone-brand {
-    height: 48px;
-    min-height: 48px;
-    max-height: 48px;
+    height: 52px;
+    min-height: 52px;
+    max-height: 52px;
     justify-content: space-between;
     padding: 0;
     margin-bottom: 0;
@@ -1051,8 +1053,8 @@
   .workspace-brand__text strong { font-size: 18px; }
   .workspace-nav-toggle {
     flex-shrink: 0;
-    width: 42px;
-    height: 42px;
+    width: 44px;
+    height: 44px;
     display: grid;
     place-items: center;
     border: 1px solid var(--ws-action-border);
@@ -1162,9 +1164,9 @@
     line-height: 1.2;
   }
   .workspace-account-link--compact {
-    width: 34px;
-    min-height: 34px;
-    height: 34px;
+    width: 44px;
+    min-height: 44px;
+    height: 44px;
     padding: 0;
     flex-shrink: 0;
   }
@@ -1172,9 +1174,9 @@
     display: none;
   }
   .workspace-mobile-strip__inline-actions .workspace-logout {
-    width: 34px;
-    min-height: 34px;
-    height: 34px;
+    width: 44px;
+    min-height: 44px;
+    height: 44px;
     padding: 0;
     flex-shrink: 0;
   }
@@ -1272,15 +1274,21 @@
   }
   .workspace-mobile-popover__actions .workspace-account-link {
     width: auto;
-    min-height: 36px;
+    min-height: 44px;
     padding: 6px 12px;
   }
   .workspace-mobile-popover__actions .workspace-account-link span {
     display: inline;
   }
   .workspace-mobile-popover__actions .workspace-logout {
-    min-height: 36px;
+    min-height: 44px;
     padding: 6px 12px;
+  }
+
+  .workspace-nav-item,
+  .workspace-nav-subitem,
+  .workspace-theme-row {
+    min-height: 44px;
   }
 
   .workspace-navigation {
@@ -1289,7 +1297,15 @@
     padding: 14px 0 6px;
     border-top: var(--ws-stitch-rule);
   }
-  .workspace-navigation.is-open { display: block; }
+  .workspace-navigation.is-open {
+    display: block;
+    max-height: calc(100vh - 150px);
+    max-height: calc(100dvh - 150px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    padding-inline-end: 4px;
+  }
   .workspace-nav-group + .workspace-nav-group { margin-top: 16px; padding-top: 14px; }
   .workspace-sidebar__foot { display: none; }
   .workspace-content {
@@ -1427,8 +1443,8 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    height: 34px;
-    min-width: 34px;
+    height: 44px;
+    min-width: 44px;
     max-width: 132px;
     padding: 3px 7px 3px 6px;
     border: 1px solid var(--ws-action-border);
@@ -6952,3 +6968,16 @@ a.dash-receipt:focus-visible {
 .dash-today-section__icon--old svg { width: 15px; height: 15px; }
 .dash-today-section__sum.is-old { color: #b45309; }
 .dash-today-invoice__meta--sub { display: block; margin-top: 2px; font-size: 11px; color: var(--mp-muted, #6b7280); }
+
+/* نماذج الجوال: خط 16px يمنع التكبير التلقائي في iOS، وارتفاع 44px يسهّل اللمس. */
+@media screen and (max-width: 820px) {
+  .workspace-content input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]),
+  .workspace-content select,
+  .workspace-content textarea {
+    font-size: 16px !important;
+  }
+  .workspace-content input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]),
+  .workspace-content select {
+    min-height: 44px !important;
+  }
+}

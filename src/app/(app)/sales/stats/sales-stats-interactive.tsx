@@ -2,15 +2,22 @@
 
 import { useMemo, useState } from "react";
 import { AppIcon } from "@/components/app-icon";
+import DataTable from "@/components/data-driven/data-table";
+import { filterRowsBySearch } from "@/lib/data-driven-ui";
 import type {
   ExecutiveBranchRow,
   ExecutivePaymentMethodRow,
   ExecutiveStaffRow,
-  ExecutiveTopItemRow,
 } from "@/lib/sales-stats";
-
-type SafeTopItem = Omit<ExecutiveTopItemRow, "costFormatted" | "profitFormatted" | "profitNum" | "marginPct"> &
-  Partial<Pick<ExecutiveTopItemRow, "costFormatted" | "profitFormatted" | "profitNum" | "marginPct">>;
+import {
+  createSalesStatsItemColumns,
+  createSalesStatsSortOptions,
+  salesStatsItemKinds,
+  salesStatsItemSearch,
+  type SafeTopItem,
+  type SalesStatsItemKind,
+  type SalesStatsSortKey,
+} from "./sales-stats-items-metadata";
 
 export type CsvExportPayload = {
   periodLabel: string;
@@ -145,6 +152,7 @@ export function SalesStatsActionToolbar({
   exportPayload: CsvExportPayload;
   fileSlug: string;
 }) {
+  const [exportMessage, setExportMessage] = useState("");
   const handleExportCsv = () => {
     const csvText = buildSalesStatsCsv(exportPayload);
     const blob = new Blob([csvText], { type: "text/csv;charset=utf-8;" });
@@ -156,6 +164,7 @@ export function SalesStatsActionToolbar({
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+    setExportMessage(`تم بدء تنزيل تقرير CSV ويضم ${exportPayload.invoiceCount} فاتورة نشطة.`);
   };
 
   const handlePrint = () => {
@@ -164,6 +173,7 @@ export function SalesStatsActionToolbar({
 
   return (
     <div className="sales-stats-export-bar no-print">
+      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{exportMessage}</p>
       <button
         type="button"
         className="inv-button inv-button--secondary sales-stats-export-btn"
@@ -184,48 +194,29 @@ export function SalesStatsActionToolbar({
   );
 }
 
-type SortKey = "revenue" | "quantity" | "profit";
-type ItemKindFilter = "all" | "stock" | "catalog";
-
 export function SalesStatsTopItemsPanel({ items, showProfitability }: { items: SafeTopItem[]; showProfitability: boolean }) {
-  const [sortBy, setSortBy] = useState<SortKey>("revenue");
-  const [kindFilter, setKindFilter] = useState<ItemKindFilter>("all");
+  const [sortBy, setSortBy] = useState<SalesStatsSortKey>("revenue");
+  const [kindFilter, setKindFilter] = useState<SalesStatsItemKind>("all");
   const [query, setQuery] = useState("");
 
-  const counts = useMemo(() => {
-    let stock = 0;
-    let catalog = 0;
-    for (const item of items) {
-      if (item.isStock) stock += 1;
-      else catalog += 1;
-    }
-    return { all: items.length, stock, catalog };
-  }, [items]);
+  const columns = useMemo(() => createSalesStatsItemColumns(showProfitability), [showProfitability]);
+  const sortOptions = useMemo(() => createSalesStatsSortOptions(showProfitability), [showProfitability]);
+  const counts = useMemo(() => Object.fromEntries(
+    salesStatsItemKinds.map((kind) => [kind.id, items.filter(kind.matches).length]),
+  ) as Record<SalesStatsItemKind, number>, [items]);
 
   const filteredAndSorted = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return items
-      .filter((item) => {
-        if (kindFilter === "stock" && !item.isStock) return false;
-        if (kindFilter === "catalog" && item.isStock) return false;
-        if (!q) return true;
-        return (
-          item.name.toLowerCase().includes(q) ||
-          item.category.toLowerCase().includes(q)
-        );
-      })
-      .slice()
-      .sort((a, b) => {
-        if (sortBy === "quantity") {
-          return b.quantityNum - a.quantityNum || b.revenueNum - a.revenueNum;
-        }
-        if (sortBy === "profit") {
-          if (a.isStock !== b.isStock) return a.isStock ? -1 : 1;
-          return (b.profitNum ?? 0) - (a.profitNum ?? 0) || b.revenueNum - a.revenueNum;
-        }
-        return b.revenueNum - a.revenueNum || b.quantityNum - a.quantityNum;
-      });
-  }, [items, kindFilter, query, sortBy]);
+    const kind = salesStatsItemKinds.find((item) => item.id === kindFilter) ?? salesStatsItemKinds[0];
+    const sort = sortOptions.find((item) => item.value === sortBy) ?? sortOptions[0];
+    return filterRowsBySearch(items.filter(kind.matches), query, salesStatsItemSearch.text)
+      .sort(sort.compare);
+  }, [items, kindFilter, query, sortBy, sortOptions]);
+
+  function resetItemFilters(): void {
+    setQuery("");
+    setKindFilter("all");
+    setSortBy("revenue");
+  }
 
   return (
     <div id="top-items-section" className="inv-panel sales-stats-items-panel">
@@ -239,51 +230,29 @@ export function SalesStatsTopItemsPanel({ items, showProfitability }: { items: S
         {items.length > 0 ? (
           <div className="sales-stats-items-controls no-print">
             <div className="sales-stats-seg" role="group" aria-label="ترتيب الأصناف">
-              <button
-                type="button"
-                className={`sales-stats-seg__btn${sortBy === "revenue" ? " is-active" : ""}`}
-                onClick={() => setSortBy("revenue")}
-              >
-                الأعلى إيرادًا
-              </button>
-              <button
-                type="button"
-                className={`sales-stats-seg__btn${sortBy === "quantity" ? " is-active" : ""}`}
-                onClick={() => setSortBy("quantity")}
-              >
-                الأكثر كميةً
-              </button>
-              {showProfitability ? <button
-                type="button"
-                className={`sales-stats-seg__btn${sortBy === "profit" ? " is-active" : ""}`}
-                onClick={() => setSortBy("profit")}
-              >
-                الأعلى ربحًا
-              </button> : null}
+              {sortOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={`sales-stats-seg__btn${sortBy === option.value ? " is-active" : ""}`}
+                  onClick={() => setSortBy(option.value)}
+                >
+                  {option.label}
+                </button>
+              ))}
             </div>
 
             <div className="sales-stats-seg" role="group" aria-label="تصفية نوع الصنف">
-              <button
-                type="button"
-                className={`sales-stats-seg__btn${kindFilter === "all" ? " is-active" : ""}`}
-                onClick={() => setKindFilter("all")}
-              >
-                الكل ({counts.all})
-              </button>
-              <button
-                type="button"
-                className={`sales-stats-seg__btn${kindFilter === "stock" ? " is-active" : ""}`}
-                onClick={() => setKindFilter("stock")}
-              >
-                مخزوني ({counts.stock})
-              </button>
-              <button
-                type="button"
-                className={`sales-stats-seg__btn${kindFilter === "catalog" ? " is-active" : ""}`}
-                onClick={() => setKindFilter("catalog")}
-              >
-                كتالوج فني ({counts.catalog})
-              </button>
+              {salesStatsItemKinds.map((kind) => (
+                <button
+                  key={kind.id}
+                  type="button"
+                  className={`sales-stats-seg__btn${kindFilter === kind.id ? " is-active" : ""}`}
+                  onClick={() => setKindFilter(kind.id)}
+                >
+                  {kind.label} ({counts[kind.id]})
+                </button>
+              ))}
             </div>
 
             <input
@@ -291,8 +260,8 @@ export function SalesStatsTopItemsPanel({ items, showProfitability }: { items: S
               className="sales-stats-search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="ابحث باسم الصنف أو التصنيف..."
-              aria-label="بحث في جدول الأصناف المباعة"
+              placeholder={salesStatsItemSearch.placeholder}
+              aria-label={salesStatsItemSearch.ariaLabel}
             />
           </div>
         ) : null}
@@ -300,107 +269,21 @@ export function SalesStatsTopItemsPanel({ items, showProfitability }: { items: S
 
       {items.length === 0 ? (
         <div className="inv-panel__body">
-          <p className="inv-field__hint">لا توجد مبيعات مسجلة في هذه الفترة أو النطاق المختار.</p>
+          <p className="inv-field__hint" role="status">لا توجد مبيعات مسجلة في هذه الفترة أو النطاق المختار.</p>
         </div>
       ) : filteredAndSorted.length === 0 ? (
         <div className="inv-panel__body">
-          <p className="inv-field__hint">لا توجد أصناف مطابقة للفلتر أو عبارة البحث الحالية.</p>
+          <p className="inv-field__hint" role="status">لا توجد أصناف مطابقة للفلتر أو عبارة البحث الحالية.</p>
+          <button type="button" className="inv-button inv-button--secondary no-print" onClick={resetItemFilters}>مسح البحث والفلاتر</button>
         </div>
       ) : (
-        <div
-          className="inv-table-wrap table-wrap"
-          role="region"
-          aria-label="جدول أكثر الأصناف مبيعًا"
-          tabIndex={0}
-        >
-          <table className="inv-table sales-stats-table">
-            <thead>
-              <tr>
-                <th scope="col">#</th>
-                <th scope="col">الصنف والنوع</th>
-                <th scope="col">التصنيف</th>
-                <th scope="col">الكمية الصافية</th>
-                <th scope="col">صافي الإيراد</th>
-                <th scope="col">نسبة المساهمة</th>
-                {showProfitability ? <><th scope="col">التكلفة</th>
-                <th scope="col">الربح والهامش</th></> : null}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredAndSorted.map((item, idx) => (
-                <tr key={item.key}>
-                  <td className="sales-stats-rank">{idx + 1}</td>
-                  <td>
-                    <div className="sales-stats-item-cell">
-                      <strong>{item.name}</strong>
-                      <span
-                        className={`sale-chip ${
-                          item.isStock ? "" : "sale-chip--neutral"
-                        }`}
-                      >
-                        <span className="sale-chip__dot" aria-hidden="true" />
-                        {item.isStock ? "صنف مخزوني" : "كتالوج فني"}
-                      </span>
-                    </div>
-                  </td>
-                  <td>{item.category}</td>
-                  <td>
-                    <bdi dir="ltr">{item.quantityFormatted}</bdi>
-                    <small className="sales-stats-cell-sub">{item.lines} سطر</small>
-                  </td>
-                  <td>
-                    <strong>
-                      <bdi dir="ltr">{item.revenueFormatted}</bdi> ج.م
-                    </strong>
-                  </td>
-                  <td>
-                    <div className="sales-stats-share">
-                      <span>
-                        <bdi dir="ltr">{item.sharePct}%</bdi>
-                      </span>
-                      <div className="sales-stats-bar" aria-hidden="true">
-                        <span style={{ width: `${Math.min(100, Math.max(3, item.sharePct))}%` }} />
-                      </div>
-                    </div>
-                  </td>
-                  {showProfitability ? <><td>
-                    {item.costFormatted != null ? (
-                      <span>
-                        <bdi dir="ltr">{item.costFormatted}</bdi> ج.م
-                      </span>
-                    ) : (
-                      <span className="sales-stats-muted">—</span>
-                    )}
-                  </td>
-                  <td>
-                    {item.isStock && item.profitFormatted != null ? (
-                      <div className="sales-stats-profit-cell">
-                        <strong>
-                          <bdi dir="ltr">{item.profitFormatted}</bdi> ج.م
-                        </strong>
-                        <span
-                          className={`sale-chip ${
-                            (item.marginPct ?? 0) >= 20
-                              ? ""
-                              : (item.marginPct ?? 0) > 0
-                                ? "sale-chip--warning"
-                                : "sale-chip--neutral"
-                          }`}
-                        >
-                          هامش <bdi dir="ltr">{item.marginPct ?? 0}%</bdi>
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="sale-chip sale-chip--neutral">
-                        بدون تكلفة مسجّلة
-                      </span>
-                    )}
-                  </td></> : null}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          rows={filteredAndSorted}
+          columns={columns}
+          rowKey={(item) => item.key}
+          regionLabel="جدول أكثر الأصناف مبيعًا"
+          tableClassName="inv-table sales-stats-table"
+        />
       )}
 
       {showProfitability ? <div className="inv-page__foot sales-stats-foot">

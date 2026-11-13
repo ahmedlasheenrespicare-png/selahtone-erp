@@ -2,6 +2,7 @@ import { requirePageAccess, writeAccessAllowed } from "@/lib/access-control-serv
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { AppIcon } from "@/components/app-icon";
+import DataTable from "@/components/data-driven/data-table";
 import { FinKpiStrip } from "@/components/finance/fin-kpi-strip";
 import { FinStepper } from "@/components/finance/fin-stepper";
 import { displayMoney } from "@/lib/commerce-display";
@@ -16,6 +17,7 @@ import ExpenseForm, {
   type CategoryOption,
   type ExistingExpenseHint,
 } from "./expense-form";
+import { createRecentExpenseColumns, type RecentExpenseRow } from "./recent-expenses-metadata";
 import "./new-expense.css";
 
 export const dynamic = "force-dynamic";
@@ -140,6 +142,19 @@ export default async function NewExpensePage({
   }));
 
   const recentFive = recentExpenses.slice(0, 5);
+  const recentRows: RecentExpenseRow[] = recentFive.map((exp) => ({
+    id: exp.id,
+    expenseDate: exp.expenseDate,
+    branchName: branchNameById.get(exp.branchId) ?? "الفرع",
+    categoryName: exp.categorySnapshot,
+    description: exp.description,
+    beneficiary: exp.beneficiary,
+    documentNumber: exp.documentNumber,
+    amountFormatted: formatMoney(exp.amount),
+    statusLabel: STATUS_LABEL[exp.status] ?? exp.status,
+    statusTone: exp.status === "PENDING" ? "pending" : exp.status === "APPROVED" ? "approved" : "paid",
+  }));
+  const recentColumns = createRecentExpenseColumns(canManage);
 
   return (
     <div className="fin-page">
@@ -282,68 +297,9 @@ export default async function NewExpensePage({
               </h2>
               <p>مراجعة سريعة لآخر القيود المسجّلة وحالتها لتفادي تكرار الإدخال.</p>
             </div>
-            <div className="fin-table-wrap">
-              <table className="fin-table">
-                <caption>آخر خمسة مصروفات مسجّلة لتفادي التكرار ومتابعة الحال</caption>
-                <thead>
-                  <tr>
-                    <th scope="col">#</th>
-                    <th scope="col">التاريخ</th>
-                    {canManage ? <th scope="col">الفرع</th> : null}
-                    <th scope="col">البند</th>
-                    <th scope="col">البيان والمستفيد</th>
-                    <th scope="col">المبلغ</th>
-                    <th scope="col">الحالة</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentFive.map((exp) => (
-                    <tr key={exp.id}>
-                      <td dir="ltr">
-                        {canManage ? (
-                          <Link href={`/finance/expenses/${exp.id}`}>
-                            <strong>#{exp.id}</strong>
-                          </Link>
-                        ) : (
-                          <strong>#{exp.id}</strong>
-                        )}
-                      </td>
-                      <td dir="ltr">{exp.expenseDate}</td>
-                      {canManage ? (
-                        <td>{branchNameById.get(exp.branchId) ?? "الفرع"}</td>
-                      ) : null}
-                      <td>{exp.categorySnapshot}</td>
-                      <td>
-                        <strong>{exp.description}</strong>
-                        {exp.beneficiary || exp.documentNumber ? (
-                          <div style={{ fontSize: 11.5, color: "var(--fn-muted)" }}>
-                            {exp.beneficiary ? exp.beneficiary : ""}
-                            {exp.beneficiary && exp.documentNumber ? " · " : ""}
-                            {exp.documentNumber ? `مستند: ${exp.documentNumber}` : ""}
-                          </div>
-                        ) : null}
-                      </td>
-                      <td dir="ltr">
-                        <strong>{formatMoney(exp.amount)}</strong>
-                      </td>
-                      <td>
-                        <span
-                          className={`fin-badge ${
-                            exp.status === "PENDING"
-                              ? "fin-badge--pending"
-                              : exp.status === "APPROVED"
-                                ? "fin-badge--approved"
-                                : "fin-badge--paid"
-                          }`}
-                        >
-                          {STATUS_LABEL[exp.status] ?? exp.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable rows={recentRows} columns={recentColumns} rowKey={(row) => row.id}
+              regionLabel="جدول مالي قابل للتمرير" regionClassName="fin-table-wrap" tableClassName="fin-table"
+              caption="آخر خمسة مصروفات مسجّلة لتفادي التكرار ومتابعة الحال" />
           </div>
         </section>
       ) : null}

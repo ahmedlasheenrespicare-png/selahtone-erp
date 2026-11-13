@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppIcon } from "@/components/app-icon";
+import DataTable from "@/components/data-driven/data-table";
 import PrintPageButton from "@/components/print-page-button";
 import { FinStepper } from "@/components/finance/fin-stepper";
 import type { FinStep } from "@/components/finance/fin-stepper-model";
@@ -16,6 +17,20 @@ import { formatMoney } from "../../format";
 import { financePage, financeRead } from "../../page-context";
 import { ApproveForm, PayForm, ReviewForm, CloseReviewForm, type AccountOption } from "./expense-actions";
 import { paymentAccountLabel, paymentSourceLabel } from "./payment-presentation";
+import {
+  expenseCorrectionColumns,
+  expenseInformationColumns,
+  type ExpenseInformationRow,
+  expenseCorrectionMovementColumns,
+  expensePaymentColumns,
+  expenseReviewHistoryColumns,
+  openExpenseReviewColumns,
+  type ExpenseCorrectionMovementRow,
+  type ExpenseCorrectionRow,
+  type ExpensePaymentDetailRow,
+  type ExpenseReviewHistoryRow,
+  type OpenExpenseReviewRow,
+} from "./expense-detail-tables-metadata";
 
 export const dynamic = "force-dynamic";
 type Props = { params: Promise<{ expenseId: string }> };
@@ -103,6 +118,54 @@ export default async function ExpenseDetailPage({ params }: Props) {
     openingDate: account.openingDate,
   }));
   const today = cairoDate();
+  const paymentRows: ExpensePaymentDetailRow[] = payments.rows.map((payment) => ({
+    id: payment.id,
+    amountFormatted: formatMoney(payment.amount),
+    sourceLabel: paymentSourceLabel(payment),
+    accountLabel: paymentAccountLabel(payment, accountOptions.find((option) => option.id === payment.accountId) ?? null),
+    methodLabel: payment.method === "CASH" ? "نقدًا" : payment.method === "CARD" ? "بطاقة" : payment.method === "BANK_TRANSFER" ? "تحويل بنكي" : payment.method === "WALLET" ? "محفظة" : payment.method,
+    paymentDate: payment.paymentDate,
+    recordedByLabel: userNames.get(payment.recordedBy) ?? "—",
+  }));
+  const openReviewRows: OpenExpenseReviewRow[] = openReviews.slice(0, 20).map((review) => ({
+    id: review.id, reason: review.reason,
+    proposedAmountLabel: review.proposedAmount === null ? "—" : formatMoney(review.proposedAmount),
+    createdByLabel: userNames.get(review.createdBy) ?? review.createdBy,
+    createdAt: review.createdAt, revisionMismatch: review.expenseRevision !== expense.revision,
+  }));
+  const reviewHistoryRows: ExpenseReviewHistoryRow[] = reviewData.history.slice(0, 20).map((review) => ({
+    id: review.id,
+    statusLabel: review.status === "CORRECTED" ? "صُحّح" : review.status === "CLOSED" ? "أُغلق دون تصحيح" : review.status,
+    reasonAndAmount: `${review.reason} · ${review.proposedAmount === null ? "بلا مبلغ مقترح" : formatMoney(review.proposedAmount)}`,
+    createdLabel: `${userNames.get(review.createdBy) ?? review.createdBy} · ${review.createdAt}`,
+    decisionLabel: `${review.resolutionReason ?? "—"} · ${review.resolvedBy ? userNames.get(review.resolvedBy) ?? review.resolvedBy : "—"} · ${review.resolvedAt ?? "—"}`,
+  }));
+  const correctionRows: ExpenseCorrectionRow[] = reviewData.corrections.slice(0, 20).map((correction) => ({
+    id: correction.id, reviewId: correction.reviewId, paymentId: correction.paymentId,
+    beforeAmountFormatted: formatMoney(correction.beforeAmount), afterAmountFormatted: formatMoney(correction.afterAmount),
+    accountAndDifferenceLabel: `${correction.accountId ? `حساب #${correction.accountId}` : "لا حساب مسجل"} · ${correction.bookDifference === null ? "لا فرق دفتري مسجل" : formatMoney(correction.bookDifference)}`,
+    reasonAndCreatedLabel: `${correction.reason} · ${userNames.get(correction.createdBy) ?? correction.createdBy} · ${correction.createdAt}`,
+  }));
+  const movementRows: ExpenseCorrectionMovementRow[] = reviewData.movements.slice(0, 20).map((movement) => ({
+    id: movement.id, correctionId: movement.correctionId, kind: movement.kind, branchId: movement.branchId,
+    sourceAndDestinationLabel: `${movement.sourceId ? `من حساب #${movement.sourceId}` : "بلا مصدر حساب مسجل"} · ${movement.destinationId ? `إلى حساب #${movement.destinationId}` : "بلا وجهة حساب مسجلة"}`,
+    amountFormatted: formatMoney(movement.amount),
+    actorAndCreatedLabel: `${userNames.get(movement.actorId) ?? movement.actorId} · ${movement.createdAt}`,
+  }));
+
+  const expenseInformationRows: ExpenseInformationRow[] = [
+    { id: "branch", label: "الفرع", value: branchNames.get(expense.branchId) ?? "الفرع" },
+    { id: "category", label: "البند", value: expense.categorySnapshot },
+    { id: "amount", label: "المبلغ الفعال", value: formatMoney(expense.amount) },
+    ...(expense.amount !== expense.originalAmount ? [{ id: "original", label: "المبلغ الأصلي", value: formatMoney(expense.originalAmount) }] : []),
+    { id: "tax", label: "الضريبة", value: expense.taxAmount === null ? "غير مُدخلة" : formatMoney(expense.taxAmount) },
+    { id: "date", label: "تاريخ المصروف", value: expense.expenseDate },
+    { id: "created", label: "وقت التسجيل", value: expense.createdAt },
+    { id: "beneficiary", label: "المستفيد", value: expense.beneficiary ?? "—" },
+    { id: "document", label: "رقم المستند", value: expense.documentNumber ?? "—" },
+    { id: "requester", label: "المُدخل", value: userNames.get(expense.requestedBy) ?? expense.requestedBy },
+    { id: "approver", label: "المعتمد", value: expense.approvedBy ? userNames.get(expense.approvedBy) ?? expense.approvedBy : "لم يُعتمد بعد" },
+  ];
 
   return (
     <div className="fin-page">
@@ -177,24 +240,9 @@ export default async function ExpenseDetailPage({ params }: Props) {
           <h2>بيانات المصروف</h2>
           <p>المبلغ الفعال يظهر بعد أي تصحيح مؤكد؛ الأصل محفوظ دائمًا.</p>
         </div>
-        <div className="fin-table-wrap">
-          <table className="fin-table">
-            <caption>بيانات المصروف الموثّقة بعد أي تصحيح مؤكد</caption>
-            <tbody>
-              <tr><th scope="row">الفرع</th><td>{branchNames.get(expense.branchId) ?? "الفرع"}</td></tr>
-              <tr><th scope="row">البند</th><td>{expense.categorySnapshot}</td></tr>
-              <tr><th scope="row">المبلغ الفعال</th><td>{formatMoney(expense.amount)}</td></tr>
-              {expense.amount !== expense.originalAmount ? <tr><th scope="row">المبلغ الأصلي</th><td>{formatMoney(expense.originalAmount)}</td></tr> : null}
-              <tr><th scope="row">الضريبة</th><td>{expense.taxAmount === null ? "غير مُدخلة" : formatMoney(expense.taxAmount)}</td></tr>
-              <tr><th scope="row">تاريخ المصروف</th><td>{expense.expenseDate}</td></tr>
-              <tr><th scope="row">وقت التسجيل</th><td>{expense.createdAt}</td></tr>
-              <tr><th scope="row">المستفيد</th><td>{expense.beneficiary ?? "—"}</td></tr>
-              <tr><th scope="row">رقم المستند</th><td>{expense.documentNumber ?? "—"}</td></tr>
-              <tr><th scope="row">المُدخل</th><td>{userNames.get(expense.requestedBy) ?? expense.requestedBy}</td></tr>
-              <tr><th scope="row">المعتمد</th><td>{expense.approvedBy ? userNames.get(expense.approvedBy) ?? expense.approvedBy : "لم يُعتمد بعد"}</td></tr>
-            </tbody>
-          </table>
-        </div>
+        <DataTable rows={expenseInformationRows} columns={expenseInformationColumns} rowKey={(row) => row.id}
+          regionLabel="جدول مالي قابل للتمرير" regionClassName="fin-table-wrap" tableClassName="fin-table"
+          caption="بيانات المصروف الموثّقة بعد أي تصحيح مؤكد" showColumnHeaders={false} />
       </div>
 
       {expense.status === "PENDING" && canApprove ? (
@@ -241,27 +289,9 @@ export default async function ExpenseDetailPage({ params }: Props) {
             <h2>بيانات الصرف</h2>
             <p>بيانات الدفع المسجّلة؛ المصدر والتاريخ لا يثبتان وحدهما وقوع الدفع أو شمول تسوية سابقة.</p>
           </div>
-          <div className="fin-table-wrap">
-            <table className="fin-table">
-              <caption>بيانات الصرف المسجّلة — المصدر والطريقة والمسجّل</caption>
-              <thead>
-                <tr><th scope="col">المبلغ</th><th scope="col">المصدر</th><th scope="col">الحساب</th><th scope="col">الطريقة</th><th scope="col">التاريخ</th><th scope="col">مسجّل الدفع</th></tr>
-              </thead>
-              <tbody>
-                {payments.rows.map((payment) => (
-                  <tr key={payment.id}>
-                    <td>{formatMoney(payment.amount)}</td>
-                    <td>{paymentSourceLabel(payment)}</td>
-                    <td>{paymentAccountLabel(payment, accountOptions.find((option) => option.id === payment.accountId) ?? null)}</td>
-                    <td>{payment.method === "CASH" ? "نقدًا" : payment.method === "CARD" ? "بطاقة"
-                      : payment.method === "BANK_TRANSFER" ? "تحويل بنكي" : payment.method === "WALLET" ? "محفظة" : payment.method}</td>
-                    <td>{payment.paymentDate}</td>
-                    <td>{userNames.get(payment.recordedBy) ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable rows={paymentRows} columns={expensePaymentColumns} rowKey={(row) => row.id}
+  regionLabel="جدول مالي قابل للتمرير" regionClassName="fin-table-wrap" tableClassName="fin-table"
+  caption="بيانات الصرف المسجّلة — المصدر والطريقة والمسجّل" />
         </div>
       ) : null}
 
@@ -278,19 +308,9 @@ export default async function ExpenseDetailPage({ params }: Props) {
             {openReviews.length > 0 ? (
               <>
                 <div className="fin-alert fin-alert--warning" role="status">يوجد طلب مراجعة مفتوح؛ لا يمكن إرسال طلب آخر حتى يُعالج. لا يثبت ذلك شمول الفرق في أي تسوية.</div>
-                <div className="fin-table-wrap">
-                  <table className="fin-table">
-                    <caption>طلبات المراجعة المفتوحة للمصروف</caption>
-                    <thead><tr><th scope="col">الطلب</th><th scope="col">السبب</th><th scope="col">المبلغ المقترح</th><th scope="col">المسجّل</th><th scope="col">وقت التسجيل</th></tr></thead>
-                    <tbody>{openReviews.slice(0, 20).map((review) => (
-                      <tr key={review.id}>
-                        <td>#{review.id}{review.expenseRevision !== expense.revision ? <div>تنبيه: إصدار المصروف اختلف منذ الطلب؛ راجع الوضع الحالي قبل القرار.</div> : null}</td><td>{review.reason}</td>
-                        <td>{review.proposedAmount === null ? "—" : formatMoney(review.proposedAmount)}</td>
-                        <td>{userNames.get(review.createdBy) ?? review.createdBy}</td><td>{review.createdAt}</td>
-                      </tr>
-                    ))}</tbody>
-                  </table>
-                </div>
+                <DataTable rows={openReviewRows} columns={openExpenseReviewColumns} rowKey={(row) => row.id}
+  regionLabel="جدول مالي قابل للتمرير" regionClassName="fin-table-wrap" tableClassName="fin-table"
+  caption="طلبات المراجعة المفتوحة للمصروف" />
                 {openReviews.slice(0, 20).map((review) => review.createdBy === session.id
                   ? <p key={review.id}>يجب أن يغلق الطلب #{review.id} مراجع مخوّل آخر غير منشئه.</p>
                   : <CloseReviewForm key={review.id} requestId={randomUUID()} reviewId={review.id} expenseId={expense.id} revision={String(expense.revision)} reviewSnapshot={expenseReviewSnapshot({ ...review, expenseId: expense.id })} />)}
@@ -300,57 +320,29 @@ export default async function ExpenseDetailPage({ params }: Props) {
               <ReviewForm requestId={randomUUID()} expenseId={expense.id} revision={String(expense.revision)} />
             )}
             {reviewData.history.length > 0 ? (
-              <div className="fin-table-wrap">
-                <table className="fin-table">
-                  <caption>المراجعات غير المفتوحة المسجلة للمصروف</caption>
-                  <thead><tr><th scope="col">الطلب</th><th scope="col">الحالة</th><th scope="col">سبب الطلب والمبلغ المقترح</th><th scope="col">التسجيل</th><th scope="col">قرار المراجعة المسجل</th></tr></thead>
-                  <tbody>{reviewData.history.slice(0, 20).map((review) => (
-                    <tr key={review.id}>
-                      <td>#{review.id}</td><td>{review.status === "CORRECTED" ? "صُحّح" : review.status === "CLOSED" ? "أُغلق دون تصحيح" : review.status}</td>
-                      <td>{review.reason} · {review.proposedAmount === null ? "بلا مبلغ مقترح" : formatMoney(review.proposedAmount)}</td>
-                      <td>{userNames.get(review.createdBy) ?? review.createdBy} · {review.createdAt}</td>
-                      <td>{review.resolutionReason ?? "—"} · {review.resolvedBy ? userNames.get(review.resolvedBy) ?? review.resolvedBy : "—"} · {review.resolvedAt ?? "—"}</td>
-                    </tr>
-                  ))}</tbody>
-                </table>
+              <>
+                <DataTable rows={reviewHistoryRows} columns={expenseReviewHistoryColumns} rowKey={(row) => row.id}
+                  regionLabel="جدول مالي قابل للتمرير" regionClassName="fin-table-wrap" tableClassName="fin-table"
+                  caption="المراجعات غير المفتوحة المسجلة للمصروف" />
                 {reviewData.history.length > 20 ? <p>تُعرض أحدث ٢٠ مراجعة غير مفتوحة فقط؛ السجل هنا غير كامل.</p> : null}
-              </div>
+              </>
             ) : null}
             {reviewData.corrections.length > 0 ? (
-              <div className="fin-table-wrap">
-                <table className="fin-table">
-                  <caption>تصحيحات المبلغ المسجلة للمصروف</caption>
-                  <thead><tr><th scope="col">التصحيح والمراجعة والدفع</th><th scope="col">المبلغ السابق</th><th scope="col">المبلغ المسجل بعد التصحيح</th><th scope="col">الحساب والفرق الدفتري المسجل</th><th scope="col">السبب والتسجيل</th></tr></thead>
-                  <tbody>{reviewData.corrections.slice(0, 20).map((correction) => (
-                    <tr key={correction.id}>
-                      <td>#{correction.id} · مراجعة #{correction.reviewId} · دفع #{correction.paymentId}</td>
-                      <td>{formatMoney(correction.beforeAmount)}</td><td>{formatMoney(correction.afterAmount)}</td>
-                      <td>{correction.accountId ? `حساب #${correction.accountId}` : "لا حساب مسجل"} · {correction.bookDifference === null ? "لا فرق دفتري مسجل" : formatMoney(correction.bookDifference)}</td>
-                      <td>{correction.reason} · {userNames.get(correction.createdBy) ?? correction.createdBy} · {correction.createdAt}</td>
-                    </tr>
-                  ))}</tbody>
-                </table>
+              <>
+                <DataTable rows={correctionRows} columns={expenseCorrectionColumns} rowKey={(row) => row.id}
+                  regionLabel="جدول مالي قابل للتمرير" regionClassName="fin-table-wrap" tableClassName="fin-table"
+                  caption="تصحيحات المبلغ المسجلة للمصروف" />
                 {reviewData.corrections.length > 20 ? <p>تُعرض أحدث ٢٠ عملية تصحيح فقط؛ السجل هنا غير كامل.</p> : null}
                 <p>المبالغ المسجّلة لا تثبت حركة نقد فعلية أو شمول فرق التصحيح في جرد أو تسوية.</p>
-              </div>
+              </>
             ) : null}
             {reviewData.movements.length > 0 ? (
-              <div className="fin-table-wrap">
-                <table className="fin-table">
-                  <caption>الحركات المسجّلة المرتبطة بتصحيحات هذا المصروف</caption>
-                  <thead><tr><th scope="col">الحركة والتصحيح</th><th scope="col">النوع والفرع</th><th scope="col">المصدر والوجهة المسجلان</th><th scope="col">المبلغ</th><th scope="col">المسجّل والوقت</th></tr></thead>
-                  <tbody>{reviewData.movements.slice(0, 20).map((movement) => (
-                    <tr key={movement.id}>
-                      <td>#{movement.id} · تصحيح #{movement.correctionId}</td>
-                      <td>{movement.kind} · فرع #{movement.branchId}</td>
-                      <td>{movement.sourceId ? `من حساب #${movement.sourceId}` : "بلا مصدر حساب مسجل"} · {movement.destinationId ? `إلى حساب #${movement.destinationId}` : "بلا وجهة حساب مسجلة"}</td>
-                      <td>{formatMoney(movement.amount)}</td>
-                      <td>{userNames.get(movement.actorId) ?? movement.actorId} · {movement.createdAt}</td>
-                    </tr>
-                  ))}</tbody>
-                </table>
+              <>
+                <DataTable rows={movementRows} columns={expenseCorrectionMovementColumns} rowKey={(row) => row.id}
+                  regionLabel="جدول مالي قابل للتمرير" regionClassName="fin-table-wrap" tableClassName="fin-table"
+                  caption="الحركات المسجّلة المرتبطة بتصحيحات هذا المصروف" />
                 {reviewData.movements.length > 20 ? <p>تُعرض أحدث ٢٠ حركة مرتبطة فقط؛ السجل هنا غير كامل.</p> : null}
-              </div>
+              </>
             ) : reviewData.corrections.length > 0 ? <p>لا توجد حركة مرتبطة مسجلة لهذه التصحيحات في النطاق المعروض؛ لا يثبت ذلك أثر الفرق على التسوية.</p> : null}
             {reviewData.corrections.length > 0 || reviewData.movements.length > 0 ? <p>الحركات المعروضة مرتبطة بتصحيحات مسجلة لهذا المصروف فقط؛ قد تتضمن السجلات روابط غير متطابقة تحتاج مراجعة. لا يثبت وجود حركة أو غيابها دفعًا ماديًا أو شمول الفرق في جرد أو تسوية.</p> : null}
           </div>

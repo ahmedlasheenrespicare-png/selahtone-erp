@@ -1,4 +1,5 @@
 import Link from "next/link";
+import DataTable from "@/components/data-driven/data-table";
 import { writeAllowedForKeys } from "@/lib/access-control";
 import { getAccessContext, requirePageAccess } from "@/lib/access-control-server";
 import { listOpenExpenseReviewQueue } from "@/lib/finance/engine";
@@ -6,6 +7,7 @@ import { positiveDatabaseId } from "@/lib/inventory-validation";
 import { prisma } from "@/lib/prisma";
 import { financePage, financeRead } from "../../page-context";
 import { formatMoney } from "../../format";
+import { expenseReviewQueueColumns, type ExpenseReviewQueueRow } from "./expense-reviews-metadata";
 
 export const dynamic = "force-dynamic";
 
@@ -30,21 +32,31 @@ export default async function OpenExpenseReviewsPage({ searchParams }: Props) {
     prisma.branch.findMany({ select: { id: true, nameAr: true, code: true } }),
   ]);
   const branchNames = new Map(branches.map(branch => [String(branch.id), `${branch.nameAr} · ${branch.code}`]));
+  const rows: ExpenseReviewQueueRow[] = queue.rows.map((row) => ({
+    id: row.id,
+    expenseId: row.expenseId,
+    branchLabel: branchNames.get(row.branchId) ?? `فرع #${row.branchId}`,
+    expenseStatusLabel: row.expenseStatus === "PAID" ? "مدفوع" : `حالة مسجلة ${row.expenseStatus} — تحتاج مراجعة`,
+    revisionMismatch: row.expenseRevision !== row.reviewRevision,
+    reason: row.reason,
+    proposedAmountLabel: row.proposedAmount === null ? "بلا مبلغ مقترح" : formatMoney(row.proposedAmount),
+    paymentEvidenceLabel: !row.hasPayment ? "لا يوجد دفع مسجّل — يحتاج مراجعة" : row.hasHolderCash ? "يتضمن مصدر نقد الموظف — يحتاج مراجعة" : "لا يظهر مصدر نقد الموظف في الدفعات المسجّلة",
+    createdBy: row.createdBy,
+    createdAt: row.createdAt,
+  }));
   return <div className="fin-page">
     <Link href="/finance/expenses" className="fin-back">العودة إلى المصروفات</Link>
     <div className="fin-heading"><div><h1>طلبات مراجعة المصروفات المفتوحة</h1><p>للمدير والمحاسب المصرّح لهما؛ تشمل القائمة جميع الفروع المتاحة للإدارة، وليست مرتبطة بمرشحات سجل المصروفات.</p></div></div>
     <div className="fin-alert fin-alert--warning">هذه طلبات للفحص فقط: المبلغ المقترح ليس تصحيحًا، ووجود نقد الموظف لا يثبت حامل النقد أو الفترة أو أثر التسوية. افتح المصروف لمراجعة الطلب؛ يمكن لمدير أو محاسب مخوّل غير منشئه إغلاقه دون تغيير بعد الفحص وبسبب إلزامي. الإغلاق لا يثبت الدفع أو التسوية ولا يرفع حراسة التصحيح، ولا يؤكد تصحيحًا.</div>
-    {queue.rows.length ? <div className="fin-table-wrap"><table className="fin-table">
-      <caption>طلبات المراجعة المفتوحة، أحدث معرّف أولًا</caption>
-      <thead><tr><th scope="col">الطلب والمصروف</th><th scope="col">الفرع والحالة</th><th scope="col">السبب والمقترح</th><th scope="col">بيانات الدفع المسجلة</th><th scope="col">التسجيل</th></tr></thead>
-      <tbody>{queue.rows.map(row => <tr key={row.id}>
-        <td>طلب #{row.id} · <Link href={`/finance/expenses/${row.expenseId}`}>مصروف #{row.expenseId}</Link></td>
-        <td>{branchNames.get(row.branchId) ?? `فرع #${row.branchId}`} · {row.expenseStatus === "PAID" ? "مدفوع" : `حالة مسجلة ${row.expenseStatus} — تحتاج مراجعة`}{row.expenseRevision !== row.reviewRevision ? " · إصدار الطلب لا يطابق المصروف الحالي" : ""}</td>
-        <td>{row.reason} · {row.proposedAmount === null ? "بلا مبلغ مقترح" : formatMoney(row.proposedAmount)}</td>
-        <td>{!row.hasPayment ? "لا يوجد دفع مسجّل — يحتاج مراجعة" : row.hasHolderCash ? "يتضمن مصدر نقد الموظف — يحتاج مراجعة" : "لا يظهر مصدر نقد الموظف في الدفعات المسجّلة"}</td>
-        <td>مسجّل #{row.createdBy} · {row.createdAt}</td>
-      </tr>)}</tbody>
-    </table></div> : <p className="fin-alert">لا توجد طلبات مفتوحة في هذه الصفحة.</p>}
+    {queue.rows.length ? <DataTable
+      rows={rows}
+      columns={expenseReviewQueueColumns}
+      rowKey={(row) => row.id}
+      regionLabel="جدول مالي قابل للتمرير"
+      regionClassName="fin-table-wrap"
+      tableClassName="fin-table"
+      caption="طلبات المراجعة المفتوحة، أحدث معرّف أولًا"
+    /> : <p className="fin-alert">لا توجد طلبات مفتوحة في هذه الصفحة.</p>}
     <div className="fin-actions">
       {before ? <Link className="fin-button fin-button--secondary" href="/finance/expenses/reviews">العودة إلى أحدث الطلبات</Link> : null}
       {queue.nextBefore ? <Link className="fin-button" href={`/finance/expenses/reviews?before=${queue.nextBefore}`}>الطلبات الأقدم</Link> : null}

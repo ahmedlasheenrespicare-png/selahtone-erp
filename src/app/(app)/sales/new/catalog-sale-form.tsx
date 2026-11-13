@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 
 import { AppIcon, type AppIconName } from "@/components/app-icon";
+import DataTable from "@/components/data-driven/data-table";
 import type { CatalogCategoryView, CatalogFieldView } from "@/lib/catalog-sales";
 import {
   MAX_CATALOG_LINES,
@@ -29,6 +30,7 @@ import { scaledInteger } from "@/lib/inventory-math";
 import type { FieldErrors } from "@/lib/inventory-validation";
 import { createCatalogSaleAction } from "../actions";
 import { initialSalesActionState, type SalesActionState } from "../sales-state";
+import { createCatalogCartColumns, type CatalogCartTableRow } from "./cart-table-metadata";
 
 type BranchOption = { id: string; name: string };
 
@@ -830,6 +832,25 @@ export default function CatalogSaleForm({
   }
 
   // ==================== نموذج الكاونتر الرئيسي ====================
+  const cartRows: CatalogCartTableRow[] = cart.map((item) => ({
+    key: item.key,
+    categoryName: item.categoryName,
+    typeName: item.typeName,
+    quantity: item.quantity,
+    unitPrice: item.unitPrice,
+    totalFormatted: displayMoney(grossLineCents(safeMoneyCents(item.quantity), safeMoneyCents(item.unitPrice))),
+    details: formatCartFieldEntries(typeMetaById.get(item.typeId)?.fields ?? [], item.values),
+  }));
+  const cartColumns = createCatalogCartColumns({
+    pending,
+    onUpdateLine: updateLine,
+    onEditLine: (key) => {
+      const item = cart.find((line) => line.key === key);
+      if (item) editLineInBuilder(item);
+    },
+    onRemoveLine: removeLine,
+  });
+
   return (
     <form
       className="sale-grid"
@@ -893,7 +914,7 @@ export default function CatalogSaleForm({
         )}
 
         {Object.keys(errors).length > 0 && (
-          <div className="inv-alert inv-alert--error" role="alert">
+          <div id="sale-form-errors" className="inv-alert inv-alert--error" role="alert">
             <strong>راجع البيانات:</strong>
             <ul>
               {Object.entries(errors).map(([key, value]) => (
@@ -949,6 +970,7 @@ export default function CatalogSaleForm({
                 inputMode="tel"
                 placeholder="01xxxxxxxxx"
                 aria-invalid={!!errors.customerPhone}
+                aria-describedby={errors.customerPhone ? "sale-form-errors" : undefined}
               />
             </div>
 
@@ -965,6 +987,7 @@ export default function CatalogSaleForm({
                 maxLength={180}
                 placeholder="الاسم الثلاثي أو التجاري"
                 aria-invalid={!!errors.customerName}
+                aria-describedby={errors.customerName ? "sale-form-errors" : undefined}
               />
             </div>
 
@@ -1213,105 +1236,8 @@ export default function CatalogSaleForm({
                   لم تُضف بنودًا بعد. إن كانت الفاتورة لبند واحد يمكنك تعبئة السعر أعلاه والضغط على «مراجعة الفاتورة» مباشرةً.
                 </p>
               ) : (
-                <div className="inv-table-wrap table-wrap">
-                  <table className="inv-table">
-                    <thead>
-                      <tr>
-                        <th>التصنيف</th>
-                        <th>النوع والتفاصيل</th>
-                        <th>الكمية</th>
-                        <th>سعر الوحدة</th>
-                        <th>الإجمالي</th>
-                        <th />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {cart.map((item) => {
-                        const cents = grossLineCents(
-                          safeMoneyCents(item.quantity),
-                          safeMoneyCents(item.unitPrice),
-                        );
-                        const meta = typeMetaById.get(item.typeId);
-                        const arabicEntries = formatCartFieldEntries(
-                          meta?.fields ?? [],
-                          item.values,
-                        );
-                        return (
-                          <tr key={item.key}>
-                            <td>{item.categoryName}</td>
-                            <td>
-                              <strong>{item.typeName}</strong>
-                              {arabicEntries.length > 0 ? (
-                                <div className="sale-cart-tags">
-                                  {arabicEntries.map((entry) => (
-                                    <span key={entry.key} className="sale-cart-tag">
-                                      <strong>{entry.label}:</strong> {entry.value}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : null}
-                            </td>
-                            <td>
-                              <input
-                                className="sale-line-input"
-                                disabled={pending}
-                                inputMode="decimal"
-                                dir="ltr"
-                                value={item.quantity}
-                                onChange={(event) =>
-                                  updateLine(item.key, {
-                                    quantity: event.target.value,
-                                  })
-                                }
-                                aria-label={`كمية ${item.typeName}`}
-                              />
-                            </td>
-                            <td>
-                              <input
-                                className="sale-line-input"
-                                disabled={pending}
-                                inputMode="decimal"
-                                dir="ltr"
-                                value={item.unitPrice}
-                                onChange={(event) =>
-                                  updateLine(item.key, {
-                                    unitPrice: event.target.value,
-                                  })
-                                }
-                                aria-label={`سعر ${item.typeName}`}
-                              />
-                            </td>
-                            <td>
-                              <strong>
-                                <bdi dir="ltr">{displayMoney(cents)}</bdi>
-                              </strong>
-                            </td>
-                            <td>
-                              <div className="sale-cart-actions">
-                                <button
-                                  type="button"
-                                  className="sale-line-edit"
-                                  disabled={pending}
-                                  onClick={() => editLineInBuilder(item)}
-                                >
-                                  تعديل
-                                </button>
-                                <button
-                                  type="button"
-                                  className="sale-product__remove"
-                                  disabled={pending}
-                                  onClick={() => removeLine(item.key)}
-                                >
-                                  إزالة
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                <DataTable rows={cartRows} columns={cartColumns} rowKey={(row) => row.key}
+                  regionLabel="بنود سلة البيع" regionClassName="inv-table-wrap table-wrap" tableClassName="inv-table" />
               )}
             </div>
           </div>
@@ -1568,9 +1494,9 @@ export default function CatalogSaleForm({
             </button>
           ) : (
             <>
-              <button type="submit" className="inv-button" disabled={pending}>
+              <button type="submit" className="inv-button" disabled={pending} aria-busy={pending}>
                 <AppIcon name="check" />
-                <span>{pending ? "جارٍ حفظ الفاتورة…" : "تأكيد البيع وإصدار الإيصال"}</span>
+                <span aria-live="polite">{pending ? "جارٍ حفظ الفاتورة…" : "تأكيد البيع وإصدار الإيصال"}</span>
               </button>
               <button
                 type="button"

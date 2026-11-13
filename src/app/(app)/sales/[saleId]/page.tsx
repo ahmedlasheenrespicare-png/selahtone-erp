@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import DataTable from "@/components/data-driven/data-table";
 import { branchScope, requireSession } from "@/lib/auth";
 import { displayMoney, fixedScaled, METHOD_LABELS } from "@/lib/commerce-display";
 import { customerPosition } from "@/lib/commerce-math";
@@ -16,6 +17,7 @@ import { getAccessContext, requirePageAccess } from "@/lib/access-control-server
 import { accessKeyAllowed, writeAllowedForKeys } from "@/lib/access-control";
 import { FinStepper } from "@/components/finance/fin-stepper";
 import { invoiceLifecycleSteps } from "@/components/finance/fin-stepper-model";
+import { saleDetailLineColumns, type SaleDetailLineRow } from "./sale-lines-metadata";
 
 export const dynamic = "force-dynamic";
 type Props = { params: Promise<{ saleId: string }> };
@@ -74,6 +76,20 @@ export default async function SaleDetailPage({ params }: Props) {
   const hasReturns = sale.returns.length > 0;
   const allReturned = remainingLines.length > 0 && remainingLines.every((line) => scaledInteger(line.remaining, 2) === 0n);
   const status = sale.cancelledAt ? "ملغاة" : allReturned ? "مرتجعة بالكامل" : hasReturns ? "مرتجع جزئي" : "مؤكدة";
+  const lineRows: SaleDetailLineRow[] = sale.lines.map((line) => ({
+    id: line.id.toString(),
+    name: line.nameSnapshot,
+    sku: line.skuSnapshot,
+    taxCode: line.taxCodeSnapshot,
+    taxRateFormatted: line.taxRateSnapshot?.toFixed(3) ?? null,
+    detailNotes: detailEntries(line.details).map((entry) => `${entry.label}: ${entry.value}`),
+    serialNotes: line.serialLinks.map((link) => `${link.serial.serialNumber}${link.returnSerial ? " (مرتجع)" : ""}`),
+    quantityFormatted: line.quantity.toFixed(2),
+    unitPriceFormatted: displayMoney(cents(line.unitPrice)),
+    discountFormatted: displayMoney(cents(line.discount)),
+    taxFormatted: line.taxAmount === null ? null : displayMoney(cents(line.taxAmount)),
+    totalFormatted: displayMoney(cents(line.total)),
+  }));
 
   return <div className="inv-page sale-stack">
     <div className="inv-heading">
@@ -116,10 +132,14 @@ export default async function SaleDetailPage({ params }: Props) {
       <p className="sale-print-watermark">إيصال داخلي للمراجعة — ليس فاتورة ضريبية إلكترونية رسمية.</p>
       <div className="sale-detail-head"><div><h2 id="invoice-title">فاتورة ST-{sale.id.toString()}</h2><p>{dateFormatter.format(sale.createdAt)} · سجّلها {sale.createdBy.fullName}</p></div><span className={`sale-chip ${sale.cancelledAt ? "sale-chip--neutral" : hasReturns ? "sale-chip--warning" : "sale-chip--confirmed"}`}><span className="sale-chip__dot" aria-hidden="true" />{status}</span></div>
       <dl className="sale-meta"><div><dt>العميل</dt><dd>{sale.customerName}</dd></div><div><dt>الهاتف</dt><dd><bdi dir="ltr">{sale.customerPhone}</bdi></dd></div><div><dt>الفرع</dt><dd>{sale.warehouse ? `${sale.branch.nameAr} — ${sale.warehouse.nameAr}` : sale.branch.nameAr}</dd></div></dl>
-      <div className="inv-table-wrap table-wrap" role="region" aria-label="بنود الفاتورة" tabIndex={0}><table className="inv-table"><thead><tr><th>الصنف</th><th>الكمية</th><th>سعر الوحدة</th><th>الخصم</th><th>الضريبة المضمنة</th><th>الإجمالي</th></tr></thead><tbody>
-        {sale.lines.map((line) => <tr key={line.id.toString()}><td><strong>{line.nameSnapshot}</strong><br /><span className="muted">{line.taxCodeSnapshot ? `${line.skuSnapshot ?? "—"} · ${line.taxCodeSnapshot} (${line.taxRateSnapshot?.toFixed(3) ?? "0.000"}%)` : "الضريبة غير محددة"}</span>{detailEntries(line.details).length > 0 && <div className="sale-note">{detailEntries(line.details).map((entry) => `${entry.label}: ${entry.value}`).join(" · ")}</div>}{line.serialLinks.length > 0 && <div className="sale-note">{line.serialLinks.map((link) => `${link.serial.serialNumber}${link.returnSerial ? " (مرتجع)" : ""}`).join(" · ")}</div>}</td>
-          <td><bdi dir="ltr">{line.quantity.toFixed(2)}</bdi></td><td><bdi dir="ltr">{displayMoney(cents(line.unitPrice))}</bdi></td><td><bdi dir="ltr">{displayMoney(cents(line.discount))}</bdi></td><td><bdi dir="ltr">{line.taxAmount === null ? "غير محددة" : displayMoney(cents(line.taxAmount))}</bdi></td><td><bdi dir="ltr">{displayMoney(cents(line.total))}</bdi></td></tr>)}
-      </tbody></table></div>
+      <DataTable
+        rows={lineRows}
+        columns={saleDetailLineColumns}
+        rowKey={(line) => line.id}
+        regionLabel="بنود الفاتورة"
+        regionClassName="inv-table-wrap table-wrap"
+        tableClassName="inv-table"
+      />
       <div className="sale-grid" style={{ marginTop: 18 }}><div><h3>التحصيل والمرتجعات</h3><ul className="sale-ledger">
         {sale.collections.map((entry) => <li key={`payment-${entry.id}`}><span>{entry.isInitial ? "الدفعة الأولى" : "تحصيل"} · {methodName(entry.method)} · {entry.createdBy.fullName} · {dateFormatter.format(entry.createdAt)}</span><strong>{displayMoney(cents(entry.amount))} ج.م</strong></li>)}
         {sale.returns.map((entry) => <li key={`return-${entry.id}`}><span>{entry.isCancellation ? "إلغاء" : "مرتجع"} · {entry.createdBy.fullName} · {dateFormatter.format(entry.createdAt)}<br />{entry.lines.map((line) => `${line.saleLine.nameSnapshot} × ${line.quantity.toFixed(2)}${line.serials.length ? ` (${line.serials.map((s) => s.saleLineSerial.serial.serialNumber).join("، ")})` : ""}`).join(" · ")}</span><strong>−{displayMoney(entry.lines.reduce((sum, line) => sum + cents(line.total), 0n))} ج.م</strong></li>)}

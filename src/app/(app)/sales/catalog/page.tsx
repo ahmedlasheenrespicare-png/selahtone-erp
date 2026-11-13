@@ -125,7 +125,7 @@ export default async function SalesCatalogPage({
       </form>
     ) : null}
 
-    {!catalog.length ? <div className="inv-panel inv-empty">لا توجد أصناف بعد.</div> : !filteredCatalog.length ? <div className="inv-panel inv-empty">لا توجد تصنيفات أو أنواع مطابقة للبحث الحالي.</div> : <div className="sale-stack">
+    {!catalog.length ? <div className="inv-panel inv-empty" role="status">لا توجد أصناف بعد.</div> : !filteredCatalog.length ? <div className="inv-panel inv-empty" role="status">لا توجد تصنيفات أو أنواع مطابقة للبحث الحالي.</div> : <div className="sale-stack">
       {filteredCatalog.map((category) => <section className="inv-panel" key={category.id} aria-labelledby={`cat-${category.id}`}>
         <div className="inv-panel__heading"><h2 id={`cat-${category.id}`}>{category.name}</h2>
           <p>الرمز <bdi dir="ltr">{category.code}</bdi> · {category.isActive ? "نشط" : "موقوف"} · {category.types.length} نوعًا</p></div>
