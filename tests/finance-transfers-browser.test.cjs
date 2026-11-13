@@ -24,7 +24,8 @@ test('finance transfers browser: duplicate branch names totals, ledgers and expo
   assert.ok(browserDir, 'Set SYNTHETIC_BROWSER_DIR to a separate installation containing playwright-core and @sparticuz/chromium');
   const external = createRequire(join(browserDir, 'package.json'));
   const { chromium } = external('playwright-core');
-  const chromiumBinary = external('@sparticuz/chromium');
+  const chromiumModule = external('@sparticuz/chromium');
+  const chromiumBinary = chromiumModule.default ?? chromiumModule;
   const dir = mkdtempSync(join(tmpdir(), 'selahtone-transfers-browser-'));
   const password = 'Synthetic-Browser-Test-2026!';
   let child, browser; let logs = '';
@@ -63,7 +64,7 @@ test('finance transfers browser: duplicate branch names totals, ledgers and expo
     assert.ok(ready, 'synthetic Next server did not start');
     // Lambda's bundled NSS libraries are required on minimal Linux images.
     // Extract only into this disposable test directory, not the repository.
-    const browserPackage = dirname(external.resolve('@sparticuz/chromium/package.json'));
+    const browserPackage = dirname(dirname(external.resolve('@sparticuz/chromium')));
     const archive = join(dir, 'browser-libs.tar');
     writeFileSync(archive, brotliDecompressSync(readFileSync(join(browserPackage, 'bin/al2023.tar.br'))));
     execFileSync('tar', ['-xf', archive, '-C', dir]);
@@ -74,6 +75,8 @@ test('finance transfers browser: duplicate branch names totals, ledgers and expo
     await page.locator('#email').fill('manager@selahtone.local');
     await page.locator('#password').fill(password);
     await Promise.all([page.waitForURL('**/finance/transfers', { timeout: 30000 }), page.locator('button[type=submit]').click()]);
+    // The route streams its shell before the finance query finishes.
+    await page.getByText('حركات مسجّلة بتوقيت القاهرة حتى وقت القراءة', { exact: false }).waitFor({ timeout: 60000 });
     assert.match(await page.locator('body').innerText(), /حركات مسجّلة بتوقيت القاهرة حتى وقت القراءة/);
     assert.match(await page.locator('body').innerText(), /قد لا يشمل السجل كل الحركات/);
     const branchTabs = page.getByRole('tablist', { name: 'اختيار الفرع' });

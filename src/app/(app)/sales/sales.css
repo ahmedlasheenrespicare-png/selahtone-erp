@@ -230,6 +230,50 @@
   box-shadow: 0 8px 22px -16px rgba(12, 34, 42, 0.18);
 }
 
+/* بطاقة الحلقة وحدها: تبقى داخل شبكة المؤشرات الحالية بلا تغيير لباقي البطاقات. */
+.sales-kpi-card--ring {
+  align-items: center;
+  perspective: 900px;
+}
+
+.sales-kpi-card--ring .sales-kpi-card__body {
+  flex: 1;
+  transform: translateZ(3px);
+}
+
+.sales-kpi-card__ring {
+  align-self: center;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .sales-kpi-card--ring:hover .stat-ring-pill__ring-wrap {
+    transform: translateZ(6px) rotateX(2deg) rotateY(-2deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sales-kpi-card--ring,
+  .sales-kpi-card--ring .sales-kpi-card__body,
+  .sales-kpi-card--ring .stat-ring-pill__ring-wrap {
+    perspective: none;
+    transform: none !important;
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+@media print {
+  .sales-kpi-card--ring,
+  .sales-kpi-card--ring .sales-kpi-card__body,
+  .sales-kpi-card--ring .stat-ring-pill__ring-wrap {
+    perspective: none;
+    transform: none !important;
+    transition: none !important;
+    animation: none !important;
+    box-shadow: none !important;
+  }
+}
+
 .sales-kpi-card.is-accent {
   background: var(--sl-leather-bg);
   border-color: var(--sl-header-border);

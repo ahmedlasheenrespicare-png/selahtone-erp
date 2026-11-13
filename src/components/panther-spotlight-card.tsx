@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import Link from "next/link";
+import { StatRing } from "./stat-ring-pill";
 
 export type PantherChartVariant =
   | "area"
@@ -19,6 +20,16 @@ export type PantherMetricBlock = {
   unit?: string;
   delta: string;
   tone: "positive" | "negative";
+  /**
+   * حلقة نسبة اختيارية بجانب الرقم (مثل المتبقي على العملاء ÷ صافي المبيعات).
+   * النسبة محسوبة في الصفحة من مجاميع القرش؛ null = لا مقام صالح فتظهر حالة فارغة.
+   * غياب الحقل تمامًا يعني أن المؤشر لا يحمل حلقة، كما كانت كل المؤشرات قبلها.
+   */
+  ring?: {
+    percent: number | null;
+    percentLabel: string;
+    emptyLabel?: string;
+  };
 };
 
 export type PantherChartPoint = {
@@ -1561,20 +1572,32 @@ export default function PantherSpotlightCard({
             </p>
           </div>
 
-          <div className="monthly-panther__metric">
-            <p className="monthly-panther__metric-label">{secondary.label}</p>
-            <p className="monthly-panther__metric-value">
-              <bdi dir="ltr">{secondary.value}</bdi>
-              {secondary.unit ? (
-                <>
-                  {" "}
-                  <small>{secondary.unit}</small>
-                </>
-              ) : null}
-            </p>
-            <p className={`monthly-panther__metric-delta is-${secondary.tone}`}>
-              {secondary.delta}
-            </p>
+          <div
+            className={`monthly-panther__metric${secondary.ring ? " monthly-panther__metric--ring" : ""}`}
+          >
+            {secondary.ring ? (
+              <StatRing
+                className="monthly-panther__metric-ring"
+                percent={secondary.ring.percent}
+                percentLabel={secondary.ring.percentLabel}
+                emptyLabel={secondary.ring.emptyLabel}
+              />
+            ) : null}
+            <div className="monthly-panther__metric-body">
+              <p className="monthly-panther__metric-label">{secondary.label}</p>
+              <p className="monthly-panther__metric-value">
+                <bdi dir="ltr">{secondary.value}</bdi>
+                {secondary.unit ? (
+                  <>
+                    {" "}
+                    <small>{secondary.unit}</small>
+                  </>
+                ) : null}
+              </p>
+              <p className={`monthly-panther__metric-delta is-${secondary.tone}`}>
+                {secondary.delta}
+              </p>
+            </div>
           </div>
         </div>
 

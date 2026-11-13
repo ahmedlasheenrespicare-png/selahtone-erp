@@ -24,7 +24,8 @@ test('finance transfers browser: monthly totals independent of latest 100 and st
   assert.ok(browserDir, 'Set SYNTHETIC_BROWSER_DIR to a separate installation containing playwright-core and @sparticuz/chromium');
   const external = createRequire(join(browserDir, 'package.json'));
   const { chromium } = external('playwright-core');
-  const chromiumBinary = external('@sparticuz/chromium');
+  const chromiumModule = external('@sparticuz/chromium');
+  const chromiumBinary = chromiumModule.default ?? chromiumModule;
   const dir = mkdtempSync(join(tmpdir(), 'selahtone-transfers-volume-browser-'));
   const password = 'Synthetic-Browser-Test-2026!';
   let child, browser; let logs = '';
@@ -64,7 +65,7 @@ test('finance transfers browser: monthly totals independent of latest 100 and st
     assert.ok(ready, 'synthetic Next server did not start');
     // Lambda's bundled NSS libraries are required on minimal Linux images.
     // Extract only into this disposable test directory, not the repository.
-    const browserPackage = dirname(external.resolve('@sparticuz/chromium/package.json'));
+    const browserPackage = dirname(dirname(external.resolve('@sparticuz/chromium')));
     const archive = join(dir, 'browser-libs.tar');
     writeFileSync(archive, brotliDecompressSync(readFileSync(join(browserPackage, 'bin/al2023.tar.br'))));
     execFileSync('tar', ['-xf', archive, '-C', dir]);
@@ -74,6 +75,7 @@ test('finance transfers browser: monthly totals independent of latest 100 and st
     await page.goto(`${base}/login?next=%2Ffinance%2Ftransfers`);
     await page.locator('#email').fill('manager@selahtone.local'); await page.locator('#password').fill(password);
     await Promise.all([page.waitForURL('**/finance/transfers', { timeout: 30000 }), page.locator('button[type=submit]').click()]);
+    await page.getByText('قد لا يشمل السجل كل الحركات', { exact: false }).waitFor({ timeout: 60000 });
     assert.match(await page.locator('body').innerText(), /قد لا يشمل السجل كل الحركات/);
     await page.getByRole('tab', { name: 'حسب الفرع', exact: true }).click();
     const chartBlock = page.getByRole('tablist', {name: /طريقة عرض مؤشر حركة التسليم/}).locator('..');
@@ -90,6 +92,7 @@ test('finance transfers browser: monthly totals independent of latest 100 and st
     await page.goto(`${base}/login?next=%2Ffinance%2Ftransfers`);
     await page.locator('#email').fill('arh@selahtone.local'); await page.locator('#password').fill(password);
     await Promise.all([page.waitForURL('**/finance/transfers', { timeout: 30000 }), page.locator('button[type=submit]').click()]);
+    await page.getByText('توريد عهدتك لخزنة الفرع بالشهر', { exact: false }).waitFor({ timeout: 60000 });
     const content = await page.locator('body').innerText();
     assert.match(content, /توريد عهدتك لخزنة الفرع بالشهر[\s\S]*212\.11/);
     assert.match(content, /عمليات التوريد المسجّلة اليوم[\s\S]*212\.11/);

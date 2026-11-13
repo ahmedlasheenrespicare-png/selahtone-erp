@@ -3,6 +3,8 @@ import DashboardWallet, { type WalletPocketItem } from "@/app/(app)/dashboard/da
 import MonthlySalesPanther from "@/app/(app)/dashboard/monthly-sales-panther";
 import { AppIcon } from "@/components/app-icon";
 import PantherSpotlightCard from "@/components/panther-spotlight-card";
+import { StatRing } from "@/components/stat-ring-pill";
+import { countShareRingPercent, outstandingShareRingPercent } from "@/components/stat-ring-pill-model";
 import { branchScope, requireSession } from "@/lib/auth";
 import { customerPosition } from "@/lib/commerce-math";
 import { displayMoney } from "@/lib/commerce-display";
@@ -87,6 +89,14 @@ export default async function SalesPage() {
       : 0;
   const monthCollectedPct =
     monthTotalNum > 0 ? Math.max(0, Math.round((100 - monthOutstandingPct) * 10) / 10) : 0;
+  // للعرض فقط: المتبقي على العملاء ÷ صافي مبيعات الشهر، من مجاميع القرش لا من النسبة المقرّبة أعلاه.
+  const monthOutstandingRingPercent = monthSales
+    ? outstandingShareRingPercent({
+        invoiceCount: monthSales.invoiceCount,
+        netSalesCents: scaledInteger(monthSales.total, 2),
+        outstandingCents: scaledInteger(monthSales.outstandingTotal, 2),
+      })
+    : null;
 
   let activeInvoicesCount = 0;
   let netInvoicedCents = 0n;
@@ -166,6 +176,9 @@ export default async function SalesPage() {
       netCollectedFormatted: displayMoney(netCollected),
       dueFromCustomerFormatted: displayMoney(balance.dueFromCustomerCents),
       dueToCustomerFormatted: displayMoney(balance.dueToCustomerCents),
+      originalCents: original.toString(),
+      dueFromCustomerCents: balance.dueFromCustomerCents.toString(),
+      dueToCustomerCents: balance.dueToCustomerCents.toString(),
       hasDueFromCustomer: balance.dueFromCustomerCents > 0n,
       hasDueToCustomer: balance.dueToCustomerCents > 0n,
       statusLabel,
@@ -184,6 +197,11 @@ export default async function SalesPage() {
   );
   const walletInvoices = cards;
   const branches = Array.from(branchSet);
+  // للعرض فقط: حصة الفواتير النشطة من إجمالي الفواتير المعروضة، لا من الشهر ولا من القيمة.
+  const activeInvoiceRingPercent = countShareRingPercent({
+    partCount: activeInvoicesCount,
+    totalCount: sales.length,
+  });
 
   const pocketItems: WalletPocketItem[] = [
     {
@@ -378,6 +396,7 @@ export default async function SalesPage() {
                 hasOutstanding={monthOutstandingNum > 0}
                 collectedPercent={monthCollectedPct}
                 outstandingPercent={monthOutstandingPct}
+                outstandingRingPercent={monthOutstandingRingPercent}
                 hasSales={monthSales.invoiceCount > 0}
                 series={monthSalesSeries}
                 reportHref={
@@ -419,10 +438,13 @@ export default async function SalesPage() {
       )}
 
       <section className="sales-kpi-strip" aria-label="ملخص الفواتير المعروضة">
-        <article className="sales-kpi-card">
-          <span className="sales-kpi-card__icon" aria-hidden="true">
-            <AppIcon name="receipt" />
-          </span>
+        <article className="sales-kpi-card sales-kpi-card--ring">
+          <StatRing
+            className="sales-kpi-card__ring"
+            percent={activeInvoiceRingPercent}
+            percentLabel="نسبة الفواتير النشطة من إجمالي الفواتير المعروضة"
+            emptyLabel={sales.length === 0 ? "لا فواتير" : "غير متاح"}
+          />
           <div className="sales-kpi-card__body">
             <span className="sales-kpi-card__label">الفواتير النشطة</span>
             <strong className="sales-kpi-card__value">{activeInvoicesCount}</strong>

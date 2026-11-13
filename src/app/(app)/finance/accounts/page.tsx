@@ -5,6 +5,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppIcon } from "@/components/app-icon";
 import { FinKpiStrip } from "@/components/finance/fin-kpi-strip";
+import { FinStepper } from "@/components/finance/fin-stepper";
+import { countShareRingPercent } from "@/components/stat-ring-pill-model";
 import { getSession } from "@/lib/auth";
 import { assertFinanceActor, financeDb, financeEnabled } from "@/lib/finance/db";
 import { listAccounts, listCustodyRequests } from "@/lib/finance/engine";
@@ -110,6 +112,11 @@ export default async function FinanceAccountsPage({
   const requestUserMap = new Map(requestUsers.map(user => [user.id.toString(), user]));
 
   const coverage = computeBranchAccountCoverage(branchOptions, staffOptions, accounts);
+  // للعرض فقط: الفروع النشطة المغطاة بخزنة مفتوحة ÷ إجمالي الفروع النشطة.
+  const vaultCoverageRingPercent = countShareRingPercent({
+    partCount: coverage.openVaultCount,
+    totalCount: coverage.totalActiveBranches,
+  });
   const today = cairoDate();
 
   const custodyRequests = pendingRequests.map((item) => {
@@ -179,6 +186,11 @@ export default async function FinanceAccountsPage({
                 ? "كل الفروع النشطة مغطّاة بخزنة رئيسية"
                 : `${coverage.missingVaultBranches.length} فرع بانتظار فتح خزنته`,
             tone: "accent",
+            ring: {
+              percent: vaultCoverageRingPercent,
+              percentLabel: "نسبة الفروع النشطة المغطاة بخزنة مفتوحة من إجمالي الفروع النشطة",
+              emptyLabel: coverage.totalActiveBranches === 0 ? "لا فروع" : "غير متاح",
+            },
           },
           {
             icon: "branch",
@@ -222,29 +234,15 @@ export default async function FinanceAccountsPage({
         ]}
       />
 
-      <ol className="fin-stepper no-print" aria-label="خطوات تأسيس الحساب النقدي">
-        <li className="fin-stepper__step is-current">
-          <span className="fin-stepper__num">1</span>
-          <div className="fin-stepper__body">
-            <strong>العدّ والجرد الفعلي للنقد</strong>
-            <small>حصر الفئات النقدية الموجودة فعليًا وقت الافتتاح</small>
-          </div>
-        </li>
-        <li className="fin-stepper__step">
-          <span className="fin-stepper__num">2</span>
-          <div className="fin-stepper__body">
-            <strong>إقرار وتثبيت رصيد البداية</strong>
-            <small>توثيق الرصيد وتاريخ الجرد في سجل التدقيق</small>
-          </div>
-        </li>
-        <li className="fin-stepper__step">
-          <span className="fin-stepper__num">3</span>
-          <div className="fin-stepper__body">
-            <strong>التشغيل والتسوية الدورية</strong>
-            <small>استقبال التحصيلات والتحويلات والجرد الدوري</small>
-          </div>
-        </li>
-      </ol>
+      <FinStepper
+        className="no-print fin-stepper--page"
+        label="خطوات تأسيس الحساب النقدي"
+        steps={[
+          { key: "count", title: "العدّ والجرد الفعلي للنقد", description: "حصر الفئات النقدية الموجودة فعليًا وقت الافتتاح", status: "current" },
+          { key: "opening", title: "إقرار وتثبيت رصيد البداية", description: "توثيق الرصيد وتاريخ الجرد في سجل التدقيق", status: "pending" },
+          { key: "operate", title: "التشغيل والتسوية الدورية", description: "استقبال التحصيلات والتحويلات والجرد الدوري", status: "pending" },
+        ]}
+      />
 
       {canDecideCustody && custodyRequests.length > 0 ? (
         <section className="fin-form-stack" aria-label="طلبات العهدة المعلقة">

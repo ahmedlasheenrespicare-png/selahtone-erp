@@ -14,6 +14,8 @@ import PrintButton from "./print-button";
 import { loadRefundAccounts } from "./refund-accounts";
 import { getAccessContext, requirePageAccess } from "@/lib/access-control-server";
 import { accessKeyAllowed, writeAllowedForKeys } from "@/lib/access-control";
+import { FinStepper } from "@/components/finance/fin-stepper";
+import { invoiceLifecycleSteps } from "@/components/finance/fin-stepper-model";
 
 export const dynamic = "force-dynamic";
 type Props = { params: Promise<{ saleId: string }> };
@@ -94,6 +96,18 @@ export default async function SaleDetailPage({ params }: Props) {
         />
       </div>
     </div>
+    <FinStepper
+      label="حالة الفاتورة والتحصيل"
+      steps={invoiceLifecycleSteps({
+        cancelled: Boolean(sale.cancelledAt),
+        hasReturns,
+        allReturned,
+        netCollectedCents: balance.netCollectedCents,
+        refundedCents: refunded,
+        dueFromCustomerCents: balance.dueFromCustomerCents,
+        dueToCustomerCents: balance.dueToCustomerCents,
+      })}
+    />
     <article className="inv-panel inv-panel__body sale-print" aria-labelledby="invoice-title">
       <div className="sale-print__brand-banner">
         <strong>صلة تون للخدمات السمعية</strong>

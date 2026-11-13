@@ -21,6 +21,7 @@ import { loadCashSummary } from "@/lib/finance/dashboard";
 import { cairoDate } from "@/lib/finance/validation";
 import { prisma } from "@/lib/prisma";
 import FinanceAccountsView, { type FinanceAccountRow } from "./finance-accounts-view";
+import FinanceCashLayers, { type CashLayerLinks } from "./finance-cash-layers";
 import { accountLabel, formatMoney } from "./format";
 
 export const dynamic = "force-dynamic";
@@ -488,6 +489,24 @@ export default async function FinancePage() {
           </div>
         ) : null}
       </div>
+
+      {canManage ? (
+        <FinanceCashLayers
+          links={
+            {
+              invoice: access.isAllowed("/sales") ? "/sales" : undefined,
+              collection: access.isAllowed("/sales") ? "/sales" : undefined,
+              custody: access.isAllowed("/finance/accounts")
+                ? "/finance/accounts"
+                : access.isAllowed("/finance/mine")
+                  ? "/finance/mine"
+                  : undefined,
+              vault: access.isAllowed("/finance/accounts") ? "/finance/accounts" : undefined,
+              settlement: access.isAllowed("/finance/settlements") ? "/finance/settlements" : undefined,
+            } satisfies CashLayerLinks
+          }
+        />
+      ) : null}
 
       {(walletAccounts.length > 0 || (canManage && summary)) && (
         <div className="dashboard-cards-grid" aria-label="حافظة الخزائن والعُهَد والميزان النقدي">

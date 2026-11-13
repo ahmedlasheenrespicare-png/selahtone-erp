@@ -627,7 +627,11 @@ test("حزم تطوير الصفحات الشاملة (١-٣) تحقق تباي�
   // ٣) الطباعة المخصّصة (ملخص إغلاق اليوم + الإيصال الحراري 80mm) وعدم وجود prefers-color-scheme
   assert.ok(workspaceCss.includes(".print-only-brief"));
   assert.ok(workspaceCss.includes('html[data-print-mode="thermal"]'));
-  assert.ok(workspaceCss.includes(".fin-stepper"));
+  const finStepperCss = readFileSync(
+    new URL("../src/components/finance/fin-stepper.css", import.meta.url),
+    "utf8",
+  );
+  assert.ok(finStepperCss.includes(".fin-stepper"));
   assert.ok(workspaceCss.includes(".fin-denom-grid"));
   assert.ok(!darkModeCss.includes(["prefers", "color", "scheme"].join("-")));
 

@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AppIcon } from "@/components/app-icon";
+import DataTable, { type DataTableColumn } from "@/components/data-table/data-table";
+import { useDataTable } from "@/components/data-table/use-data-table";
 import { downloadCsvFile } from "@/lib/csv-export";
 
 export type SalesInvoiceStatusKind = "confirmed" | "partial_return" | "full_return" | "cancelled";
@@ -16,6 +18,10 @@ export type SalesInvoiceRow = {
   originalFormatted: string;
   dueFromCustomerFormatted: string;
   dueToCustomerFormatted: string;
+  /** قيم خام بالقرش (نصية) للفرز الرقمي الصحيح؛ العرض يبقى بالنصوص المنسّقة أعلاه. */
+  originalCents: string;
+  dueFromCustomerCents: string;
+  dueToCustomerCents: string;
   hasDueFromCustomer: boolean;
   hasDueToCustomer: boolean;
   statusLabel: string;
@@ -95,6 +101,140 @@ export default function SalesInvoicesView({
     });
   }, [rows, query, branchFilter, periodFilter, activeTab]);
 
+  // أعمدة موحّدة: الفرز على القرش الخام والتاريخ الحقيقي، والعرض بنفس الخلايا السابقة.
+  const columns: Array<DataTableColumn<SalesInvoiceRow>> = [
+    {
+      key: "code",
+      header: "الفاتورة",
+      sortValue: (sale) => sale.code,
+      cell: (sale) => (
+        <>
+          {canOpenInvoice ? <Link href={`/sales/${sale.id}`} className="sales-invoice-badge">
+            <AppIcon name="receipt" />
+            <bdi dir="ltr">{sale.code}</bdi>
+          </Link> : <span className="sales-invoice-badge"><AppIcon name="receipt" /><bdi dir="ltr">{sale.code}</bdi></span>}
+          <small className="sales-lines-hint">{sale.linesCount} {sale.linesCount === 1 ? "بند" : "بنود"}</small>
+        </>
+      ),
+    },
+    {
+      key: "customerName",
+      header: "العميل",
+      sortValue: (sale) => sale.customerName,
+      cell: (sale) => (
+        <div className="sales-customer-cell">
+          <span className="sales-customer-cell__avatar" aria-hidden="true">
+            {Array.from(sale.customerName.trim())[0] ?? "ع"}
+          </span>
+          <div>
+            <strong>{sale.customerName}</strong>
+            <span className="sales-customer-cell__phone">
+              <bdi dir="ltr">{sale.customerPhone}</bdi>
+            </span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "branchName",
+      header: "الفرع",
+      sortValue: (sale) => sale.branchName,
+      cell: (sale) => <span className="sales-branch-pill">{sale.branchName}</span>,
+    },
+    {
+      key: "original",
+      header: "الإجمالي الأصلي",
+      kind: "cents",
+      initialDirection: "desc",
+      sortValue: (sale) => sale.originalCents,
+      className: "sales-money-cell is-strong",
+      cell: (sale) => (
+        <>
+          <bdi dir="ltr">{sale.originalFormatted}</bdi> <small>ج.م</small>
+        </>
+      ),
+    },
+    {
+      key: "dueFrom",
+      header: "المتبقي على العميل",
+      kind: "cents",
+      initialDirection: "desc",
+      sortValue: (sale) => sale.dueFromCustomerCents,
+      className: (sale) => `sales-money-cell${sale.hasDueFromCustomer ? " is-due-from" : " is-zero"}`,
+      cell: (sale) => (
+        <>
+          <bdi dir="ltr">{sale.dueFromCustomerFormatted}</bdi> <small>ج.م</small>
+          {sale.hasDueFromCustomer && typeof sale.ageDays === "number" ? (
+            <span
+              className={`sales-age-pill${
+                sale.ageDays >= 15 ? " is-danger" : sale.ageDays >= 7 ? " is-warn" : ""
+              }`}
+            >
+              {sale.ageDays === 0 ? "اليوم" : `منذ ${sale.ageDays} ي`}
+            </span>
+          ) : null}
+        </>
+      ),
+    },
+    {
+      key: "dueTo",
+      header: "مستحق للعميل",
+      kind: "cents",
+      initialDirection: "desc",
+      sortValue: (sale) => sale.dueToCustomerCents,
+      className: (sale) => `sales-money-cell${sale.hasDueToCustomer ? " is-due-to" : " is-zero"}`,
+      cell: (sale) => (
+        <>
+          <bdi dir="ltr">{sale.dueToCustomerFormatted}</bdi> <small>ج.م</small>
+        </>
+      ),
+    },
+    {
+      key: "status",
+      header: "الحالة",
+      sortValue: (sale) => sale.statusLabel,
+      cell: (sale) => (
+        <span
+          className={`sale-chip ${
+            sale.statusKind === "cancelled"
+              ? "sale-chip--neutral"
+              : sale.statusKind !== "confirmed"
+                ? "sale-chip--warning"
+                : "sale-chip--confirmed"
+          }`}
+        >
+          <span className="sale-chip__dot" aria-hidden="true" />
+          {sale.statusLabel}
+        </span>
+      ),
+    },
+    {
+      key: "createdAt",
+      header: "التاريخ",
+      kind: "date",
+      initialDirection: "desc",
+      sortValue: (sale) => sale.createdAtIso,
+      className: "sales-date-cell",
+      cell: (sale) => sale.createdAtFormatted,
+    },
+    {
+      key: "open",
+      header: "",
+      sortLabel: "تفاصيل",
+      className: "sales-open-cell",
+      cell: (sale) => (
+        <>
+          {canOpenInvoice && <Link href={`/sales/${sale.id}`} className="sales-open-link" aria-label={`فتح فاتورة ${sale.code}`}>
+            <span>عرض</span>
+            <AppIcon name="arrow" />
+          </Link>}
+        </>
+      ),
+    },
+  ];
+
+  const table = useDataTable({ rows: filtered, columns, initialPageSize: 25, resetKey: [query, branchFilter, periodFilter, activeTab].join("\u0000") });
+
   function handleExportCsv(): void {
     downloadCsvFile(
       `selahtone-invoices-${new Date().toISOString().slice(0, 10)}.csv`,
@@ -110,7 +250,8 @@ export default function SalesInvoicesView({
         "الحالة",
         "التاريخ",
       ],
-      filtered.map((r) => [
+      // التصدير يشمل كل النتائج المطابقة للتصفية بترتيب الفرز الظاهر، لا الصفحة المعروضة وحدها.
+      table.sortedRows.map((r) => [
         r.code,
         r.customerName,
         r.customerPhone,
@@ -234,97 +375,15 @@ export default function SalesInvoicesView({
         </div>
       ) : (
         <div className="sales-table-card">
-          <div className="inv-table-wrap table-wrap" role="region" aria-label="جدول فواتير البيع" tabIndex={0}>
-            <table className="inv-table sales-invoices-table">
-              <thead>
-                <tr>
-                  <th>الفاتورة</th>
-                  <th>العميل</th>
-                  <th>الفرع</th>
-                  <th>الإجمالي الأصلي</th>
-                  <th>المتبقي على العميل</th>
-                  <th>مستحق للعميل</th>
-                  <th>الحالة</th>
-                  <th>التاريخ</th>
-                  <th aria-label="تفاصيل" />
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((sale) => {
-                  const chipClass =
-                    sale.statusKind === "cancelled"
-                      ? "sale-chip--neutral"
-                      : sale.statusKind !== "confirmed"
-                        ? "sale-chip--warning"
-                        : "sale-chip--confirmed";
-                  const initial = Array.from(sale.customerName.trim())[0] ?? "ع";
-
-                  return (
-                    <tr key={sale.id} className={sale.statusKind === "cancelled" ? "is-cancelled-row" : undefined}>
-                      <td>
-                        {canOpenInvoice ? <Link href={`/sales/${sale.id}`} className="sales-invoice-badge">
-                          <AppIcon name="receipt" />
-                          <bdi dir="ltr">{sale.code}</bdi>
-                        </Link> : <span className="sales-invoice-badge"><AppIcon name="receipt" /><bdi dir="ltr">{sale.code}</bdi></span>}
-                        <small className="sales-lines-hint">{sale.linesCount} {sale.linesCount === 1 ? "بند" : "بنود"}</small>
-                      </td>
-                      <td>
-                        <div className="sales-customer-cell">
-                          <span className="sales-customer-cell__avatar" aria-hidden="true">
-                            {initial}
-                          </span>
-                          <div>
-                            <strong>{sale.customerName}</strong>
-                            <span className="sales-customer-cell__phone">
-                              <bdi dir="ltr">{sale.customerPhone}</bdi>
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        <span className="sales-branch-pill">{sale.branchName}</span>
-                      </td>
-                      <td className="sales-money-cell is-strong">
-                        <bdi dir="ltr">{sale.originalFormatted}</bdi> <small>ج.م</small>
-                      </td>
-                      <td className={`sales-money-cell${sale.hasDueFromCustomer ? " is-due-from" : " is-zero"}`}>
-                        <bdi dir="ltr">{sale.dueFromCustomerFormatted}</bdi> <small>ج.م</small>
-                        {sale.hasDueFromCustomer && typeof sale.ageDays === "number" ? (
-                          <span
-                            className={`sales-age-pill${
-                              sale.ageDays >= 15
-                                ? " is-danger"
-                                : sale.ageDays >= 7
-                                  ? " is-warn"
-                                  : ""
-                            }`}
-                          >
-                            {sale.ageDays === 0 ? "اليوم" : `منذ ${sale.ageDays} ي`}
-                          </span>
-                        ) : null}
-                      </td>
-                      <td className={`sales-money-cell${sale.hasDueToCustomer ? " is-due-to" : " is-zero"}`}>
-                        <bdi dir="ltr">{sale.dueToCustomerFormatted}</bdi> <small>ج.م</small>
-                      </td>
-                      <td>
-                        <span className={`sale-chip ${chipClass}`}>
-                          <span className="sale-chip__dot" aria-hidden="true" />
-                          {sale.statusLabel}
-                        </span>
-                      </td>
-                      <td className="sales-date-cell">{sale.createdAtFormatted}</td>
-                      <td className="sales-open-cell">
-                        {canOpenInvoice && <Link href={`/sales/${sale.id}`} className="sales-open-link" aria-label={`فتح فاتورة ${sale.code}`}>
-                          <span>عرض</span>
-                          <AppIcon name="arrow" />
-                        </Link>}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            state={table}
+            columns={columns}
+            rowKey={(sale) => sale.id}
+            rowClassName={(sale) => (sale.statusKind === "cancelled" ? "is-cancelled-row" : undefined)}
+            ariaLabel="جدول فواتير البيع"
+            wrapClassName="inv-table-wrap table-wrap"
+            tableClassName="inv-table sales-invoices-table"
+          />
         </div>
       )}
     </section>

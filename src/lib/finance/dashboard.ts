@@ -5,6 +5,7 @@ import type {
   PantherMetricBlock,
 } from "@/components/panther-spotlight-card";
 import { displayMoney } from "@/lib/commerce-display";
+import { expenseWaitingRingPercent } from "@/components/stat-ring-pill-model";
 import { assertFinanceActor, financeDb, financeEnabled } from "@/lib/finance/db";
 import { listAccounts, listExpenses, listSettlements, settlementOverview } from "@/lib/finance/engine";
 import type { FinanceTransaction } from "@/lib/finance/types";
@@ -568,6 +569,17 @@ export async function loadDashboardFinanceSpotlights(
           ? `${monthPendingCount} للاعتماد · ${monthApprovedCount} معتمد بانتظار الصرف`
           : "لا مصروفات مسجّلة بانتظار الاعتماد أو الصرف هذا الشهر",
       tone: monthUnpaidCount > 0 ? "negative" : "positive",
+      ring: {
+        percent: expenseWaitingRingPercent({
+          expenseCount: monthCount,
+          totalCents: monthTotalCents,
+          waitingCents: monthUnpaidCents,
+        }),
+        percentLabel: canManage
+          ? "نسبة المعلق للاعتماد أو الصرف من إجمالي مصروفات الشهر"
+          : "نسبة المعلق للاعتماد أو الصرف من إجمالي مصروفاتك هذا الشهر",
+        emptyLabel: monthCount === 0 ? "لا مصروفات" : "غير متاح",
+      },
     },
     series: expensesSeries,
     actionHref: "/finance/expenses",

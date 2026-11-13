@@ -5,6 +5,7 @@ import DashboardWallet, { type WalletPocketItem } from "@/app/(app)/dashboard/da
 import { AppIcon } from "@/components/app-icon";
 import { FinEmptyState } from "@/components/finance/fin-empty-state";
 import { FinKpiStrip } from "@/components/finance/fin-kpi-strip";
+import { expensePaidRingPercent, expenseWaitingRingPercent } from "@/components/stat-ring-pill-model";
 import PantherSpotlightCard, {
   type PantherChartPoint,
   type PantherChartSeries,
@@ -102,6 +103,7 @@ export default async function ExpensesPage({
       categorySnapshot: expense.categorySnapshot,
       description: expense.description,
       amountFormatted: formatMoney(expense.amount),
+      amountCents: cents.toString(),
       status: expense.status,
       statusLabel: STATUS_LABEL[expense.status] ?? expense.status,
     };
@@ -141,6 +143,12 @@ export default async function ExpensesPage({
   }
 
   const monthPendingAndApprovedCents = monthPendingCents + monthApprovedCents;
+  // للعرض فقط: المعلق للاعتماد أو الصرف ÷ إجمالي مصروفات الشهر، من مجاميع القرش.
+  const monthWaitingRingPercent = expenseWaitingRingPercent({
+    expenseCount: monthCount,
+    totalCents: monthTotalCents,
+    waitingCents: monthPendingAndApprovedCents,
+  });
 
   const expensesSeries: PantherChartSeries[] = [];
   if (monthExpensesChrono.length === 0) {
@@ -384,6 +392,8 @@ export default async function ExpensesPage({
 
   const unpaidLedgerCents = pendingTotalCents + approvedTotalCents;
   const unpaidLedgerCount = pendingCount + approvedCount;
+  // للعرض فقط: نسبة المدفوع من إجمالي السجل المعروض، لا من الشهر ولا من عدد المصروفات.
+  const paidRingPercent = expensePaidRingPercent({ expenseCount: rows.length, totalCents, paidCents });
 
   const pocketItems: WalletPocketItem[] = [
     {
@@ -545,6 +555,11 @@ export default async function ExpensesPage({
                   ? `${monthUnpaidCount} مصروف بانتظار إجراء في الشهر الحالي`
                   : "0 معلقات · جميع مصروفات الشهر مسدّدة",
               tone: monthUnpaidCount > 0 ? "negative" : "positive",
+              ring: {
+                percent: monthWaitingRingPercent,
+                percentLabel: "نسبة المعلق للاعتماد أو الصرف من إجمالي مصروفات الشهر",
+                emptyLabel: monthCount === 0 ? "لا مصروفات" : "غير متاح",
+              },
             }}
             series={expensesSeries}
             actionHref={canCreateExpense ? "/finance/expenses/new" : undefined}
@@ -624,7 +639,12 @@ export default async function ExpensesPage({
                 <bdi dir="ltr">{displayMoney(paidCents)}</bdi> <small>ج.م</small>
               </>
             ),
-            sub: `عدد المصروفات المدفوعة: ${paidCount}`,
+            sub: `عدد المصروفات المدفوعة: ${paidCount} · ${rows.length === 0 ? "لا مصروفات في السجل" : "النسبة من إجمالي السجل"}`,
+            ring: {
+              percent: paidRingPercent,
+              percentLabel: "نسبة المدفوع فعليًا من إجمالي مصروفات السجل",
+              emptyLabel: rows.length === 0 ? "لا مصروفات" : "غير متاح",
+            },
           },
         ]}
       />

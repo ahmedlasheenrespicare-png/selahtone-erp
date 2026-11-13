@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useMemo, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { AppIcon } from "@/components/app-icon";
+import DataTable, { type DataTableColumn } from "@/components/data-table/data-table";
+import { useDataTable } from "@/components/data-table/use-data-table";
 import { downloadCsvFile } from "@/lib/csv-export";
 
 export type FinanceExpenseRow = {
@@ -13,6 +15,8 @@ export type FinanceExpenseRow = {
   categorySnapshot: string;
   description: string;
   amountFormatted: string;
+  /** المبلغ الفعّال بالقرش (نصًا) للفرز الرقمي؛ لا يغيّر المبلغ المعروض ولا المجاميع. */
+  amountCents: string;
   status: string;
   statusLabel: string;
 };
@@ -69,6 +73,67 @@ export default function FinanceExpensesView({
     });
   }, [rows, query, filter, branchFilter, categoryFilter]);
 
+  // أعمدة موحّدة: الفرز يعمل على القيم الخام (قرش/تاريخ/نص)، والعرض يبقى كما كان.
+  const columns: Array<DataTableColumn<FinanceExpenseRow>> = [
+    {
+      key: "expenseDate",
+      header: "التاريخ",
+      kind: "date",
+      initialDirection: "desc",
+      sortValue: (row) => row.expenseDate,
+      cell: (row) => <bdi dir="ltr">{row.expenseDate}</bdi>,
+    },
+    {
+      key: "branchName",
+      header: "الفرع",
+      sortValue: (row) => row.branchName,
+      cell: (row) => row.branchName,
+    },
+    {
+      key: "categorySnapshot",
+      header: "البند",
+      sortValue: (row) => row.categorySnapshot,
+      cell: (row) => <span className="fin-badge fin-badge--vault">{row.categorySnapshot}</span>,
+    },
+    {
+      key: "description",
+      header: "الوصف",
+      sortValue: (row) => row.description,
+      cell: (row) => row.description,
+    },
+    {
+      key: "amount",
+      header: "المبلغ",
+      kind: "cents",
+      initialDirection: "desc",
+      sortValue: (row) => row.amountCents,
+      cell: (row) => (
+        <span className="fin-money">
+          <bdi dir="ltr">{row.amountFormatted}</bdi> ج.م
+        </span>
+      ),
+    },
+    {
+      key: "status",
+      header: "الحالة",
+      sortValue: (row) => row.statusLabel,
+      cell: (row) => <span className={badgeClass(row.status)}>{row.statusLabel}</span>,
+    },
+    ...(canManage
+      ? [{
+          key: "action",
+          header: "إجراء",
+          cell: (row: FinanceExpenseRow) => (
+            <Link className="fin-button fin-button--text" href={`/finance/expenses/${row.id}`}>
+              <span>تفاصيل</span>
+            </Link>
+          ),
+        }]
+      : []),
+  ];
+
+  const table = useDataTable({ rows: filtered, columns, initialPageSize: 25, resetKey: [query, filter, branchFilter, categoryFilter].join("\u0000") });
+
   function badgeClass(status: string): string {
     if (status === "PENDING") return "fin-badge fin-badge--pending";
     if (status === "APPROVED") return "fin-badge fin-badge--approved";
@@ -94,7 +159,8 @@ export default function FinanceExpensesView({
     downloadCsvFile(
       `selahtone-expenses-${new Date().toISOString().slice(0, 10)}.csv`,
       ["رقم المصروف", "التاريخ", "الفرع", "البند", "الوصف", "المبلغ (ج.م)", "الحالة"],
-      filtered.map((r) => [
+      // التصدير يشمل كل النتائج المطابقة للتصفية بترتيب الفرز الظاهر، لا الصفحة المعروضة وحدها.
+      table.sortedRows.map((r) => [
         r.id,
         r.expenseDate,
         r.branchName,
@@ -244,51 +310,15 @@ export default function FinanceExpensesView({
         {filtered.length === 0 ? (
           <div className="fin-empty">لا توجد مصروفات تطابق معايير البحث أو التصفية الحالية.</div>
         ) : (
-          <div className="fin-table-wrap">
-            <table className="fin-table">
-              <caption>سجل المصروفات المعروض حسب حالة التصفية — المبلغ الفعّال بعد أي تصحيح</caption>
-              <thead>
-                <tr>
-                  <th scope="col">التاريخ</th>
-                  <th scope="col">الفرع</th>
-                  <th scope="col">البند</th>
-                  <th scope="col">الوصف</th>
-                  <th scope="col">المبلغ</th>
-                  <th scope="col">الحالة</th>
-                  {canManage ? <th scope="col">إجراء</th> : null}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((expense) => (
-                  <tr key={expense.id}>
-                    <td>
-                      <bdi dir="ltr">{expense.expenseDate}</bdi>
-                    </td>
-                    <td>{expense.branchName}</td>
-                    <td>
-                      <span className="fin-badge fin-badge--vault">{expense.categorySnapshot}</span>
-                    </td>
-                    <td>{expense.description}</td>
-                    <td>
-                      <span className="fin-money">
-                        <bdi dir="ltr">{expense.amountFormatted}</bdi> ج.م
-                      </span>
-                    </td>
-                    <td>
-                      <span className={badgeClass(expense.status)}>{expense.statusLabel}</span>
-                    </td>
-                    {canManage ? (
-                      <td>
-                        <Link className="fin-button fin-button--text" href={`/finance/expenses/${expense.id}`}>
-                          <span>تفاصيل</span>
-                        </Link>
-                      </td>
-                    ) : null}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            state={table}
+            columns={columns}
+            rowKey={(expense) => expense.id}
+            ariaLabel="سجل المصروفات"
+            caption="سجل المصروفات المعروض حسب حالة التصفية — المبلغ الفعّال بعد أي تصحيح"
+            wrapClassName="fin-table-wrap"
+            tableClassName="fin-table"
+          />
         )}
       </div>
     </>

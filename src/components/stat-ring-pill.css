@@ -1,0 +1,225 @@
+/*
+ * حلقة نسبة عرضية — إلهام بصري من zeeshan_2112/gentle-treefrog-69 (Uiverse, MIT).
+ * الإسناد الكامل: stat-ring-pill.LICENSE.txt. لا حركة مستمرة ولا اعتماد على WebGL.
+ * الألوان تأتي من توكنز .sales-suite الحالية، بما فيها إعادة ربط الوضع الليلي.
+ */
+
+.stat-ring-pill,
+.stat-ring-pill__ring-wrap {
+  --stat-ring-progress: var(--sl-primary-btn, #1e341e);
+  --stat-ring-track: var(--sl-border-strong, #b9cfb3);
+  --stat-ring-border: var(--sl-border, #d8e4d5);
+  --stat-ring-core: var(--sl-surface, #ffffff);
+  --stat-ring-ink: var(--sl-ink, #182b18);
+  --stat-ring-muted: var(--sl-muted, #465d46);
+}
+
+.stat-ring-pill {
+  perspective: 900px;
+  min-width: 0;
+}
+
+.stat-ring-pill__content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  width: 100%;
+  transform-style: preserve-3d;
+  transition: transform 180ms ease;
+}
+
+.stat-ring-pill__ring-wrap {
+  flex: none;
+  transform: translateZ(6px);
+  transition: transform 180ms ease;
+}
+
+.stat-ring-pill__ring {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 1px solid var(--stat-ring-border);
+  background: conic-gradient(
+    var(--stat-ring-progress) 0deg var(--ring-angle, 0deg),
+    var(--stat-ring-track) var(--ring-angle, 0deg) 360deg
+  );
+  box-shadow:
+    0 5px 10px -6px rgba(12, 34, 42, 0.45),
+    inset 0 1px 1px rgba(255, 255, 255, 0.35);
+}
+
+.stat-ring-pill__core {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  padding: 2px;
+  border-radius: 50%;
+  background: var(--stat-ring-core);
+  color: var(--stat-ring-ink);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  box-shadow: inset 0 1px 3px rgba(12, 34, 42, 0.14);
+}
+
+.stat-ring-pill__empty {
+  max-width: 42px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.stat-ring-pill[data-empty="true"] .stat-ring-pill__ring,
+.stat-ring-pill__ring-wrap[data-empty="true"] .stat-ring-pill__ring {
+  background: var(--stat-ring-track);
+}
+
+.stat-ring-pill__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  transform: translateZ(3px);
+}
+
+.stat-ring-pill__label {
+  color: var(--stat-ring-muted);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.stat-ring-pill__value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  color: var(--stat-ring-ink);
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-ring-pill__value bdi {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.stat-ring-pill__value small {
+  color: var(--stat-ring-muted);
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.stat-ring-pill__hint {
+  color: var(--stat-ring-muted);
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+/* عمق خفيف عند التأشير فقط، ولا يلمس بطاقات الجوار. */
+@media (hover: hover) and (pointer: fine) {
+  .stat-ring-pill:hover .stat-ring-pill__content {
+    transform: translateY(-1px) rotateX(2deg) rotateY(-2deg);
+  }
+}
+
+/* داخل بطاقات المالية: نفس الحلقة، لكن بألوان وتوكنز المالية لا المبيعات. */
+.finance-suite .stat-ring-pill__ring-wrap {
+  --stat-ring-progress: var(--fn-primary-btn, #1f3a1f);
+  --stat-ring-track: var(--fn-border-strong, #b9cfaf);
+  --stat-ring-border: var(--fn-border, #d5e3cf);
+  --stat-ring-core: var(--fn-surface, #ffffff);
+  --stat-ring-ink: var(--fn-ink, #152815);
+  --stat-ring-muted: var(--fn-muted, #455c45);
+}
+
+/* الوضع الليلي: الحلقة الفاتحة على سطح داكن، والمسار من توكنز الثيم نفسها. */
+.workspace-shell[data-color-mode="dark"] .stat-ring-pill,
+.workspace-shell[data-color-mode="dark"] .stat-ring-pill__ring-wrap {
+  --stat-ring-progress: var(--sl-accent, #9bd86a);
+  --stat-ring-track: var(--sl-border-strong, #38573c);
+}
+
+.workspace-shell[data-color-mode="dark"] .finance-suite .stat-ring-pill__ring-wrap {
+  --stat-ring-progress: var(--fn-accent, #9bd86a);
+  --stat-ring-track: var(--fn-border-strong, #38573c);
+  --stat-ring-border: var(--fn-border, #273e2a);
+}
+
+.workspace-shell[data-color-mode="dark"] .stat-ring-pill__ring {
+  box-shadow:
+    0 5px 10px -6px rgba(0, 0, 0, 0.7),
+    inset 0 1px 1px rgba(255, 255, 255, 0.12);
+}
+
+@media (max-width: 360px) {
+  .stat-ring-pill__content { gap: 10px; }
+  .stat-ring-pill__ring { width: 58px; height: 58px; }
+  .stat-ring-pill__core { width: 42px; height: 42px; font-size: 11px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stat-ring-pill,
+  .stat-ring-pill__content,
+  .stat-ring-pill__ring-wrap,
+  .stat-ring-pill__meta {
+    perspective: none;
+    transform: none !important;
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .stat-ring-pill__ring {
+    background: Canvas !important;
+    border: 2px solid CanvasText;
+    box-shadow: none;
+  }
+  .stat-ring-pill__core {
+    background: Canvas;
+    color: CanvasText;
+    box-shadow: none;
+  }
+}
+
+/* شكل ثابت ومقروء على الورق حتى لو تعطّلت طباعة الخلفيات: النسبة نصية دائمًا. */
+@media print {
+  .stat-ring-pill,
+  .stat-ring-pill__content,
+  .stat-ring-pill__ring-wrap,
+  .stat-ring-pill__meta {
+    perspective: none;
+    transform: none !important;
+    transition: none !important;
+    animation: none !important;
+    box-shadow: none !important;
+  }
+  .stat-ring-pill__ring {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+    background: conic-gradient(#111 0deg var(--ring-angle, 0deg), #ddd var(--ring-angle, 0deg) 360deg) !important;
+    border-color: #777;
+    box-shadow: none !important;
+  }
+  .stat-ring-pill[data-empty="true"] .stat-ring-pill__ring,
+  .stat-ring-pill__ring-wrap[data-empty="true"] .stat-ring-pill__ring { background: #ddd !important; }
+  .stat-ring-pill__core { background: #fff; color: #000; box-shadow: none; }
+  .stat-ring-pill__label,
+  .stat-ring-pill__value,
+  .stat-ring-pill__value small,
+  .stat-ring-pill__hint { color: #000; }
+}

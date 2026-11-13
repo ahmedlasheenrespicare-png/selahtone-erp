@@ -7,6 +7,7 @@ import PantherSpotlightCard, {
   type PantherChartSeries,
 } from "@/components/panther-spotlight-card";
 import PrintPageButton from "@/components/print-page-button";
+import { countShareRingPercent } from "@/components/stat-ring-pill-model";
 import { ROLE_LABELS, type AdminRole } from "@/lib/admin-directory";
 import { canSeeAllBranches, getSession } from "@/lib/auth";
 import { financeEnabled } from "@/lib/finance/db";
@@ -436,6 +437,20 @@ export default async function AdminPage() {
                   ? `${mustChangePwCount} حساب بانتظار تغيير كلمة المرور المؤقتة`
                   : "جميع الحسابات النشطة مستوفية لسياسة الأمان",
             tone: activeThrottlesCount > 0 ? "negative" : "positive",
+            // للعرض فقط: نفس مقام بطاقة المالية (الفروع النشطة)، وبسطها الفروع المغطاة بخزنة مفتوحة.
+            // بلا ملخص مالي متاح تبقى البطاقة بلا حلقة ولا تعرض تغطية مضللة.
+            ...(financeSummaryVisible
+              ? {
+                  ring: {
+                    percent: countShareRingPercent({
+                      partCount: vaultsReadyCount,
+                      totalCount: activeBranches.length,
+                    }),
+                    percentLabel: "نسبة الفروع النشطة المغطاة بخزنة مفتوحة من إجمالي الفروع النشطة",
+                    emptyLabel: activeBranches.length === 0 ? "لا فروع" : "غير متاح",
+                  },
+                }
+              : {}),
           }}
           series={spotlightSeries}
           actionHref="#admin-directory"

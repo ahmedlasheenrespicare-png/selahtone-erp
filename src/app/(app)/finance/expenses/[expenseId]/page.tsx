@@ -5,6 +5,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppIcon } from "@/components/app-icon";
 import PrintPageButton from "@/components/print-page-button";
+import { FinStepper } from "@/components/finance/fin-stepper";
+import type { FinStep } from "@/components/finance/fin-stepper-model";
 import { expenseReviewSnapshot } from "@/lib/finance/expense-review-snapshot";
 import { listAccounts, listExpenses } from "@/lib/finance/engine";
 import { cairoDate } from "@/lib/finance/validation";
@@ -137,62 +139,38 @@ export default async function ExpenseDetailPage({ params }: Props) {
         </div>
       </div>
 
-      <ol className="fin-stepper" aria-label="دورة حياة المصروف">
-        <li className="fin-stepper__step is-done">
-          <span className="fin-stepper__num">1</span>
-          <div className="fin-stepper__body">
-            <strong>تسجيل المصروف</strong>
-            <small>{userNames.get(expense.requestedBy) ?? "مُسجَّل"} · {expense.expenseDate}</small>
-          </div>
-        </li>
-        <li
-          className={`fin-stepper__step${
-            expense.status === "APPROVED" || expense.status === "PAID"
-              ? " is-done"
-              : " is-current"
-          }`}
-        >
-          <span className="fin-stepper__num">2</span>
-          <div className="fin-stepper__body">
-            <strong>اعتماد الإدارة</strong>
-            <small>
-              {expense.approvedBy
-                ? `اعتمد بواسطة ${userNames.get(expense.approvedBy) ?? expense.approvedBy}`
-                : "بانتظار الاعتماد"}
-            </small>
-          </div>
-        </li>
-        <li
-          className={`fin-stepper__step${
-            expense.status === "PAID"
-              ? " is-done"
-              : expense.status === "APPROVED"
-                ? " is-current"
-                : ""
-          }`}
-        >
-          <span className="fin-stepper__num">3</span>
-          <div className="fin-stepper__body">
-            <strong>الصرف الفعلي</strong>
-            <small>
-              {expense.status === "PAID"
-                ? `${payments.rows.length} سجل دفع`
-                : "بانتظار تسجيل الصرف"}
-            </small>
-          </div>
-        </li>
-        <li
-          className={`fin-stepper__step${
-            expense.status === "PAID" && payments.rows.length > 0 ? " is-done" : ""
-          }`}
-        >
-          <span className="fin-stepper__num">4</span>
-          <div className="fin-stepper__body">
-            <strong>التوثيق والمراجعة</strong>
-            <small>الإصدار #{expense.revision}</small>
-          </div>
-        </li>
-      </ol>
+      <FinStepper
+        className="fin-stepper--page"
+        label="دورة حياة المصروف"
+        steps={[
+          {
+            key: "register",
+            title: "تسجيل المصروف",
+            description: `${userNames.get(expense.requestedBy) ?? "مُسجَّل"} · ${expense.expenseDate}`,
+            status: "done",
+          },
+          {
+            key: "approve",
+            title: "اعتماد الإدارة",
+            description: expense.approvedBy
+              ? `اعتمد بواسطة ${userNames.get(expense.approvedBy) ?? expense.approvedBy}`
+              : "بانتظار الاعتماد",
+            status: expense.status === "APPROVED" || expense.status === "PAID" ? "done" : "current",
+          },
+          {
+            key: "pay",
+            title: "الصرف الفعلي",
+            description: expense.status === "PAID" ? `${payments.rows.length} سجل دفع` : "بانتظار تسجيل الصرف",
+            status: expense.status === "PAID" ? "done" : expense.status === "APPROVED" ? "current" : "pending",
+          },
+          {
+            key: "document",
+            title: "التوثيق والمراجعة",
+            description: `الإصدار #${expense.revision}`,
+            status: expense.status === "PAID" && payments.rows.length > 0 ? "done" : "pending",
+          },
+        ] satisfies FinStep[]}
+      />
 
       <div className="fin-panel">
         <div className="fin-panel__heading">

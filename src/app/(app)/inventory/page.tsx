@@ -1,5 +1,6 @@
 import Link from "next/link";
 import PantherSpotlightCard from "@/components/panther-spotlight-card";
+import { countShareRingPercent } from "@/components/stat-ring-pill-model";
 import { prisma } from "@/lib/prisma";
 import { requireSession, canSeeAllBranches } from "@/lib/auth";
 import { formatInventoryDecimal, scaledInteger, stockValueScaled } from "@/lib/inventory-math";
@@ -59,6 +60,11 @@ export default async function InventoryPage() {
   const stockableProducts = products.filter((p) => p.category !== "SERVICE");
   const inStockCount = stockableProducts.filter((p) => (stockByProduct.get(p.id.toString())?.qty ?? 0n) > 0n).length;
   const zeroStockCount = Math.max(0, stockableProducts.length - inStockCount);
+  // للعرض فقط: النواقص ÷ إجمالي الأصناف المخزنية، لا من كل الأصناف النشطة ولا من قيمة المخزون.
+  const zeroStockRingPercent = countShareRingPercent({
+    partCount: zeroStockCount,
+    totalCount: stockableProducts.length,
+  });
   const receiptActionHref = canCreateReceipt ? "/inventory/receipts/new" : access.isAllowed("/inventory/receipts") ? "/inventory/receipts" : undefined;
 
   const topStockItems = stockableProducts
@@ -194,6 +200,11 @@ export default async function InventoryPage() {
               ? "أصناف مخزنية تحتاج توريدًا أو رصيدًا افتتاحيًا"
               : "0 نواقص · كل الأصناف المخزنية متوفّرة",
           tone: zeroStockCount > 0 ? "negative" : "positive",
+          ring: {
+            percent: zeroStockRingPercent,
+            percentLabel: "نسبة نواقص المخزون من إجمالي الأصناف المخزنية النشطة",
+            emptyLabel: stockableProducts.length === 0 ? "لا أصناف" : "غير متاح",
+          },
         }}
         series={inventorySeries}
         actionHref={receiptActionHref}

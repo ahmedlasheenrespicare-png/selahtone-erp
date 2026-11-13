@@ -24,7 +24,8 @@ test('refund browser: blind balance, timing review and account changes', { timeo
   assert.ok(browserDir, 'Set SYNTHETIC_BROWSER_DIR to a separate installation containing playwright-core and @sparticuz/chromium');
   const external = createRequire(join(browserDir, 'package.json'));
   const { chromium } = external('playwright-core');
-  const chromiumBinary = external('@sparticuz/chromium');
+  const chromiumModule = external('@sparticuz/chromium');
+  const chromiumBinary = chromiumModule.default ?? chromiumModule;
   const dir = mkdtempSync(join(tmpdir(), 'selahtone-refund-browser-'));
   const password = 'Synthetic-Browser-Test-2026!';
   let child, browser; let logs = '';
@@ -58,7 +59,7 @@ test('refund browser: blind balance, timing review and account changes', { timeo
     assert.ok(ready, 'synthetic Next server did not start');
     // Lambda's bundled NSS libraries are required on minimal Linux images.
     // Extract only into this disposable test directory, not the repository.
-    const browserPackage = dirname(external.resolve('@sparticuz/chromium/package.json'));
+    const browserPackage = dirname(dirname(external.resolve('@sparticuz/chromium')));
     const archive = join(dir, 'browser-libs.tar');
     writeFileSync(archive, brotliDecompressSync(readFileSync(join(browserPackage, 'bin/al2023.tar.br'))));
     execFileSync('tar', ['-xf', archive, '-C', dir]);
