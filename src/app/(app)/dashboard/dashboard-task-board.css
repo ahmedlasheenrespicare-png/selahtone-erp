@@ -1,0 +1,75 @@
+.dashboard-task-board__notice {
+  margin: 0 0 12px;
+  color: var(--muted, #526174);
+  font-size: .84rem;
+  line-height: 1.6;
+}
+
+.dashboard-task-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  min-width: 0;
+}
+
+.dashboard-task-board__lane {
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid var(--line, #d8e0ea);
+  border-radius: 15px;
+  background: var(--surface-soft, #f6f8fb);
+}
+
+.dashboard-task-board__lane-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.dashboard-task-board__lane-head h4 { margin: 0; color: var(--ink, #172033); font-size: .9rem; font-weight: 800; }
+.dashboard-task-board__lane-head > span {
+  display: inline-grid;
+  min-width: 26px;
+  min-height: 26px;
+  place-items: center;
+  border-radius: 99px;
+  padding: 0 6px;
+  background: #e8edf5;
+  color: #263449;
+  font-size: .78rem;
+  font-weight: 800;
+}
+.dashboard-task-board__cards { display: grid; align-content: start; gap: 8px; }
+.dashboard-task-board__card {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 9px;
+  min-height: 58px;
+  border: 1px solid var(--line, #d8e0ea);
+  border-radius: 11px;
+  padding: 10px;
+  background: var(--surface, #fff);
+  color: var(--ink, #172033);
+  text-decoration: none;
+  font-size: .84rem;
+  font-weight: 650;
+  line-height: 1.55;
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+.dashboard-task-board__card:hover { border-color: #5374ad; box-shadow: 0 4px 14px rgb(25 45 75 / 9%); transform: translateY(-1px); }
+.dashboard-task-board__card:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 2px; }
+.dashboard-task-board__icon { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 9px; background: #e7eefc; color: #173f83; }
+.dashboard-task-board__icon.is-warning { background: #fff0d5; color: #704400; }
+.dashboard-task-board__arrow { width: 15px; height: 15px; color: #53657d; }
+.dashboard-task-board__empty { margin: 0; padding: 10px 4px; color: var(--muted, #526174); font-size: .8rem; line-height: 1.6; }
+
+@media (max-width: 760px) {
+  .dashboard-task-board { grid-template-columns: repeat(3, minmax(220px, 1fr)); overflow-x: auto; padding-bottom: 6px; overscroll-behavior-inline: contain; }
+}
+
+@media (max-width: 420px) {
+  .dashboard-task-board { grid-template-columns: repeat(3, minmax(205px, 1fr)); }
+}

@@ -12,7 +12,9 @@ import TodayInvoiceRail from "./today-invoice-rail";
 import PrintPageButton from "@/components/print-page-button";
 // عميلٌ لا خادم: فإنّ التمريرَ تفاعل، والصفحةُ نفسها تُبنى على الخادم.
 import DashboardSectionSwitcher from "./dashboard-section-switcher";
+import DashboardTaskBoard from "./dashboard-task-board";
 import DashboardWallet, { type WalletPocketItem } from "./dashboard-wallet";
+import "./dashboard-task-board.css";
 import MonthlySalesPanther from "./monthly-sales-panther";
 import "./dashboard-switcher.css";
 import { prisma } from "@/lib/prisma";
@@ -1478,33 +1480,16 @@ export default async function DashboardPage({
                 <span className="stat-card__badge">{taskSummaryAvailable ? `${nf.format(unifiedActions.length)} عنصر` : "—"}</span>
               </div>
               <div className="stat-card__body">
-                <div className="stat-grid">
-                  {!taskSummaryAvailable && unifiedActions.length > 0 ? (
-                    <div className="stat-grid__item is-note"><span className="stat-grid__label">{urgentTaskSub} الإجراءات أدناه ليست قائمة كاملة.</span></div>
-                  ) : null}
-                  {unifiedActions.length > 0 ? (
-                    unifiedActions.map((item) => (
-                      <Link className="stat-grid__item is-link" key={item.key} href={item.href}>
-                        <span className="stat-grid__label">
-                          <span
-                            className={`stat-grid__icon ${item.tone === "warning" ? "is-cyan" : "is-blue"}`}
-                            aria-hidden="true"
-                          >
-                            <AppIcon name={item.icon} />
-                          </span>
-                          {item.text}
-                        </span>
-                        <AppIcon className="stat-grid__arrow" name="arrow" />
-                      </Link>
-                    ))
-                  ) : (
-                    <div className="stat-grid__item is-note">
-                      <span className="stat-grid__label">
-                        {taskSummaryAvailable ? "لا توجد إجراءات متاحة للعرض هنا حاليًا؛ راجع السجلات المصرّح بها." : urgentTaskSub}
-                      </span>
-                    </div>
-                  )}
-                </div>
+                {!taskSummaryAvailable && unifiedActions.length > 0 ? (
+                  <p className="dashboard-task-board__notice">{urgentTaskSub} الإجراءات أدناه ليست قائمة كاملة.</p>
+                ) : null}
+                {unifiedActions.length > 0 ? (
+                  <DashboardTaskBoard actions={unifiedActions} />
+                ) : (
+                  <p className="dashboard-task-board__notice">
+                    {taskSummaryAvailable ? "لا توجد إجراءات متاحة للعرض هنا حاليًا؛ راجع السجلات المصرّح بها." : urgentTaskSub}
+                  </p>
+                )}
               </div>
             </article>
 

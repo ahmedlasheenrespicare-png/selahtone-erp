@@ -16,6 +16,7 @@ import { loadRefundAccounts } from "./refund-accounts";
 import { getAccessContext, requirePageAccess } from "@/lib/access-control-server";
 import { accessKeyAllowed, writeAllowedForKeys } from "@/lib/access-control";
 import { FinStepper } from "@/components/finance/fin-stepper";
+import RecordDetailTabs from "@/components/record-detail-tabs";
 import { invoiceLifecycleSteps } from "@/components/finance/fin-stepper-model";
 import { saleDetailLineColumns, type SaleDetailLineRow } from "./sale-lines-metadata";
 
@@ -131,27 +132,33 @@ export default async function SaleDetailPage({ params }: Props) {
       </div>
       <p className="sale-print-watermark">إيصال داخلي للمراجعة — ليس فاتورة ضريبية إلكترونية رسمية.</p>
       <div className="sale-detail-head"><div><h2 id="invoice-title">فاتورة ST-{sale.id.toString()}</h2><p>{dateFormatter.format(sale.createdAt)} · سجّلها {sale.createdBy.fullName}</p></div><span className={`sale-chip ${sale.cancelledAt ? "sale-chip--neutral" : hasReturns ? "sale-chip--warning" : "sale-chip--confirmed"}`}><span className="sale-chip__dot" aria-hidden="true" />{status}</span></div>
-      <dl className="sale-meta"><div><dt>العميل</dt><dd>{sale.customerName}</dd></div><div><dt>الهاتف</dt><dd><bdi dir="ltr">{sale.customerPhone}</bdi></dd></div><div><dt>الفرع</dt><dd>{sale.warehouse ? `${sale.branch.nameAr} — ${sale.warehouse.nameAr}` : sale.branch.nameAr}</dd></div></dl>
-      <DataTable
-        rows={lineRows}
-        columns={saleDetailLineColumns}
-        rowKey={(line) => line.id}
-        regionLabel="بنود الفاتورة"
-        regionClassName="inv-table-wrap table-wrap"
-        tableClassName="inv-table"
-      />
-      <div className="sale-grid" style={{ marginTop: 18 }}><div><h3>التحصيل والمرتجعات</h3><ul className="sale-ledger">
-        {sale.collections.map((entry) => <li key={`payment-${entry.id}`}><span>{entry.isInitial ? "الدفعة الأولى" : "تحصيل"} · {methodName(entry.method)} · {entry.createdBy.fullName} · {dateFormatter.format(entry.createdAt)}</span><strong>{displayMoney(cents(entry.amount))} ج.م</strong></li>)}
-        {sale.returns.map((entry) => <li key={`return-${entry.id}`}><span>{entry.isCancellation ? "إلغاء" : "مرتجع"} · {entry.createdBy.fullName} · {dateFormatter.format(entry.createdAt)}<br />{entry.lines.map((line) => `${line.saleLine.nameSnapshot} × ${line.quantity.toFixed(2)}${line.serials.length ? ` (${line.serials.map((s) => s.saleLineSerial.serial.serialNumber).join("، ")})` : ""}`).join(" · ")}</span><strong>−{displayMoney(entry.lines.reduce((sum, line) => sum + cents(line.total), 0n))} ج.م</strong></li>)}
-        {sale.refunds.map((entry) => <li key={`refund-${entry.id}`}><span>رد مسجل بعد الدفع · {methodName(entry.method)} · {entry.createdBy.fullName} · {dateFormatter.format(entry.createdAt)}</span><strong>{displayMoney(cents(entry.amount))} ج.م</strong></li>)}
-      </ul></div><dl className="sale-totals"><div><dt>قيمة الأصناف</dt><dd>{displayMoney(cents(sale.subtotal))} ج.م</dd></div><div><dt>الخصم</dt><dd>{displayMoney(cents(sale.discount))} ج.م</dd></div><div><dt>الضريبة ضمن السعر</dt><dd>{sale.taxTotal === null ? "غير محددة" : `${displayMoney(cents(sale.taxTotal))} ج.م`}</dd></div><div className="sale-totals__strong"><dt>إجمالي الفاتورة الأصلي</dt><dd>{displayMoney(original)} ج.م</dd></div><div><dt>قيمة المرتجعات</dt><dd>{displayMoney(returned)} ج.م</dd></div><div><dt>المحصّل</dt><dd>{displayMoney(collected)} ج.م</dd></div><div><dt>الرد المسجل بعد الدفع</dt><dd>{displayMoney(refunded)} ج.م</dd></div><div><dt>المتبقي على العميل</dt><dd>{displayMoney(balance.dueFromCustomerCents)} ج.م</dd></div><div><dt>مستحق للعميل ولم يُدفع بعد</dt><dd>{displayMoney(balance.dueToCustomerCents)} ج.م</dd></div></dl></div>
-      <p className="sale-note">المبلغ المستحق للعميل لا يُعد مدفوعًا حتى يُسجّل الرد بعد الدفع الفعلي. النظام لا ينفذ تحويلات مالية.</p>
+      <RecordDetailTabs label="أقسام الفاتورة" tabs={[
+        { id: "lines", label: "بنود الفاتورة", children: <>
+          <dl className="sale-meta"><div><dt>العميل</dt><dd>{sale.customerName}</dd></div><div><dt>الهاتف</dt><dd><bdi dir="ltr">{sale.customerPhone}</bdi></dd></div><div><dt>الفرع</dt><dd>{sale.warehouse ? `${sale.branch.nameAr} — ${sale.warehouse.nameAr}` : sale.branch.nameAr}</dd></div></dl>
+          <DataTable
+            rows={lineRows}
+            columns={saleDetailLineColumns}
+            rowKey={(line) => line.id}
+            regionLabel="بنود الفاتورة"
+            regionClassName="inv-table-wrap table-wrap"
+            tableClassName="inv-table"
+          />
+        </> },
+        { id: "activity", label: "الحركات والملخص", children: <>
+          <div className="sale-grid" style={{ marginTop: 18 }}><div><h3>التحصيل والمرتجعات</h3><ul className="sale-ledger">
+            {sale.collections.map((entry) => <li key={`payment-${entry.id}`}><span>{entry.isInitial ? "الدفعة الأولى" : "تحصيل"} · {methodName(entry.method)} · {entry.createdBy.fullName} · {dateFormatter.format(entry.createdAt)}</span><strong>{displayMoney(cents(entry.amount))} ج.م</strong></li>)}
+            {sale.returns.map((entry) => <li key={`return-${entry.id}`}><span>{entry.isCancellation ? "إلغاء" : "مرتجع"} · {entry.createdBy.fullName} · {dateFormatter.format(entry.createdAt)}<br />{entry.lines.map((line) => `${line.saleLine.nameSnapshot} × ${line.quantity.toFixed(2)}${line.serials.length ? ` (${line.serials.map((s) => s.saleLineSerial.serial.serialNumber).join("، ")})` : ""}`).join(" · ")}</span><strong>−{displayMoney(entry.lines.reduce((sum, line) => sum + cents(line.total), 0n))} ج.م</strong></li>)}
+            {sale.refunds.map((entry) => <li key={`refund-${entry.id}`}><span>رد مسجل بعد الدفع · {methodName(entry.method)} · {entry.createdBy.fullName} · {dateFormatter.format(entry.createdAt)}</span><strong>{displayMoney(cents(entry.amount))} ج.م</strong></li>)}
+          </ul></div><dl className="sale-totals"><div><dt>قيمة الأصناف</dt><dd>{displayMoney(cents(sale.subtotal))} ج.م</dd></div><div><dt>الخصم</dt><dd>{displayMoney(cents(sale.discount))} ج.م</dd></div><div><dt>الضريبة ضمن السعر</dt><dd>{sale.taxTotal === null ? "غير محددة" : `${displayMoney(cents(sale.taxTotal))} ج.م`}</dd></div><div className="sale-totals__strong"><dt>إجمالي الفاتورة الأصلي</dt><dd>{displayMoney(original)} ج.م</dd></div><div><dt>قيمة المرتجعات</dt><dd>{displayMoney(returned)} ج.م</dd></div><div><dt>المحصّل</dt><dd>{displayMoney(collected)} ج.م</dd></div><div><dt>الرد المسجل بعد الدفع</dt><dd>{displayMoney(refunded)} ج.م</dd></div><div><dt>المتبقي على العميل</dt><dd>{displayMoney(balance.dueFromCustomerCents)} ج.م</dd></div><div><dt>مستحق للعميل ولم يُدفع بعد</dt><dd>{displayMoney(balance.dueToCustomerCents)} ج.م</dd></div></dl></div>
+          <p className="sale-note">المبلغ المستحق للعميل لا يُعد مدفوعًا حتى يُسجّل الرد بعد الدفع الفعلي. النظام لا ينفذ تحويلات مالية.</p>
+        </> },
+        ...((session.role === "MANAGER" && (canReturn || canCancel)) || canCollect || canRefund ? [{ id: "actions", label: "إجراءات الفاتورة", children: <div className="sale-grid"><div className="sale-stack">
+          {session.role === "MANAGER" && (canReturn || canCancel) && <ReturnForm key={`${canReturn}-${canCancel}`} canReturn={canReturn} canCancel={canCancel} requestId={randomUUID()} saleId={id} lines={remainingLines} originalCents={original.toString()} returnedCents={returned.toString()} collectedCents={collected.toString()} refundedCents={refunded.toString()} unavailable={Boolean(sale.cancelledAt) || allReturned} />}
+        </div><div className="sale-stack">
+          {canCollect && <MovementForm mode="collect" saleId={id} requestId={randomUUID()} maximum={balance.dueFromCustomerCents.toString()} />}
+          {canRefund && <MovementForm mode="refund" saleId={id} requestId={randomUUID()} maximum={balance.dueToCustomerCents.toString()} accounts={cashAccounts} canViewBalances={canViewRefundBalances} financeEnabled={process.env.FINANCE_ENABLED === "true"} />}
+        </div></div> }] : []),
+      ]} />
     </article>
-    <div className="sale-grid"><div className="sale-stack">
-      {session.role === "MANAGER" && (canReturn || canCancel) && <ReturnForm key={`${canReturn}-${canCancel}`} canReturn={canReturn} canCancel={canCancel} requestId={randomUUID()} saleId={id} lines={remainingLines} originalCents={original.toString()} returnedCents={returned.toString()} collectedCents={collected.toString()} refundedCents={refunded.toString()} unavailable={Boolean(sale.cancelledAt) || allReturned} />}
-    </div><div className="sale-stack">
-      {canCollect && <MovementForm mode="collect" saleId={id} requestId={randomUUID()} maximum={balance.dueFromCustomerCents.toString()} />}
-      {canRefund && <MovementForm mode="refund" saleId={id} requestId={randomUUID()} maximum={balance.dueToCustomerCents.toString()} accounts={cashAccounts} canViewBalances={canViewRefundBalances} financeEnabled={process.env.FINANCE_ENABLED === "true"} />}
-    </div></div>
   </div>;
 }
